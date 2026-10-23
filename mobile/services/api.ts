@@ -18,6 +18,7 @@ export function getApiBaseUrl(): string {
   // Extract host from Expo Metro runtime if available
   const hostUri =
     Constants.expoConfig?.hostUri ||
+    (Constants as any).expoGoConfig?.debuggerHost ||
     (Constants as any).manifest2?.extra?.expoClient?.hostUri ||
     (Constants as any).manifest?.debuggerHost;
 
@@ -25,6 +26,15 @@ export function getApiBaseUrl(): string {
     const host = hostUri.split(':')[0];
     if (host && host !== 'localhost' && host !== '127.0.0.1') {
       return `http://${host}:${backendPort}/api/v1`;
+    }
+  }
+
+  // Check experienceUrl or linkingUri (e.g. exp://192.168.2.5:8081)
+  const expUrl = (Constants as any).experienceUrl || (Constants as any).linkingUri;
+  if (expUrl && typeof expUrl === 'string') {
+    const match = expUrl.match(/^[a-zA-Z]+:\/\/([^:/]+)/);
+    if (match && match[1] && match[1] !== 'localhost' && match[1] !== '127.0.0.1') {
+      return `http://${match[1]}:${backendPort}/api/v1`;
     }
   }
 

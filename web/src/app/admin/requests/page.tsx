@@ -1,0 +1,350 @@
+'use client';
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '@/components/auth/auth-provider';
+import { apiClient } from '@/lib/api-client';
+import type { StudentUpdateRequest, RequestStatus, RequestType } from '@/lib/types';
+import {
+  SearchIcon,
+  SpinnerIcon,
+  AlertIcon,
+  MapPinIcon,
+  StudentIcon,
+  CalendarIcon,
+  EyeIcon,
+} from '@/components/icons';
+import { RequestDetailModal } from './request-detail-modal';
+
+export default function AdminRequestsPage() {
+  const { user } = useAuth();
+  const isSystemAdmin = user?.role === 'SYSTEM_ADMIN';
+  const schoolId = user?.schoolId;
+
+  // Query state
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<RequestStatus | ''>('');
+  const [typeFilter, setTypeFilter] = useState<RequestType | ''>('');
+  const [page, setPage] = useState(1);
+  const limit = 10;
+
+  // Data state
+  const [requests, setRequests] = useState<StudentUpdateRequest[]>([]);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Modal state
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const fetchRequests = useCallback(async () => {
+    if (!user) return;
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      if (isSystemAdmin) {
+        const res = await apiClient.listSystemAdminRequests({
+          page,
+          limit,
+          status: statusFilter || undefined,
+          search: debouncedSearch.trim() || undefined,
+        });
+        setRequests(res.items);
+        setTotal(res.total);
+        setTotalPages(res.totalPages);
+      } else if (schoolId) {
+        const res = await apiClient.listSchoolRequests(schoolId, {
+          page,
+          limit,
+          status: statusFilter || undefined,
+          type: typeFilter || undefined,
+          search: debouncedSearch.trim() || undefined,
+        });
+        setRequests(res.items);
+        setTotal(res.total);
+        setTotalPages(res.totalPages);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Không thể tải danh sách yêu cầu cập nhật.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user, isSystemAdmin, schoolId, page, limit, statusFilter, typeFilter, debouncedSearch]);
+
+  useEffect(() => {
+    fetchRequests();
+  }, [fetchRequests]);
+
+  const handleOpenDetail = (id: string) => {
+    setSelectedRequestId(id);
+    setIsModalOpen(true);
+  };
+
+  const getStatusBadge = (status: RequestStatus) => {
+    switch (status) {
+      case 'PENDING':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+            Chờ duyệt
+          </span>
+        );
+      case 'APPROVED':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            Đã duyệt
+          </span>
+        );
+      case 'REJECTED':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+            Đã từ chối
+          </span>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const getTypeBadge = (type: RequestType) => {
+    if (type === 'ADDRESS_UPDATE') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+          <MapPinIcon className="w-3 h-3" />
+          Cập nhật địa chỉ
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+        <StudentIcon className="w-3 h-3" />
+        Cập nhật thông tin
+      </span>
+    );
+  };
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
+      {/* Page Title & Scope Notice */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">Quản lý yêu cầu cập nhật</h1>
+          <p className="text-xs text-slate-500 mt-1">
+            {isSystemAdmin
+              ? 'Xử lý các yêu cầu cập nhật địa chỉ đón trả học sinh trên toàn hệ thống'
+              : 'Xử lý yêu cầu thay đổi thông tin và địa chỉ đón trả của học sinh thuộc trường'}
+          </p>
+        </div>
+      </div>
+
+      {/* Filter and Search Bar */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row gap-3">
+        {/* Search */}
+        <div className="relative flex-1">
+          <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Tìm theo tên học sinh hoặc mã học sinh..."
+            className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-amber-400 bg-slate-50/50"
+          />
+        </div>
+
+        {/* Status Filter */}
+        <div className="w-full md:w-44">
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value as RequestStatus | '');
+              setPage(1);
+            }}
+            className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-amber-400 bg-slate-50/50 text-slate-700"
+          >
+            <option value="">Tất cả trạng thái</option>
+            <option value="PENDING">Chờ duyệt</option>
+            <option value="APPROVED">Đã duyệt</option>
+            <option value="REJECTED">Đã từ chối</option>
+          </select>
+        </div>
+
+        {/* Type Filter (School Admin only) */}
+        {!isSystemAdmin && (
+          <div className="w-full md:w-44">
+            <select
+              value={typeFilter}
+              onChange={(e) => {
+                setTypeFilter(e.target.value as RequestType | '');
+                setPage(1);
+              }}
+              className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-amber-400 bg-slate-50/50 text-slate-700"
+            >
+              <option value="">Tất cả loại yêu cầu</option>
+              <option value="INFORMATION_UPDATE">Cập nhật thông tin</option>
+              <option value="ADDRESS_UPDATE">Cập nhật địa chỉ</option>
+            </select>
+          </div>
+        )}
+      </div>
+
+      {/* Error alert */}
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs flex items-center gap-2">
+          <AlertIcon className="w-4 h-4 text-red-600 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* Requests Table */}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                <th className="p-3.5 pl-5">Học sinh</th>
+                <th className="p-3.5">Loại yêu cầu</th>
+                <th className="p-3.5">Trạng thái</th>
+                <th className="p-3.5">Ngày gửi</th>
+                <th className="p-3.5">Ngày xử lý</th>
+                <th className="p-3.5 pr-5 text-right">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {isLoading && (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-slate-400">
+                    <SpinnerIcon className="w-5 h-5 animate-spin mx-auto text-amber-500 mb-2" />
+                    <span>Đang tải danh sách yêu cầu...</span>
+                  </td>
+                </tr>
+              )}
+
+              {!isLoading && requests.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-slate-400">
+                    <CalendarIcon className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                    <span className="font-medium text-slate-600 block">Không có yêu cầu cập nhật nào</span>
+                    <span className="text-[11px] text-slate-400 mt-0.5 block">
+                      Các yêu cầu thay đổi từ phụ huynh sẽ được hiển thị tại đây.
+                    </span>
+                  </td>
+                </tr>
+              )}
+
+              {!isLoading &&
+                requests.map((req) => (
+                  <tr
+                    key={req.id}
+                    onClick={() => handleOpenDetail(req.id)}
+                    className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
+                  >
+                    <td className="p-3.5 pl-5">
+                      <div className="font-semibold text-slate-900 group-hover:text-amber-600 transition-colors">
+                        {req.studentName}
+                      </div>
+                      <div className="font-mono text-[11px] text-slate-400 mt-0.5">
+                        {req.studentCode}
+                      </div>
+                    </td>
+                    <td className="p-3.5">{getTypeBadge(req.type)}</td>
+                    <td className="p-3.5">{getStatusBadge(req.status)}</td>
+                    <td className="p-3.5 text-slate-600">
+                      {new Date(req.createdAt).toLocaleDateString('vi-VN', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </td>
+                    <td className="p-3.5 text-slate-500">
+                      {req.reviewedAt
+                        ? new Date(req.reviewedAt).toLocaleDateString('vi-VN', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '—'}
+                    </td>
+                    <td className="p-3.5 pr-5 text-right">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenDetail(req.id);
+                        }}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium transition-colors cursor-pointer"
+                      >
+                        <EyeIcon className="w-3.5 h-3.5" />
+                        <span>Xem chi tiết</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination Footer */}
+        {!isLoading && totalPages > 1 && (
+          <div className="p-3.5 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between text-xs text-slate-500">
+            <span>
+              Hiển thị {requests.length} trên tổng số {total} yêu cầu
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="px-3 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 transition-colors"
+              >
+                Trước
+              </button>
+              <span className="font-medium text-slate-700">
+                {page} / {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="px-3 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 transition-colors"
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Shared Detail Modal */}
+      {user && (
+        <RequestDetailModal
+          isOpen={isModalOpen}
+          requestId={selectedRequestId}
+          role={user.role}
+          schoolId={schoolId || undefined}
+          onClose={() => {
+            setIsModalOpen(false);
+            setSelectedRequestId(null);
+          }}
+          onActionSuccess={() => {
+            fetchRequests();
+          }}
+        />
+      )}
+    </div>
+  );
+}

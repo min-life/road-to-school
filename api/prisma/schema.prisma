@@ -15,3 +15,252 @@ model SystemHealth {
 
   @@map("system_health")
 }
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum Role {
+  SYSTEM_ADMIN
+  SCHOOL_ADMIN
+  DRIVER
+  BUS_ATTENDANT
+  PARENT
+}
+
+enum OtpPurpose {
+  PARENT_REGISTRATION
+  PASSWORD_RESET
+  PARENT_STUDENT_LINKING
+  STUDENT_UPDATE_REQUEST
+}
+
+enum StudentStatus {
+  AVAILABLE
+  DISABLED
+}
+
+enum DeliveryChannel {
+  EMAIL
+  SMS
+}
+
+enum RequestType {
+  INFORMATION_UPDATE
+  ADDRESS_UPDATE
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ==========================================
+// MODELS
+// ==========================================
+
+/// Bảng người dùng dùng chung cho toàn bộ 5 Roles
+model User {
+  id             String    @id @default(uuid())
+  email          String?   @unique
+  phone          String?   @unique
+  fullName       String    @map("full_name")
+  passwordHash   String    @map("password_hash")
+  role           Role
+  avatarUrl      String?   @map("avatar_url")
+  avatarPublicId String?   @map("avatar_public_id")
+  isVerified     Boolean   @default(true) @map("is_verified")
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  // School association
+  schoolId       String?   @map("school_id")
+  school         School?   @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+
+  // Relationships
+  sessions           Session[]
+  otpChallenges      OtpChallenge[]
+  parentStudentLinks ParentStudentLink[]
+  createdRequests    StudentUpdateRequest[] @relation("CreatedRequests")
+  reviewedRequests   StudentUpdateRequest[] @relation("ReviewedRequests")
+
+  @@index([schoolId])
+  @@map("users")
+}
+
+/// Bảng quản lý phiên đăng nhập đa thiết bị, thu hồi tức thì và xoay vòng toàn bộ Token Pair
+model Session {
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
+  refreshTokenHash String    @map("refresh_token_hash")
+  tokenVersion     Int       @default(1) @map("token_version")
+  deviceInfo       String?   @map("device_info")
+  ipAddress        String?   @map("ip_address")
+  expiresAt        DateTime  @map("expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@map("sessions")
+}
+
+/// Bảng quản lý thử thách OTP trực tiếp
+model OtpChallenge {
+  id          String          @id @default(uuid())
+  userId      String?         @map("user_id")
+  studentId   String?         @map("student_id")
+  identifier  String
+  channel     DeliveryChannel
+  purpose     OtpPurpose
+  otpHash     String          @map("otp_hash")
+  payloadHash String?         @map("payload_hash")
+  attempts    Int             @default(0)
+  expiresAt   DateTime        @map("expires_at")
+  consumedAt  DateTime?       @map("consumed_at")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  user    User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  student Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([identifier, purpose])
+  @@index([expiresAt])
+  @@index([studentId])
+  @@map("otp_challenges")
+}
+
+/// Bảng quản lý thông tin trường học đối tác
+model School {
+  id                String    @id @default(uuid())
+  name              String
+  addressText       String    @map("address_text")
+  latitude          Float
+  longitude         Float
+  imageUrl          String?   @map("image_url")
+  imagePublicId     String?   @map("image_public_id")
+  contractStartDate DateTime  @map("contract_start_date") @db.Date
+  contractEndDate   DateTime  @map("contract_end_date") @db.Date
+  weeklySchedule    Json      @map("weekly_schedule")
+  isActive          Boolean   @default(true) @map("is_active")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  // Quan hệ
+  users             User[]
+  students          Student[]
+  updateRequests    StudentUpdateRequest[]
+
+  @@index([name])
+  @@index([isActive])
+  @@map("schools")
+}
+
+/// Bảng quản lý hồ sơ học sinh
+model Student {
+  id              String         @id @default(uuid())
+  code            String         @unique
+  schoolId        String         @map("school_id")
+  fullName        String         @map("full_name")
+  guardianPhone   String         @map("guardian_phone")
+  avatarUrl       String?        @map("avatar_url")
+  avatarPublicId  String?        @map("avatar_public_id")
+  addressText     String?        @map("address_text")
+  latitude        Float?
+  longitude       Float?
+  status          StudentStatus  @default(AVAILABLE)
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  // Quan hệ
+  school          School                 @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  parentLinks     ParentStudentLink[]
+  otpChallenges   OtpChallenge[]
+  updateRequests  StudentUpdateRequest[]
+
+  @@index([schoolId])
+  @@index([status])
+  @@index([fullName])
+  @@map("students")
+}
+
+/// Bảng liên kết Phụ huynh - Học sinh (N-N)
+model ParentStudentLink {
+  id         String    @id @default(uuid())
+  parentId   String    @map("parent_id")
+  studentId  String    @map("student_id")
+  linkedAt   DateTime  @default(now()) @map("linked_at")
+
+  // Quan hệ
+  parent     User      @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  student    Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([parentId, studentId])
+  @@index([parentId])
+  @@index([studentId])
+  @@map("parent_student_links")
+}
+
+/// Bảng quản lý phương tiện vận tải
+model Vehicle {
+  id              String   @id @default(uuid())
+  brand           String   @db.VarChar(100)
+  seatCount       Int      @map("seat_count")
+  licensePlate    String   @unique @map("license_plate") @db.VarChar(20)
+  normalizedPlate String   @unique @map("normalized_plate") @db.VarChar(20)
+  color           String   @db.VarChar(50)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([brand])
+  @@map("vehicles")
+}
+
+/// Bảng lưu trữ cấu hình hệ thống tập trung (Vị trí bãi đỗ xe trung tâm)
+model SystemSetting {
+  id          String   @id @default("default")
+  key         String   @unique @db.VarChar(50)
+  value       Json     @map("value")
+  updatedById String?  @map("updated_by_id")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("system_settings")
+}
+
+/// Bảng quản lý yêu cầu cập nhật thông tin / địa chỉ học sinh từ phụ huynh
+model StudentUpdateRequest {
+  id              String        @id @default(uuid())
+  studentId       String        @map("student_id")
+  parentId        String        @map("parent_id")
+  schoolId        String        @map("school_id")
+  type            RequestType
+  status          RequestStatus @default(PENDING)
+  beforeData      Json          @map("before_data")
+  proposedData    Json          @map("proposed_data")
+  rejectionReason String?       @map("rejection_reason") @db.VarChar(500)
+  reviewedById    String?       @map("reviewed_by_id")
+  reviewedAt      DateTime?     @map("reviewed_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  // Quan hệ
+  student         Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  parent          User          @relation("CreatedRequests", fields: [parentId], references: [id], onDelete: Restrict)
+  school          School        @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  reviewedBy      User?         @relation("ReviewedRequests", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([schoolId, status])
+  @@index([studentId, status])
+  @@index([parentId, status])
+  @@index([type, status])
+  @@index([createdAt])
+  @@map("student_update_requests")
+}

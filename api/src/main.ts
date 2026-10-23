@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { ValidationPipe, Logger, BadRequestException } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
 
@@ -13,12 +13,23 @@ async function bootstrap() {
   // Global prefix for all API endpoints
   app.setGlobalPrefix('api/v1');
 
-  // Global validation pipe
+  // Global validation pipe with Vietnamese error formatting
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       transform: true,
       forbidNonWhitelisted: true,
+      exceptionFactory: (validationErrors = []) => {
+        const messages = validationErrors.flatMap((error) =>
+          error.constraints ? Object.values(error.constraints) : ['Dữ liệu không hợp lệ'],
+        );
+        return new BadRequestException({
+          statusCode: 400,
+          code: 'VALIDATION_ERROR',
+          message: messages[0] || 'Dữ liệu đầu vào không hợp lệ',
+          errors: messages,
+        });
+      },
     }),
   );
 
@@ -32,9 +43,22 @@ async function bootstrap() {
   // Swagger OpenAPI documentation
   const swaggerConfig = new DocumentBuilder()
     .setTitle('RoadToSchool API')
-    .setDescription('RoadToSchool Backend REST API - Foundation Phase 0')
+    .setDescription('Tài liệu giao diện lập trình ứng dụng (REST API) hệ thống RoadToSchool')
     .setVersion('1.0')
-    .addTag('Health')
+    .addTag('Authentication', 'Các API xác thực, đăng nhập, đăng ký và quản lý phiên người dùng')
+    .addTag('Schools', 'Các API quản lý thông tin và trạng thái hoạt động của trường học đối tác')
+    .addTag('Health', 'Kiểm tra trạng thái hệ thống và cơ sở dữ liệu')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'JWT',
+        description: 'Nhập Access Token JWT',
+        in: 'header',
+      },
+      'JWT-auth',
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);

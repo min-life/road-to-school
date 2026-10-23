@@ -10,14 +10,29 @@ import {
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors } from '@/constants/theme';
 import { checkBackendHealth, getApiBaseUrl, HealthResponse } from '@/services/api';
+import { useAuth } from '@/context/auth-context';
 
 type ConnectionState = 'idle' | 'loading' | 'connected' | 'error';
 
 export default function HomeScreen() {
+  const { user } = useAuth();
   const [connectionState, setConnectionState] = useState<ConnectionState>('loading');
   const [healthData, setHealthData] = useState<HealthResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [apiUrl, setApiUrl] = useState<string>('');
+
+  let roleLabel = 'Người dùng';
+  switch (user?.role) {
+    case 'DRIVER':
+      roleLabel = 'Tài xế';
+      break;
+    case 'BUS_ATTENDANT':
+      roleLabel = 'Giáo viên';
+      break;
+    case 'PARENT':
+      roleLabel = 'Phụ huynh học sinh';
+      break;
+  }
 
   const runHealthCheck = useCallback(async () => {
     setConnectionState('loading');
@@ -41,15 +56,31 @@ export default function HomeScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Header Banner */}
+      {/* Header Banner with Authenticated Role */}
       <View style={styles.heroCard}>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>Phase 0 Foundation</Text>
-        </View>
-        <Text style={styles.title}>RoadToSchool Mobile</Text>
-        <Text style={styles.subtitle}>
-          Hệ thống giám sát và quản lý xe đưa đón học sinh.
-        </Text>
+        {user ? (
+          <>
+            <View style={[styles.badge, { backgroundColor: colors.primary }]}>
+              <Text style={[styles.badgeText, { color: colors.foreground, fontWeight: '700' }]}>
+                {roleLabel}
+              </Text>
+            </View>
+            <Text style={styles.title}>Chào mừng, {user.fullName}!</Text>
+            <Text style={styles.subtitle}>
+              Hệ thống giám sát và quản lý xe đưa đón học sinh RoadToSchool.
+            </Text>
+          </>
+        ) : (
+          <>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>Phase 1 Authentication</Text>
+            </View>
+            <Text style={styles.title}>RoadToSchool Mobile</Text>
+            <Text style={styles.subtitle}>
+              Hệ thống giám sát và quản lý xe đưa đón học sinh.
+            </Text>
+          </>
+        )}
       </View>
 
       {/* Backend Connectivity Test Card */}
