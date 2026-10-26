@@ -1,0 +1,544 @@
+diff --git a/api/src/trips/trips.service.ts b/api/src/trips/trips.service.ts
+--- a/api/src/trips/trips.service.ts
++++ b/api/src/trips/trips.service.ts
+@@ -992,6 +992,7 @@
+       const sDate = formatDateToVnYmd(new Date(pt.serviceDate));
+       const hasPendingStaff = (pt.leaveNotices || []).length > 0;
+       const canReportLeave =
++        !hasPendingStaff &&
+         pt.status === TripStatus.SCHEDULED &&
+         !pt.actualStartTime &&
+         (pt.direction !== RouteDirection.TO_PARKING || !pt.attendantReadyAt);
+@@ -1082,6 +1083,7 @@
+       const sDate = formatDateToVnYmd(new Date(pt.serviceDate));
+       const hasPendingStaff = (pt.leaveNotices || []).length > 0;
+       const canReportLeave =
++        !hasPendingStaff &&
+         pt.status === TripStatus.SCHEDULED &&
+         !pt.actualStartTime &&
+         (pt.direction !== RouteDirection.TO_PARKING || !pt.attendantReadyAt);
+@@ -1171,11 +1173,11 @@
+         assignedDriver: { select: { fullName: true } },
+         assignedBusAttendant: { select: { fullName: true } },
+         leaveNotices: {
+-          where: {
+-            status: LeaveNoticeStatus.PENDING_REPLACEMENT,
+-            kind: { in: [LeaveNoticeKind.DRIVER, LeaveNoticeKind.BUS_ATTENDANT] },
+-          },
+-          select: { id: true },
++          select: { id: true, studentId: true, status: true, kind: true },
++        },
++        attendances: {
++          where: { studentId },
++          select: { status: true, alightedAt: true },
+         },
+         route: {
+           select: {
+@@ -1190,8 +1192,24 @@
+     const mobileTrips: MobileTripItemDto[] = trips.map((t) => {
+       const studentIds = new Set(t.route.stops.map((s) => s.studentId).filter(Boolean));
+       const sDate = formatDateToVnYmd(new Date(t.serviceDate));
+-      const hasPendingStaff = (t.leaveNotices || []).length > 0;
+-      const canReportLeave =
++      const hasPendingStaff = (t.leaveNotices || []).some(
++        (ln) =>
++          ln.status === LeaveNoticeStatus.PENDING_REPLACEMENT &&
++          (ln.kind === LeaveNoticeKind.DRIVER || ln.kind === LeaveNoticeKind.BUS_ATTENDANT),
++      );
++      const activeStudentNotice = (t.leaveNotices || []).some(
++        (ln) =>
++          ln.studentId === studentId &&
++          (ln.status === LeaveNoticeStatus.RECORDED || ln.status === LeaveNoticeStatus.PENDING_REPLACEMENT),
++      );
++      const myAtt = t.attendances?.[0];
++      const isBoardedOrAlighted = myAtt
++        ? myAtt.status === AttendanceStatus.PRESENT || Boolean(myAtt.alightedAt)
++        : false;
++
++      const canReportLeave =
++        !activeStudentNotice &&
++        !isBoardedOrAlighted &&
+         t.status === TripStatus.SCHEDULED &&
+         !t.actualStartTime &&
+         (t.direction !== RouteDirection.TO_PARKING || !t.attendantReadyAt);
+
+diff --git a/web/src/app/admin/leave-notices/page.tsx b/web/src/app/admin/leave-notices/page.tsx
+--- a/web/src/app/admin/leave-notices/page.tsx
++++ b/web/src/app/admin/leave-notices/page.tsx
+@@ -88,14 +88,32 @@
+   // Tab switching resets status and page
+   const handleTabChange = (kind: LeaveNoticeKind) => {
+     setActiveTab(kind);
++    setStatusFilter('ALL');
+     setPage(1);
+   };
+ 
+-  const renderStatusBadge = (status: LeaveNoticeStatus) => {
+-    switch (status) {
++  const renderStatusBadge = (notice: LeaveNoticeItem) => {
++    if (notice.kind === 'STUDENT') {
++      if (notice.status === 'RECORDED') {
++        return (
++          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
++            Đã nhận
++          </span>
++        );
++      }
++      if (notice.status === 'WITHDRAWN') {
++        return (
++          <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
++            Đã hủy
++          </span>
++        );
++      }
++    }
++
++    switch (notice.status) {
+       case 'PENDING_REPLACEMENT':
+         return (
+           <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1.5">
+@@ -146,9 +164,6 @@
+             <span>Báo nghỉ</span>
+           </h1>
+-          <p className="text-xs text-slate-500 mt-1">
+-            Theo dõi và xử lý báo nghỉ của học sinh, tài xế và giáo viên phụ xe
+-          </p>
+         </div>
+       </div>
+@@ -204,40 +219,66 @@
+-      {/* Filters Bar */}
+-      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-4">
+-        {/* Status Filters */}
+-        <div className="flex flex-wrap items-center gap-2">
+-          {[...chips...]}
+-        </div>
+-        {/* Date and Direction Filters */}
++      {/* Filter Toolbar */}
++      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-3">
++        <div className="flex flex-wrap items-center gap-3 text-xs">
++          {/* Status Dropdown */}
++          <div className="flex items-center gap-1.5">
++            <span className="text-slate-500 font-semibold">Trạng thái:</span>
++            <select
++              value={statusFilter}
++              onChange={(e) => {
++                setStatusFilter(e.target.value);
++                setPage(1);
++              }}
++              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#FFCB56] cursor-pointer font-medium"
++            >
++              {isStudentTab ? (
++                <>
++                  <option value="ALL">Tất cả trạng thái</option>
++                  <option value="RECORDED">Đã nhận</option>
++                  <option value="WITHDRAWN">Đã hủy</option>
++                </>
++              ) : (
++                <>
++                  <option value="ALL">Tất cả trạng thái</option>
++                  <option value="PENDING_REPLACEMENT">Chờ phân công</option>
++                  <option value="RECORDED">Đã ghi nhận</option>
++                  <option value="REPLACED">Đã bố trí</option>
++                  <option value="WITHDRAWN">Đã hủy</option>
++                  <option value="TRIP_CANCELLED">Chuyến đã hủy</option>
++                </>
++              )}
++            </select>
++          </div>
++          {/* Datepicker */}
++          <div className="flex items-center gap-1.5">
++            <span className="text-slate-500 font-semibold">Ngày:</span>
++            <input
++              type="date"
++              value={dateFilter}
++              onChange={(e) => {
++                setDateFilter(e.target.value);
++                setPage(1);
++              }}
++              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#FFCB56]"
++            />
++          </div>
++          {/* Direction Dropdown */}
++          <div className="flex items-center gap-1.5">
++            <span className="text-slate-500 font-semibold">Chiều:</span>
++            <select
++              value={directionFilter}
++              onChange={(e) => {
++                setDirectionFilter(e.target.value);
++                setPage(1);
++              }}
++              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#FFCB56] cursor-pointer font-medium"
++            >
++              <option value="ALL">Tất cả chiều</option>
++              <option value="TO_SCHOOL">Chiều đi (đến trường)</option>
++              <option value="TO_PARKING">Chiều về (về nhà)</option>
++            </select>
++          </div>
++          {/* Reset Filters Button */}
++          {hasActiveFilters && (
++            <button
++              type="button"
++              onClick={() => {
++                setStatusFilter('ALL');
++                setDateFilter('');
++                setDirectionFilter('ALL');
++                setPage(1);
++              }}
++              className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors font-semibold text-xs cursor-pointer"
++            >
++              Đặt lại
++            </button>
++          )}
++        </div>
++      </div>
+@@ -280,12 +321,16 @@
+               <tr>
+                 <th scope="col" className="px-5 py-3.5">
+-                  Đối tượng / Người báo
++                  {isStudentTab ? 'Học sinh / Người báo' : 'Đối tượng / Người báo'}
+                 </th>
+                 <th scope="col" className="px-5 py-3.5">
+                   Chuyến xe
+                 </th>
+                 <th scope="col" className="px-5 py-3.5">
+                   Ngày & Giờ
+                 </th>
+                 <th scope="col" className="px-5 py-3.5">
+                   Trạng thái
+                 </th>
+-                <th scope="col" className="px-5 py-3.5">
+-                  Bố trí thay thế
+-                </th>
+-                <th scope="col" className="px-5 py-3.5 text-right">
+-                  Thao tác
+-                </th>
++                {!isStudentTab && (
++                  <>
++                    <th scope="col" className="px-5 py-3.5">
++                      Bố trí thay thế
++                    </th>
++                    <th scope="col" className="px-5 py-3.5 text-right">
++                      Thao tác
++                    </th>
++                  </>
++                )}
+               </tr>
+@@ -301,5 +346,5 @@
+                 <tr>
+-                  <td colSpan={6} className="px-5 py-12 text-center text-slate-400">
++                  <td colSpan={isStudentTab ? 4 : 6} className="px-5 py-12 text-center text-slate-400">
+@@ -372,41 +417,45 @@
+-                      <td className="px-5 py-3.5 whitespace-nowrap">
+-                        {renderStatusBadge(notice.status)}
+-                      </td>
++                      <td className="px-5 py-3.5 whitespace-nowrap">
++                        {renderStatusBadge(notice)}
++                      </td>
+-                      <td className="px-5 py-3.5">...replacement...</td>
+-                      <td className="px-5 py-3.5 text-right whitespace-nowrap">...action...</td>
++                      {!isStudentTab && (
++                        <>
++                          <td className="px-5 py-3.5">...replacement...</td>
++                          <td className="px-5 py-3.5 text-right whitespace-nowrap">...action...</td>
++                        </>
++                      )}
+
+diff --git a/mobile/hooks/use-quick-leave-notice.ts b/mobile/hooks/use-quick-leave-notice.ts
+new file mode 100644
+--- /dev/null
++++ b/mobile/hooks/use-quick-leave-notice.ts
+@@ -0,0 +1,93 @@
++import { useState, useCallback } from 'react';
++import { Alert } from 'react-native';
++import { useRouter } from 'expo-router';
++import { mobileApiClient } from '@/services/api-client';
++
++export interface TriggerQuickLeaveNoticeParams {
++  tripId: string;
++  studentId?: string;
++  subjectName: string;
++  routeName: string;
++  serviceDate: string;
++  direction: 'TO_SCHOOL' | 'TO_PARKING';
++  onSuccess?: () => void;
++}
++
++export function useQuickLeaveNotice() {
++  const router = useRouter();
++  const [requestingTripId, setRequestingTripId] = useState<string | null>(null);
++
++  const isRequesting = (tripId?: string): boolean => {
++    if (!tripId) return requestingTripId !== null;
++    return requestingTripId === tripId;
++  };
++
++  const triggerQuickLeaveNotice = useCallback(
++    ({
++      tripId,
++      studentId,
++      subjectName,
++      routeName,
++      serviceDate,
++      direction,
++      onSuccess,
++    }: TriggerQuickLeaveNoticeParams) => {
++      if (requestingTripId) return;
++      const directionText =
++        direction === 'TO_SCHOOL' ? 'Chiều đi (Đến trường)' : 'Chiều về (Về nhà)';
++
++      Alert.alert(
++        'Báo nghỉ chuyến này?',
++        `${subjectName} · ${serviceDate} · ${directionText} · ${routeName}\n\nHệ thống sẽ gửi mã xác thực OTP để hoàn tất báo nghỉ.`,
++        [
++          { text: 'Đóng', style: 'cancel' },
++          {
++            text: 'Xác nhận',
++            onPress: async () => {
++              if (requestingTripId) return;
++              try {
++                setRequestingTripId(tripId);
++                const res = await mobileApiClient.requestLeaveNoticeOtp({
++                  tripId,
++                  studentId: studentId || undefined,
++                });
++                if (onSuccess) onSuccess();
++                router.push({
++                  pathname: '/leave-notices/otp',
++                  params: {
++                    challengeId: res.challengeId,
++                    maskedChannels: JSON.stringify(res.maskedChannels || []),
++                    expiresInSeconds: String(res.expiresInSeconds || 300),
++                    tripId,
++                    studentId: studentId || '',
++                    subjectName,
++                    routeName,
++                    serviceDate,
++                    direction,
++                  },
++                } as any);
++              } catch (err: any) {
++                Alert.alert(
++                  'Không thể gửi mã OTP',
++                  err?.message || 'Có lỗi xảy ra khi yêu cầu mã xác thực. Vui lòng thử lại.'
++                );
++              } finally {
++                setRequestingTripId(null);
++              }
++            },
++          },
++        ]
++      );
++    },
++    [requestingTripId, router]
++  );
++
++  return {
++    triggerQuickLeaveNotice,
++    isRequesting,
++    requestingTripId,
++  };
++}
+
+diff --git a/mobile/app/parent/schedule.tsx b/mobile/app/parent/schedule.tsx
+--- a/mobile/app/parent/schedule.tsx
++++ b/mobile/app/parent/schedule.tsx
+@@ -20,6 +20,7 @@
+ import { mobileApiClient, MobileScheduleItem } from '@/services/api-client';
++import { useQuickLeaveNotice } from '@/hooks/use-quick-leave-notice';
+...
++  const { triggerQuickLeaveNotice, isRequesting } = useQuickLeaveNotice();
+...
++                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
++                    {trip.canReportLeave && !trip.isVirtual && (
++                      <TouchableOpacity
++                        style={styles.leaveNoticeBtn}
++                        disabled={isRequesting(trip.id)}
++                        onPress={(e) => {
++                          e.stopPropagation?.();
++                          triggerQuickLeaveNotice({
++                            tripId: trip.id,
++                            studentId,
++                            subjectName: studentName,
++                            routeName: trip.routeName,
++                            serviceDate: trip.serviceDate,
++                            direction: trip.direction,
++                            onSuccess: () => loadSchedule(),
++                          });
++                        }}
++                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
++                      >
++                        {isRequesting(trip.id) ? (
++                          <ActivityIndicator size="small" color="#D97706" />
++                        ) : (
++                          <>
++                            <Ionicons name="calendar-outline" size={13} color="#D97706" />
++                            <Text style={styles.leaveNoticeBtnText}>Báo nghỉ</Text>
++                          </>
++                        )}
++                      </TouchableOpacity>
++                    )}
++                    {isClickable ? (
++                      <View style={styles.actionLink}>
++                        <Text style={styles.actionText}>Xem lộ trình</Text>
++                        <Ionicons name="chevron-forward" size={14} color="#2563EB" />
++                      </View>
++                    ) : (
++                      <Text style={styles.virtualNotice}>Chưa tạo chuyến</Text>
++                    )}
++                  </View>
+
+diff --git a/mobile/app/(tabs)/index.tsx b/mobile/app/(tabs)/index.tsx
+--- a/mobile/app/(tabs)/index.tsx
++++ b/mobile/app/(tabs)/index.tsx
+@@ -14,6 +14,7 @@
+ import { colors } from '@/constants/theme';
+ import { useAuth } from '@/context/auth-context';
++import { useQuickLeaveNotice } from '@/hooks/use-quick-leave-notice';
+...
++  const { triggerQuickLeaveNotice, isRequesting } = useQuickLeaveNotice();
+...
+-              {homeTrip.canReportLeave && (
+-                <TouchableOpacity
+-                  style={styles.leaveNoticeCardBtn}
+-                  onPress={() =>
+-                    router.push({
+-                      pathname: '/leave-notices/create',
+-                      params: { tripId: homeTrip.id },
+-                    } as any)
+-                  }
++              {homeTrip.canReportLeave && (
++                <TouchableOpacity
++                  style={styles.leaveNoticeCardBtn}
++                  disabled={isRequesting(homeTrip.id)}
++                  onPress={() =>
++                    triggerQuickLeaveNotice({
++                      tripId: homeTrip.id,
++                      subjectName: user?.fullName || 'Nhân sự',
++                      routeName: homeTrip.routeName,
++                      serviceDate: homeTrip.serviceDate,
++                      direction: homeTrip.direction,
++                      onSuccess: () => loadHomeData(),
++                    })
++                  }
+...
+-                    {card.canReportLeave && (
+-                      <TouchableOpacity
+-                        style={styles.leaveNoticeCardBtn}
+-                        onPress={() =>
+-                          router.push({
+-                            pathname: '/leave-notices/create',
+-                            params: { tripId: card.tripId, studentId: card.studentId },
+-                          } as any)
+-                        }
++                    {card.canReportLeave && (
++                      <TouchableOpacity
++                        style={styles.leaveNoticeCardBtn}
++                        disabled={isRequesting(card.tripId)}
++                        onPress={() =>
++                          triggerQuickLeaveNotice({
++                            tripId: card.tripId,
+                            studentId: card.studentId,
+                            subjectName: card.studentName,
+                            routeName: card.routeName,
+                            serviceDate: card.serviceDate,
+                            direction: card.direction,
+                            onSuccess: () => loadHomeData(),
+                          })
+                        }
+
+diff --git a/mobile/app/(tabs)/schedule.tsx b/mobile/app/(tabs)/schedule.tsx
+--- a/mobile/app/(tabs)/schedule.tsx
++++ b/mobile/app/(tabs)/schedule.tsx
+@@ -17,6 +17,7 @@
+ import { colors } from '@/constants/theme';
+ import { useAuth } from '@/context/auth-context';
+ import { mobileApiClient, MobileScheduleItem } from '@/services/api-client';
++import { useQuickLeaveNotice } from '@/hooks/use-quick-leave-notice';
+...
++  const { triggerQuickLeaveNotice, isRequesting } = useQuickLeaveNotice();
+...
+-                    {trip.canReportLeave && !trip.isVirtual && (
+-                      <TouchableOpacity
+-                        style={styles.leaveNoticeBtn}
+-                        onPress={() => {
+-                          router.push({
+-                            pathname: '/leave-notices/create',
+-                            params: { tripId: trip.id },
+-                          } as any);
+-                        }}
++                    {trip.canReportLeave && !trip.isVirtual && (
++                      <TouchableOpacity
++                        style={styles.leaveNoticeBtn}
++                        disabled={isRequesting(trip.id)}
++                        onPress={(e) => {
++                          e.stopPropagation?.();
++                          triggerQuickLeaveNotice({
++                            tripId: trip.id,
++                            subjectName: user?.fullName || 'Nhân sự',
++                            routeName: trip.routeName,
++                            serviceDate: trip.serviceDate,
++                            direction: trip.direction,
++                            onSuccess: () => loadSchedule(),
++                          });
++                        }}
+
+diff --git a/mobile/app/leave-notices/index.tsx b/mobile/app/leave-notices/index.tsx
+--- a/mobile/app/leave-notices/index.tsx
++++ b/mobile/app/leave-notices/index.tsx
+@@ -101,8 +101,25 @@
+-  const renderStatusBadge = (status: LeaveNoticeStatus) => {
++  const renderStatusBadge = (noticeItem: LeaveNoticeItemDto) => {
++    if (noticeItem.kind === 'STUDENT') {
++      if (noticeItem.status === 'RECORDED') {
++        return (
++          <View style={[styles.badge, { backgroundColor: '#DCFCE7' }]}>
++            <Text style={[styles.badgeText, { color: '#15803D' }]}>Đã nhận</Text>
++          </View>
++        );
++      }
++      if (noticeItem.status === 'WITHDRAWN') {
++        return (
++          <View style={[styles.badge, { backgroundColor: '#F1F5F9' }]}>
++            <Text style={[styles.badgeText, { color: '#64748B' }]}>Đã hủy</Text>
++          </View>
++        );
++      }
++    }
+...
+-      {/* Student Filter Chips (Parent only) */}
+-      {isParent && students.length > 0 && (
+-        <View style={styles.chipsRow}>...chips...</View>
+-      )}
+-      {/* Status Filter Row */}
++      {/* Status Filter Row: restricted for Parent to [ALL, RECORDED, WITHDRAWN] */}
+
+diff --git a/mobile/app/leave-notices/[id].tsx b/mobile/app/leave-notices/[id].tsx
+--- a/mobile/app/leave-notices/[id].tsx
++++ b/mobile/app/leave-notices/[id].tsx
+@@ -71,7 +71,24 @@
+-  const renderStatusBadge = (status: LeaveNoticeStatus) => {
++  const renderStatusBadge = (status: LeaveNoticeStatus, kind?: string) => {
++    if (kind === 'STUDENT') {
++      if (status === 'RECORDED') {
++        return (
++          <View style={[styles.badge, { backgroundColor: '#DCFCE7' }]}>
++            <Text style={[styles.badgeText, { color: '#15803D' }]}>Đã nhận</Text>
++          </View>
++        );
++      }
++      if (status === 'WITHDRAWN') {
++        return (
++          <View style={[styles.badge, { backgroundColor: '#F1F5F9' }]}>
++            <Text style={[styles.badgeText, { color: '#64748B' }]}>Đã hủy</Text>
++          </View>
++        );
++      }
++    }
+
+diff --git a/mobile/app/leave-notices/create.tsx b/mobile/app/leave-notices/create.tsx
+--- a/mobile/app/leave-notices/create.tsx
++++ b/mobile/app/leave-notices/create.tsx
+- Replace student chips with dropdown modal picker (fixed student when params.studentId present).
+- Replace 3-day restriction buttons with Month Calendar Modal datepicker using pure React Native primitives.
+- Format serviceDate dd/MM/yyyy and YYYY-MM-DD in Vietnam timezone (Asia/Ho_Chi_Minh).
+- Reset selectedTripId on student/date/direction change and cancel stale options responses.

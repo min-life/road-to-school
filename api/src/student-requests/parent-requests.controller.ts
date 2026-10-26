@@ -180,4 +180,27 @@ export class ParentRequestsController {
       requestId,
     );
   }
+
+  @Post('update-requests/:requestId/cancel')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Phụ huynh hủy yêu cầu cập nhật đang chờ duyệt (PENDING)',
+    description:
+      'Cho phép phụ huynh đã tạo yêu cầu hủy khi còn ở trạng thái PENDING. Không yêu cầu mã OTP.',
+  })
+  @ApiParam({
+    name: 'requestId',
+    description: 'Mã định danh yêu cầu cập nhật (UUID)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Hủy yêu cầu thành công',
+    type: StudentUpdateRequestDto,
+  })
+  async cancelRequest(
+    @CurrentUser() user: User,
+    @Param('requestId', ParseUUIDPipe) requestId: string,
+  ): Promise<StudentUpdateRequestDto> {
+    return this.studentRequestsService.cancelParentRequest(user.id, requestId);
+  }
 }

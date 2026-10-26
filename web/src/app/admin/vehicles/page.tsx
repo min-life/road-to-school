@@ -5,6 +5,7 @@ import { useAuth } from '@/components/auth/auth-provider';
 import { apiClient } from '@/lib/api-client';
 import { Vehicle } from '@/lib/types';
 import { AddVehicleModal } from '@/components/admin/vehicles/add-vehicle-modal';
+import { PaginationControl } from '@/components/admin/common/pagination-control';
 import {
   VehicleIcon,
   SpinnerIcon,
@@ -19,6 +20,7 @@ export default function VehiclesPage() {
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -45,7 +47,7 @@ export default function VehiclesPage() {
     try {
       const data = await apiClient.listVehicles({
         page,
-        limit: 10,
+        limit,
         search: debouncedSearch,
       });
       setVehicles(data.items || []);
@@ -56,7 +58,7 @@ export default function VehiclesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user, page, debouncedSearch]);
+  }, [user, page, limit, debouncedSearch]);
 
   useEffect(() => {
     fetchVehicles();
@@ -212,31 +214,18 @@ export default function VehiclesPage() {
         </div>
 
         {/* Pagination Footer */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-slate-50/60">
-            <span className="text-xs text-slate-500">
-              Trang <strong className="text-slate-800">{page}</strong> / {totalPages}
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1 || isLoading}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-              >
-                Trước
-              </button>
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages || isLoading}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-              >
-                Tiếp theo
-              </button>
-            </div>
-          </div>
-        )}
+        <PaginationControl
+          page={page}
+          totalPages={totalPages}
+          total={totalItems}
+          limit={limit}
+          loading={isLoading}
+          onPageChange={(newPage) => setPage(newPage)}
+          onLimitChange={(newLimit) => {
+            setLimit(newLimit);
+            setPage(1);
+          }}
+        />
       </div>
 
       {/* Add Vehicle Modal */}

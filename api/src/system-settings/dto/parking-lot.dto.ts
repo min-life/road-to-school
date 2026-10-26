@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsNumber, Min, Max } from 'class-validator';
+import { IsNotEmpty, IsString, IsNumber, IsOptional, Min, Max } from 'class-validator';
 
 export class UpdateParkingLotDto {
   @ApiProperty({
@@ -33,6 +33,57 @@ export class UpdateParkingLotDto {
   @Min(-180, { message: 'Kinh độ không được nhỏ hơn -180' })
   @Max(180, { message: 'Kinh độ không được lớn hơn 180' })
   longitude: number;
+
+  @ApiProperty({ description: 'Lý do thay đổi vị trí bãi xe (tùy chọn)', required: false })
+  @IsOptional()
+  @IsString({ message: 'Lý do phải là chuỗi ký tự' })
+  reason?: string;
+
+  @ApiProperty({ description: 'Fingerprint kỳ vọng chống xung đột (tùy chọn)', required: false })
+  @IsOptional()
+  @IsString({ message: 'Fingerprint phải là chuỗi ký tự' })
+  expectedFingerprint?: string;
+}
+
+export class ParkingLotImpactDto {
+  @ApiProperty({ description: 'Địa chỉ hiện tại của bãi xe' })
+  currentAddressText: string;
+
+  @ApiProperty({ description: 'Vĩ độ hiện tại' })
+  currentLatitude: number;
+
+  @ApiProperty({ description: 'Kinh độ hiện tại' })
+  currentLongitude: number;
+
+  @ApiProperty({ description: 'Tọa độ có bị thay đổi không', required: false })
+  hasCoordinateChanged?: boolean;
+
+  @ApiProperty({ description: 'Tổng số phương án tuyến DRAFT toàn hệ thống sẽ bị hủy' })
+  totalDraftPlansCount: number;
+
+  @ApiProperty({ description: 'Tổng số phương án tuyến ACTIVE toàn hệ thống sẽ bị hủy' })
+  totalActivePlansCount: number;
+
+  @ApiProperty({ description: 'Tổng số phương án tuyến sẽ bị hủy (DRAFT + ACTIVE)', required: false })
+  cancelledPlansCount?: number;
+
+  @ApiProperty({ description: 'Tổng số chuyến xe SCHEDULED toàn hệ thống sẽ bị hủy' })
+  totalScheduledTripsCount: number;
+
+  @ApiProperty({ description: 'Tổng số chuyến xe SCHEDULED toàn hệ thống sẽ bị hủy (alias)', required: false })
+  cancelledTripsCount?: number;
+
+  @ApiProperty({ description: 'Tổng số chuyến xe IN_PROGRESS toàn hệ thống được bảo lưu' })
+  totalInProgressTripsCount: number;
+
+  @ApiProperty({ description: 'Tổng số chuyến xe IN_PROGRESS toàn hệ thống được bảo lưu (alias)', required: false })
+  inProgressTripsPreservedCount?: number;
+
+  @ApiProperty({ description: 'Fingerprint trạng thái hiện tại' })
+  expectedFingerprint: string;
+
+  @ApiProperty({ description: 'Fingerprint trạng thái hiện tại (alias)', required: false })
+  fingerprint?: string;
 }
 
 export class ParkingLotResponseDto {

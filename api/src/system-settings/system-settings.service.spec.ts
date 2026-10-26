@@ -8,9 +8,21 @@ describe('SystemSettingsService - Parking Lot Management', () => {
 
   beforeEach(() => {
     mockPrisma = {
+      $transaction: vi.fn(async (cb) => cb(mockPrisma)),
       systemSetting: {
-        findUnique: vi.fn(),
+        findUnique: vi.fn().mockResolvedValue(null),
         upsert: vi.fn(),
+      },
+      routePlan: {
+        findMany: vi.fn().mockResolvedValue([]),
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+      trip: {
+        findMany: vi.fn().mockResolvedValue([]),
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+      leaveNotice: {
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
       },
     };
     service = new SystemSettingsService(mockPrisma);

@@ -52,6 +52,12 @@ describe('StudentRequestsService - Comprehensive Lifecycle & Concurrency', () =>
         create: vi.fn(),
         update: vi.fn(),
       },
+      routeStop: {
+        findMany: vi.fn().mockResolvedValue([]),
+        findFirst: vi.fn().mockResolvedValue(null),
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
       $transaction: vi.fn((callback) => callback(mockPrisma)),
     };
 
@@ -60,7 +66,16 @@ describe('StudentRequestsService - Comprehensive Lifecycle & Concurrency', () =>
       verifyAndConsumeStudentUpdateRequestChallenge: vi.fn(),
     };
 
-    service = new StudentRequestsService(mockPrisma, mockOtpService);
+    const mockVietmapVRP = {
+      calculateRoute: vi.fn().mockResolvedValue({
+        status: 'FEASIBLE',
+        geometry: 'mock_polyline',
+        distanceMeters: 5000,
+        durationSeconds: 600,
+      }),
+    };
+
+    service = new StudentRequestsService(mockPrisma, mockOtpService, mockVietmapVRP as any);
   });
 
   describe('hashProposedPayload Canonicalization (Section 1.8 & 4.5)', () => {

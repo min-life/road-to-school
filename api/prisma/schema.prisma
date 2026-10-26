@@ -33,6 +33,7 @@ enum OtpPurpose {
   PASSWORD_RESET
   PARENT_STUDENT_LINKING
   STUDENT_UPDATE_REQUEST
+  LEAVE_NOTICE
 }
 
 enum StudentStatus {
@@ -54,6 +55,55 @@ enum RequestStatus {
   PENDING
   APPROVED
   REJECTED
+  CANCELLED
+}
+
+enum RoutePlanStatus {
+  DRAFT
+  ACTIVE
+  CANCELLED
+  EXPIRED
+}
+
+enum TripStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum RouteDirection {
+  TO_SCHOOL
+  TO_PARKING
+}
+
+enum RouteStopType {
+  PARKING_START
+  PICKUP
+  SCHOOL_ARRIVAL
+  SCHOOL_DEPARTURE
+  DROPOFF
+  PARKING_END
+}
+
+enum AttendanceStatus {
+  UNMARKED
+  PRESENT
+  ABSENT
+}
+
+enum LeaveNoticeKind {
+  STUDENT
+  DRIVER
+  BUS_ATTENDANT
+}
+
+enum LeaveNoticeStatus {
+  RECORDED
+  PENDING_REPLACEMENT
+  REPLACED
+  WITHDRAWN
+  TRIP_CANCELLED
 }
 
 // ==========================================
@@ -85,6 +135,19 @@ model User {
   parentStudentLinks ParentStudentLink[]
   createdRequests    StudentUpdateRequest[] @relation("CreatedRequests")
   reviewedRequests   StudentUpdateRequest[] @relation("ReviewedRequests")
+  createdRoutePlans  RoutePlan[]            @relation("RoutePlanCreator")
+  cancelledRoutePlans RoutePlan[]           @relation("RoutePlanCanceller")
+  approvedRoutePlans RoutePlan[]            @relation("RoutePlanApprover")
+  defaultDriverRoutes Route[]               @relation("RouteDefaultDriver")
+  defaultBusAttendantRoutes Route[]         @relation("RouteDefaultBusAttendant")
+  assignedDriverTrips Trip[]                @relation("TripDriver")
+  assignedBusAttendantTrips Trip[]          @relation("TripBusAttendant")
+  markedTripAttendances TripAttendance[]    @relation("AttendanceMarker")
+  cancelledTrips        Trip[]              @relation("TripCanceller")
+  reportedLeaveNotices  LeaveNotice[]       @relation("ReportedLeaveNotices")
+  replacementLeaveNotices LeaveNotice[]     @relation("ReplacementLeaveNotices")
+  processedLeaveNotices LeaveNotice[]       @relation("ProcessedLeaveNotices")
+  cancelledLeaveNotices LeaveNotice[]       @relation("CancelledLeaveNotices")
 
   @@index([schoolId])
   @@map("users")
@@ -131,6 +194,7 @@ model OtpChallenge {
   // Relations
   user    User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   student Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  leaveNotice LeaveNotice?
 
   @@index([identifier, purpose])
   @@index([expiresAt])
@@ -158,6 +222,9 @@ model School {
   users             User[]
   students          Student[]
   updateRequests    StudentUpdateRequest[]
+  routePlans        RoutePlan[]
+  routes            Route[]
+  trips             Trip[]
 
   @@index([name])
   @@index([isActive])
@@ -185,6 +252,9 @@ model Student {
   parentLinks     ParentStudentLink[]
   otpChallenges   OtpChallenge[]
   updateRequests  StudentUpdateRequest[]
+  routeStops      RouteStop[]
+  tripAttendances TripAttendance[]
+  leaveNotices    LeaveNotice[]
 
   @@index([schoolId])
   @@index([status])
@@ -220,6 +290,10 @@ model Vehicle {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
+  // Quan hệ
+  proposedRoutes  Route[]
+  assignedTrips   Trip[]
+
   @@index([brand])
   @@map("vehicles")
 }
@@ -245,6 +319,7 @@ model StudentUpdateRequest {
   status          RequestStatus @default(PENDING)
   beforeData      Json          @map("before_data")
   proposedData    Json          @map("proposed_data")
+  resolution      Json?         @map("resolution")
   rejectionReason String?       @map("rejection_reason") @db.VarChar(500)
   reviewedById    String?       @map("reviewed_by_id")
   reviewedAt      DateTime?     @map("reviewed_at")
@@ -263,4 +338,217 @@ model StudentUpdateRequest {
   @@index([type, status])
   @@index([createdAt])
   @@map("student_update_requests")
+}
+
+/// Bảng quản lý phương án tuyến tổng thể của trường học
+model RoutePlan {
+  id                  String          @id @default(uuid())
+  schoolId            String          @map("school_id")
+  name                String          @db.VarChar(255)
+  status              RoutePlanStatus @default(DRAFT)
+  scheduleScope       Json            @map("schedule_scope")
+  routingConstraints  Json            @map("routing_constraints")
+  totalStudents       Int             @default(0) @map("total_students")
+  totalOutboundRoutes Int             @default(0) @map("total_outbound_routes")
+  totalReturnRoutes   Int             @default(0) @map("total_return_routes")
+  createdById         String          @map("created_by_id")
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
+  cancelledAt         DateTime?       @map("cancelled_at")
+  cancelledById       String?         @map("cancelled_by_id")
+  cancellationReason  String?         @map("cancellation_reason") @db.VarChar(500)
+  activatedAt         DateTime?       @map("activated_at")
+  approvedById        String?         @map("approved_by_id")
+
+  // Quan hệ
+  school      School   @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  createdBy   User     @relation("RoutePlanCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  cancelledBy User?    @relation("RoutePlanCanceller", fields: [cancelledById], references: [id], onDelete: SetNull)
+  approvedBy  User?    @relation("RoutePlanApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  routes      Route[]
+
+  @@index([schoolId, status])
+  @@index([status, createdAt])
+  @@map("route_plans")
+}
+
+/// Bảng quản lý tuyến đường một chiều (TO_SCHOOL hoặc TO_PARKING)
+model Route {
+  id                       String         @id @default(uuid())
+  routePlanId              String         @map("route_plan_id")
+  schoolId                 String         @map("school_id")
+  name                     String         @db.VarChar(255)
+  direction                RouteDirection
+  proposedVehicleId        String?        @map("proposed_vehicle_id")
+  defaultDriverId          String?        @map("default_driver_id")
+  defaultBusAttendantId    String?        @map("default_bus_attendant_id")
+  totalDistanceMeters      Int            @default(0) @map("total_distance_meters")
+  estimatedDurationSeconds Int            @default(0) @map("estimated_duration_seconds")
+  departureTime            String?        @map("departure_time") @db.VarChar(10)
+  arrivalTime              String?        @map("arrival_time") @db.VarChar(10)
+  polylineGeometry         String         @map("polyline_geometry") @db.Text
+  routingConstraints       Json?          @map("routing_constraints")
+  createdAt                DateTime       @default(now()) @map("created_at")
+  updatedAt                DateTime       @updatedAt @map("updated_at")
+
+  // Quan hệ
+  routePlan            RoutePlan   @relation(fields: [routePlanId], references: [id], onDelete: Cascade)
+  school               School      @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  proposedVehicle      Vehicle?    @relation(fields: [proposedVehicleId], references: [id], onDelete: SetNull)
+  defaultDriver        User?       @relation("RouteDefaultDriver", fields: [defaultDriverId], references: [id], onDelete: SetNull)
+  defaultBusAttendant  User?       @relation("RouteDefaultBusAttendant", fields: [defaultBusAttendantId], references: [id], onDelete: SetNull)
+  stops                RouteStop[]
+  trips                Trip[]
+
+  @@index([routePlanId, direction])
+  @@index([schoolId, direction])
+  @@index([proposedVehicleId])
+  @@index([defaultDriverId])
+  @@index([defaultBusAttendantId])
+  @@map("routes")
+}
+
+/// Bảng quản lý điểm dừng và thứ tự đón/trả trên tuyến
+model RouteStop {
+  id                    String        @id @default(uuid())
+  routeId               String        @map("route_id")
+  stopOrder             Int           @map("stop_order")
+  stopType              RouteStopType @map("stop_type")
+  studentId             String?       @map("student_id")
+  addressText           String        @map("address_text")
+  latitude              Float
+  longitude             Float
+  plannedArrivalSeconds Int?          @map("planned_arrival_seconds")
+  plannedArrivalTime   String?       @map("planned_arrival_time") @db.VarChar(10)
+  createdAt             DateTime      @default(now()) @map("created_at")
+
+  // Quan hệ
+  route   Route    @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  student Student? @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  @@index([routeId, stopOrder])
+  @@index([studentId])
+  @@map("route_stops")
+}
+
+/// Bảng quản lý chuyến xe thực tế theo ngày
+model Trip {
+  id                     String         @id @default(uuid())
+  routeId                String         @map("route_id")
+  schoolId               String         @map("school_id")
+  serviceDate            DateTime       @map("service_date") @db.Date
+  direction              RouteDirection
+  status                 TripStatus     @default(SCHEDULED)
+  scheduledStartAt       DateTime?      @map("scheduled_start_at")
+  scheduledEndAt         DateTime?      @map("scheduled_end_at")
+  scheduledStartTime     String?        @map("scheduled_start_time") @db.VarChar(10)
+  scheduledEndTime       String?        @map("scheduled_end_time") @db.VarChar(10)
+  actualStartTime        DateTime?      @map("actual_start_time")
+  actualEndTime          DateTime?      @map("actual_end_time")
+  attendantReadyAt       DateTime?      @map("attendant_ready_at")
+  arrivedAtSchoolAt      DateTime?      @map("arrived_at_school_at")
+  assignedVehicleId      String         @map("assigned_vehicle_id")
+  assignedDriverId       String         @map("assigned_driver_id")
+  assignedBusAttendantId String         @map("assigned_bus_attendant_id")
+  cancellationReason     String?        @map("cancellation_reason") @db.VarChar(500)
+  cancelledAt            DateTime?      @map("cancelled_at")
+  cancelledById          String?        @map("cancelled_by_id")
+  navigationState        Json?          @map("navigation_state")
+  routeSnapshot          Json?          @map("route_snapshot")
+  createdAt              DateTime       @default(now()) @map("created_at")
+  updatedAt              DateTime       @updatedAt @map("updated_at")
+
+  // Quan hệ
+  route                  Route          @relation(fields: [routeId], references: [id], onDelete: Restrict)
+  school                 School         @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  assignedVehicle        Vehicle        @relation(fields: [assignedVehicleId], references: [id], onDelete: Restrict)
+  assignedDriver         User           @relation("TripDriver", fields: [assignedDriverId], references: [id], onDelete: Restrict)
+  assignedBusAttendant   User           @relation("TripBusAttendant", fields: [assignedBusAttendantId], references: [id], onDelete: Restrict)
+  cancelledBy            User?          @relation("TripCanceller", fields: [cancelledById], references: [id], onDelete: SetNull)
+  attendances            TripAttendance[]
+  locationPoints         TripLocationPoint[]
+  leaveNotices           LeaveNotice[]
+
+  @@unique([routeId, serviceDate])
+  @@index([schoolId, serviceDate])
+  @@index([assignedDriverId, serviceDate])
+  @@index([assignedBusAttendantId, serviceDate])
+  @@index([assignedVehicleId, serviceDate])
+  @@index([status, serviceDate])
+  @@map("trips")
+}
+
+/// Sparse recorded positions; no synthetic backfill and no source discriminator.
+model TripLocationPoint {
+  tripId     String   @map("trip_id")
+  sequence   Int
+  latitude   Float
+  longitude  Float
+  recordedAt DateTime @default(now()) @map("recorded_at")
+  runId      String   @map("run_id")
+  trip       Trip     @relation(fields: [tripId], references: [id], onDelete: Restrict)
+
+  @@id([tripId, sequence])
+  @@map("trip_location_points")
+}
+
+/// Bảng quản lý danh sách học sinh (Roster) và trạng thái điểm danh theo từng chuyến xe thực tế
+model TripAttendance {
+  id            String           @id @default(uuid())
+  tripId        String           @map("trip_id")
+  studentId     String           @map("student_id")
+  status        AttendanceStatus @default(UNMARKED)
+  absenceReason String?          @map("absence_reason") @db.VarChar(500)
+  markedById    String?          @map("marked_by_id")
+  markedAt      DateTime?        @map("marked_at")
+  alightedAt    DateTime?        @map("alighted_at")
+  excludedAt    DateTime?        @map("excluded_at")
+  exclusionReason String?        @map("exclusion_reason") @db.VarChar(500)
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  // Quan hệ
+  trip          Trip             @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  student       Student          @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  markedBy      User?            @relation("AttendanceMarker", fields: [markedById], references: [id], onDelete: SetNull)
+
+  @@unique([tripId, studentId])
+  @@index([tripId, status])
+  @@index([studentId, status])
+  @@index([markedById])
+  @@map("trip_attendances")
+}
+
+/// Bảng quản lý báo nghỉ học sinh, tài xế và giáo viên phụ xe
+model LeaveNotice {
+  id                String            @id @default(uuid())
+  tripId            String            @map("trip_id")
+  kind              LeaveNoticeKind
+  reportedById      String            @map("reported_by_id")
+  studentId         String?           @map("student_id")
+  otpChallengeId    String            @unique @map("otp_challenge_id")
+  status            LeaveNoticeStatus @default(RECORDED)
+  replacementUserId String?           @map("replacement_user_id")
+  processedById     String?           @map("processed_by_id")
+  processedAt       DateTime?         @map("processed_at")
+  attendanceBefore  Json?             @map("attendance_before")
+  cancelledAt       DateTime?         @map("cancelled_at")
+  cancelledById     String?           @map("cancelled_by_id")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  // Quan hệ
+  trip              Trip              @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  reportedBy        User              @relation("ReportedLeaveNotices", fields: [reportedById], references: [id], onDelete: Restrict)
+  student           Student?          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  otpChallenge      OtpChallenge      @relation(fields: [otpChallengeId], references: [id], onDelete: Restrict)
+  replacementUser   User?             @relation("ReplacementLeaveNotices", fields: [replacementUserId], references: [id], onDelete: SetNull)
+  processedBy       User?             @relation("ProcessedLeaveNotices", fields: [processedById], references: [id], onDelete: SetNull)
+  cancelledBy       User?             @relation("CancelledLeaveNotices", fields: [cancelledById], references: [id], onDelete: SetNull)
+
+  @@index([tripId, status])
+  @@index([studentId, status])
+  @@index([reportedById, status])
+  @@index([status, createdAt])
+  @@map("leave_notices")
 }

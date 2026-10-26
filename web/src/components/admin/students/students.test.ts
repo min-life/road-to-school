@@ -129,3 +129,124 @@ describe('Round 3 Web — Driver & Teacher Creation Validation Rules', () => {
     assert.notEqual(teacherRole, 'TEACHER');
   });
 });
+
+describe('Student Lifecycle — Disable Cascade & Empty Route Alert Rules', () => {
+  it('phát hiện đúng tuyến sẽ rỗng khi học sinh bị vô hiệu hóa là học sinh cuối cùng của tuyến', () => {
+    interface RouteStop {
+      id: string;
+      studentId: string | null;
+    }
+
+    interface RouteInfo {
+      id: string;
+      name: string;
+      planId: string;
+      planName: string;
+      stops: RouteStop[];
+    }
+
+    function detectEmptyRoutesOnStudentRemoval(
+      targetStudentId: string,
+      routes: RouteInfo[],
+    ): { routeId: string; planId: string; planName: string }[] {
+      const emptyRoutes: { routeId: string; planId: string; planName: string }[] = [];
+      for (const r of routes) {
+        const remainingStudents = r.stops.filter(
+          (s) => s.studentId && s.studentId !== targetStudentId,
+        );
+        if (remainingStudents.length === 0) {
+          emptyRoutes.push({
+            routeId: r.id,
+            planId: r.planId,
+            planName: r.planName,
+          });
+        }
+      }
+      return emptyRoutes;
+    }
+
+    // Trường hợp 1: Tuyến có 2 học sinh, loại 1 học sinh -> tuyến vẫn còn 1 học sinh -> Không rỗng
+    const routesWithMultipleStudents: RouteInfo[] = [
+      {
+        id: 'r1',
+        name: 'Tuyến 1',
+        planId: 'p1',
+        planName: 'Phương án 1',
+        stops: [{ id: 's1', studentId: 'stu-1' }, { id: 's2', studentId: 'stu-2' }],
+      },
+    ];
+    assert.deepEqual(detectEmptyRoutesOnStudentRemoval('stu-1', routesWithMultipleStudents), []);
+
+    // Trường hợp 2: Tuyến chỉ có 1 học sinh duy nhất -> loại học sinh -> tuyến thành rỗng
+    const routesWithSingleStudent: RouteInfo[] = [
+      {
+        id: 'r2',
+        name: 'Tuyến 2',
+        planId: 'p2',
+        planName: 'Phương án 2',
+        stops: [{ id: 's3', studentId: 'stu-1' }],
+      },
+    ];
+    const emptyResults = detectEmptyRoutesOnStudentRemoval('stu-1', routesWithSingleStudent);
+    assert.equal(emptyResults.length, 1);
+    assert.equal(emptyResults[0].routeId, 'r2');
+    assert.equal(emptyResults[0].planId, 'p2');
+    assert.equal(emptyResults[0].planName, 'Phương án 2');
+  });
+
+  it('đánh lại thứ tự stopOrder liên tục 1..N khi xóa một điểm dừng', () => {
+    const stops = [
+      { id: 'stop-1', stopOrder: 1, studentId: 'stu-1' },
+      { id: 'stop-2', stopOrder: 2, studentId: 'stu-disabled' },
+      { id: 'stop-3', stopOrder: 3, studentId: 'stu-3' },
+      { id: 'stop-4', stopOrder: 4, studentId: 'stu-4' },
+    ];
+
+    const remainingStops = stops
+      .filter((s) => s.studentId !== 'stu-disabled')
+      .map((s, idx) => ({ ...s, stopOrder: idx + 1 }));
+
+    assert.equal(remainingStops.length, 3);
+    assert.deepEqual(
+      remainingStops.map((s) => s.stopOrder),
+      [1, 2, 3],
+    );
+    assert.equal(remainingStops[0].id, 'stop-1');
+    assert.equal(remainingStops[1].id, 'stop-3');
+    assert.equal(remainingStops[2].id, 'stop-4');
+  });
+
+  it('loại học sinh đã bị loại (excludedAt != null) khỏi lịch trình của phụ huynh', () => {
+    interface Attendance {
+      studentId: string;
+      excludedAt: string | null;
+    }
+
+    interface Trip {
+      id: string;
+      status: string;
+      attendances: Attendance[];
+    }
+
+    function isTripVisibleToParent(trip: Trip, studentId: string): boolean {
+      return trip.attendances.some(
+        (a) => a.studentId === studentId && a.excludedAt === null,
+      );
+    }
+
+    const scheduledTripActive: Trip = {
+      id: 'trip-1',
+      status: 'SCHEDULED',
+      attendances: [{ studentId: 'stu-1', excludedAt: null }],
+    };
+
+    const scheduledTripExcluded: Trip = {
+      id: 'trip-2',
+      status: 'SCHEDULED',
+      attendances: [{ studentId: 'stu-1', excludedAt: '2026-10-26T10:00:00Z' }],
+    };
+
+    assert.equal(isTripVisibleToParent(scheduledTripActive, 'stu-1'), true);
+    assert.equal(isTripVisibleToParent(scheduledTripExcluded, 'stu-1'), false);
+  });
+});

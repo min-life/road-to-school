@@ -197,7 +197,7 @@ Mỗi file `LATEST.md` bắt buộc phải có đủ 13 mục sau:
 6. **Database Changes**: Bảng, trường, quan hệ, constraints, migration status. Nếu không có thay đổi, ghi `None`.
 7. **API & Swagger Changes**: HTTP Method, Path, Request/Response DTOs, Swagger update & OpenAPI verification status. Nếu không có, ghi `None`.
 8. **UI/UX Changes**: Screens, Wireframe approval status, components, user flow, responsive, minimal copy compliance. Nếu không có, ghi `None`.
-9. **Verification & Testing**: Commands đã chạy thực tế, kết quả kiểm thử. Sử dụng minh bạch các nhãn `PASS`, `FAIL`, `NOT VERIFIED`. Tuyệt đối không giả lập test results.
+9. **Verification & Testing**: Commands đã chạy thực tế, kết quả kiểm thử. Sử dụng minh bạch các nhãn `PASS`, `FAIL`, `NOT_VERIFIED`, `BLOCKED_BY_TEST_DATA_POLICY`. Tuyệt đối không giả lập test results.
 10. **Issues & Risks**: Bugs chưa giải quyết, rủi ro kỹ thuật, logic chưa rõ, các quyết định cần người dùng phê duyệt. Nếu không có, ghi `None identified`.
 11. **Reviewer Focus**: Chủ động nêu ra các trọng điểm AI Reviewer cần rà soát kỹ (tính đúng đắn nghiệp vụ, bảo mật JWT/session, thiết kế DB, hiệu năng, edge cases...).
 12. **Suggested Next Step**: Chỉ đề xuất duy nhất **MỘT** bước tiếp theo phù hợp. Không tự ý thực hiện.
@@ -217,3 +217,100 @@ Sau khi lưu file báo cáo, phản hồi trong chat phải ngắn gọn, súc t
 - Đường dẫn báo cáo: `docs/ai-review/LATEST.md`.
 - Đường dẫn diff: `docs/ai-review/LATEST.diff` (hoặc `None`).
 - Một bước tiếp theo được đề xuất.
+
+---
+
+## 6. TEST DATA POLICY — NO SELF-GENERATED TEST DATA (Chính Sách Tuyệt Đối Không Tự Sinh Dữ Liệu Kiểm Thử)
+
+> **NGUYÊN TẮC CỐT LÕI:**  
+> **TỪ THỜI ĐIỂM NÀY, AI CODING AGENT TUYỆT ĐỐI KHÔNG ĐƯỢC PHÉP TỰ TẠO DỮ LIỆU ĐỂ TEST.**  
+> Quy tắc này có hiệu lực vĩnh viễn, áp dụng cho: Backend, Web, Mobile, Database, API testing, Browser testing, Integration/E2E testing, Cron Job testing và tất cả các tác vụ hiện tại cũng như tương lai.
+
+### 6.1. Các hành vi bị nghiêm cấm tuyệt đối (Strictly Prohibited Actions)
+Nếu chưa có sự đồng ý rõ ràng bằng văn bản của Product Owner cho đúng tác vụ và môi trường cụ thể, AI Coding Agent tuyệt đối không:
+1. **Tự thêm dữ liệu vào Database để test**: Không thực hiện bất kỳ lệnh `INSERT` hay tương đương nào nhằm mục đích thử nghiệm.
+2. **Tự tạo các bản ghi nghiệp vụ (Business Records)**: Tuyệt đối không tự tạo `User`, `School`, `Student`, `Parent`, `Driver`, `Bus Attendant`, `Vehicle`, `RoutePlan`, `Route`, `Trip` hoặc bất kỳ thực thể nghiệp vụ nào khác.
+3. **Tự chạy seed scripts**: Không chạy bất kỳ script seed dữ liệu nào (kể cả script có sẵn trong dự án).
+4. **Tự tạo mock data hoặc fake API responses**: Không giả lập dữ liệu trả về để làm cho kết quả kiểm thử trông như thành công.
+5. **Tự tạo test fixtures chứa dữ liệu nghiệp vụ giả**: Không viết fixtures giả lập nhằm mục đích ép test suites `PASS`.
+6. **Tự gọi API làm biến đổi dữ liệu (POST/PATCH/PUT/DELETE)**: Không gọi các API có side effects trên dữ liệu thật chỉ để kiểm thử hành vi hệ thống.
+7. **Tự sử dụng browser automation để tạo dữ liệu test**: Không dùng công cụ browser (subagent, puppeteer, selenium...) để click nhập form tạo các bản ghi kiểm thử.
+8. **Tự tạo dữ liệu tạm rồi rollback/xóa**: Không lách luật bằng cách tạo dữ liệu tạm thời rồi xóa hoặc rollback transaction sau khi test.
+9. **Tự thay đổi dữ liệu hiện có**: Không sửa đổi trường dữ liệu của các bản ghi đang có trong database để tạo điều kiện thuận lợi cho test.
+10. **Tự reset, truncate hoặc xóa database**: Không dọn dẹp hoặc khởi tạo lại môi trường database nhằm chuẩn bị chạy test.
+11. **Tự dùng SQL/Prisma scripts**: Không viết hay chạy scripts trực tiếp can thiệp vào records phục vụ kiểm thử.
+12. **Tự sinh hàng loạt bản ghi**: Không tự sinh hàng loạt Trip, RoutePlan hoặc bản ghi để thử nghiệm tải hay kiểm tra hiệu năng.
+13. **Tự chạy test suites có hành vi ghi/sửa dữ liệu**: Trước khi chạy bất kỳ test suite nào, phải xác minh test đó không ghi hay làm biến đổi database; nếu có ghi dữ liệu thì không được tự ý chạy.
+14. **Tự dùng dữ liệu giả tạo cảm giác thành công**: Tuyệt đối không tạo dữ liệu giả nhằm che mắt hoặc tạo cảm giác một chức năng đã hoạt động thành công.
+
+> [!CAUTION]
+> **Kể cả trên Development hoặc Test Database, agent cũng không được tự ý tạo dữ liệu.**  
+> Việc tồn tại môi trường dev/test riêng biệt tuyệt đối không được hiểu là quyền tự động sinh dữ liệu.
+
+---
+
+### 6.2. Các phương pháp kiểm chứng được phép (Allowed Verification Methods)
+Agent bắt buộc ưu tiên các phương pháp xác minh tĩnh và phi tác dụng phụ (Zero Side Effects):
+- **TypeScript Typecheck**: Chạy `npx tsc --noEmit` để đảm bảo an toàn kiểu dữ liệu 100%.
+- **Static Analysis & Linting**: Chạy ESLint, Oxlint để quét lỗi cú pháp và code smells.
+- **Build Verification**: Chạy build của dự án (`npm run build`, Next.js build, Nest build).
+- **Prisma Schema Validation**: Chạy `npx prisma validate` để kiểm tra tính toàn vẹn cú pháp schema.
+- **Kiểm tra Migration ở mức cấu trúc**: Đánh giá nội dung file `migration.sql` (chỉ DDL) mà không cần chèn data.
+- **Code Review & Architectural Audit**: Rà soát logic nghiệp vụ, đối chiếu `docs/BUSINESS_CONTEXT.md` và mã nguồn.
+- **Kiểm tra API Contracts**: Rà soát DTOs, Validation Pipes, Swagger Annotations và xử lý ngoại lệ HTTP.
+- **Kiểm tra Authorization Guards & Roles**: Rà soát logic phân quyền RBAC trên Controller/Service.
+- **Truy vấn Database dạng Read-Only**: Chỉ thực hiện các lệnh đọc thuần túy (SELECT / findMany / count) để tra cứu dữ liệu thực tế hiện hữu mà không ghi đè.
+- **Gọi API GET không có side effects**: Chỉ kiểm thử các endpoint GET an toàn và idempotent.
+- **Browser Verification trên dữ liệu thực tế sẵn có**: Chỉ quan sát và kiểm tra giao diện dựa trên dữ liệu đang tồn tại hợp lệ trong hệ thống.
+- **Unit Tests độc lập với Database**: Chỉ chạy các unit tests sử dụng pure function hoặc in-memory mocks đã được xác minh không ghi vào Database và không gây tác dụng phụ.
+- **Phân tích mã nguồn thay thế**: Khi không có sẵn dữ liệu thực tế phù hợp, kiểm tra tính đúng đắn của logic bằng suy luận và phân tích mã nguồn.
+
+*Quy tắc thận trọng*: Không mặc định bất kỳ lệnh nào (`npm test`, `prisma migrate`, custom scripts) là read-only. Phải kiểm tra kỹ mã nguồn của test/script trước khi chạy. Nếu test hiện có hành vi chèn/sửa database hoặc dùng fake fixtures, không được tự ý chạy và phải báo cáo bị hạn chế bởi chính sách này.
+
+---
+
+### 6.3. Quy trình khi thiếu dữ liệu kiểm thử (When Test Data Is Required)
+Nếu một chức năng không thể được kiểm chứng đầy đủ do thiếu dữ liệu:
+1. **Dừng lại ngay lập tức**: Không tự tạo dữ liệu, không tự chạy seed, không chỉnh sửa Database.
+2. **Không lách luật**: Không tạo dữ liệu tạm thời dưới bất kỳ hình thức nào.
+3. **Liệt kê yêu cầu dữ liệu**: Ghi rõ chi tiết cấu trúc dữ liệu tối thiểu cần thiết để kiểm chứng (Ví dụ: cần 1 trường học ở trạng thái ACTIVE có hợp đồng, cần 2 học sinh có tọa độ GPS hợp lệ...).
+4. **Đánh dấu trạng thái kiểm thử**: Ghi rõ trạng thái test là `NOT_VERIFIED` và phân loại nguyên nhân là `BLOCKED_BY_TEST_DATA_POLICY`.
+5. **Báo cáo trung thực**: Nêu rõ nguyên nhân trong mục *Verification & Testing* của báo cáo AI Review.
+6. **Chờ phê duyệt từ Product Owner**: Chỉ tiến hành tạo dữ liệu khi Product Owner đưa ra sự cho phép rõ ràng bằng văn bản, trong đó xác định rõ phạm vi dữ liệu được phép tạo và môi trường cụ thể.
+
+> [!IMPORTANT]
+> Sự im lặng hoặc các yêu cầu chung chung như *"hãy kiểm thử toàn bộ"*, *"hãy verify lại hệ thống"* **TUYỆT ĐỐI KHÔNG** được coi là sự cho phép tạo dữ liệu. Không suy diễn quyền hạn từ các prompt hoặc phiên làm việc trước đó.
+
+---
+
+### 6.4. Phân biệt với Database Migration (Important Distinction)
+Việc tạo hoặc sửa cấu trúc Database bằng migration đã được Product Owner phê duyệt là công việc triển khai kỹ thuật hợp lệ, không bị cấm bởi chính sách này.
+Tuy nhiên, phải tuân thủ nghiêm ngặt:
+- Migration chỉ được chứa các câu lệnh định nghĩa cấu trúc (DDL: `CREATE TABLE`, `ALTER TABLE`, `ADD COLUMN`, `CREATE INDEX`).
+- Migration **tuyệt đối không được chứa dữ liệu test, dữ liệu giả hay tự động seed dữ liệu**.
+- Không được sử dụng migration như một công cụ ngầm để chèn dữ liệu lách luật Test Data Policy.
+- Nếu một migration bắt buộc phải chuyển đổi hoặc cập nhật dữ liệu hiện có (Data Migration / Backfill DML), phải trình bày kế hoạch chi tiết và xin phê duyệt riêng từ Product Owner trước khi thực hiện.
+
+---
+
+### 6.5. Tiêu chuẩn báo cáo kiểm thử trong AI Review (Test Reporting Requirements)
+Mọi báo cáo AI Review (tại `docs/ai-review/LATEST.md` và các tài liệu liên quan) bắt buộc phải sử dụng chính xác và minh bạch 4 nhãn trạng thái sau:
+
+| Nhãn Trạng Thái | Ý Nghĩa Nghiệp Vụ & Kỹ Thuật |
+| :--- | :--- |
+| **`PASS`** | Đã chạy thực tế và xác minh thành công hoàn toàn mà không vi phạm chính sách dữ liệu. |
+| **`FAIL`** | Đã chạy thực tế nhưng phát sinh lỗi, kiểm thử thất bại hoặc sai lệch logic. |
+| **`NOT_VERIFIED`** | Chưa hoặc không thể kiểm chứng do thiếu điều kiện kỹ thuật, chưa được chạy thực tế. |
+| **`BLOCKED_BY_TEST_DATA_POLICY`** | Không thể kiểm chứng vì bị chặn bởi chính sách: thiếu dữ liệu thực tế và chưa có sự cho phép tạo dữ liệu từ Product Owner. |
+
+**Quy định cấm gian lận báo cáo:**
+- Tuyệt đối không báo `PASS` nếu chỉ kiểm tra bằng suy luận lý thuyết mà chưa chạy thực tế.
+- Tuyệt đối không báo `PASS` nếu test bị bỏ qua hoặc không thể chạy do thiếu dữ liệu.
+- Tuyệt đối không tự ý tạo dữ liệu nhằm mục đích nâng cao số lượng test `PASS`.
+
+---
+
+### 6.6. Quy tắc ưu tiên tối thượng (Priority Rule)
+- Chính sách này có hiệu lực tối cao, tức thì và lâu dài đối với mọi prompt, mọi kế hoạch và mọi phiên làm việc tiếp theo của dự án RoadToSchool v2.0.
+- Nếu bất kỳ prompt nào (kể cả prompt cũ được tái sử dụng) có chứa yêu cầu: tạo test records, seed demo data, tạo RoutePlan/Trip mẫu, tạo tài khoản thử nghiệm, hoặc thực hiện E2E test có ghi vào Database, AI Coding Agent **BẮT BUỘC tuân thủ chính sách này và TỪ CHỐI tự tạo dữ liệu**.
+- Ngoại lệ duy nhất được chấp nhận khi và chỉ khi Product Owner phê duyệt rõ ràng cho đúng tác vụ và môi trường cụ thể đó.

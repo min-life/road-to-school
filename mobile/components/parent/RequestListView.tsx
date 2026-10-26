@@ -130,6 +130,12 @@ export function RequestListView({
             <Text style={styles.rejectedBadgeText}>Đã từ chối</Text>
           </View>
         );
+      case 'CANCELLED':
+        return (
+          <View style={[styles.badge, styles.cancelledBadge]}>
+            <Text style={styles.cancelledBadgeText}>Đã hủy</Text>
+          </View>
+        );
     }
   };
 
@@ -179,6 +185,20 @@ export function RequestListView({
         <Text style={styles.summaryText} numberOfLines={2}>
           {summary}
         </Text>
+
+        {item.resolution?.outcome && (
+          <View style={styles.resolutionBadge}>
+            <Text style={styles.resolutionBadgeText}>
+              {item.resolution.outcome === 'DIRECT_UPDATE'
+                ? 'Đã cập nhật địa chỉ'
+                : item.resolution.outcome === 'REOPTIMIZED'
+                ? 'Đã cập nhật vào tuyến mới'
+                : item.resolution.outcome === 'REMOVED_FROM_ROUTES'
+                ? 'Đã loại khỏi tuyến (chờ phân tuyến)'
+                : item.resolution.outcome}
+            </Text>
+          </View>
+        )}
 
         <View style={styles.cardFooter}>
           <View style={styles.timeRow}>
@@ -245,6 +265,7 @@ export function RequestListView({
               { key: 'PENDING', label: 'Chờ duyệt' },
               { key: 'APPROVED', label: 'Đã duyệt' },
               { key: 'REJECTED', label: 'Đã từ chối' },
+              { key: 'CANCELLED', label: 'Đã hủy' },
             ] as const
           ).map((filter) => (
             <TouchableOpacity
@@ -507,6 +528,29 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#DC2626',
+  },
+  cancelledBadge: {
+    backgroundColor: '#F1F5F9',
+  },
+  cancelledBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  resolutionBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginBottom: 8,
+  },
+  resolutionBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#475569',
   },
   summaryText: {
     fontSize: 13,

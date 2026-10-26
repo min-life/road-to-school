@@ -37,6 +37,7 @@ export interface ApiErrorResponse {
   code: string;
   message: string;
   errors?: string[];
+  retryAfterMs?: number;
 }
 
 export type StudentStatus = 'AVAILABLE' | 'DISABLED';
@@ -82,7 +83,7 @@ export interface VerifyLinkOtpResponse {
 // ==========================================
 
 export type RequestType = 'INFORMATION_UPDATE' | 'ADDRESS_UPDATE';
-export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 
 export interface StudentUpdateRequest {
   id: string;
@@ -98,6 +99,11 @@ export interface StudentUpdateRequest {
   beforeData: Record<string, any>;
   proposedData: Record<string, any>;
   rejectionReason: string | null;
+  resolution?: {
+    outcome: 'DIRECT_UPDATE' | 'REOPTIMIZED' | 'REMOVED_FROM_ROUTES' | string;
+    details?: any;
+    [key: string]: any;
+  } | null;
   reviewedBy: string | null;
   reviewedAt: string | null;
   createdAt: string;
@@ -127,6 +133,7 @@ export class ApiError extends Error {
   statusCode: number;
   code: string;
   errors?: string[];
+  retryAfterMs?: number;
 
   constructor(res: ApiErrorResponse) {
     super(res.message);
@@ -134,6 +141,7 @@ export class ApiError extends Error {
     this.statusCode = res.statusCode;
     this.code = res.code;
     this.errors = res.errors;
+    this.retryAfterMs = res.retryAfterMs;
   }
 }
 
@@ -348,6 +356,7 @@ class MobileApiClient {
         code: errorData.code || 'UNKNOWN_ERROR',
         message: errorData.message || 'Thao tác không thành công',
         errors: errorData.errors,
+        retryAfterMs: errorData.retryAfterMs,
       });
     }
 
@@ -573,6 +582,544 @@ class MobileApiClient {
       },
     );
   }
+
+  async cancelParentRequest(requestId: string): Promise<StudentUpdateRequest> {
+    return this.request<StudentUpdateRequest>(
+      `/parents/update-requests/${requestId}/cancel`,
+      {
+        method: 'POST',
+      },
+    );
+  }
+
+  // ==========================================
+  // Route Management: Student Routing
+  // ==========================================
+
+  async getStudentRoutingDetail(studentId: string): Promise<ParentStudentRoutingDetail> {
+    return this.request<ParentStudentRoutingDetail>(`/routes/students/${studentId}/routing`, {
+      method: 'GET',
+    });
+  }
+
+  // ==========================================
+  // Trips & Mobile Schedules (Driver, Attendant, Parent)
+  // ==========================================
+
+  async getDriverSchedule(params: {
+    fromDate: string;
+    toDate: string;
+  }): Promise<{ items: MobileScheduleItem[] }> {
+    return this.request<{ items: MobileScheduleItem[] }>(
+      `/trips/mobile/driver-schedule?fromDate=${params.fromDate}&toDate=${params.toDate}`,
+      { method: 'GET' },
+    );
+  }
+
+  async getBusAttendantSchedule(params: {
+    fromDate: string;
+    toDate: string;
+  }): Promise<{ items: MobileScheduleItem[] }> {
+    return this.request<{ items: MobileScheduleItem[] }>(
+      `/trips/mobile/bus-attendant-schedule?fromDate=${params.fromDate}&toDate=${params.toDate}`,
+      { method: 'GET' },
+    );
+  }
+
+  async getParentStudentSchedule(
+    studentId: string,
+    params: { fromDate: string; toDate: string },
+  ): Promise<{ items: MobileScheduleItem[] }> {
+    return this.request<{ items: MobileScheduleItem[] }>(
+      `/trips/mobile/parent/student/${studentId}/schedule?fromDate=${params.fromDate}&toDate=${params.toDate}`,
+      { method: 'GET' },
+    );
+  }
+
+  async getMobileTripDetail(tripId: string): Promise<MobileTripDetail> {
+    return this.request<MobileTripDetail>(`/trips/mobile/${tripId}`, {
+      method: 'GET',
+    });
+  }
+
+  // ==========================================
+  // Trip Operation & Attendance Methods
+  // ==========================================
+
+  async getHomeTrip(): Promise<HomeTripResponse> {
+    return this.request<HomeTripResponse>('/trips/mobile/home-trip', {
+      method: 'GET',
+    });
+  }
+
+  async getParentHomeCards(): Promise<ParentHomeCardsResponse> {
+    return this.request<ParentHomeCardsResponse>('/trips/mobile/parent/home-cards', {
+      method: 'GET',
+    });
+  }
+
+  async markAttendantReady(tripId: string): Promise<any> {
+    return this.request<any>(`/trips/${tripId}/attendant-ready`, {
+      method: 'POST',
+    });
+  }
+
+  async startTrip(tripId: string): Promise<any> {
+    return this.request<any>(`/trips/${tripId}/start`, {
+      method: 'POST',
+    });
+  }
+
+  async getOperationalState(tripId: string): Promise<OperationalStateResponse> {
+    return this.request<OperationalStateResponse>(`/trips/${tripId}/operational-state`, {
+      method: 'GET',
+    });
+  }
+
+  async getTripAttendance(tripId: string): Promise<TripAttendanceListResponse> {
+    return this.request<TripAttendanceListResponse>(`/trips/${tripId}/attendance`, {
+      method: 'GET',
+    });
+  }
+
+  async updateAttendance(
+    tripId: string,
+    studentId: string,
+    status: AttendanceStatus,
+    absenceReason?: string,
+  ): Promise<any> {
+    return this.request<any>(`/trips/${tripId}/attendance/${studentId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status, absenceReason }),
+    });
+  }
+
+  async verifyQrAttendance(tripId: string, qrData: string): Promise<VerifyQrResponse> {
+    return this.request<VerifyQrResponse>(`/trips/${tripId}/attendance/verify-qr`, {
+      method: 'POST',
+      body: JSON.stringify({ qrData }),
+    });
+  }
+
+  async arriveAtSchool(tripId: string): Promise<any> {
+    return this.request<any>(`/trips/${tripId}/arrive-at-school`, {
+      method: 'POST',
+    });
+  }
+
+  async updateAlighting(tripId: string, studentId: string, isAlighted: boolean): Promise<any> {
+    return this.request<any>(`/trips/${tripId}/attendance/${studentId}/alighting`, {
+      method: 'PUT',
+      body: JSON.stringify({ isAlighted }),
+    });
+  }
+
+  async completeTrip(tripId: string): Promise<any> {
+    return this.request<any>(`/trips/${tripId}/complete`, {
+      method: 'POST',
+    });
+  }
+
+  // ==========================================
+  // Leave Notices Methods
+  // ==========================================
+
+  async getLeaveNoticeOptions(params: {
+    studentId?: string;
+    serviceDate?: string;
+    direction?: 'TO_SCHOOL' | 'TO_PARKING';
+  }): Promise<LeaveNoticeOptionsResponse> {
+    const qs = new URLSearchParams();
+    if (params.studentId) qs.append('studentId', params.studentId);
+    if (params.serviceDate) qs.append('serviceDate', params.serviceDate);
+    if (params.direction) qs.append('direction', params.direction);
+    const query = qs.toString();
+    return this.request<LeaveNoticeOptionsResponse>(`/leave-notices/options${query ? `?${query}` : ''}`, {
+      method: 'GET',
+    });
+  }
+
+  async requestLeaveNoticeOtp(body: {
+    tripId: string;
+    studentId?: string;
+  }): Promise<LeaveNoticeOtpResponse> {
+    return this.request<LeaveNoticeOtpResponse>('/leave-notices/otp', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async confirmLeaveNotice(body: {
+    challengeId: string;
+    otp: string;
+    tripId: string;
+    studentId?: string;
+    reason?: string;
+  }): Promise<LeaveNoticeItemDto> {
+    return this.request<LeaveNoticeItemDto>('/leave-notices/confirm', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async listLeaveNotices(params?: {
+    studentId?: string;
+    kind?: LeaveNoticeKind;
+    serviceDate?: string;
+    direction?: 'TO_SCHOOL' | 'TO_PARKING';
+    status?: LeaveNoticeStatus;
+    page?: number;
+    limit?: number;
+  }): Promise<LeaveNoticeListResponseDto> {
+    const qs = new URLSearchParams();
+    if (params?.studentId) qs.append('studentId', params.studentId);
+    if (params?.kind) qs.append('kind', params.kind);
+    if (params?.serviceDate) qs.append('serviceDate', params.serviceDate);
+    if (params?.direction) qs.append('direction', params.direction);
+    if (params?.status) qs.append('status', params.status);
+    if (params?.page) qs.append('page', params.page.toString());
+    if (params?.limit) qs.append('limit', params.limit.toString());
+    const query = qs.toString();
+    return this.request<LeaveNoticeListResponseDto>(`/leave-notices${query ? `?${query}` : ''}`, {
+      method: 'GET',
+    });
+  }
+
+  async getLeaveNoticeDetail(id: string): Promise<LeaveNoticeItemDto> {
+    return this.request<LeaveNoticeItemDto>(`/leave-notices/${id}`, {
+      method: 'GET',
+    });
+  }
+
+  async cancelLeaveNotice(id: string): Promise<LeaveNoticeItemDto> {
+    return this.request<LeaveNoticeItemDto>(`/leave-notices/${id}/cancel`, {
+      method: 'POST',
+    });
+  }
+}
+
+export type AttendanceStatus = 'UNMARKED' | 'PRESENT' | 'ABSENT';
+
+export interface MobileHomeTripPersonnel {
+  id: string;
+  fullName: string;
+  phone?: string | null;
+  isCurrentUser: boolean;
+}
+
+export interface MobileHomeTrip {
+  id: string;
+  routeId: string;
+  routeName: string;
+  direction: 'TO_SCHOOL' | 'TO_PARKING';
+  schoolName: string;
+  serviceDate: string;
+  scheduledStartTime?: string | null;
+  scheduledEndTime?: string | null;
+  scheduledTime: string;
+  status: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  vehiclePlate: string;
+  vehicleBrand: string;
+  vehicleSeats: number;
+  studentCount: number;
+  polylineGeometry: string;
+  driver: MobileHomeTripPersonnel;
+  busAttendant: MobileHomeTripPersonnel;
+  operationalState: OperationalStateResponse;
+  assignmentStatus?: 'ASSIGNED' | 'WAITING_ASSIGNMENT';
+  canReportLeave?: boolean;
+  hasLeaveNotice?: boolean;
+  leaveNoticeId?: string | null;
+}
+
+export interface HomeTripResponse {
+  hasTrip: boolean;
+  trip?: MobileHomeTrip | null;
+}
+
+export interface ParentHomeCardItem {
+  studentId: string;
+  studentName: string;
+  studentAvatar?: string | null;
+  schoolName: string;
+  tripId: string;
+  routeName: string;
+  direction: 'TO_SCHOOL' | 'TO_PARKING';
+  serviceDate: string;
+  scheduledTime: string;
+  tripStatus: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  vehiclePlate: string;
+  driverName: string;
+  attendanceStatus: AttendanceStatus;
+  markedAt?: string | null;
+  absenceReason?: string | null;
+  childIsAlighted?: boolean;
+  childAlightedAt?: string | null;
+  canReportLeave?: boolean;
+  hasLeaveNotice?: boolean;
+  leaveNoticeId?: string | null;
+}
+
+export interface ParentHomeCardsResponse {
+  items: ParentHomeCardItem[];
+}
+
+export interface OperationalStateResponse {
+  children?: { studentId: string; attendanceStatus: AttendanceStatus; absenceReason?: string | null; markedAt?: string | null; alightedAt?: string | null; isAlighted: boolean }[];
+  tripId: string;
+  status: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  direction?: 'TO_SCHOOL' | 'TO_PARKING';
+  isAttendantReady?: boolean;
+  attendantReadyAt?: string | null;
+  actualStartTime?: string | null;
+  actualEndTime?: string | null;
+  arrivedAtSchoolAt?: string | null;
+  isSchoolArrived?: boolean;
+  isAllMarked?: boolean;
+  totalStudents?: number;
+  markedCount?: number;
+  presentCount?: number;
+  absentCount?: number;
+  unmarkedCount?: number;
+  alightedCount?: number;
+  pendingAlightCount?: number;
+  isAllAlighted?: boolean;
+  canMarkReady?: boolean;
+  canStartTrip?: boolean;
+  canArriveAtSchool?: boolean;
+  canCompleteTrip?: boolean;
+  canAttendantReady?: boolean;
+  canDriverStart?: boolean;
+  canDriverComplete?: boolean;
+  readyDisabledReason?: string | null;
+  startDisabledReason?: string | null;
+  arriveAtSchoolDisabledReason?: string | null;
+  completeDisabledReason?: string | null;
+  userRole?: Role | string;
+  assignmentStatus?: 'ASSIGNED' | 'WAITING_ASSIGNMENT';
+  disabledReasons?: {
+    ready?: string | null;
+    start?: string | null;
+    arriveAtSchool?: string | null;
+    complete?: string | null;
+  };
+}
+
+export interface TripAttendanceStudentItem {
+  studentId: string;
+  studentCode: string;
+  fullName: string;
+  avatarUrl?: string | null;
+  stopOrder: number;
+  addressText: string;
+  plannedArrivalTime?: string | null;
+  status: AttendanceStatus;
+  absenceReason?: string | null;
+  markedById?: string | null;
+  markedByName?: string | null;
+  markedAt?: string | null;
+  alightedAt?: string | null;
+  isAlighted?: boolean;
+}
+
+export interface TripAttendanceListResponse {
+  tripId: string;
+  totalStudents: number;
+  markedCount: number;
+  presentCount: number;
+  absentCount: number;
+  unmarkedCount: number;
+  isAllMarked: boolean;
+  alightedCount?: number;
+  pendingAlightCount?: number;
+  isAllAlighted?: boolean;
+  students: TripAttendanceStudentItem[];
+}
+
+export interface VerifyQrResponse {
+  studentId: string;
+  studentCode: string;
+  fullName: string;
+  avatarUrl?: string | null;
+  stopOrder: number;
+  addressText: string;
+  plannedArrivalTime?: string | null;
+  currentStatus: AttendanceStatus;
+  absenceReason?: string | null;
+}
+
+export interface MobileScheduleItem {
+  id: string;
+  isVirtual: boolean;
+  serviceDate: string;
+  routeId: string;
+  routeName: string;
+  direction: 'TO_SCHOOL' | 'TO_PARKING';
+  status: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  scheduledStartTime: string;
+  scheduledEndTime: string;
+  vehiclePlate?: string | null;
+  vehicleBrand?: string | null;
+  schoolName: string;
+  studentCount?: number;
+  assignmentStatus?: 'ASSIGNED' | 'WAITING_ASSIGNMENT';
+  canReportLeave?: boolean;
+}
+
+// ==========================================
+// Leave Notice Domain Types
+// ==========================================
+
+export type LeaveNoticeKind = 'STUDENT' | 'DRIVER' | 'BUS_ATTENDANT';
+export type LeaveNoticeStatus =
+  | 'RECORDED'
+  | 'PENDING_REPLACEMENT'
+  | 'REPLACED'
+  | 'WITHDRAWN'
+  | 'TRIP_CANCELLED';
+
+export interface MaskedContactChannel {
+  channel: 'SMS' | 'EMAIL';
+  destination: string;
+  isConsole: boolean;
+}
+
+export interface LeaveNoticeTripOption {
+  tripId: string;
+  routeId: string;
+  routeName: string;
+  serviceDate: string;
+  direction: 'TO_SCHOOL' | 'TO_PARKING';
+  scheduledStartTime?: string | null;
+  scheduledEndTime?: string | null;
+  canReport: boolean;
+  disabledReason?: string | null;
+}
+
+export interface LeaveNoticeOptionsResponse {
+  trips: LeaveNoticeTripOption[];
+  maskedChannels: MaskedContactChannel[];
+  subjectName: string;
+  kind: LeaveNoticeKind;
+}
+
+export interface LeaveNoticeOtpResponse {
+  challengeId: string;
+  maskedChannels: MaskedContactChannel[];
+  expiresInSeconds: number;
+}
+
+export interface LeaveNoticeItemDto {
+  id: string;
+  tripId: string;
+  kind: LeaveNoticeKind;
+  status: LeaveNoticeStatus;
+  reportedById: string;
+  reportedByName: string;
+  studentId?: string | null;
+  studentName?: string | null;
+  serviceDate: string;
+  direction: 'TO_SCHOOL' | 'TO_PARKING';
+  routeId: string;
+  routeName: string;
+  schoolId: string;
+  schoolName: string;
+  scheduledStartTime?: string | null;
+  scheduledEndTime?: string | null;
+  replacementUserId?: string | null;
+  replacementUserName?: string | null;
+  processedById?: string | null;
+  processedByName?: string | null;
+  processedAt?: string | null;
+  cancelledAt?: string | null;
+  createdAt: string;
+  canCancelLeave: boolean;
+  canAssignReplacement: boolean;
+  canCancelTrip: boolean;
+  disabledReason?: string | null;
+}
+
+export interface LeaveNoticeListResponseDto {
+  items: LeaveNoticeItemDto[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface MobileTripDetailStop {
+  id: string;
+  stopOrder: number;
+  stopType: string;
+  addressText: string;
+  latitude: number;
+  longitude: number;
+  plannedArrivalTime?: string | null;
+  studentId?: string;
+  studentName?: string;
+  isMyChild?: boolean;
+  attendanceStatus?: AttendanceStatus | null;
+  absenceReason?: string | null;
+  attendanceMarkedAt?: string | null;
+}
+
+export interface MobileTripDetail {
+  id: string;
+  serviceDate: string;
+  routeName: string;
+  direction: 'TO_SCHOOL' | 'TO_PARKING';
+  status: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  scheduledStartTime: string;
+  scheduledEndTime: string;
+  schoolName: string;
+  vehiclePlate: string;
+  vehicleBrand: string;
+  vehicleSeats: number;
+  driverName: string;
+  driverPhone: string;
+  busAttendantName: string;
+  busAttendantPhone: string;
+  polylineGeometry: string;
+  stops: MobileTripDetailStop[];
+}
+
+export interface ParentStudentRoutingDetail {
+  studentId: string;
+  studentName: string;
+  routingStatus:
+    | 'NO_ROUTE_PLAN'
+    | 'MISSING_ADDRESS'
+    | 'NOT_ASSIGNED'
+    | 'ASSIGNED_DRAFT'
+    | 'ASSIGNED_ACTIVE'
+    | 'NEEDS_REVIEW';
+  routePlanId?: string;
+  routePlanName?: string;
+  routePlanStatus?: 'DRAFT' | 'CANCELLED';
+  outboundRoute?: {
+    id: string;
+    name: string;
+    proposedVehiclePlate: string | null;
+    plannedArrivalTime: string;
+    pickupAddressText: string;
+    pickupLatitude: number;
+    pickupLongitude: number;
+    polylineGeometry: string;
+    schoolLocation: { latitude: number; longitude: number; name: string };
+    parkingLocation: { latitude: number; longitude: number; addressText: string };
+  } | null;
+  returnRoute?: {
+    id: string;
+    name: string;
+    proposedVehiclePlate: string | null;
+    plannedArrivalTime: string;
+    dropoffAddressText: string;
+    dropoffLatitude: number;
+    dropoffLongitude: number;
+    polylineGeometry: string;
+    schoolLocation: { latitude: number; longitude: number; name: string };
+    parkingLocation: { latitude: number; longitude: number; addressText: string };
+  } | null;
 }
 
 export const mobileApiClient = new MobileApiClient();

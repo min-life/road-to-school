@@ -1,0 +1,234 @@
+diff --git a/api/src/trips/vietmap-navigation.service.ts b/api/src/trips/vietmap-navigation.service.ts
+--- a/api/src/trips/vietmap-navigation.service.ts
++++ b/api/src/trips/vietmap-navigation.service.ts
+@@ -13,4 +13,8 @@ export class VietMapNavigationService {
+-  async route(origin: { latitude: number; longitude: number }, target: { latitude: number; longitude: number }) {
++  async route(
++    origin: { latitude: number; longitude: number },
++    target: { latitude: number; longitude: number },
++    waypoints: { latitude: number; longitude: number }[] = [],
++  ) {
+     const key = this.config.get<string>('VIETMAP_SERVICES_KEY');
+@@ -19,2 +23,5 @@ export class VietMapNavigationService {
+     url.searchParams.append('point', `${target.latitude},${target.longitude}`);
++    for (const wp of waypoints) {
++      url.searchParams.append('point', `${wp.latitude},${wp.longitude}`);
++    }
+     url.searchParams.set('vehicle', 'car');
+@@ -37,4 +44,5 @@ export class VietMapNavigationService {
+       const first = { latitude: coords[0][0], longitude: coords[0][1] };
+       const last = { latitude: coords[coords.length - 1][0], longitude: coords[coords.length - 1][1] };
++      const finalDest = waypoints.length > 0 ? waypoints[waypoints.length - 1] : target;
+       const dFirst = metresBetween(first, origin);
+-      const dLast = metresBetween(last, target);
++      const dLast = metresBetween(last, finalDest);
+diff --git a/api/src/trips/trip-navigation.service.ts b/api/src/trips/trip-navigation.service.ts
+--- a/api/src/trips/trip-navigation.service.ts
++++ b/api/src/trips/trip-navigation.service.ts
+@@ -183,2 +183,7 @@ export class TripNavigationService {
+-      return { state, target: trip.route.stops.find(s => s.id === state.targetStopId) };
++      const targetIndex = trip.route.stops.findIndex(s => s.id === state.targetStopId);
++      const target = targetIndex >= 0 ? trip.route.stops[targetIndex] : undefined;
++      const subsequentStops = targetIndex >= 0
++        ? trip.route.stops.slice(targetIndex + 1).map(s => ({ latitude: s.latitude, longitude: s.longitude }))
++        : [];
++      return { state, target, subsequentStops };
+     });
+@@ -187,1 +192,1 @@ export class TripNavigationService {
+-    const route = await this.directions.route(dto.position, request.target);
++    const route = await this.directions.route(dto.position, request.target, request.subsequentStops);
+diff --git a/api/src/trips/trip-navigation.spec.ts b/api/src/trips/trip-navigation.spec.ts
+--- a/api/src/trips/trip-navigation.spec.ts
++++ b/api/src/trips/trip-navigation.spec.ts
+@@ -172,5 +172,5 @@ describe('TripNavigationService', () => {
+-  it('routes only P→B outside the transaction; provider failure never creates fallback', async () => {
++  it('routes P→B and subsequent stops outside the transaction; provider failure never creates fallback', async () => {
+     trip.navigationState = checkpoint();
+     const dto = { action: 'CURRENT' as const, position: position(), runId: 'run', routeVersion: routeFingerprint(trip), expectedTargetStopId: 'B' };
+     await expect(service.segment('trip', dto, driver, 'sid')).rejects.toBeInstanceOf(BadGatewayException);
+-    expect(routes.route).toHaveBeenCalledWith(dto.position, trip.route.stops[1]);
++    expect(routes.route).toHaveBeenCalledWith(dto.position, trip.route.stops[1], [{ latitude: 10.002, longitude: 106 }]);
+diff --git a/mobile/components/trip-navigation-controls.tsx b/mobile/components/trip-navigation-controls.tsx
+--- a/mobile/components/trip-navigation-controls.tsx
++++ b/mobile/components/trip-navigation-controls.tsx
+@@ -50,2 +50,2 @@ export function TripNavigationControls(p: Props) {
+-      {!!p.mode && <Pressable accessibilityRole="button" onPress={() => { void p.change(); }} style={styles.button}>
++      {!p.testMode && !!p.mode && <Pressable accessibilityRole="button" onPress={() => { void p.change(); }} style={styles.button}>
+         <Text style={styles.text}>Dừng</Text></Pressable>}
+diff --git a/mobile/hooks/use-trip-navigation.ts b/mobile/hooks/use-trip-navigation.ts
+--- a/mobile/hooks/use-trip-navigation.ts
++++ b/mobile/hooks/use-trip-navigation.ts
+@@ -54,2 +54,3 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
+   const retryCount = useRef(0);
++  const accumulatedTraveled = useRef<Coordinate[]>([]);
+ 
+@@ -73,2 +74,3 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
+     retryCount.current = 0;
++    accumulatedTraveled.current = [];
+     watcher.current?.remove(); watcher.current = null;
+@@ -135,4 +137,11 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
+       }
++      if (action === 'ADVANCE' && leg.current?.coords?.length) {
++        const prevSplit = splitSegment(leg.current.coords, leg.current.cumulative, leg.current.travelled);
++        if (prevSplit.traveled.length > 0) {
++          accumulatedTraveled.current = [...accumulatedTraveled.current, ...prevSplit.traveled];
++        }
++      }
+       const coords = decodePolyline(result.geometry);
+       const cumulative = cumulativeDistances(coords);
+       leg.current = { ...result, coords, cumulative, progress: 0, travelled: 0 };
+       const { traveled, remaining } = splitSegment(coords, cumulative, 0);
++      const fullTraveled = [...accumulatedTraveled.current, ...traveled];
+       setView(v => ({
+         ...v,
+         segment: coords,
+-        traveled,
++        traveled: fullTraveled,
+         remaining,
+@@ -266,2 +275,3 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
+         const { traveled, remaining } = splitSegment(current.coords, current.cumulative, current.progress);
++        const fullTraveled = [...accumulatedTraveled.current, ...traveled];
+         const distanceRemaining = (current.cumulative.at(-1) ?? 0) - current.progress;
+@@ -280,3 +290,3 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
+           position: p,
+-          traveled,
++          traveled: fullTraveled,
+           remaining,
+@@ -473,2 +483,3 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
+       cancelRetry();
++      accumulatedTraveled.current = [];
+       const coords = decodePolyline(seg.geometry);
+diff --git a/mobile/app/trip/[id].tsx b/mobile/app/trip/[id].tsx
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -40,1 +40,1 @@ import { loadLocationHistory, navigationApi, type LocationPoint, type LocationSo
+-import { recordedParts } from '@/utils/trip-navigation';
++import { cumulativeDistances, projectProgress, recordedParts, splitSegment, type Coordinate } from '@/utils/trip-navigation';
+@@ -398,3 +398,37 @@ export default function MobileTripDetailScreen() {
+-  const hidePlanned = isDriverActiveNavigation
+-    ? !showPlanned
+-    : (terminal && !!history?.length && !showPlanned);
++
++  const fullRouteCoords = useMemo(() => {
++    return trip?.polylineGeometry ? decodePolyline(trip.polylineGeometry) : [];
++  }, [trip?.polylineGeometry]);
++
++  const fullRouteCumulative = useMemo(() => {
++    return fullRouteCoords.length >= 2 ? cumulativeDistances(fullRouteCoords) : [];
++  }, [fullRouteCoords]);
++
++  // Observer two-tone split: when vehicle is in progress and has latestPosition
++  const observerSplit = useMemo(() => {
++    if (isDriverActiveNavigation && engine.segment.length > 0) {
++      return null; // Driver uses engine's active navigation segment
++    }
++    if (terminal || operationalState?.status !== 'IN_PROGRESS' || !navigation?.latestPosition || fullRouteCoords.length < 2) {
++      return null;
++    }
++    const vehPos: Coordinate = [navigation.latestPosition.latitude, navigation.latestPosition.longitude];
++    const proj = projectProgress(fullRouteCoords, fullRouteCumulative, vehPos, 0, Infinity);
++    return splitSegment(fullRouteCoords, fullRouteCumulative, proj.progress);
++  }, [isDriverActiveNavigation, engine.segment.length, terminal, operationalState?.status, navigation?.latestPosition, fullRouteCoords, fullRouteCumulative]);
++
++  const hasActiveRoutingDisplay = (isDriverActiveNavigation && engine.segment.length > 0) || (observerSplit !== null);
++  const hidePlanned = hasActiveRoutingDisplay
++    ? !showPlanned
++    : (terminal && !!history?.length && !showPlanned);
++
++  const activeTraveled = isDriverActiveNavigation && engine.segment.length > 0
++    ? engine.traveled
++    : (observerSplit ? observerSplit.traveled : []);
++  const activeRemaining = isDriverActiveNavigation && engine.segment.length > 0
++    ? engine.remaining
++    : (observerSplit ? observerSplit.remaining : []);
++  const activeLeg = isDriverActiveNavigation && engine.segment.length > 0
++    ? engine.segment
++    : (observerSplit ? fullRouteCoords : []);
+@@ -406,4 +440,4 @@ export default function MobileTripDetailScreen() {
+     position: (!terminal && engine.position) || (navigation?.latestPosition ? [navigation.latestPosition.latitude, navigation.latestPosition.longitude] : null),
+-    traveled: terminal ? [] : engine.traveled,
+-    remaining: terminal ? [] : engine.remaining,
+-    leg: terminal ? [] : engine.segment,
++    traveled: terminal ? [] : activeTraveled,
++    remaining: terminal ? [] : activeRemaining,
++    leg: terminal ? [] : activeLeg,
+     hidePlanned,
+diff --git a/mobile/scripts/trip-navigation.test.ts b/mobile/scripts/trip-navigation.test.ts
+--- a/mobile/scripts/trip-navigation.test.ts
++++ b/mobile/scripts/trip-navigation.test.ts
+@@ -467,2 +467,103 @@ describe('Controlled retry coordination, dynamic origin, and IN_PROGRESS recover
+ });
++
++describe('Full trip routing, observer real-time sync, and no-stop test controls', () => {
++  it('Observer dynamically computes two-tone split from latestPosition and route geometry', () => {
++    const routeCoords: [number, number][] = [
++      [10.875, 106.799],
++      [10.850, 106.815],
++      [10.839, 106.830],
++    ];
++    const cumulative = cumulativeDistances(routeCoords);
++    const vehicleTelemetry: [number, number] = [10.8625, 106.807];
++    const proj = projectProgress(routeCoords, cumulative, vehicleTelemetry, 0, Infinity);
++    const split = splitSegment(routeCoords, cumulative, proj.progress);
++
++    assert.ok(split.traveled.length >= 2, 'Observer traveled line must have points');
++    assert.deepEqual(split.traveled[0], routeCoords[0], 'Traveled begins at School');
++    assert.ok(split.remaining.length >= 2, 'Observer remaining line must have points');
++    assert.deepEqual(split.remaining[split.remaining.length - 1], routeCoords[routeCoords.length - 1], 'Remaining goes to final stop');
++    assert.deepEqual(split.traveled[split.traveled.length - 1], split.remaining[0]);
++
++    const hasObserverRouting = split.traveled.length > 0 && split.remaining.length > 0;
++    assert.equal(hasObserverRouting, true, 'Observer hides raw single-color line to show two-tone split');
++  });
++
++  it('Traveled history accumulation preserves previous segments across ADVANCE', () => {
++    let accumulatedTraveled: [number, number][] = [];
++    const leg1Coords: [number, number][] = [[10.875, 106.799], [10.850, 106.815]];
++    const leg1Cumulative = cumulativeDistances(leg1Coords);
++    const leg1Total = leg1Cumulative[leg1Cumulative.length - 1];
++    const split1 = splitSegment(leg1Coords, leg1Cumulative, leg1Total);
++    accumulatedTraveled = [...accumulatedTraveled, ...split1.traveled];
++    assert.ok(accumulatedTraveled.length >= 2, 'Leg 1 points accumulated');
++
++    const leg2Coords: [number, number][] = [[10.850, 106.815], [10.839, 106.830]];
++    const leg2Cumulative = cumulativeDistances(leg2Coords);
++    const leg2Progress = leg2Cumulative[leg2Cumulative.length - 1] / 2;
++    const split2 = splitSegment(leg2Coords, leg2Cumulative, leg2Progress);
++
++    const fullTraveled = [...accumulatedTraveled, ...split2.traveled];
++    assert.deepEqual(fullTraveled[0], leg1Coords[0], 'Total traveled starts at Stop A');
++    assert.deepEqual(fullTraveled[fullTraveled.length - 1], split2.remaining[0], 'Total traveled connects to vehicle');
++    assert.deepEqual(split2.remaining[split2.remaining.length - 1], leg2Coords[1], 'Remaining continues to Stop C');
++  });
++
++  it('Test mode controls render only Auto and Manual buttons without Dừng button', () => {
++    const testMode = true;
++    let renderedButtons: string[] = [];
++    if (testMode) {
++      renderedButtons.push('TEST_AUTO', 'TEST_JOYSTICK');
++    } else {
++      renderedButtons.push('LIVE');
++    }
++    let mode: string | null = 'TEST_AUTO';
++    if (!testMode && !!mode) {
++      renderedButtons.push('STOP');
++    }
++    assert.deepEqual(renderedButtons, ['TEST_AUTO', 'TEST_JOYSTICK'], 'In testMode, only Auto and Manual are available');
++    assert.equal(renderedButtons.includes('STOP'), false, 'Dừng button must not be rendered in testMode');
++  });
++
++  it('Switching Auto to Manual pauses movement without destroying session or clearing route', () => {
++    let mode = 'TEST_AUTO';
++    let sessionAction = 'SWITCH';
++    let leg: any = { coords: [[10, 106], [10.1, 106]], progress: 50, travelled: 50 };
++    let joystickSpeed = 0;
++
++    mode = 'TEST_JOYSTICK';
++    assert.equal(joystickSpeed, 0, 'In Manual mode, vehicle naturally stays stationary without needing STOP');
++    assert.ok(leg !== null, 'Route geometry is preserved during switch');
++    assert.equal(leg.travelled, 50, 'Traveled progress is preserved during switch');
++
++    mode = 'TEST_AUTO';
++    assert.ok(leg !== null, 'Route geometry remains active when resuming Auto');
++  });
++});

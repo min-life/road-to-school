@@ -9,10 +9,9 @@ import {
   SpinnerIcon,
   UsersIcon,
   AlertIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   CheckIcon,
 } from '@/components/icons';
+import { PaginationControl } from '@/components/admin/common/pagination-control';
 import { CreateSchoolAdminModal } from './create-school-admin-modal';
 
 interface SchoolEmployeesTabProps {
@@ -38,6 +37,7 @@ export function SchoolEmployeesTab({
   const [roleFilter, setRoleFilter] = useState<'SCHOOL_ADMIN' | 'BUS_ATTENDANT' | ''>('');
   const [statusFilter, setStatusFilter] = useState<'ACTIVE' | 'INACTIVE' | ''>('');
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
 
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -49,14 +49,14 @@ export function SchoolEmployeesTab({
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchEmployees = useCallback(
-    async (targetPage = page, targetSearch = search, targetRole = roleFilter, targetStatus = statusFilter) => {
+    async (targetPage = page, targetLimit = limit, targetSearch = search, targetRole = roleFilter, targetStatus = statusFilter) => {
       try {
         setIsLoading(true);
         setErrorMessage(null);
 
         const response = await apiClient.getSchoolEmployees(schoolId, {
           page: targetPage,
-          limit: 10,
+          limit: targetLimit,
           search: targetSearch || undefined,
           role: targetRole || undefined,
           status: targetStatus || undefined,
@@ -73,12 +73,12 @@ export function SchoolEmployeesTab({
         setIsLoading(false);
       }
     },
-    [schoolId, page, search, roleFilter, statusFilter],
+    [schoolId, page, limit, search, roleFilter, statusFilter],
   );
 
   useEffect(() => {
-    fetchEmployees(page, search, roleFilter, statusFilter);
-  }, [fetchEmployees, page, search, roleFilter, statusFilter]);
+    fetchEmployees(page, limit, search, roleFilter, statusFilter);
+  }, [fetchEmployees, page, limit, search, roleFilter, statusFilter]);
 
   const handleSearchChange = (val: string) => {
     setSearch(val);
@@ -100,7 +100,7 @@ export function SchoolEmployeesTab({
 
   const handleCreateSuccess = () => {
     setSuccessToast('Tạo tài khoản quản trị trường thành công.');
-    fetchEmployees(1, search, roleFilter, statusFilter);
+    fetchEmployees(1, limit, search, roleFilter, statusFilter);
     setTimeout(() => {
       setSuccessToast(null);
     }, 4000);
@@ -289,33 +289,18 @@ export function SchoolEmployeesTab({
         </div>
 
         {/* Phân trang */}
-        {meta.totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/50 text-xs text-slate-600">
-            <div>
-              Hiển thị trang {meta.page} / {meta.totalPages} (Tổng số {meta.totalItems} nhân viên)
-            </div>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1 || isLoading}
-                className="p-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
-                aria-label="Trang trước"
-              >
-                <ChevronLeftIcon className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
-                disabled={page >= meta.totalPages || isLoading}
-                className="p-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
-                aria-label="Trang sau"
-              >
-                <ChevronRightIcon className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
+        <PaginationControl
+          page={meta.page}
+          totalPages={meta.totalPages}
+          total={meta.totalItems}
+          limit={limit}
+          loading={isLoading}
+          onPageChange={(newPage) => setPage(newPage)}
+          onLimitChange={(newLimit) => {
+            setLimit(newLimit);
+            setPage(1);
+          }}
+        />
       </div>
 
       {/* Modal tạo School Admin */}

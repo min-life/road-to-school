@@ -21,17 +21,17 @@ export class ListSchoolsQueryDto {
   page?: number = 1;
 
   @ApiPropertyOptional({
-    description: 'Số lượng trường học trên mỗi trang (tối đa 50)',
+    description: 'Số lượng trường học trên mỗi trang (tối đa 100)',
     default: 10,
     minimum: 1,
-    maximum: 50,
+    maximum: 100,
     example: 10,
   })
   @IsOptional()
   @Type(() => Number)
   @IsInt({ message: 'Số lượng bản ghi trên trang phải là số nguyên' })
   @Min(1, { message: 'Số lượng bản ghi tối thiểu là 1' })
-  @Max(50, { message: 'Số lượng bản ghi tối đa là 50' })
+  @Max(100, { message: 'Số lượng bản ghi tối đa là 100' })
   limit?: number = 10;
 
   @ApiPropertyOptional({

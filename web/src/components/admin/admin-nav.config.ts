@@ -35,6 +35,24 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     allowedRoles: ['SYSTEM_ADMIN'],
   },
   {
+    id: 'routes',
+    label: 'Phương án tuyến',
+    href: '/admin/routes',
+    allowedRoles: ['SYSTEM_ADMIN', 'SCHOOL_ADMIN'],
+  },
+  {
+    id: 'trips',
+    label: 'Chuyến xe',
+    href: '/admin/trips',
+    allowedRoles: ['SYSTEM_ADMIN', 'SCHOOL_ADMIN'],
+  },
+  {
+    id: 'leave-notices',
+    label: 'Báo nghỉ',
+    href: '/admin/leave-notices',
+    allowedRoles: ['SYSTEM_ADMIN', 'SCHOOL_ADMIN'],
+  },
+  {
     id: 'students',
     label: 'Học sinh',
     href: '/admin/students',

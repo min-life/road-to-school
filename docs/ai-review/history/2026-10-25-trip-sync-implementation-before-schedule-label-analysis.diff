@@ -1,0 +1,2142 @@
+diff --git a/api/src/trips/trips.service.ts b/api/src/trips/trips.service.ts
+index 926ed3a..7360c5f 100644
+--- a/api/src/trips/trips.service.ts
++++ b/api/src/trips/trips.service.ts
+@@ -2,0 +3 @@ import {
++  ConflictException,
+@@ -12,0 +14 @@ import {
++  Prisma,
+@@ -69,0 +72,29 @@ export class TripsService {
++
++  /** Operation writers lock the same parent before reading state or roster. */
++  private withTripLock<T>(id: string, work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
++    return this.prisma.$transaction(async (tx) => {
++      await tx.$queryRaw(Prisma.sql`SELECT id FROM trips WHERE id = ${id} FOR UPDATE`);
++      return work(tx);
++    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
++  }
++
++  private async assertTripAccess(trip: {
++    id: string; schoolId: string; assignedDriverId: string; assignedBusAttendantId: string;
++    attendances?: { studentId: string }[];
++  }, user: User): Promise<Set<string>> {
++    if (user.role === Role.SYSTEM_ADMIN) return new Set();
++    if (user.role === Role.SCHOOL_ADMIN && user.schoolId && user.schoolId === trip.schoolId) return new Set();
++    if (user.role === Role.DRIVER && trip.assignedDriverId === user.id) return new Set();
++    if (user.role === Role.BUS_ATTENDANT && trip.assignedBusAttendantId === user.id) return new Set();
++    if (user.role === Role.PARENT) {
++      const links = await this.prisma.parentStudentLink.findMany({
++        where: { parentId: user.id, studentId: { in: (trip.attendances || []).map(a => a.studentId) } },
++        select: { studentId: true },
++      });
++      const rosterIds = new Set((trip.attendances || []).map(a => a.studentId));
++      const ids = new Set(links.filter(link => rosterIds.has(link.studentId)).map(link => link.studentId));
++      if (ids.size) return ids;
++    }
++    throw new ForbiddenException('Bạn không có quyền xem chuyến xe này');
++  }
++
+@@ -325,0 +357,3 @@ export class TripsService {
++    if (currentUser.role === Role.SCHOOL_ADMIN && !currentUser.schoolId) {
++      throw new ForbiddenException('Tài khoản chưa được phân công trường');
++    }
+@@ -580,3 +614 @@ export class TripsService {
+-    if (currentUser.role === Role.SCHOOL_ADMIN && trip.schoolId !== currentUser.schoolId) {
+-      throw new ForbiddenException('Bạn không có quyền xem chuyến xe của trường khác');
+-    }
++    await this.assertTripAccess(trip, currentUser);
+@@ -678,6 +710,8 @@ export class TripsService {
+-    const trip = await this.prisma.trip.findUnique({
+-      where: { id },
+-      include: {
+-        school: true,
+-        route: {
+-          include: { stops: { select: { studentId: true } } },
++    await this.withTripLock(id, async (tx) => {
++      const trip = await tx.trip.findUnique({
++        where: { id },
++        include: {
++          school: true,
++          route: {
++            include: { stops: { select: { studentId: true } } },
++          },
+@@ -685,10 +719 @@ export class TripsService {
+-      },
+-    });
+-
+-    if (!trip) {
+-      throw new NotFoundException('Không tìm thấy chuyến xe');
+-    }
+-
+-    if (currentUser.role === Role.SCHOOL_ADMIN && trip.schoolId !== currentUser.schoolId) {
+-      throw new ForbiddenException('Bạn không có quyền chỉnh sửa chuyến xe của trường khác');
+-    }
++      });
+@@ -696,8 +721,2 @@ export class TripsService {
+-    // Phân quyền chi tiết theo từng trường (Field-level RBAC):
+-    // SYSTEM_ADMIN: Chỉ được phân công / thay đổi Xe và Tài xế. Cấm chạm vào Giáo viên phụ xe.
+-    // SCHOOL_ADMIN: Chỉ được phân công / thay đổi Giáo viên phụ xe. Cấm chạm vào Xe và Tài xế.
+-    if (currentUser.role === Role.SYSTEM_ADMIN) {
+-      if (dto.busAttendantId !== undefined) {
+-        throw new ForbiddenException(
+-          'SYSTEM_ADMIN không có quyền phân công hoặc chỉnh sửa Giáo viên phụ xe. Quyền này thuộc SCHOOL_ADMIN trường sở tại.',
+-        );
++      if (!trip) {
++        throw new NotFoundException('Không tìm thấy chuyến xe');
+@@ -705,2 +724,3 @@ export class TripsService {
+-      if (!dto.vehicleId && !dto.driverId) {
+-        throw new BadRequestException('Vui lòng cung cấp thông tin Phương tiện hoặc Tài xế cần cập nhật');
++
++      if (currentUser.role === Role.SCHOOL_ADMIN && trip.schoolId !== currentUser.schoolId) {
++        throw new ForbiddenException('Bạn không có quyền chỉnh sửa chuyến xe của trường khác');
+@@ -708,5 +728,24 @@ export class TripsService {
+-    } else if (currentUser.role === Role.SCHOOL_ADMIN) {
+-      if (dto.vehicleId !== undefined || dto.driverId !== undefined) {
+-        throw new ForbiddenException(
+-          'SCHOOL_ADMIN không có quyền phân công hoặc chỉnh sửa Phương tiện hoặc Tài xế. Quyền này thuộc SYSTEM_ADMIN.',
+-        );
++
++      // Phân quyền chi tiết theo từng trường (Field-level RBAC):
++      // SYSTEM_ADMIN: Chỉ được phân công / thay đổi Xe và Tài xế. Cấm chạm vào Giáo viên phụ xe.
++      // SCHOOL_ADMIN: Chỉ được phân công / thay đổi Giáo viên phụ xe. Cấm chạm vào Xe và Tài xế.
++      if (currentUser.role === Role.SYSTEM_ADMIN) {
++        if (dto.busAttendantId !== undefined) {
++          throw new ForbiddenException(
++            'SYSTEM_ADMIN không có quyền phân công hoặc chỉnh sửa Giáo viên phụ xe. Quyền này thuộc SCHOOL_ADMIN trường sở tại.',
++          );
++        }
++        if (!dto.vehicleId && !dto.driverId) {
++          throw new BadRequestException('Vui lòng cung cấp thông tin Phương tiện hoặc Tài xế cần cập nhật');
++        }
++      } else if (currentUser.role === Role.SCHOOL_ADMIN) {
++        if (dto.vehicleId !== undefined || dto.driverId !== undefined) {
++          throw new ForbiddenException(
++            'SCHOOL_ADMIN không có quyền phân công hoặc chỉnh sửa Phương tiện hoặc Tài xế. Quyền này thuộc SYSTEM_ADMIN.',
++          );
++        }
++        if (!dto.busAttendantId) {
++          throw new BadRequestException('Vui lòng cung cấp thông tin Giáo viên phụ xe cần cập nhật');
++        }
++      } else {
++        throw new ForbiddenException('Bạn không có quyền cập nhật phân công chuyến xe');
+@@ -714,2 +753,3 @@ export class TripsService {
+-      if (!dto.busAttendantId) {
+-        throw new BadRequestException('Vui lòng cung cấp thông tin Giáo viên phụ xe cần cập nhật');
++
++      if (trip.status !== TripStatus.SCHEDULED) {
++        throw new BadRequestException('Chỉ có thể điều phối lại chuyến xe đang ở trạng thái SCHEDULED (chờ vận hành)');
+@@ -717,3 +756,0 @@ export class TripsService {
+-    } else {
+-      throw new ForbiddenException('Bạn không có quyền cập nhật phân công chuyến xe');
+-    }
+@@ -721,3 +758,5 @@ export class TripsService {
+-    if (trip.status !== TripStatus.SCHEDULED) {
+-      throw new BadRequestException('Chỉ có thể điều phối lại chuyến xe đang ở trạng thái SCHEDULED (chờ vận hành)');
+-    }
++      if ((dto.expectedVehicleId !== undefined && dto.expectedVehicleId !== trip.assignedVehicleId) ||
++          (dto.expectedDriverId !== undefined && dto.expectedDriverId !== trip.assignedDriverId) ||
++          (dto.expectedBusAttendantId !== undefined && dto.expectedBusAttendantId !== trip.assignedBusAttendantId)) {
++        throw new ConflictException('Phân công đã thay đổi. Vui lòng mở lại form.');
++      }
+@@ -725 +764 @@ export class TripsService {
+-    const dataToUpdate: any = {};
++      const dataToUpdate: any = {};
+@@ -727,24 +766,8 @@ export class TripsService {
+-    // 1. Kiểm tra xe thay thế
+-    if (dto.vehicleId) {
+-      const vehicle = await this.prisma.vehicle.findUnique({ where: { id: dto.vehicleId } });
+-      if (!vehicle) {
+-        throw new NotFoundException('Phương tiện thay thế không tồn tại');
+-      }
+-      const studentIds = new Set(trip.route.stops.map((s) => s.studentId).filter(Boolean));
+-      if (vehicle.seatCount < studentIds.size) {
+-        throw new BadRequestException(
+-          `Sức chứa của phương tiện ${vehicle.licensePlate} (${vehicle.seatCount} chỗ) không đủ cho chuyến này (${studentIds.size} học sinh)`,
+-        );
+-      }
+-      if (trip.scheduledStartAt && trip.scheduledEndAt) {
+-        const conflict = await this.prisma.trip.findFirst({
+-          where: {
+-            id: { not: trip.id },
+-            assignedVehicleId: dto.vehicleId,
+-            serviceDate: trip.serviceDate,
+-            status: { in: [TripStatus.SCHEDULED, TripStatus.IN_PROGRESS] },
+-            scheduledStartAt: { lt: trip.scheduledEndAt },
+-            scheduledEndAt: { gt: trip.scheduledStartAt },
+-          },
+-        });
+-        if (conflict) {
++      // 1. Kiểm tra xe thay thế
++      if (dto.vehicleId) {
++        const vehicle = await tx.vehicle.findUnique({ where: { id: dto.vehicleId } });
++        if (!vehicle) {
++          throw new NotFoundException('Phương tiện thay thế không tồn tại');
++        }
++        const studentIds = new Set(trip.route.stops.map((s) => s.studentId).filter(Boolean));
++        if (vehicle.seatCount < studentIds.size) {
+@@ -752 +775 @@ export class TripsService {
+-            `Phương tiện ${vehicle.licensePlate} đã có lịch chạy trùng giờ trên chuyến khác trong ngày`,
++            `Sức chứa của phương tiện ${vehicle.licensePlate} (${vehicle.seatCount} chỗ) không đủ cho chuyến này (${studentIds.size} học sinh)`,
+@@ -754,0 +778,18 @@ export class TripsService {
++        if (trip.scheduledStartAt && trip.scheduledEndAt) {
++          const conflict = await tx.trip.findFirst({
++            where: {
++              id: { not: trip.id },
++              assignedVehicleId: dto.vehicleId,
++              serviceDate: trip.serviceDate,
++              status: { in: [TripStatus.SCHEDULED, TripStatus.IN_PROGRESS] },
++              scheduledStartAt: { lt: trip.scheduledEndAt },
++              scheduledEndAt: { gt: trip.scheduledStartAt },
++            },
++          });
++          if (conflict) {
++            throw new BadRequestException(
++              `Phương tiện ${vehicle.licensePlate} đã có lịch chạy trùng giờ trên chuyến khác trong ngày`,
++            );
++          }
++        }
++        dataToUpdate.assignedVehicleId = dto.vehicleId;
+@@ -756,2 +796,0 @@ export class TripsService {
+-      dataToUpdate.assignedVehicleId = dto.vehicleId;
+-    }
+@@ -759,21 +798,22 @@ export class TripsService {
+-    // 2. Kiểm tra tài xế thay thế
+-    if (dto.driverId) {
+-      const driver = await this.prisma.user.findUnique({ where: { id: dto.driverId } });
+-      if (!driver || driver.role !== Role.DRIVER || !driver.isActive) {
+-        throw new BadRequestException('Tài xế thay thế không hợp lệ hoặc đã bị vô hiệu hóa');
+-      }
+-      if (trip.scheduledStartAt && trip.scheduledEndAt) {
+-        const conflict = await this.prisma.trip.findFirst({
+-          where: {
+-            id: { not: trip.id },
+-            assignedDriverId: dto.driverId,
+-            serviceDate: trip.serviceDate,
+-            status: { in: [TripStatus.SCHEDULED, TripStatus.IN_PROGRESS] },
+-            scheduledStartAt: { lt: trip.scheduledEndAt },
+-            scheduledEndAt: { gt: trip.scheduledStartAt },
+-          },
+-        });
+-        if (conflict) {
+-          throw new BadRequestException(
+-            `Tài xế ${driver.fullName} đã có lịch chạy trùng giờ trên chuyến khác trong ngày`,
+-          );
++      // 2. Kiểm tra tài xế thay thế
++      if (dto.driverId) {
++        const driver = await tx.user.findUnique({ where: { id: dto.driverId } });
++        if (!driver || driver.role !== Role.DRIVER || !driver.isActive) {
++          throw new BadRequestException('Tài xế thay thế không hợp lệ hoặc đã bị vô hiệu hóa');
++        }
++        if (trip.scheduledStartAt && trip.scheduledEndAt) {
++          const conflict = await tx.trip.findFirst({
++            where: {
++              id: { not: trip.id },
++              assignedDriverId: dto.driverId,
++              serviceDate: trip.serviceDate,
++              status: { in: [TripStatus.SCHEDULED, TripStatus.IN_PROGRESS] },
++              scheduledStartAt: { lt: trip.scheduledEndAt },
++              scheduledEndAt: { gt: trip.scheduledStartAt },
++            },
++          });
++          if (conflict) {
++            throw new BadRequestException(
++              `Tài xế ${driver.fullName} đã có lịch chạy trùng giờ trên chuyến khác trong ngày`,
++            );
++          }
+@@ -780,0 +821 @@ export class TripsService {
++        dataToUpdate.assignedDriverId = dto.driverId;
+@@ -782,2 +822,0 @@ export class TripsService {
+-      dataToUpdate.assignedDriverId = dto.driverId;
+-    }
+@@ -785,24 +824,30 @@ export class TripsService {
+-    // 3. Kiểm tra giáo viên giám sát thay thế
+-    if (dto.busAttendantId) {
+-      const attendant = await this.prisma.user.findUnique({ where: { id: dto.busAttendantId } });
+-      if (!attendant || attendant.role !== Role.BUS_ATTENDANT || !attendant.isActive) {
+-        throw new BadRequestException('Giáo viên thay thế không hợp lệ hoặc đã bị vô hiệu hóa');
+-      }
+-      if (attendant.schoolId !== trip.schoolId) {
+-        throw new BadRequestException('Giáo viên thay thế không thuộc biên chế trường này');
+-      }
+-      if (trip.scheduledStartAt && trip.scheduledEndAt) {
+-        const conflict = await this.prisma.trip.findFirst({
+-          where: {
+-            id: { not: trip.id },
+-            assignedBusAttendantId: dto.busAttendantId,
+-            serviceDate: trip.serviceDate,
+-            status: { in: [TripStatus.SCHEDULED, TripStatus.IN_PROGRESS] },
+-            scheduledStartAt: { lt: trip.scheduledEndAt },
+-            scheduledEndAt: { gt: trip.scheduledStartAt },
+-          },
+-        });
+-        if (conflict) {
+-          throw new BadRequestException(
+-            `Giáo viên ${attendant.fullName} đã có lịch phụ xe trùng giờ trên chuyến khác trong ngày`,
+-          );
++      // 3. Kiểm tra giáo viên giám sát thay thế
++      if (dto.busAttendantId) {
++        const attendant = await tx.user.findUnique({ where: { id: dto.busAttendantId } });
++        if (!attendant || attendant.role !== Role.BUS_ATTENDANT || !attendant.isActive) {
++          throw new BadRequestException('Giáo viên thay thế không hợp lệ hoặc đã bị vô hiệu hóa');
++        }
++        if (attendant.schoolId !== trip.schoolId) {
++          throw new BadRequestException('Giáo viên thay thế không thuộc biên chế trường này');
++        }
++        if (trip.scheduledStartAt && trip.scheduledEndAt) {
++          const conflict = await tx.trip.findFirst({
++            where: {
++              id: { not: trip.id },
++              assignedBusAttendantId: dto.busAttendantId,
++              serviceDate: trip.serviceDate,
++              status: { in: [TripStatus.SCHEDULED, TripStatus.IN_PROGRESS] },
++              scheduledStartAt: { lt: trip.scheduledEndAt },
++              scheduledEndAt: { gt: trip.scheduledStartAt },
++            },
++          });
++          if (conflict) {
++            throw new BadRequestException(
++              `Giáo viên ${attendant.fullName} đã có lịch phụ xe trùng giờ trên chuyến khác trong ngày`,
++            );
++          }
++        }
++        dataToUpdate.assignedBusAttendantId = dto.busAttendantId;
++        // D03: Nếu đổi Giáo viên phụ xe, bắt buộc reset attendantReadyAt = null
++        if (dto.busAttendantId !== trip.assignedBusAttendantId) {
++          dataToUpdate.attendantReadyAt = null;
+@@ -811,4 +856,3 @@ export class TripsService {
+-      dataToUpdate.assignedBusAttendantId = dto.busAttendantId;
+-      // D03: Nếu đổi Giáo viên phụ xe, bắt buộc reset attendantReadyAt = null
+-      if (dto.busAttendantId !== trip.assignedBusAttendantId) {
+-        dataToUpdate.attendantReadyAt = null;
++
++      if (dto.reason) {
++        dataToUpdate.cancellationReason = dto.reason;
+@@ -816 +859,0 @@ export class TripsService {
+-    }
+@@ -818,3 +861,4 @@ export class TripsService {
+-    if (dto.reason) {
+-      dataToUpdate.cancellationReason = dto.reason;
+-    }
++      await tx.trip.update({
++        where: { id },
++        data: dataToUpdate,
++      });
+@@ -822,4 +866 @@ export class TripsService {
+-    await this.prisma.trip.update({
+-      where: { id },
+-      data: dataToUpdate,
+-    });
++      this.logger.log(`Trip ${id} assignments updated by User ${currentUser.id}`);
+@@ -827 +868 @@ export class TripsService {
+-    this.logger.log(`Trip ${id} assignments updated by User ${currentUser.id}`);
++    });
+@@ -1039,5 +1080 @@ export class TripsService {
+-        route: {
+-          stops: {
+-            some: { studentId },
+-          },
+-        },
++        attendances: { some: { studentId } },
+@@ -1201 +1238,3 @@ export class TripsService {
+-      const myChildIds = new Set(parentLinks.map((l) => l.studentId));
++      const roster = await this.prisma.tripAttendance.findMany({ where: { tripId }, select: { studentId: true } });
++      const rosterIds = new Set(roster.map(a => a.studentId));
++      const myChildIds = new Set(parentLinks.filter(l => rosterIds.has(l.studentId)).map(l => l.studentId));
+@@ -1202,0 +1242 @@ export class TripsService {
++      detail.studentCount = myChildIds.size;
+@@ -1454,3 +1494,4 @@ export class TripsService {
+-    const trip = await this.prisma.trip.findUnique({
+-      where: { id: tripId },
+-    });
++    return this.withTripLock(tripId, async (tx) => {
++      const trip = await tx.trip.findUnique({
++        where: { id: tripId },
++      });
+@@ -1458,3 +1499,3 @@ export class TripsService {
+-    if (!trip) {
+-      throw new NotFoundException('Không tìm thấy chuyến xe');
+-    }
++      if (!trip) {
++        throw new NotFoundException('Không tìm thấy chuyến xe');
++      }
+@@ -1462,3 +1503,3 @@ export class TripsService {
+-    if (trip.assignedBusAttendantId !== currentUser.id) {
+-      throw new ForbiddenException('Bạn không phải giáo viên phụ xe được phân công cho chuyến này');
+-    }
++      if (trip.assignedBusAttendantId !== currentUser.id) {
++        throw new ForbiddenException('Bạn không phải giáo viên phụ xe được phân công cho chuyến này');
++      }
+@@ -1466,3 +1507,3 @@ export class TripsService {
+-    if (trip.status !== TripStatus.SCHEDULED) {
+-      throw new BadRequestException('Chỉ có thể xác nhận sẵn sàng cho chuyến xe đang ở trạng thái SCHEDULED');
+-    }
++      if (trip.status !== TripStatus.SCHEDULED) {
++        throw new BadRequestException('Chỉ có thể xác nhận sẵn sàng cho chuyến xe đang ở trạng thái SCHEDULED');
++      }
+@@ -1470,7 +1511,7 @@ export class TripsService {
+-    // Idempotent: Nếu đã sẵn sàng trước đó, trả về thời gian hiện hành
+-    if (trip.attendantReadyAt) {
+-      return {
+-        message: 'Giáo viên phụ xe đã sẵn sàng',
+-        attendantReadyAt: trip.attendantReadyAt,
+-      };
+-    }
++      // Idempotent: Nếu đã sẵn sàng trước đó, trả về thời gian hiện hành
++      if (trip.attendantReadyAt) {
++        return {
++          message: 'Giáo viên phụ xe đã sẵn sàng',
++          attendantReadyAt: trip.attendantReadyAt,
++        };
++      }
+@@ -1478,6 +1519,7 @@ export class TripsService {
+-    // Rào cản thời gian ở chế độ LIVE (15 phút trước scheduledStartAt)
+-    if (!this.isTestMode() && trip.scheduledStartAt) {
+-      const now = new Date();
+-      const readyThreshold = new Date(trip.scheduledStartAt.getTime() - 15 * 60 * 1000);
+-      if (now < readyThreshold) {
+-        throw new BadRequestException('Chưa đến giờ xác nhận sẵn sàng (cho phép từ 15 phút trước giờ theo lịch)');
++      // Rào cản thời gian ở chế độ LIVE (15 phút trước scheduledStartAt)
++      if (!this.isTestMode() && trip.scheduledStartAt) {
++        const now = new Date();
++        const readyThreshold = new Date(trip.scheduledStartAt.getTime() - 15 * 60 * 1000);
++        if (now < readyThreshold) {
++          throw new BadRequestException('Chưa đến giờ xác nhận sẵn sàng (cho phép từ 15 phút trước giờ theo lịch)');
++        }
+@@ -1485 +1526,0 @@ export class TripsService {
+-    }
+@@ -1487,5 +1528,5 @@ export class TripsService {
+-    const readyAt = new Date();
+-    const updated = await this.prisma.trip.update({
+-      where: { id: tripId },
+-      data: { attendantReadyAt: readyAt },
+-    });
++      const readyAt = new Date();
++      const updated = await tx.trip.update({
++        where: { id: tripId },
++        data: { attendantReadyAt: readyAt },
++      });
+@@ -1493,5 +1534,6 @@ export class TripsService {
+-    this.logger.log(`Trip ${tripId} Attendant Ready confirmed by User ${currentUser.id}`);
+-    return {
+-      message: 'Xác nhận sẵn sàng thành công',
+-      attendantReadyAt: updated.attendantReadyAt!,
+-    };
++      this.logger.log(`Trip ${tripId} Attendant Ready confirmed by User ${currentUser.id}`);
++      return {
++        message: 'Xác nhận sẵn sàng thành công',
++        attendantReadyAt: updated.attendantReadyAt!,
++      };
++    });
+@@ -1508,4 +1550,5 @@ export class TripsService {
+-    const trip = await this.prisma.trip.findUnique({
+-      where: { id: tripId },
+-      include: { attendances: true },
+-    });
++    return this.withTripLock(tripId, async (tx) => {
++      const trip = await tx.trip.findUnique({
++        where: { id: tripId },
++        include: { attendances: true },
++      });
+@@ -1513,3 +1556,3 @@ export class TripsService {
+-    if (!trip) {
+-      throw new NotFoundException('Không tìm thấy chuyến xe');
+-    }
++      if (!trip) {
++        throw new NotFoundException('Không tìm thấy chuyến xe');
++      }
+@@ -1517,3 +1560,3 @@ export class TripsService {
+-    if (trip.assignedDriverId !== currentUser.id) {
+-      throw new ForbiddenException('Bạn không phải tài xế được phân công cho chuyến này');
+-    }
++      if (trip.assignedDriverId !== currentUser.id) {
++        throw new ForbiddenException('Bạn không phải tài xế được phân công cho chuyến này');
++      }
+@@ -1521,3 +1564,3 @@ export class TripsService {
+-    if (trip.status !== TripStatus.SCHEDULED) {
+-      throw new BadRequestException('Chỉ có thể bắt đầu chuyến xe đang ở trạng thái SCHEDULED (chờ vận hành)');
+-    }
++      if (trip.status !== TripStatus.SCHEDULED) {
++        throw new BadRequestException('Chỉ có thể bắt đầu chuyến xe đang ở trạng thái SCHEDULED (chờ vận hành)');
++      }
+@@ -1525,3 +1568,3 @@ export class TripsService {
+-    if (!trip.attendantReadyAt) {
+-      throw new BadRequestException('Giáo viên phụ xe chưa xác nhận sẵn sàng');
+-    }
++      if (!trip.attendantReadyAt) {
++        throw new BadRequestException('Giáo viên phụ xe chưa xác nhận sẵn sàng');
++      }
+@@ -1529,4 +1572,4 @@ export class TripsService {
+-    // D11: Chuyến xe bắt buộc phải có ít nhất 1 học sinh
+-    if (trip.attendances.length === 0) {
+-      throw new BadRequestException('Chuyến xe không có học sinh trong danh sách, không thể xuất phát');
+-    }
++      // D11: Chuyến xe bắt buộc phải có ít nhất 1 học sinh
++      if (trip.attendances.length === 0) {
++        throw new BadRequestException('Chuyến xe không có học sinh trong danh sách, không thể xuất phát');
++      }
+@@ -1534,6 +1577,10 @@ export class TripsService {
+-    // RET-03: Chiều TO_PARKING bắt buộc phải điểm danh lên xe đầy đủ trước khi xuất phát
+-    if (trip.direction === RouteDirection.TO_PARKING) {
+-      const unmarked = trip.attendances.filter((a) => a.status === AttendanceStatus.UNMARKED);
+-      if (unmarked.length > 0) {
+-        throw new BadRequestException(
+-          `Chưa thể xuất phát. Còn ${unmarked.length} học sinh chưa điểm danh lên xe tại trường.`,
++      // RET-03: Chiều TO_PARKING bắt buộc phải điểm danh lên xe đầy đủ trước khi xuất phát
++      if (trip.direction === RouteDirection.TO_PARKING) {
++        const unmarked = trip.attendances.filter((a) => a.status === AttendanceStatus.UNMARKED);
++        if (unmarked.length > 0) {
++          throw new BadRequestException(
++            `Chưa thể xuất phát. Còn ${unmarked.length} học sinh chưa điểm danh lên xe tại trường.`,
++          );
++        }
++        const invalidAbsent = trip.attendances.filter(
++          (a) => a.status === AttendanceStatus.ABSENT && (!a.absenceReason || !a.absenceReason.trim()),
+@@ -1540,0 +1588,3 @@ export class TripsService {
++        if (invalidAbsent.length > 0) {
++          throw new BadRequestException('Có học sinh vắng mặt nhưng chưa có lý do hợp lệ');
++        }
+@@ -1542,7 +1591,0 @@ export class TripsService {
+-      const invalidAbsent = trip.attendances.filter(
+-        (a) => a.status === AttendanceStatus.ABSENT && (!a.absenceReason || !a.absenceReason.trim()),
+-      );
+-      if (invalidAbsent.length > 0) {
+-        throw new BadRequestException('Có học sinh vắng mặt nhưng chưa có lý do hợp lệ');
+-      }
+-    }
+@@ -1550,6 +1593,7 @@ export class TripsService {
+-    // Rào cản thời gian ở chế độ LIVE (5 phút trước scheduledStartAt)
+-    if (!this.isTestMode() && trip.scheduledStartAt) {
+-      const now = new Date();
+-      const startThreshold = new Date(trip.scheduledStartAt.getTime() - 5 * 60 * 1000);
+-      if (now < startThreshold) {
+-        throw new BadRequestException('Chưa đến giờ xuất phát (cho phép từ 5 phút trước giờ theo lịch)');
++      // Rào cản thời gian ở chế độ LIVE (5 phút trước scheduledStartAt)
++      if (!this.isTestMode() && trip.scheduledStartAt) {
++        const now = new Date();
++        const startThreshold = new Date(trip.scheduledStartAt.getTime() - 5 * 60 * 1000);
++        if (now < startThreshold) {
++          throw new BadRequestException('Chưa đến giờ xuất phát (cho phép từ 5 phút trước giờ theo lịch)');
++        }
+@@ -1557 +1600,0 @@ export class TripsService {
+-    }
+@@ -1559,7 +1602,7 @@ export class TripsService {
+-    const updated = await this.prisma.trip.update({
+-      where: { id: tripId },
+-      data: {
+-        status: TripStatus.IN_PROGRESS,
+-        actualStartTime: new Date(),
+-      },
+-    });
++      const updated = await tx.trip.update({
++        where: { id: tripId },
++        data: {
++          status: TripStatus.IN_PROGRESS,
++          actualStartTime: new Date(),
++        },
++      });
+@@ -1567,5 +1610,6 @@ export class TripsService {
+-    this.logger.log(`Trip ${tripId} Started by Driver ${currentUser.id}`);
+-    return {
+-      message: 'Bắt đầu chuyến xe thành công',
+-      trip: updated,
+-    };
++      this.logger.log(`Trip ${tripId} Started by Driver ${currentUser.id}`);
++      return {
++        message: 'Bắt đầu chuyến xe thành công',
++        trip: updated,
++      };
++    });
+@@ -1584,4 +1628,5 @@ export class TripsService {
+-    const trip = await this.prisma.trip.findUnique({
+-      where: { id: tripId },
+-      include: { attendances: true },
+-    });
++    return this.withTripLock(tripId, async (tx) => {
++      const trip = await tx.trip.findUnique({
++        where: { id: tripId },
++        include: { attendances: true },
++      });
+@@ -1589,3 +1634,3 @@ export class TripsService {
+-    if (!trip) {
+-      throw new NotFoundException('Không tìm thấy chuyến xe');
+-    }
++      if (!trip) {
++        throw new NotFoundException('Không tìm thấy chuyến xe');
++      }
+@@ -1593,3 +1638,3 @@ export class TripsService {
+-    if (trip.assignedDriverId !== currentUser.id) {
+-      throw new ForbiddenException('Bạn không phải tài xế được phân công cho chuyến này');
+-    }
++      if (trip.assignedDriverId !== currentUser.id) {
++        throw new ForbiddenException('Bạn không phải tài xế được phân công cho chuyến này');
++      }
+@@ -1597,5 +1642,5 @@ export class TripsService {
+-    if (trip.direction !== RouteDirection.TO_SCHOOL) {
+-      throw new BadRequestException(
+-        'Xác nhận đến trường chỉ áp dụng cho chuyến xe đưa học sinh đến trường (TO_SCHOOL)',
+-      );
+-    }
++      if (trip.direction !== RouteDirection.TO_SCHOOL) {
++        throw new BadRequestException(
++          'Xác nhận đến trường chỉ áp dụng cho chuyến xe đưa học sinh đến trường (TO_SCHOOL)',
++        );
++      }
+@@ -1603,3 +1648,3 @@ export class TripsService {
+-    if (trip.status !== TripStatus.IN_PROGRESS) {
+-      throw new BadRequestException('Chỉ có thể xác nhận đến trường khi chuyến xe đang hoạt động (IN_PROGRESS)');
+-    }
++      if (trip.status !== TripStatus.IN_PROGRESS) {
++        throw new BadRequestException('Chỉ có thể xác nhận đến trường khi chuyến xe đang hoạt động (IN_PROGRESS)');
++      }
+@@ -1607,7 +1652,7 @@ export class TripsService {
+-    // Idempotent: Nếu đã đến trường trước đó, trả về thời gian hiện hành
+-    if (trip.arrivedAtSchoolAt) {
+-      return {
+-        message: 'Chuyến xe đã xác nhận đến trường trước đó',
+-        arrivedAtSchoolAt: trip.arrivedAtSchoolAt.toISOString(),
+-      };
+-    }
++      // Idempotent: Nếu đã đến trường trước đó, trả về thời gian hiện hành
++      if (trip.arrivedAtSchoolAt) {
++        return {
++          message: 'Chuyến xe đã xác nhận đến trường trước đó',
++          arrivedAtSchoolAt: trip.arrivedAtSchoolAt.toISOString(),
++        };
++      }
+@@ -1615,3 +1660,3 @@ export class TripsService {
+-    if (trip.attendances.length === 0) {
+-      throw new BadRequestException('Chuyến xe không có học sinh trong danh sách');
+-    }
++      if (trip.attendances.length === 0) {
++        throw new BadRequestException('Chuyến xe không có học sinh trong danh sách');
++      }
+@@ -1619,5 +1664,10 @@ export class TripsService {
+-    // BF-03: Chỉ ENABLE khi 100% học sinh đã được điểm danh
+-    const unmarked = trip.attendances.filter((a) => a.status === AttendanceStatus.UNMARKED);
+-    if (unmarked.length > 0) {
+-      throw new BadRequestException(
+-        `Chưa thể xác nhận đến trường. Còn ${unmarked.length} học sinh chưa được điểm danh lên xe.`,
++      // BF-03: Chỉ ENABLE khi 100% học sinh đã được điểm danh
++      const unmarked = trip.attendances.filter((a) => a.status === AttendanceStatus.UNMARKED);
++      if (unmarked.length > 0) {
++        throw new BadRequestException(
++          `Chưa thể xác nhận đến trường. Còn ${unmarked.length} học sinh chưa được điểm danh lên xe.`,
++        );
++      }
++
++      const invalidAbsent = trip.attendances.filter(
++        (a) => a.status === AttendanceStatus.ABSENT && (!a.absenceReason || !a.absenceReason.trim()),
+@@ -1625 +1675,3 @@ export class TripsService {
+-    }
++      if (invalidAbsent.length > 0) {
++        throw new BadRequestException('Có học sinh vắng mặt nhưng chưa có lý do hợp lệ');
++      }
+@@ -1627,6 +1679,5 @@ export class TripsService {
+-    const invalidAbsent = trip.attendances.filter(
+-      (a) => a.status === AttendanceStatus.ABSENT && (!a.absenceReason || !a.absenceReason.trim()),
+-    );
+-    if (invalidAbsent.length > 0) {
+-      throw new BadRequestException('Có học sinh vắng mặt nhưng chưa có lý do hợp lệ');
+-    }
++      const arrivedAt = new Date();
++      const updated = await tx.trip.update({
++        where: { id: tripId },
++        data: { arrivedAtSchoolAt: arrivedAt },
++      });
+@@ -1634,4 +1685,5 @@ export class TripsService {
+-    const arrivedAt = new Date();
+-    const updated = await this.prisma.trip.update({
+-      where: { id: tripId },
+-      data: { arrivedAtSchoolAt: arrivedAt },
++      this.logger.log(`Trip ${tripId} Arrived at School confirmed by Driver ${currentUser.id}`);
++      return {
++        message: 'Xác nhận đến trường thành công',
++        arrivedAtSchoolAt: updated.arrivedAtSchoolAt!.toISOString(),
++      };
+@@ -1639,6 +1690,0 @@ export class TripsService {
+-
+-    this.logger.log(`Trip ${tripId} Arrived at School confirmed by Driver ${currentUser.id}`);
+-    return {
+-      message: 'Xác nhận đến trường thành công',
+-      arrivedAtSchoolAt: updated.arrivedAtSchoolAt!.toISOString(),
+-    };
+@@ -1679,7 +1725 @@ export class TripsService {
+-    if (currentUser.role === Role.DRIVER && trip.assignedDriverId !== currentUser.id) {
+-      throw new ForbiddenException('Bạn không có quyền xem chuyến xe này');
+-    }
+-
+-    if (currentUser.role === Role.BUS_ATTENDANT && trip.assignedBusAttendantId !== currentUser.id) {
+-      throw new ForbiddenException('Bạn không có quyền xem chuyến xe này');
+-    }
++    await this.assertTripAccess(trip, currentUser);
+@@ -1750 +1790 @@ export class TripsService {
+-    return this.prisma.$transaction(async (tx) => {
++    return this.withTripLock(tripId, async (tx) => {
+@@ -1950 +1990 @@ export class TripsService {
+-    return this.prisma.$transaction(async (tx) => {
++    return this.withTripLock(tripId, async (tx) => {
+@@ -2028 +2068 @@ export class TripsService {
+-    return this.prisma.$transaction(async (tx) => {
++    return this.withTripLock(tripId, async (tx) => {
+@@ -2116,0 +2157 @@ export class TripsService {
++    const allowedChildren = await this.assertTripAccess(trip, currentUser);
+@@ -2220,7 +2261,6 @@ export class TripsService {
+-    // D10 & D05: For Parent view
+-    let childAttendanceStatus: AttendanceStatus | null = null;
+-    let childMarkedAt: string | null = null;
+-    let childAbsenceReason: string | null = null;
+-    let childIsAlighted = false;
+-    let childAlightedAt: string | null = null;
+-
++    const children = trip.attendances.filter(a => allowedChildren.has(a.studentId)).map(a => ({
++      studentId: a.studentId, attendanceStatus: a.status,
++      absenceReason: a.status === AttendanceStatus.ABSENT ? a.absenceReason : null,
++      markedAt: a.markedAt?.toISOString() || null,
++      alightedAt: a.alightedAt?.toISOString() || null, isAlighted: Boolean(a.alightedAt),
++    }));
+@@ -2228,15 +2268,7 @@ export class TripsService {
+-      const parentLinks = await this.prisma.parentStudentLink.findMany({
+-        where: { parentId: currentUser.id },
+-        select: { studentId: true },
+-      });
+-      const childIds = new Set(parentLinks.map((l) => l.studentId));
+-      const childAtt = trip.attendances.find((a) => childIds.has(a.studentId));
+-      if (childAtt) {
+-        childAttendanceStatus = childAtt.status;
+-        childMarkedAt = childAtt.markedAt ? childAtt.markedAt.toISOString() : null;
+-        if (childAtt.status === AttendanceStatus.ABSENT) {
+-          childAbsenceReason = childAtt.absenceReason;
+-        }
+-        childIsAlighted = Boolean(childAtt.alightedAt);
+-        childAlightedAt = childAtt.alightedAt ? childAtt.alightedAt.toISOString() : null;
+-      }
++      return {
++        tripId: trip.id, status: trip.status, direction: trip.direction,
++        actualStartTime: trip.actualStartTime?.toISOString() || null,
++        actualEndTime: trip.actualEndTime?.toISOString() || null,
++        arrivedAtSchoolAt: trip.arrivedAtSchoolAt?.toISOString() || null,
++        isSchoolArrived, children,
++      };
+@@ -2243,0 +2276,4 @@ export class TripsService {
++    canDriverStart = currentUser.role === Role.DRIVER && canDriverStart;
++    canDriverComplete = currentUser.role === Role.DRIVER && canDriverComplete;
++    canArriveAtSchool = currentUser.role === Role.DRIVER && canArriveAtSchool;
++    canAttendantReady = currentUser.role === Role.BUS_ATTENDANT && canAttendantReady;
+@@ -2281,5 +2317 @@ export class TripsService {
+-      childAttendanceStatus,
+-      childIsAlighted,
+-      childAlightedAt,
+-      childMarkedAt,
+-      childAbsenceReason,
++      children: [],
+diff --git a/api/src/trips/trips.controller.ts b/api/src/trips/trips.controller.ts
+index 716c924..ddc6b3c 100644
+--- a/api/src/trips/trips.controller.ts
++++ b/api/src/trips/trips.controller.ts
+@@ -53,0 +54,5 @@ import {
++@ApiResponse({ status: 400, description: 'Dữ liệu hoặc điều kiện vận hành không hợp lệ' })
++@ApiResponse({ status: 401, description: 'Chưa xác thực hoặc phiên hết hạn' })
++@ApiResponse({ status: 403, description: 'Không thuộc school/assignment/linked Trip roster được phép' })
++@ApiResponse({ status: 404, description: 'Không tìm thấy chuyến xe hoặc học sinh trong roster' })
++@ApiResponse({ status: 500, description: 'Lỗi máy chủ; không xác nhận mutation thành công khi API trả lỗi' })
+@@ -260,0 +266 @@ export class TripsController {
++  @ApiResponse({ status: 409, description: 'Snapshot phân công đã thay đổi; mở lại form sau khi tải mới' })
+@@ -351 +357 @@ export class TripsController {
+-      'Dùng cho Smart Polling 5s. Trả về trạng thái nút, tiến độ điểm danh và quyền thao tác tùy theo vai trò người gọi (Driver, Attendant, Parent).',
++      'Dùng cho Smart Polling 5s; kiểm tra quyền trên từng Trip. Parent chỉ nhận children theo studentId thuộc roster đã liên kết; không global counts/action flags.',
+@@ -449,0 +456 @@ export class TripsController {
++  @ApiResponse({ status: 422, description: 'INCOMPLETE_ATTENDANCE: roster còn UNMARKED' })
+@@ -456 +463 @@ export class TripsController {
+-      'Chuyển trạng thái Trip sang COMPLETED. Điều kiện: Trip đang IN_PROGRESS, 100% học sinh trong danh sách đã được điểm danh (không còn UNMARKED), tất cả học sinh ABSENT có lý do hợp lệ.',
++      'Chuyển Trip sang COMPLETED: roster đủ, ABSENT có lý do, mọi PRESENT đã xuống xe; TO_SCHOOL phải xác nhận đến trường.',
+@@ -467 +473,0 @@ export class TripsController {
+-
+diff --git a/api/src/trips/dto/trip-operation.dto.ts b/api/src/trips/dto/trip-operation.dto.ts
+index d1cec94..ebe34be 100644
+--- a/api/src/trips/dto/trip-operation.dto.ts
++++ b/api/src/trips/dto/trip-operation.dto.ts
+@@ -6 +5,0 @@ import {
+-  IsOptional,
+@@ -175,0 +175,9 @@ export class TripAttendanceListResponseDto {
++export class ParentTripChildStateDto {
++  @ApiProperty() studentId: string;
++  @ApiProperty({ enum: AttendanceStatus }) attendanceStatus: AttendanceStatus;
++  @ApiPropertyOptional({ nullable: true }) absenceReason?: string | null;
++  @ApiPropertyOptional({ nullable: true }) markedAt?: string | null;
++  @ApiPropertyOptional({ nullable: true }) alightedAt?: string | null;
++  @ApiProperty() isAlighted: boolean;
++}
++
+@@ -176,0 +185,2 @@ export class OperationalStateResponseDto {
++  @ApiProperty({ type: [ParentTripChildStateDto], description: "Chỉ các con thuộc roster được liên kết với Parent; rỗng với role khác." })
++  children: ParentTripChildStateDto[];
+@@ -186,2 +196,2 @@ export class OperationalStateResponseDto {
+-  @ApiProperty({ example: false })
+-  isAttendantReady: boolean;
++  @ApiPropertyOptional({ example: false })
++  isAttendantReady?: boolean;
+@@ -204,2 +214,2 @@ export class OperationalStateResponseDto {
+-  @ApiProperty({ example: 15 })
+-  totalStudents: number;
++  @ApiPropertyOptional({ example: 15 })
++  totalStudents?: number;
+@@ -207,2 +217,2 @@ export class OperationalStateResponseDto {
+-  @ApiProperty({ example: 0 })
+-  markedCount: number;
++  @ApiPropertyOptional({ example: 0 })
++  markedCount?: number;
+@@ -210,2 +220,2 @@ export class OperationalStateResponseDto {
+-  @ApiProperty({ example: 0 })
+-  presentCount: number;
++  @ApiPropertyOptional({ example: 0 })
++  presentCount?: number;
+@@ -213,2 +223,2 @@ export class OperationalStateResponseDto {
+-  @ApiProperty({ example: 0 })
+-  absentCount: number;
++  @ApiPropertyOptional({ example: 0 })
++  absentCount?: number;
+@@ -216,2 +226,2 @@ export class OperationalStateResponseDto {
+-  @ApiProperty({ example: 15 })
+-  unmarkedCount: number;
++  @ApiPropertyOptional({ example: 15 })
++  unmarkedCount?: number;
+@@ -219,2 +229,2 @@ export class OperationalStateResponseDto {
+-  @ApiProperty({ example: false })
+-  isAllMarked: boolean;
++  @ApiPropertyOptional({ example: false })
++  isAllMarked?: boolean;
+@@ -222,2 +232,2 @@ export class OperationalStateResponseDto {
+-  @ApiProperty({ example: 0 })
+-  alightedCount: number;
++  @ApiPropertyOptional({ example: 0 })
++  alightedCount?: number;
+@@ -225,2 +235,2 @@ export class OperationalStateResponseDto {
+-  @ApiProperty({ example: 0 })
+-  pendingAlightCount: number;
++  @ApiPropertyOptional({ example: 0 })
++  pendingAlightCount?: number;
+@@ -228,2 +238,2 @@ export class OperationalStateResponseDto {
+-  @ApiProperty({ example: false })
+-  isAllAlighted: boolean;
++  @ApiPropertyOptional({ example: false })
++  isAllAlighted?: boolean;
+@@ -231,2 +241,2 @@ export class OperationalStateResponseDto {
+-  @ApiProperty({ example: false })
+-  canDriverStart: boolean;
++  @ApiPropertyOptional({ example: false })
++  canDriverStart?: boolean;
+@@ -234,2 +244,2 @@ export class OperationalStateResponseDto {
+-  @ApiProperty({ example: false })
+-  canStartTrip: boolean;
++  @ApiPropertyOptional({ example: false })
++  canStartTrip?: boolean;
+@@ -237,2 +247,2 @@ export class OperationalStateResponseDto {
+-  @ApiProperty({ example: false })
+-  canArriveAtSchool: boolean;
++  @ApiPropertyOptional({ example: false })
++  canArriveAtSchool?: boolean;
+@@ -240,2 +250,2 @@ export class OperationalStateResponseDto {
+-  @ApiProperty({ example: false })
+-  canDriverComplete: boolean;
++  @ApiPropertyOptional({ example: false })
++  canDriverComplete?: boolean;
+@@ -243,2 +253,2 @@ export class OperationalStateResponseDto {
+-  @ApiProperty({ example: false })
+-  canCompleteTrip: boolean;
++  @ApiPropertyOptional({ example: false })
++  canCompleteTrip?: boolean;
+@@ -246,2 +256,2 @@ export class OperationalStateResponseDto {
+-  @ApiProperty({ example: true })
+-  canAttendantReady: boolean;
++  @ApiPropertyOptional({ example: true })
++  canAttendantReady?: boolean;
+@@ -249,2 +259,2 @@ export class OperationalStateResponseDto {
+-  @ApiProperty({ example: true })
+-  canMarkReady: boolean;
++  @ApiPropertyOptional({ example: true })
++  canMarkReady?: boolean;
+@@ -279,15 +288,0 @@ export class OperationalStateResponseDto {
+-  // For Parent view
+-  @ApiPropertyOptional({ enum: AttendanceStatus, example: 'PRESENT' })
+-  childAttendanceStatus?: AttendanceStatus | null;
+-
+-  @ApiProperty({ example: false })
+-  childIsAlighted: boolean;
+-
+-  @ApiPropertyOptional({ example: null })
+-  childAlightedAt?: string | null;
+-
+-  @ApiPropertyOptional({ example: '2026-10-26T06:35:12.000Z' })
+-  childMarkedAt?: string | null;
+-
+-  @ApiPropertyOptional({ example: null })
+-  childAbsenceReason?: string | null;
+diff --git a/api/src/trips/trips.service.spec.ts b/api/src/trips/trips.service.spec.ts
+index b89a6c4..f041484 100644
+--- a/api/src/trips/trips.service.spec.ts
++++ b/api/src/trips/trips.service.spec.ts
+@@ -49,0 +50 @@ describe('TripsService Business Rules', () => {
++      $queryRaw: vi.fn().mockResolvedValue([]),
+@@ -336,0 +338 @@ describe('TripsService Business Rules', () => {
++        attendances: [{ studentId: 'child-1' }, { studentId: 'child-2' }],
+@@ -379,0 +382 @@ describe('TripsService Business Rules', () => {
++      prismaMock.tripAttendance.findMany.mockResolvedValue([{ studentId: 'child-1' }, { studentId: 'child-2' }]);
+@@ -413,0 +417 @@ describe('TripsService Business Rules', () => {
++        assignedBusAttendantId: 'attendant-1',
+@@ -426 +430 @@ describe('TripsService Business Rules', () => {
+-      const result = await service.getOperationalState('trip-test-1', mockDriverUser as any);
++      const result = await service.getOperationalState('trip-test-1', mockAttendantUser as any);
+@@ -453,0 +458 @@ describe('TripsService Business Rules', () => {
++        assignedBusAttendantId: 'attendant-1',
+@@ -464 +469 @@ describe('TripsService Business Rules', () => {
+-      const result = await service.getOperationalState('trip-live-1', mockDriverUser as any);
++      const result = await service.getOperationalState('trip-live-1', mockAttendantUser as any);
+diff --git a/mobile/services/api-client.ts b/mobile/services/api-client.ts
+index 98e3117..178312d 100644
+--- a/mobile/services/api-client.ts
++++ b/mobile/services/api-client.ts
+@@ -765,0 +766 @@ export interface OperationalStateResponse {
++  children?: { studentId: string; attendanceStatus: AttendanceStatus; absenceReason?: string | null; markedAt?: string | null; alightedAt?: string | null; isAlighted: boolean }[];
+@@ -769 +770 @@ export interface OperationalStateResponse {
+-  isAttendantReady: boolean;
++  isAttendantReady?: boolean;
+@@ -775,6 +776,6 @@ export interface OperationalStateResponse {
+-  isAllMarked: boolean;
+-  totalStudents: number;
+-  markedCount: number;
+-  presentCount: number;
+-  absentCount: number;
+-  unmarkedCount: number;
++  isAllMarked?: boolean;
++  totalStudents?: number;
++  markedCount?: number;
++  presentCount?: number;
++  absentCount?: number;
++  unmarkedCount?: number;
+@@ -784,2 +785,2 @@ export interface OperationalStateResponse {
+-  canMarkReady: boolean;
+-  canStartTrip: boolean;
++  canMarkReady?: boolean;
++  canStartTrip?: boolean;
+@@ -787 +788 @@ export interface OperationalStateResponse {
+-  canCompleteTrip: boolean;
++  canCompleteTrip?: boolean;
+@@ -802,12 +802,0 @@ export interface OperationalStateResponse {
+-  childAttendanceStatus?: AttendanceStatus | null;
+-  childIsAlighted?: boolean;
+-  childAlightedAt?: string | null;
+-  childMarkedAt?: string | null;
+-  childAbsenceReason?: string | null;
+-  myChildAttendance?: {
+-    studentId: string;
+-    studentName: string;
+-    status: AttendanceStatus;
+-    markedAt?: string | null;
+-    absenceReason?: string | null;
+-  } | null;
+diff --git a/mobile/app/(tabs)/index.tsx b/mobile/app/(tabs)/index.tsx
+index 9ed841d..f857a21 100644
+--- a/mobile/app/(tabs)/index.tsx
++++ b/mobile/app/(tabs)/index.tsx
+@@ -10,0 +11,2 @@ import {
++import { useActiveRefresh } from '@/hooks/use-active-refresh';
++import type { RefreshContext } from '@/utils/refresh-loop';
+@@ -36 +38 @@ export default function HomeScreen() {
+-  const loadHomeData = useCallback(async () => {
++  const fetchHomeData = async ({ isCurrent }: RefreshContext) => {
+@@ -41,0 +44 @@ export default function HomeScreen() {
++        if (!isCurrent()) return;
+@@ -45,0 +49 @@ export default function HomeScreen() {
++        if (!isCurrent()) return;
+@@ -49 +53,6 @@ export default function HomeScreen() {
+-      setError(err?.message || 'Không thể tải dữ liệu trang chủ');
++      if (!isCurrent()) return;
++      if (err?.statusCode === 403 || err?.statusCode === 404) {
++        setHomeTrip(null); setHasHomeTrip(false); setParentCards([]);
++        setError(err.message); return false;
++      }
++      if (!homeTrip && !parentCards.length) setError(err?.message || 'Không thể tải dữ liệu trang chủ');
+@@ -51,2 +60 @@ export default function HomeScreen() {
+-      setLoading(false);
+-      setRefreshing(false);
++      if (isCurrent()) { setLoading(false); setRefreshing(false); }
+@@ -54,5 +62,4 @@ export default function HomeScreen() {
+-  }, [user]);
+-
+-  useEffect(() => {
+-    loadHomeData();
+-  }, [loadHomeData]);
++  };
++  const identity = JSON.stringify([user?.id, user?.role]);
++  useEffect(() => { setHomeTrip(null); setParentCards([]); setHasHomeTrip(false); setLoading(true); }, [identity]);
++  const { refresh: loadHomeData } = useActiveRefresh(identity, fetchHomeData, 8000);
+diff --git a/mobile/app/(tabs)/schedule.tsx b/mobile/app/(tabs)/schedule.tsx
+index 26f2e1e..bfc83bc 100644
+--- a/mobile/app/(tabs)/schedule.tsx
++++ b/mobile/app/(tabs)/schedule.tsx
+@@ -13,0 +14,2 @@ import Ionicons from '@expo/vector-icons/Ionicons';
++import { useActiveRefresh } from '@/hooks/use-active-refresh';
++import type { RefreshContext } from '@/utils/refresh-loop';
+@@ -56 +58 @@ export default function ScheduleScreen() {
+-  const loadSchedule = useCallback(async () => {
++  const fetchSchedule = async ({ isCurrent }: RefreshContext) => {
+@@ -59 +60,0 @@ export default function ScheduleScreen() {
+-      setLoading(true);
+@@ -69,0 +71 @@ export default function ScheduleScreen() {
++      if (!isCurrent()) return;
+@@ -72 +74,3 @@ export default function ScheduleScreen() {
+-      setError(err?.message || 'Không thể tải lịch trình vận hành');
++      if (!isCurrent()) return;
++      if (err?.statusCode === 403 || err?.statusCode === 404) { setTrips([]); setError(err.message); return false; }
++      if (!trips.length) setError(err?.message || 'Không thể tải lịch trình vận hành');
+@@ -74,2 +78 @@ export default function ScheduleScreen() {
+-      setLoading(false);
+-      setRefreshing(false);
++      if (isCurrent()) { setLoading(false); setRefreshing(false); }
+@@ -77,5 +80,4 @@ export default function ScheduleScreen() {
+-  }, [fromDate, toDate, isDriver, isAttendant]);
+-
+-  useEffect(() => {
+-    loadSchedule();
+-  }, [loadSchedule]);
++  };
++  const identity = JSON.stringify([user?.id, user?.role, fromDate, toDate]);
++  useEffect(() => { setTrips([]); setLoading(true); }, [identity]);
++  const { refresh: loadSchedule } = useActiveRefresh(identity, fetchSchedule, 12000);
+diff --git a/mobile/app/parent/schedule.tsx b/mobile/app/parent/schedule.tsx
+index 51a5c7c..40dc03a 100644
+--- a/mobile/app/parent/schedule.tsx
++++ b/mobile/app/parent/schedule.tsx
+@@ -13,0 +14,3 @@ import Ionicons from '@expo/vector-icons/Ionicons';
++import { useActiveRefresh } from '@/hooks/use-active-refresh';
++import type { RefreshContext } from '@/utils/refresh-loop';
++import { useAuth } from '@/context/auth-context';
+@@ -24,0 +28 @@ export default function ParentStudentScheduleScreen() {
++  const { user } = useAuth();
+@@ -52 +56 @@ export default function ParentStudentScheduleScreen() {
+-  const loadSchedule = useCallback(async () => {
++  const fetchSchedule = async ({ isCurrent }: RefreshContext) => {
+@@ -55 +58,0 @@ export default function ParentStudentScheduleScreen() {
+-      setLoading(true);
+@@ -57,0 +61 @@ export default function ParentStudentScheduleScreen() {
++      if (!isCurrent()) return;
+@@ -60 +64,3 @@ export default function ParentStudentScheduleScreen() {
+-      setError(err?.message || 'Không thể tải lịch trình đưa đón của học sinh');
++      if (!isCurrent()) return;
++      if (err?.statusCode === 403 || err?.statusCode === 404) { setTrips([]); setError(err.message); return false; }
++      if (!trips.length) setError(err?.message || 'Không thể tải lịch trình đưa đón của học sinh');
+@@ -62,2 +68 @@ export default function ParentStudentScheduleScreen() {
+-      setLoading(false);
+-      setRefreshing(false);
++      if (isCurrent()) { setLoading(false); setRefreshing(false); }
+@@ -65,5 +70,4 @@ export default function ParentStudentScheduleScreen() {
+-  }, [studentId, fromDate, toDate]);
+-
+-  useEffect(() => {
+-    loadSchedule();
+-  }, [loadSchedule]);
++  };
++  const identity = JSON.stringify([user?.id, user?.role, studentId, fromDate, toDate]);
++  useEffect(() => { setTrips([]); setLoading(true); }, [identity]);
++  const { refresh: loadSchedule } = useActiveRefresh(identity, fetchSchedule, 12000);
+diff --git a/mobile/app/trip/[id].tsx b/mobile/app/trip/[id].tsx
+index 90356ec..4e05554 100644
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -16 +15,0 @@ import {
+-  AppState,
+@@ -18 +17 @@ import {
+-import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
++import { useRouter, useLocalSearchParams } from 'expo-router';
+@@ -33,0 +33,3 @@ import {
++import { useActiveRefresh } from '@/hooks/use-active-refresh';
++import type { RefreshContext } from '@/utils/refresh-loop';
++import { getTripMapSnapshot } from '@/utils/trip-map-data';
+@@ -73,0 +76 @@ export default function MobileTripDetailScreen() {
++  const qrGeneration = useRef(0);
+@@ -186,3 +189,12 @@ export default function MobileTripDetailScreen() {
+-  // Load initial Trip Detail
+-  const loadTripDetail = useCallback(async () => {
+-    if (!tripId) return;
++  const accessAllowed = useRef(true);
++  const metadataAt = useRef(0);
++  const identity = JSON.stringify([user?.id, user?.role, tripId]);
++  useEffect(() => {
++    setTrip(null); setOperationalState(null); setAttendanceRoster([]); setLoading(true);
++    setConfirmModal(null); setAbsenceModalStudent(null); setQrModalVisible(false); setVerifiedStudent(null);
++    metadataAt.current = 0; accessAllowed.current = true;
++    qrGeneration.current++;
++  }, [identity]);
++
++  const fetchTrip = async ({ isCurrent, immediate }: RefreshContext) => {
++    if (!tripId || !user) return;
+@@ -190,6 +202,7 @@ export default function MobileTripDetailScreen() {
+-      setLoading(true);
+-      setError(null);
+-      const data = await mobileApiClient.getMobileTripDetail(tripId);
+-      setTrip(data);
+-
+-      const state = await mobileApiClient.getOperationalState(tripId);
++      const refreshMetadata = immediate || !trip || Date.now() - metadataAt.current >= 20000;
++      const [state, roster, detail] = await Promise.all([
++        mobileApiClient.getOperationalState(tripId),
++        isDriverOrAttendant ? mobileApiClient.getTripAttendance(tripId) : Promise.resolve(null),
++        refreshMetadata ? mobileApiClient.getMobileTripDetail(tripId) : Promise.resolve(null),
++      ]);
++      if (!isCurrent()) return;
+@@ -197,5 +210,4 @@ export default function MobileTripDetailScreen() {
+-
+-      if (isDriverOrAttendant) {
+-        const rosterData = await mobileApiClient.getTripAttendance(tripId);
+-        setAttendanceRoster(rosterData.students || []);
+-      }
++      if (roster) setAttendanceRoster(roster.students || []);
++      if (detail) { setTrip(detail); metadataAt.current = Date.now(); }
++      setError(null);
++      return state.status !== 'COMPLETED' && state.status !== 'CANCELLED';
+@@ -203,6 +215,13 @@ export default function MobileTripDetailScreen() {
+-      setError(err?.message || 'Không thể tải thông tin chuyến xe');
+-    } finally {
+-      setLoading(false);
+-    }
+-  }, [tripId, isDriverOrAttendant]);
+-
++      if (!isCurrent()) return;
++      if (err?.statusCode === 403 || err?.statusCode === 404) {
++        accessAllowed.current = false;
++        setTrip(null); setOperationalState(null); setAttendanceRoster([]);
++        setConfirmModal(null); setAbsenceModalStudent(null); setQrModalVisible(false); setVerifiedStudent(null);
++        setError(err.message); return false;
++      }
++      if (!trip) setError(err?.message || 'Không thể tải thông tin chuyến xe');
++    } finally { if (isCurrent()) setLoading(false); }
++  };
++  const identityRef = useRef(identity);
++  useEffect(() => { identityRef.current = identity; }, [identity]);
++  const { refresh: loadTripDetail, mutate } = useActiveRefresh(identity, fetchTrip, 5000);
+@@ -210,38 +229,9 @@ export default function MobileTripDetailScreen() {
+-    loadTripDetail();
+-  }, [loadTripDetail]);
+-
+-  // D07: 5-Second Smart Polling for Operational State & Roster
+-  useFocusEffect(
+-    useCallback(() => {
+-      let isMounted = true;
+-      let isAppActive = true;
+-
+-      const sub = AppState.addEventListener('change', (nextState) => {
+-        isAppActive = nextState === 'active';
+-      });
+-
+-      const pollState = async () => {
+-        if (!isMounted || !isAppActive || !tripId) return;
+-        try {
+-          const state = await mobileApiClient.getOperationalState(tripId);
+-          if (!isMounted) return;
+-          setOperationalState(state);
+-
+-          if (isDriverOrAttendant) {
+-            const rosterData = await mobileApiClient.getTripAttendance(tripId);
+-            if (isMounted) setAttendanceRoster(rosterData.students || []);
+-          }
+-        } catch {
+-          // Ignore network errors in polling loop
+-        }
+-      };
+-
+-      const intervalId = setInterval(pollState, 5000);
+-
+-      return () => {
+-        isMounted = false;
+-        clearInterval(intervalId);
+-        sub.remove();
+-      };
+-    }, [tripId, isDriverOrAttendant])
+-  );
++    setConfirmModal(null);
++    qrGeneration.current++;
++    setQrScanning(false);
++    if (operationalState?.isSchoolArrived) { setQrModalVisible(false); setVerifiedStudent(null); }
++    if (operationalState?.status === 'COMPLETED' || operationalState?.status === 'CANCELLED') {
++      setConfirmModal(null); setAbsenceModalStudent(null); setQrModalVisible(false); setVerifiedStudent(null);
++    }
++  }, [operationalState?.status, operationalState?.isSchoolArrived, operationalState?.isAttendantReady,
++    operationalState?.canStartTrip, operationalState?.canArriveAtSchool, operationalState?.canCompleteTrip]);
+@@ -253 +243 @@ export default function MobileTripDetailScreen() {
+-  // Map HTML is memoized strictly on trip geometry and static stops (DOES NOT REMOUNT ON POLLING)
++  const mapData = getTripMapSnapshot(trip);
+@@ -255,19 +245,4 @@ export default function MobileTripDetailScreen() {
+-    if (!trip) return '';
+-
+-    const decodedCoords = trip.polylineGeometry
+-      ? decodePolyline(trip.polylineGeometry)
+-      : [];
+-    const coordsJson = JSON.stringify(decodedCoords);
+-
+-    const stopsJson = JSON.stringify(
+-      (trip.stops || []).map((s) => ({
+-        order: s.stopOrder,
+-        lat: s.latitude,
+-        lng: s.longitude,
+-        type: s.stopType,
+-        name: s.studentName || s.addressText,
+-        address: s.addressText,
+-        eta: s.plannedArrivalTime || '',
+-        isMyChild: s.isMyChild ?? false,
+-      }))
+-    );
++    const data = JSON.parse(mapData);
++    if (!data) return '';
++    const coordsJson = JSON.stringify(data.polylineGeometry ? decodePolyline(data.polylineGeometry) : []);
++    const stopsJson = JSON.stringify(data.stops);
+@@ -332 +307,2 @@ export default function MobileTripDetailScreen() {
+-  }, [trip, tilemapKey]);
++  }, [mapData, tilemapKey]);
++  const mapSource = useMemo(() => ({ html: mapHtml }), [mapHtml]);
+@@ -344 +320 @@ export default function MobileTripDetailScreen() {
+-          await mobileApiClient.markAttendantReady(tripId);
++          await mutate(() => mobileApiClient.markAttendantReady(tripId));
+@@ -346 +321,0 @@ export default function MobileTripDetailScreen() {
+-          loadTripDetail();
+@@ -363 +338 @@ export default function MobileTripDetailScreen() {
+-          await mobileApiClient.startTrip(tripId);
++          await mutate(() => mobileApiClient.startTrip(tripId));
+@@ -365 +339,0 @@ export default function MobileTripDetailScreen() {
+-          loadTripDetail();
+@@ -382 +356 @@ export default function MobileTripDetailScreen() {
+-          await mobileApiClient.arriveAtSchool(tripId);
++          await mutate(() => mobileApiClient.arriveAtSchool(tripId));
+@@ -384 +357,0 @@ export default function MobileTripDetailScreen() {
+-          loadTripDetail();
+@@ -404 +377 @@ export default function MobileTripDetailScreen() {
+-          await mobileApiClient.completeTrip(tripId);
++          await mutate(() => mobileApiClient.completeTrip(tripId));
+@@ -406 +378,0 @@ export default function MobileTripDetailScreen() {
+-          loadTripDetail();
+@@ -423 +395 @@ export default function MobileTripDetailScreen() {
+-          await mobileApiClient.updateAttendance(tripId, student.studentId, 'PRESENT');
++          await mutate(() => mobileApiClient.updateAttendance(tripId, student.studentId, 'PRESENT'));
+@@ -425 +396,0 @@ export default function MobileTripDetailScreen() {
+-          loadTripDetail();
+@@ -447 +418 @@ export default function MobileTripDetailScreen() {
+-      await mobileApiClient.updateAttendance(
++      await mutate(() => mobileApiClient.updateAttendance(
+@@ -452 +423 @@ export default function MobileTripDetailScreen() {
+-      );
++      ));
+@@ -455 +425,0 @@ export default function MobileTripDetailScreen() {
+-      loadTripDetail();
+@@ -470 +440 @@ export default function MobileTripDetailScreen() {
+-          await mobileApiClient.updateAttendance(tripId, student.studentId, 'UNMARKED');
++          await mutate(() => mobileApiClient.updateAttendance(tripId, student.studentId, 'UNMARKED'));
+@@ -472 +441,0 @@ export default function MobileTripDetailScreen() {
+-          loadTripDetail();
+@@ -491 +460 @@ export default function MobileTripDetailScreen() {
+-          await mobileApiClient.updateAlighting(tripId, student.studentId, isAlighted);
++          await mutate(() => mobileApiClient.updateAlighting(tripId, student.studentId, isAlighted));
+@@ -493 +461,0 @@ export default function MobileTripDetailScreen() {
+-          loadTripDetail();
+@@ -503 +471,3 @@ export default function MobileTripDetailScreen() {
+-    if (!code || qrScanning) return;
++    if (!code || qrScanning || !canScanQr) return;
++    const requestIdentity = identity;
++    const requestGeneration = qrGeneration.current;
+@@ -506,0 +477 @@ export default function MobileTripDetailScreen() {
++      if (identityRef.current !== requestIdentity || !accessAllowed.current || qrGeneration.current !== requestGeneration) return;
+@@ -518 +489 @@ export default function MobileTripDetailScreen() {
+-      await mobileApiClient.updateAttendance(tripId, verifiedStudent.studentId, 'PRESENT');
++      await mutate(() => mobileApiClient.updateAttendance(tripId, verifiedStudent.studentId, 'PRESENT'));
+@@ -521 +491,0 @@ export default function MobileTripDetailScreen() {
+-      loadTripDetail();
+@@ -570,0 +541,5 @@ export default function MobileTripDetailScreen() {
++  const visibleStops = trip.stops.map(stop => {
++    const child = operationalState?.children?.find(item => item.studentId === stop.studentId);
++    return child ? { ...stop, attendanceStatus: child.attendanceStatus, absenceReason: child.absenceReason,
++      attendanceMarkedAt: child.markedAt } : stop;
++  });
+@@ -571,0 +547,4 @@ export default function MobileTripDetailScreen() {
++  const canScanQr = isBusAttendant && (isToSchool
++    ? operationalState?.status === 'IN_PROGRESS' && !operationalState.isSchoolArrived
++    : operationalState?.status === 'IN_PROGRESS' ||
++      (operationalState?.status === 'SCHEDULED' && operationalState.isAttendantReady));
+@@ -630 +609 @@ export default function MobileTripDetailScreen() {
+-          source={{ html: mapHtml }}
++          source={mapSource}
+@@ -694 +673,5 @@ export default function MobileTripDetailScreen() {
+-                {trip.scheduledStartTime} – {trip.scheduledEndTime} • {trip.schoolName}
++                  {trip.scheduledStartTime} – {trip.scheduledEndTime} • {trip.schoolName} • {
++                    { SCHEDULED: 'Chờ khởi hành', IN_PROGRESS: 'Đang chạy', COMPLETED: 'Đã hoàn thành', CANCELLED: 'Đã hủy' }[
++                      operationalState?.status || trip.status
++                    ]
++                  }
+@@ -826,2 +809,2 @@ export default function MobileTripDetailScreen() {
+-                {trip.stops && trip.stops.length > 0 ? (
+-                  trip.stops.map((stop, idx) => {
++                {visibleStops.length > 0 ? (
++                  visibleStops.map((stop, idx) => {
+@@ -892 +875 @@ export default function MobileTripDetailScreen() {
+-                                  ? operationalState?.childIsAlighted
++                                  ? operationalState?.children?.find(child => child.studentId === stop.studentId)?.isAlighted
+@@ -986 +969,2 @@ export default function MobileTripDetailScreen() {
+-                          style={styles.qrHeaderBtn}
++                          style={[styles.qrHeaderBtn, !canScanQr && styles.btnDisabled]}
++                          disabled={!canScanQr}
+@@ -987,0 +972 @@ export default function MobileTripDetailScreen() {
++                            const version = qrGeneration.current;
+@@ -990,0 +976 @@ export default function MobileTripDetailScreen() {
++                            if (version !== qrGeneration.current || !accessAllowed.current) return;
+@@ -1224,3 +1210,2 @@ export default function MobileTripDetailScreen() {
+-                            const canAlight = isToSchool
+-                              ? Boolean(operationalState?.isSchoolArrived)
+-                              : operationalState?.status === 'IN_PROGRESS';
++                            const canAlight = operationalState?.status === 'IN_PROGRESS' &&
++                              (!isToSchool || Boolean(operationalState?.isSchoolArrived));
+@@ -1275 +1260,2 @@ export default function MobileTripDetailScreen() {
+-                                        style={styles.actionBtnReset}
++                                        style={[styles.actionBtnReset, !canAlight && styles.btnDisabled]}
++                                        disabled={!canAlight}
+diff --git a/web/src/components/admin/trips/trips-table.tsx b/web/src/components/admin/trips/trips-table.tsx
+index b2c2bcf..033b6fe 100644
+--- a/web/src/components/admin/trips/trips-table.tsx
++++ b/web/src/components/admin/trips/trips-table.tsx
+@@ -3 +3 @@
+-import React, { useState, useEffect, useCallback, useMemo } from 'react';
++import React, { useState, useEffect, useMemo } from 'react';
+@@ -5,2 +5,5 @@ import Link from 'next/link';
+-import { apiClient } from '@/lib/api-client';
+-import { TripItem, SchoolListItem, Role } from '@/lib/types';
++import { useVisibleRefresh } from '@/hooks/use-visible-refresh';
++import type { RefreshContext } from '@/lib/refresh-loop';
++import { useAuth } from '@/components/auth/auth-provider';
++import { apiClient, ApiError } from '@/lib/api-client';
++import { TripItem, Role } from '@/lib/types';
+@@ -12,0 +16 @@ interface TripsTableProps {
++  refreshKey?: number;
+@@ -18,0 +23 @@ export function TripsTable({
++  refreshKey = 0,
+@@ -21,0 +27 @@ export function TripsTable({
++  const { user } = useAuth();
+@@ -50,0 +57 @@ export function TripsTable({
++    let current = true;
+@@ -54 +61,2 @@ export function TripsTable({
+-        .then((school: any) => {
++        .then((school) => {
++          if (!current) return;
+@@ -73,0 +82 @@ export function TripsTable({
++          if (!current) return;
+@@ -76,0 +86 @@ export function TripsTable({
++      // eslint-disable-next-line react-hooks/set-state-in-effect -- Remove bounds from the previously selected school.
+@@ -78,0 +89 @@ export function TripsTable({
++    return () => { current = false; };
+@@ -82 +93,2 @@ export function TripsTable({
+-  const loadTrips = useCallback(async () => {
++  const fetchTrips = async ({ isCurrent }: RefreshContext) => {
++    if (!currentUserRole) return;
+@@ -84 +95,0 @@ export function TripsTable({
+-      setLoading(true);
+@@ -93,0 +105,3 @@ export function TripsTable({
++      if (!isCurrent()) return;
++      const maxPage = Math.max(1, res.totalPages || 1);
++      if (page > maxPage) { setPage(maxPage); return; }
+@@ -97,2 +111,6 @@ export function TripsTable({
+-    } catch (err: any) {
+-      setError(err?.message || 'Không thể tải danh sách chuyến xe');
++    } catch (err: unknown) {
++      if (!isCurrent()) return;
++      if (err instanceof ApiError && (err.statusCode === 403 || err.statusCode === 404)) {
++        setTrips([]); setTotal(0); setTotalPages(1); setError(err.message); return false;
++      }
++      if (!trips.length) setError(err instanceof Error ? err.message : 'Không thể tải danh sách chuyến xe');
+@@ -100 +118 @@ export function TripsTable({
+-      setLoading(false);
++      if (isCurrent()) setLoading(false);
+@@ -102,5 +120,8 @@ export function TripsTable({
+-  }, [activeSchoolId, selectedStatus, fromDate, toDate, page, limit]);
+-
+-  useEffect(() => {
+-    loadTrips();
+-  }, [loadTrips]);
++  };
++  const scope = JSON.stringify([user?.id, user?.schoolId, currentUserRole, activeSchoolId]);
++  // eslint-disable-next-line react-hooks/set-state-in-effect -- Never retain private rows across a scope change.
++  useEffect(() => { setTrips([]); setTotal(0); setLoading(true); }, [scope]);
++  // eslint-disable-next-line react-hooks/set-state-in-effect -- Only query changes show loading; background polling stays silent.
++  useEffect(() => { setLoading(true); }, [scope, selectedStatus, fromDate, toDate, page, limit]);
++  const identity = JSON.stringify([scope, selectedStatus, fromDate, toDate, page, limit, refreshKey]);
++  useVisibleRefresh(identity, fetchTrips);
+diff --git a/web/src/app/admin/trips/[id]/page.tsx b/web/src/app/admin/trips/[id]/page.tsx
+index 0633a45..476c548 100644
+--- a/web/src/app/admin/trips/[id]/page.tsx
++++ b/web/src/app/admin/trips/[id]/page.tsx
+@@ -3 +3 @@
+-import React, { useState, useEffect, useCallback, useMemo, use } from 'react';
++import React, { useState, useEffect, useMemo, use } from 'react';
+@@ -6,3 +6,5 @@ import { useRouter } from 'next/navigation';
+-import { apiClient } from '@/lib/api-client';
+-import { TripDetail, Role } from '@/lib/types';
+-import { authStorage } from '@/lib/auth-storage';
++import { apiClient, ApiError } from '@/lib/api-client';
++import { TripDetail } from '@/lib/types';
++import { useAuth } from '@/components/auth/auth-provider';
++import { useVisibleRefresh } from '@/hooks/use-visible-refresh';
++import type { RefreshContext } from '@/lib/refresh-loop';
+@@ -27,0 +30 @@ export default function AdminTripDetailPage({
++  const { user } = useAuth();
+@@ -29,2 +32,2 @@ export default function AdminTripDetailPage({
+-  const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
+-  const [currentUserSchoolId, setCurrentUserSchoolId] = useState<string | null>(null);
++  const currentUserRole = user?.role || null;
++  const currentUserSchoolId = user?.schoolId || null;
+@@ -38,7 +40,0 @@ export default function AdminTripDetailPage({
+-  useEffect(() => {
+-    const user = authStorage.getUser();
+-    if (user) {
+-      setCurrentUserRole(user.role);
+-      setCurrentUserSchoolId(user.schoolId || null);
+-    }
+-  }, []);
+@@ -46 +42,2 @@ export default function AdminTripDetailPage({
+-  const loadTripDetail = useCallback(async () => {
++  const fetchTripDetail = async ({ isCurrent }: RefreshContext) => {
++    if (!user) return;
+@@ -48 +44,0 @@ export default function AdminTripDetailPage({
+-      setLoading(true);
+@@ -50,0 +47 @@ export default function AdminTripDetailPage({
++      if (!isCurrent()) return;
+@@ -52,2 +49,8 @@ export default function AdminTripDetailPage({
+-    } catch (err: any) {
+-      setError(err?.message || 'Không thể tải thông tin chi tiết chuyến xe');
++      if (res.status !== 'SCHEDULED') setIsEditModalOpen(false);
++      return res.status !== 'COMPLETED' && res.status !== 'CANCELLED';
++    } catch (err: unknown) {
++      if (!isCurrent()) return;
++      if (err instanceof ApiError && (err.statusCode === 403 || err.statusCode === 404)) {
++        setTrip(null); setIsEditModalOpen(false); setError(err.message); return false;
++      }
++      if (!trip) setError(err instanceof Error ? err.message : 'Không thể tải thông tin chi tiết chuyến xe');
+@@ -55 +58 @@ export default function AdminTripDetailPage({
+-      setLoading(false);
++      if (isCurrent()) setLoading(false);
+@@ -57,5 +60,5 @@ export default function AdminTripDetailPage({
+-  }, [tripId]);
+-
+-  useEffect(() => {
+-    loadTripDetail();
+-  }, [loadTripDetail]);
++  };
++  const identity = JSON.stringify([tripId, user?.id, user?.role, user?.schoolId]);
++  // eslint-disable-next-line react-hooks/set-state-in-effect -- Clear private details when the authenticated scope changes.
++  useEffect(() => { setTrip(null); setIsEditModalOpen(false); setLoading(true); }, [identity]);
++  const loadTripDetail = useVisibleRefresh(identity, fetchTripDetail);
+@@ -65 +68 @@ export default function AdminTripDetailPage({
+-    if (trip.status === 'COMPLETED' || trip.status === 'CANCELLED') return false;
++    if (trip.status !== 'SCHEDULED') return false;
+diff --git a/web/src/components/admin/trips/trip-assignment-modal.tsx b/web/src/components/admin/trips/trip-assignment-modal.tsx
+index 3ec7871..6df25bc 100644
+--- a/web/src/components/admin/trips/trip-assignment-modal.tsx
++++ b/web/src/components/admin/trips/trip-assignment-modal.tsx
+@@ -27,0 +28,4 @@ export function TripAssignmentModal({
++  const [baseline, setBaseline] = useState(trip);
++  const stale = trip.status !== 'SCHEDULED' || [trip.vehicleId, trip.driverId, trip.busAttendantId].join() !==
++    [baseline.vehicleId, baseline.driverId, baseline.busAttendantId].join();
++
+@@ -38,0 +43 @@ export function TripAssignmentModal({
++  const displayError = stale ? 'Chuyến xe hoặc phân công đã thay đổi. Vui lòng mở lại form.' : error;
+@@ -40,0 +46 @@ export function TripAssignmentModal({
++    let current = true;
+@@ -41,0 +48,2 @@ export function TripAssignmentModal({
++      // eslint-disable-next-line react-hooks/set-state-in-effect -- Snapshot the form once on open, never on polling updates.
++      setBaseline(trip);
+@@ -54,0 +63 @@ export function TripAssignmentModal({
++            if (!current) return;
+@@ -61,0 +71 @@ export function TripAssignmentModal({
++            if (!current) return;
+@@ -64,2 +74,2 @@ export function TripAssignmentModal({
+-        } catch (err: any) {
+-          setError(err?.message || 'Không thể tải danh sách tài nguyên');
++        } catch (err: unknown) {
++          if (current) setError(err instanceof Error ? err.message : 'Không thể tải danh sách tài nguyên');
+@@ -67 +77 @@ export function TripAssignmentModal({
+-          setLoadingOptions(false);
++          if (current) setLoadingOptions(false);
+@@ -72 +82,3 @@ export function TripAssignmentModal({
+-  }, [isOpen, trip, isSystemAdmin, isSchoolAdmin]);
++    return () => { current = false; };
++    // eslint-disable-next-line react-hooks/exhaustive-deps -- Capture trip only when opening/changing Trip; polling must not reset drafts.
++  }, [isOpen, trip.id, isSystemAdmin, isSchoolAdmin]);
+@@ -79 +91,6 @@ export function TripAssignmentModal({
+-    const payload: { vehicleId?: string; driverId?: string; busAttendantId?: string } = {};
++    if (stale) { onUpdated(); return; }
++    const payload: import('@/lib/types').UpdateTripAssignmentRequest = {
++      expectedVehicleId: baseline.vehicleId,
++      expectedDriverId: baseline.driverId,
++      expectedBusAttendantId: baseline.busAttendantId,
++    };
+@@ -86,2 +103,2 @@ export function TripAssignmentModal({
+-      payload.vehicleId = selectedVehicleId;
+-      payload.driverId = selectedDriverId;
++      if (selectedVehicleId !== baseline.vehicleId) payload.vehicleId = selectedVehicleId;
++      if (selectedDriverId !== baseline.driverId) payload.driverId = selectedDriverId;
+@@ -93 +110 @@ export function TripAssignmentModal({
+-      payload.busAttendantId = selectedAttendantId;
++      if (selectedAttendantId !== baseline.busAttendantId) payload.busAttendantId = selectedAttendantId;
+@@ -98,0 +116 @@ export function TripAssignmentModal({
++    if (!payload.vehicleId && !payload.driverId && !payload.busAttendantId) { onClose(); return; }
+@@ -105,2 +123,3 @@ export function TripAssignmentModal({
+-    } catch (err: any) {
+-      setError(err?.message || 'Không thể cập nhật phân công chuyến xe');
++    } catch (err: unknown) {
++      setError(err instanceof Error ? err.message : 'Không thể cập nhật phân công chuyến xe');
++      onUpdated();
+@@ -237 +256 @@ export function TripAssignmentModal({
+-            {error && (
++            {displayError && (
+@@ -240 +259 @@ export function TripAssignmentModal({
+-                <span>{error}</span>
++                <span>{displayError}</span>
+@@ -255 +274 @@ export function TripAssignmentModal({
+-                disabled={submitting}
++                disabled={submitting || stale}
+diff --git a/web/src/app/admin/trips/page.tsx b/web/src/app/admin/trips/page.tsx
+index af32d5e..d0298c9 100644
+--- a/web/src/app/admin/trips/page.tsx
++++ b/web/src/app/admin/trips/page.tsx
+@@ -3 +3 @@
+-import React, { useState, useEffect } from 'react';
++import React, { useState } from 'react';
+@@ -6,2 +6 @@ import { ManualGenerateTripsModal } from '@/components/admin/trips/manual-genera
+-import { authStorage } from '@/lib/auth-storage';
+-import { Role } from '@/lib/types';
++import { useAuth } from '@/components/auth/auth-provider';
+@@ -11,2 +10,3 @@ export default function AdminTripsPage() {
+-  const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
+-  const [currentUserSchoolId, setCurrentUserSchoolId] = useState<string | undefined>(undefined);
++  const { user } = useAuth();
++  const currentUserRole = user?.role || null;
++  const currentUserSchoolId = user?.role === 'SCHOOL_ADMIN' ? user.schoolId || undefined : undefined;
+@@ -16,9 +15,0 @@ export default function AdminTripsPage() {
+-  useEffect(() => {
+-    const user = authStorage.getUser();
+-    if (user) {
+-      setCurrentUserRole(user.role);
+-      if (user.role === 'SCHOOL_ADMIN' && user.schoolId) {
+-        setCurrentUserSchoolId(user.schoolId);
+-      }
+-    }
+-  }, []);
+@@ -43 +34 @@ export default function AdminTripsPage() {
+-        key={refreshKey}
++        refreshKey={refreshKey}
+diff --git a/web/src/components/admin/schools/school-trips-tab.tsx b/web/src/components/admin/schools/school-trips-tab.tsx
+index 984740b..59cc8bc 100644
+--- a/web/src/components/admin/schools/school-trips-tab.tsx
++++ b/web/src/components/admin/schools/school-trips-tab.tsx
+@@ -6 +6 @@ import { ManualGenerateTripsModal } from '@/components/admin/trips/manual-genera
+-import { authStorage } from '@/lib/auth-storage';
++import { useAuth } from '@/components/auth/auth-provider';
+@@ -14 +14 @@ export function SchoolTripsTab({ schoolId, schoolName }: SchoolTripsTabProps) {
+-  const user = authStorage.getUser();
++  const { user } = useAuth();
+@@ -33 +33 @@ export function SchoolTripsTab({ schoolId, schoolName }: SchoolTripsTabProps) {
+-        key={refreshKey}
++        refreshKey={refreshKey}
+diff --git a/api/src/trips/dto/update-trip-assignment.dto.ts b/api/src/trips/dto/update-trip-assignment.dto.ts
+index d4666ff..02089e2 100644
+--- a/api/src/trips/dto/update-trip-assignment.dto.ts
++++ b/api/src/trips/dto/update-trip-assignment.dto.ts
+@@ -4,0 +5,7 @@ export class UpdateTripAssignmentDto {
++  @ApiPropertyOptional({ description: 'Xe khi mở form; khác hiện tại trả 409' })
++  @IsOptional() @IsString() expectedVehicleId?: string;
++  @ApiPropertyOptional({ description: 'Tài xế khi mở form; khác hiện tại trả 409' })
++  @IsOptional() @IsString() expectedDriverId?: string;
++  @ApiPropertyOptional({ description: 'Giáo viên khi mở form; khác hiện tại trả 409' })
++  @IsOptional() @IsString() expectedBusAttendantId?: string;
++
+diff --git a/web/src/lib/types.ts b/web/src/lib/types.ts
+index 5a55a3d..e894baa 100644
+--- a/web/src/lib/types.ts
++++ b/web/src/lib/types.ts
+@@ -780,0 +781,3 @@ export interface UpdateTripAssignmentRequest {
++  expectedVehicleId?: string;
++  expectedDriverId?: string;
++  expectedBusAttendantId?: string;
+diff --git a/web/src/lib/api-client.ts b/web/src/lib/api-client.ts
+index f3367b8..6ad0b50 100644
+--- a/web/src/lib/api-client.ts
++++ b/web/src/lib/api-client.ts
+@@ -916 +916 @@ class ApiClient {
+-    return this.request<TripListResponse>(endpoint, { method: 'GET' });
++    return this.request<TripListResponse>(endpoint, { method: 'GET', signal: AbortSignal.timeout(15000) });
+@@ -920 +920 @@ class ApiClient {
+-    return this.request<TripDetail>(`/trips/${tripId}`, { method: 'GET' });
++    return this.request<TripDetail>(`/trips/${tripId}`, { method: 'GET', signal: AbortSignal.timeout(15000) });
+diff --git a/api/src/trips/trip-synchronization.spec.ts b/api/src/trips/trip-synchronization.spec.ts
+index e69de29..6a0ff80 100644
+--- a/api/src/trips/trip-synchronization.spec.ts
++++ b/api/src/trips/trip-synchronization.spec.ts
+@@ -0,0 +1,170 @@
++import { beforeEach, describe, expect, it, vi } from 'vitest';
++import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
++import { AttendanceStatus, Role, RouteDirection, TripStatus } from '@prisma/client';
++import { TripsService } from './trips.service.js';
++
++// In-memory service tests only: no Nest application, PrismaClient or database connection.
++const user = (role: Role, id = 'reader', schoolId: string | null = 'school') => ({ role, id, schoolId } as any);
++const makeTrip = () => ({
++  id: 'trip', schoolId: 'school', serviceDate: new Date('2026-10-25'),
++  direction: RouteDirection.TO_SCHOOL, status: TripStatus.IN_PROGRESS as TripStatus,
++  assignedVehicleId: 'vehicle', assignedDriverId: 'driver', assignedBusAttendantId: 'attendant',
++  attendantReadyAt: new Date(), arrivedAtSchoolAt: new Date(),
++  assignedVehicle: { id: 'vehicle', licensePlate: 'plate', brand: 'bus', seatCount: 16 },
++  assignedDriver: { id: 'driver', fullName: 'Driver' },
++  assignedBusAttendant: { id: 'attendant', fullName: 'Attendant' },
++  school: { id: 'school', name: 'School', latitude: 1, longitude: 1 },
++  route: { id: 'route', name: 'Route', routePlanId: 'plan', routePlan: { name: 'Plan' }, stops: [] },
++  attendances: [
++    { studentId: 'child-a', status: AttendanceStatus.PRESENT, alightedAt: new Date(), markedAt: null, absenceReason: null },
++    { studentId: 'child-b', status: AttendanceStatus.PRESENT, alightedAt: null, markedAt: null, absenceReason: null },
++    { studentId: 'other', status: AttendanceStatus.ABSENT, alightedAt: null, markedAt: null, absenceReason: 'Private' },
++  ],
++});
++
++describe('Trip synchronization authorization and operation serialization', () => {
++  let trip: ReturnType<typeof makeTrip>;
++  let db: any;
++  let service: TripsService;
++  beforeEach(() => {
++    trip = makeTrip();
++    db = {
++      $queryRaw: vi.fn().mockResolvedValue([]),
++      trip: { findUnique: vi.fn(async () => trip), findMany: vi.fn().mockResolvedValue([]), update: vi.fn() },
++      tripAttendance: { findUnique: vi.fn(), findMany: vi.fn(async () => trip.attendances), update: vi.fn() },
++      parentStudentLink: { findMany: vi.fn().mockResolvedValue([]), findUnique: vi.fn() },
++      user: { findUnique: vi.fn() }, vehicle: { findUnique: vi.fn() },
++      school: { findUnique: vi.fn() },
++      $transaction: vi.fn(async (work: any) => work(db)),
++    };
++    service = new TripsService(db, { get: () => 'TEST' } as any);
++  });
++
++  it.each([
++    [Role.DRIVER, 'wrong', 'school'], [Role.BUS_ATTENDANT, 'wrong', 'school'],
++    [Role.SCHOOL_ADMIN, 'reader', 'other-school'], [Role.SCHOOL_ADMIN, 'reader', null],
++    [Role.PARENT, 'parent', null],
++  ])('denies detail/mobile/state outside object scope for %s (%s/%s)', async (role, id, school) => {
++    const actor = user(role as Role, id as string, school);
++    await expect(service.getTripDetail('trip', actor)).rejects.toBeInstanceOf(ForbiddenException);
++    await expect(service.getMobileTripDetail('trip', actor)).rejects.toBeInstanceOf(ForbiddenException);
++    await expect(service.getOperationalState('trip', actor)).rejects.toBeInstanceOf(ForbiddenException);
++  });
++
++  it.each([
++    [Role.SYSTEM_ADMIN, 'reader'], [Role.SCHOOL_ADMIN, 'reader'],
++    [Role.DRIVER, 'driver'], [Role.BUS_ATTENDANT, 'attendant'],
++  ])('allows authorized detail/state for %s', async (role, id) => {
++    expect((await service.getTripDetail('trip', user(role as Role, id))).id).toBe('trip');
++    expect((await service.getOperationalState('trip', user(role as Role, id))).status).toBe(TripStatus.IN_PROGRESS);
++  });
++
++  it.each([user(Role.SCHOOL_ADMIN, 'reader', 'other'), user(Role.SCHOOL_ADMIN, 'reader', null),
++    user(Role.DRIVER, 'wrong'), user(Role.BUS_ATTENDANT, 'wrong'), user(Role.PARENT)])(
++    'denies roster outside scope: %j', async actor => {
++      await expect(service.getTripAttendance('trip', actor)).rejects.toBeInstanceOf(ForbiddenException);
++    },
++  );
++
++  it('denies a linked child not in this Trip roster', async () => {
++    db.parentStudentLink.findMany.mockResolvedValue([{ studentId: 'not-in-roster' }]);
++    await expect(service.getOperationalState('trip', user(Role.PARENT))).rejects.toBeInstanceOf(ForbiddenException);
++  });
++
++  it('does not turn a missing School Admin scope into a system-wide list', async () => {
++    await expect(service.listTrips({} as any, user(Role.SCHOOL_ADMIN, 'reader', null)))
++      .rejects.toBeInstanceOf(ForbiddenException);
++    expect(db.trip.findMany).not.toHaveBeenCalled();
++  });
++
++  it('returns independent own-child state without other-child data, counts or action flags', async () => {
++    db.parentStudentLink.findMany.mockResolvedValue([{ studentId: 'child-a' }, { studentId: 'child-b' }]);
++    const result = await service.getOperationalState('trip', user(Role.PARENT));
++    expect(result.children.map(child => [child.studentId, child.isAlighted])).toEqual([
++      ['child-a', true], ['child-b', false],
++    ]);
++    expect(result).not.toHaveProperty('totalStudents');
++    expect(result).not.toHaveProperty('canStartTrip');
++    expect(result).not.toHaveProperty('childIsAlighted');
++    expect(JSON.stringify(result)).not.toContain('Private');
++    expect(JSON.stringify(result)).not.toContain('other');
++  });
++
++  it('rechecks assignment on the next read', async () => {
++    await service.getOperationalState('trip', user(Role.DRIVER, 'driver'));
++    trip.assignedDriverId = 'replacement';
++    await expect(service.getOperationalState('trip', user(Role.DRIVER, 'driver'))).rejects.toBeInstanceOf(ForbiddenException);
++    await service.getOperationalState('trip', user(Role.DRIVER, 'replacement'));
++  });
++
++  it('filters persisted Parent schedule by roster even when route stops are empty', async () => {
++    db.parentStudentLink.findUnique.mockResolvedValue({ studentId: 'child-a' });
++    db.school.findUnique.mockResolvedValue(null);
++    (db as any).student = { findUnique: vi.fn().mockResolvedValue({ id: 'child-a', fullName: 'A' }) };
++    await service.getParentStudentSchedule('child-a', '2026-10-25', user(Role.PARENT));
++    expect(db.trip.findMany.mock.calls[0][0].where).toMatchObject({ attendances: { some: { studentId: 'child-a' } } });
++    expect(db.trip.findMany.mock.calls[0][0].where).not.toHaveProperty('route');
++  });
++
++  it.each(['assignment', 'ready', 'start', 'arrival', 'boarding', 'alighting', 'complete'])(
++    'awaits the same parameterized Trip row lock before %s reads its preconditions', async operation => {
++      let release!: () => void;
++      db.$queryRaw.mockImplementation(() => new Promise<void>(resolve => { release = resolve; }));
++      // A transition that completed while waiting must be read after acquiring the lock.
++      trip.status = TripStatus.COMPLETED;
++      const calls: Record<string, () => Promise<any>> = {
++        assignment: () => service.updateTripAssignment('trip', { driverId: 'new' }, user(Role.SYSTEM_ADMIN)),
++        ready: () => service.markAttendantReady('trip', user(Role.BUS_ATTENDANT, 'attendant')),
++        start: () => service.startTrip('trip', user(Role.DRIVER, 'driver')),
++        arrival: () => service.arriveAtSchool('trip', user(Role.DRIVER, 'driver')),
++        boarding: () => service.updateAttendance('trip', 'child-a', { status: AttendanceStatus.PRESENT }, user(Role.BUS_ATTENDANT, 'attendant')),
++        alighting: () => service.updateAlighting('trip', 'child-a', { isAlighted: false }, user(Role.BUS_ATTENDANT, 'attendant')),
++        complete: () => service.completeTrip('trip', user(Role.DRIVER, 'driver')),
++      };
++      const pending = calls[operation]();
++      const assertion = expect(pending).rejects.toBeInstanceOf(BadRequestException);
++      expect(db.trip.findUnique).not.toHaveBeenCalled();
++      const query = db.$queryRaw.mock.calls[0][0];
++      expect(query.sql).toBe('SELECT id FROM trips WHERE id = ? FOR UPDATE');
++      expect(query.values).toEqual(['trip']);
++      release();
++      await assertion;
++      expect(db.trip.update).not.toHaveBeenCalled();
++      expect(db.tripAttendance.update).not.toHaveBeenCalled();
++    },
++  );
++
++  it('rejects Start after a Ready reset or assignment revocation', async () => {
++    trip.status = TripStatus.SCHEDULED;
++    trip.attendantReadyAt = null as any;
++    await expect(service.startTrip('trip', user(Role.DRIVER, 'driver'))).rejects.toBeInstanceOf(BadRequestException);
++    trip.assignedDriverId = 'replacement';
++    await expect(service.startTrip('trip', user(Role.DRIVER, 'driver'))).rejects.toBeInstanceOf(ForbiddenException);
++    expect(db.trip.update).not.toHaveBeenCalled();
++  });
++
++  it('rechecks state so a second device cannot start an already started Trip', async () => {
++    trip.status = TripStatus.SCHEDULED;
++    db.trip.update.mockImplementation(async ({ data }: any) => Object.assign(trip, data));
++    await service.startTrip('trip', user(Role.DRIVER, 'driver'));
++    await expect(service.startTrip('trip', user(Role.DRIVER, 'driver'))).rejects.toBeInstanceOf(BadRequestException);
++    expect(db.trip.update).toHaveBeenCalledTimes(1);
++  });
++
++  it('rejects stale assignment form snapshots instead of overwriting another assignment', async () => {
++    trip.status = TripStatus.SCHEDULED;
++    await expect(service.updateTripAssignment('trip', { driverId: 'new', expectedDriverId: 'old' }, user(Role.SYSTEM_ADMIN)))
++      .rejects.toBeInstanceOf(ConflictException);
++    expect(db.trip.update).not.toHaveBeenCalled();
++  });
++
++  it('resets Ready when changing Attendant under the Trip lock', async () => {
++    trip.status = TripStatus.SCHEDULED;
++    db.user.findUnique.mockResolvedValue({ id: 'next', role: Role.BUS_ATTENDANT, isActive: true, schoolId: 'school' });
++    vi.spyOn(service, 'getTripDetail').mockResolvedValue({ id: 'trip' } as any);
++    await service.updateTripAssignment('trip', { busAttendantId: 'next' }, user(Role.SCHOOL_ADMIN));
++    expect(db.trip.update).toHaveBeenCalledWith({ where: { id: 'trip' }, data: {
++      assignedBusAttendantId: 'next', attendantReadyAt: null,
++    } });
++  });
++});
+diff --git a/mobile/hooks/use-active-refresh.ts b/mobile/hooks/use-active-refresh.ts
+index e69de29..3428e0b 100644
+--- a/mobile/hooks/use-active-refresh.ts
++++ b/mobile/hooks/use-active-refresh.ts
+@@ -0,0 +1,42 @@
++import { useCallback, useLayoutEffect, useRef } from 'react';
++import { AppState } from 'react-native';
++import { useFocusEffect } from 'expo-router';
++import { createRefreshLoop, type RefreshContext } from '../utils/refresh-loop';
++
++export function useActiveRefresh(
++  identity: string,
++  task: (context: RefreshContext) => Promise<boolean | void>,
++  intervalMs: number,
++) {
++  const taskRef = useRef(task);
++  useLayoutEffect(() => { taskRef.current = task; }, [task]);
++  const loopRef = useRef<ReturnType<typeof createRefreshLoop> | null>(null);
++  const mutating = useRef(false);
++  useLayoutEffect(() => { loopRef.current?.stop(); }, [identity, intervalMs]);
++
++  useFocusEffect(useCallback(() => {
++    const loop = createRefreshLoop(context => taskRef.current(context), intervalMs);
++    loopRef.current = loop;
++    loop.setActive(AppState.currentState === 'active');
++    const subscription = AppState.addEventListener('change', state => loop.setActive(state === 'active'));
++    return () => {
++      loop.stop();
++      if (loopRef.current === loop) loopRef.current = null;
++      subscription.remove();
++    };
++  }, [identity, intervalMs]));
++
++  const refresh = useCallback(() => loopRef.current?.refresh(), []);
++  const mutate = useCallback(async <T,>(operation: () => Promise<T>): Promise<T> => {
++    if (mutating.current) throw new Error('Đang xử lý thao tác trước');
++    mutating.current = true;
++    const loop = loopRef.current;
++    loop?.pause();
++    try { return await operation(); }
++    finally {
++      mutating.current = false;
++      if (loopRef.current === loop) loop?.resume();
++    }
++  }, []);
++  return { refresh, mutate };
++}
+diff --git a/mobile/utils/refresh-loop.ts b/mobile/utils/refresh-loop.ts
+index e69de29..bbdbcee 100644
+--- a/mobile/utils/refresh-loop.ts
++++ b/mobile/utils/refresh-loop.ts
+@@ -0,0 +1,42 @@
++/** A small per-screen loop: one request batch, invalidation and coalesced refresh. */
++export type RefreshContext = { isCurrent: () => boolean; immediate: boolean };
++export function createRefreshLoop(
++  task: (context: RefreshContext) => Promise<boolean | void>,
++  intervalMs: number,
++  timers = { set: (fn: () => void, ms: number) => setTimeout(fn, ms), clear: (id: ReturnType<typeof setTimeout>) => clearTimeout(id) },
++) {
++  let active = false, paused = false, running = false, pending = false;
++  let generation = 0;
++  let timer: ReturnType<typeof setTimeout> | undefined;
++  const cancelTimer = () => { if (timer !== undefined) timers.clear(timer); timer = undefined; };
++  const current = (version: number) => active && !paused && version === generation;
++  async function execute(immediate: boolean) {
++    if (!active || paused) return;
++    cancelTimer();
++    if (running) { pending = true; return; }
++    running = true;
++    pending = false;
++    const version = generation;
++    let poll = true;
++    try { poll = (await task({ isCurrent: () => current(version), immediate })) !== false; }
++    catch { /* The next tick retries; screens own their error state. */ }
++    finally {
++      running = false;
++      if (active && !paused) {
++        if (pending) { pending = false; void execute(true); }
++        else if (poll) timer = timers.set(() => { void execute(false); }, intervalMs);
++      }
++    }
++  }
++  return {
++    setActive(value: boolean) {
++      if (active === value) return;
++      active = value; generation++; cancelTimer();
++      if (active) void execute(true);
++    },
++    refresh() { generation++; void execute(true); },
++    pause() { paused = true; generation++; cancelTimer(); },
++    resume() { paused = false; generation++; void execute(true); },
++    stop() { active = false; generation++; pending = false; cancelTimer(); },
++  };
++}
+diff --git a/mobile/utils/trip-map-data.ts b/mobile/utils/trip-map-data.ts
+index e69de29..f4f4893 100644
+--- a/mobile/utils/trip-map-data.ts
++++ b/mobile/utils/trip-map-data.ts
+@@ -0,0 +1,20 @@
++type MapTrip = {
++  polylineGeometry?: string | null;
++  stops: readonly {
++    stopOrder: number; latitude: number; longitude: number; stopType: string;
++    studentName?: string | null; addressText?: string | null;
++    plannedArrivalTime?: string | null; isMyChild?: boolean;
++  }[];
++};
++
++/** Dynamic attendance, status and assignment must never change the map source. */
++export function getTripMapSnapshot(trip: MapTrip | null): string {
++  return JSON.stringify(trip ? {
++    polylineGeometry: trip.polylineGeometry,
++    stops: trip.stops.map(stop => ({
++      order: stop.stopOrder, lat: stop.latitude, lng: stop.longitude, type: stop.stopType,
++      name: stop.studentName || stop.addressText, address: stop.addressText,
++      eta: stop.plannedArrivalTime || '', isMyChild: stop.isMyChild ?? false,
++    })),
++  } : null);
++}
+diff --git a/mobile/scripts/trip-state-synchronization.test.ts b/mobile/scripts/trip-state-synchronization.test.ts
+index e69de29..ced390f 100644
+--- a/mobile/scripts/trip-state-synchronization.test.ts
++++ b/mobile/scripts/trip-state-synchronization.test.ts
+@@ -0,0 +1,96 @@
++import { describe, it } from 'node:test';
++import assert from 'node:assert/strict';
++import { createRefreshLoop } from '../utils/refresh-loop.ts';
++import { getTripMapSnapshot } from '../utils/trip-map-data.ts';
++
++const flush = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
++function clock() {
++  const queue: { fn: () => void; cancelled: boolean; ms: number }[] = [];
++  return {
++    queue,
++    timers: {
++      set(fn: () => void, ms: number) { const item = { fn, cancelled: false, ms }; queue.push(item); return item as unknown as ReturnType<typeof setTimeout>; },
++      clear(id: ReturnType<typeof setTimeout>) { (id as unknown as { cancelled: boolean }).cancelled = true; },
++    },
++    tick() { const item = queue.find(item => !item.cancelled); if (!item) throw Error('No scheduled request'); item.cancelled = true; item.fn(); },
++    count() { return queue.filter(item => !item.cancelled).length; },
++  };
++}
++
++describe('Active screen refresh coordinator', () => {
++  it('keeps the map source unchanged for operation and assignment updates', () => {
++    const trip = { polylineGeometry: 'geometry', status: 'SCHEDULED', driverId: 'first', stops: [
++      { stopOrder: 1, latitude: 10, longitude: 106, stopType: 'PICKUP', attendanceStatus: 'UNMARKED' },
++    ] };
++    const initial = getTripMapSnapshot(trip);
++    trip.status = 'IN_PROGRESS'; trip.driverId = 'replacement'; trip.stops[0].attendanceStatus = 'PRESENT';
++    assert.equal(getTripMapSnapshot(trip), initial);
++    trip.stops[0].latitude = 11;
++    assert.notEqual(getTripMapSnapshot(trip), initial);
++  });
++  it('fetches immediately, polls at cadence and stops in background/unmount', async () => {
++    const time = clock(); let calls = 0;
++    const loop = createRefreshLoop(async () => { calls++; }, 5000, time.timers);
++    loop.setActive(true); await flush();
++    assert.equal(calls, 1); assert.equal(time.count(), 1);
++    assert.equal(time.queue[0].ms, 5000);
++    time.tick(); await flush(); assert.equal(calls, 2);
++    loop.setActive(false); assert.equal(time.count(), 0);
++    loop.setActive(true); await flush(); assert.equal(calls, 3);
++    loop.stop(); assert.equal(time.count(), 0);
++  });
++
++  it('coalesces overlapping refreshes and prevents an old response overwriting new state', async () => {
++    const time = clock(); let finish!: () => void; let calls = 0; const applied: number[] = [];
++    const loop = createRefreshLoop(async context => {
++      const call = ++calls;
++      if (call === 1) await new Promise<void>(resolve => { finish = resolve; });
++      if (context.isCurrent()) applied.push(call);
++    }, 5000, time.timers);
++    loop.setActive(true);
++    loop.refresh(); loop.refresh();
++    assert.equal(calls, 1);
++    finish(); await flush();
++    assert.deepEqual(applied, [2]); assert.equal(time.count(), 1);
++    loop.stop();
++  });
++
++  it('invalidates reads around a mutation and immediately refetches when resumed', async () => {
++    const time = clock(); let finish!: () => void; let calls = 0; const applied: number[] = [];
++    const loop = createRefreshLoop(async context => {
++      const call = ++calls;
++      if (call === 1) await new Promise<void>(resolve => { finish = resolve; });
++      if (context.isCurrent()) applied.push(call);
++    }, 5000, time.timers);
++    loop.setActive(true); loop.pause();
++    finish(); await flush(); assert.deepEqual(applied, []); assert.equal(time.count(), 0);
++    loop.resume(); await flush(); assert.deepEqual(applied, [2]);
++    loop.stop();
++  });
++
++  it('ignores late results after scope disposal and never schedules another request', async () => {
++    const time = clock(); let finish!: () => void; let applied = false;
++    const loop = createRefreshLoop(async context => {
++      await new Promise<void>(resolve => { finish = resolve; });
++      if (context.isCurrent()) applied = true;
++    }, 5000, time.timers);
++    loop.setActive(true); loop.stop(); finish(); await flush();
++    assert.equal(applied, false); assert.equal(time.count(), 0);
++  });
++
++  it('retries temporary failures but does not keep polling terminal or revoked data', async () => {
++    const time = clock(); let calls = 0;
++    const loop = createRefreshLoop(async () => { if (++calls === 1) throw Error('offline'); return false; }, 8000, time.timers);
++    loop.setActive(true); await flush(); assert.equal(time.count(), 1);
++    time.tick(); await flush(); assert.equal(calls, 2); assert.equal(time.count(), 0);
++    loop.refresh(); await flush(); assert.equal(calls, 3); assert.equal(time.count(), 0);
++    loop.stop();
++  });
++
++  it('keeps polling an empty list, preventing empty Home from hiding a new assignment', async () => {
++    const time = clock(); let count = 0;
++    const loop = createRefreshLoop(async () => { count++; }, 12000, time.timers);
++    loop.setActive(true); await flush(); time.tick(); await flush();
++    assert.equal(count, 2); assert.equal(time.count(), 1); loop.stop();
++  });
++});
+diff --git a/web/src/hooks/use-visible-refresh.ts b/web/src/hooks/use-visible-refresh.ts
+index e69de29..c76e70d 100644
+--- a/web/src/hooks/use-visible-refresh.ts
++++ b/web/src/hooks/use-visible-refresh.ts
+@@ -0,0 +1,33 @@
++'use client';
++
++import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
++import { createRefreshLoop, type RefreshContext } from '../lib/refresh-loop';
++
++export function useVisibleRefresh(
++  identity: string,
++  task: (context: RefreshContext) => Promise<boolean | void>,
++  intervalMs = 15000,
++) {
++  const taskRef = useRef(task);
++  useLayoutEffect(() => { taskRef.current = task; }, [task]);
++  const loopRef = useRef<ReturnType<typeof createRefreshLoop> | null>(null);
++  useLayoutEffect(() => { loopRef.current?.stop(); }, [identity, intervalMs]);
++  useEffect(() => {
++    const loop = createRefreshLoop(context => taskRef.current(context), intervalMs);
++    loopRef.current = loop;
++    const visibility = () => loop.setActive(document.visibilityState === 'visible');
++    const refresh = () => { if (document.visibilityState === 'visible') loop.refresh(); };
++    visibility();
++    document.addEventListener('visibilitychange', visibility);
++    window.addEventListener('focus', refresh);
++    window.addEventListener('online', refresh);
++    return () => {
++      loop.stop();
++      if (loopRef.current === loop) loopRef.current = null;
++      document.removeEventListener('visibilitychange', visibility);
++      window.removeEventListener('focus', refresh);
++      window.removeEventListener('online', refresh);
++    };
++  }, [identity, intervalMs]);
++  return useCallback(() => loopRef.current?.refresh(), []);
++}
+diff --git a/web/src/lib/refresh-loop.ts b/web/src/lib/refresh-loop.ts
+index e69de29..bbdbcee 100644
+--- a/web/src/lib/refresh-loop.ts
++++ b/web/src/lib/refresh-loop.ts
+@@ -0,0 +1,42 @@
++/** A small per-screen loop: one request batch, invalidation and coalesced refresh. */
++export type RefreshContext = { isCurrent: () => boolean; immediate: boolean };
++export function createRefreshLoop(
++  task: (context: RefreshContext) => Promise<boolean | void>,
++  intervalMs: number,
++  timers = { set: (fn: () => void, ms: number) => setTimeout(fn, ms), clear: (id: ReturnType<typeof setTimeout>) => clearTimeout(id) },
++) {
++  let active = false, paused = false, running = false, pending = false;
++  let generation = 0;
++  let timer: ReturnType<typeof setTimeout> | undefined;
++  const cancelTimer = () => { if (timer !== undefined) timers.clear(timer); timer = undefined; };
++  const current = (version: number) => active && !paused && version === generation;
++  async function execute(immediate: boolean) {
++    if (!active || paused) return;
++    cancelTimer();
++    if (running) { pending = true; return; }
++    running = true;
++    pending = false;
++    const version = generation;
++    let poll = true;
++    try { poll = (await task({ isCurrent: () => current(version), immediate })) !== false; }
++    catch { /* The next tick retries; screens own their error state. */ }
++    finally {
++      running = false;
++      if (active && !paused) {
++        if (pending) { pending = false; void execute(true); }
++        else if (poll) timer = timers.set(() => { void execute(false); }, intervalMs);
++      }
++    }
++  }
++  return {
++    setActive(value: boolean) {
++      if (active === value) return;
++      active = value; generation++; cancelTimer();
++      if (active) void execute(true);
++    },
++    refresh() { generation++; void execute(true); },
++    pause() { paused = true; generation++; cancelTimer(); },
++    resume() { paused = false; generation++; void execute(true); },
++    stop() { active = false; generation++; pending = false; cancelTimer(); },
++  };
++}
+diff --git a/web/src/lib/refresh-loop.test.ts b/web/src/lib/refresh-loop.test.ts
+index e69de29..bac1189 100644
+--- a/web/src/lib/refresh-loop.test.ts
++++ b/web/src/lib/refresh-loop.test.ts
+@@ -0,0 +1,85 @@
++import { describe, it } from 'node:test';
++import assert from 'node:assert/strict';
++import { createRefreshLoop } from './refresh-loop.ts';
++
++const flush = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
++function clock() {
++  const queue: { fn: () => void; cancelled: boolean; ms: number }[] = [];
++  return {
++    queue,
++    timers: {
++      set(fn: () => void, ms: number) { const item = { fn, cancelled: false, ms }; queue.push(item); return item as unknown as ReturnType<typeof setTimeout>; },
++      clear(id: ReturnType<typeof setTimeout>) { (id as unknown as { cancelled: boolean }).cancelled = true; },
++    },
++    tick() { const item = queue.find(item => !item.cancelled); if (!item) throw Error('No scheduled request'); item.cancelled = true; item.fn(); },
++    count() { return queue.filter(item => !item.cancelled).length; },
++  };
++}
++
++describe('Active screen refresh coordinator', () => {
++  it('fetches immediately, polls at cadence and stops in background/unmount', async () => {
++    const time = clock(); let calls = 0;
++    const loop = createRefreshLoop(async () => { calls++; }, 5000, time.timers);
++    loop.setActive(true); await flush();
++    assert.equal(calls, 1); assert.equal(time.count(), 1);
++    assert.equal(time.queue[0].ms, 5000);
++    time.tick(); await flush(); assert.equal(calls, 2);
++    loop.setActive(false); assert.equal(time.count(), 0);
++    loop.setActive(true); await flush(); assert.equal(calls, 3);
++    loop.stop(); assert.equal(time.count(), 0);
++  });
++
++  it('coalesces overlapping refreshes and prevents an old response overwriting new state', async () => {
++    const time = clock(); let finish!: () => void; let calls = 0; const applied: number[] = [];
++    const loop = createRefreshLoop(async context => {
++      const call = ++calls;
++      if (call === 1) await new Promise<void>(resolve => { finish = resolve; });
++      if (context.isCurrent()) applied.push(call);
++    }, 5000, time.timers);
++    loop.setActive(true);
++    loop.refresh(); loop.refresh();
++    assert.equal(calls, 1);
++    finish(); await flush();
++    assert.deepEqual(applied, [2]); assert.equal(time.count(), 1);
++    loop.stop();
++  });
++
++  it('invalidates reads around a mutation and immediately refetches when resumed', async () => {
++    const time = clock(); let finish!: () => void; let calls = 0; const applied: number[] = [];
++    const loop = createRefreshLoop(async context => {
++      const call = ++calls;
++      if (call === 1) await new Promise<void>(resolve => { finish = resolve; });
++      if (context.isCurrent()) applied.push(call);
++    }, 5000, time.timers);
++    loop.setActive(true); loop.pause();
++    finish(); await flush(); assert.deepEqual(applied, []); assert.equal(time.count(), 0);
++    loop.resume(); await flush(); assert.deepEqual(applied, [2]);
++    loop.stop();
++  });
++
++  it('ignores late results after scope disposal and never schedules another request', async () => {
++    const time = clock(); let finish!: () => void; let applied = false;
++    const loop = createRefreshLoop(async context => {
++      await new Promise<void>(resolve => { finish = resolve; });
++      if (context.isCurrent()) applied = true;
++    }, 5000, time.timers);
++    loop.setActive(true); loop.stop(); finish(); await flush();
++    assert.equal(applied, false); assert.equal(time.count(), 0);
++  });
++
++  it('retries temporary failures but does not keep polling terminal or revoked data', async () => {
++    const time = clock(); let calls = 0;
++    const loop = createRefreshLoop(async () => { if (++calls === 1) throw Error('offline'); return false; }, 8000, time.timers);
++    loop.setActive(true); await flush(); assert.equal(time.count(), 1);
++    time.tick(); await flush(); assert.equal(calls, 2); assert.equal(time.count(), 0);
++    loop.refresh(); await flush(); assert.equal(calls, 3); assert.equal(time.count(), 0);
++    loop.stop();
++  });
++
++  it('keeps polling an empty list, preventing empty Home from hiding a new assignment', async () => {
++    const time = clock(); let count = 0;
++    const loop = createRefreshLoop(async () => { count++; }, 12000, time.timers);
++    loop.setActive(true); await flush(); time.tick(); await flush();
++    assert.equal(count, 2); assert.equal(time.count(), 1); loop.stop();
++  });
++});

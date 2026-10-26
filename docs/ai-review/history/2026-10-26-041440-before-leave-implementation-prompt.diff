@@ -1,0 +1,1 @@
+No application code changes. Planning-only update: persisted Trip SCHEDULED required for leave notices; VIRTUAL excluded; no Trip materialization. Documentation: leave-notice-business-architecture-plan.md, LATEST.md, LATEST.diff; previous review archived as 2026-10-26-040734-before-persisted-trip-leave-policy.md/.diff. Existing repository changes preserved.

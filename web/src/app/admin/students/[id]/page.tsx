@@ -25,10 +25,14 @@ import {
 } from '@/components/icons';
 import { QRCodeDisplay } from '@/components/common/qr-code';
 import { StatusConfirmModal } from '@/components/admin/students/status-confirm-modal';
+import { EmptyRoutePlanActionModal } from '@/components/admin/students/empty-route-plan-action-modal';
+import { CancelRoutePlanModal } from '@/components/admin/routes/cancel-route-plan-modal';
 import { Tooltip } from '@/components/admin/schools/tooltip';
 import { VietMapPicker } from '@/components/admin/schools/vietmap-picker';
 import { vietmapService, VietmapSuggestion } from '@/lib/vietmap';
 import { RequestDetailModal } from '@/app/admin/requests/request-detail-modal';
+import { StudentRoutingSection } from '@/components/admin/students/student-routing-section';
+import type { EmptyRoutePlanInfo } from '@/lib/types';
 
 function StudentDetailPageContent() {
   const params = useParams();
@@ -203,20 +207,48 @@ function StudentDetailPageContent() {
     setIsStatusModalOpen(true);
   };
 
+  const [emptyPlanNotice, setEmptyPlanNotice] = useState<{
+    planId: string;
+    planName: string;
+    routeName: string;
+  } | null>(null);
+
+  const [emptyRouteActionData, setEmptyRouteActionData] = useState<{
+    studentName: string;
+    emptyRoutePlans: EmptyRoutePlanInfo[];
+  } | null>(null);
+
+  const [cancellingPlan, setCancellingPlan] = useState<{
+    planId: string;
+    planName: string;
+    defaultReason: string;
+  } | null>(null);
+
   const handleConfirmStatusChange = async () => {
     if (!student || !targetStatus || !schoolId) return;
     try {
       setIsUpdatingStatus(true);
-      await apiClient.updateStudentStatus(schoolId, student.id, targetStatus);
+      const res = await apiClient.updateStudentStatus(schoolId, student.id, targetStatus);
       setStudent({ ...student, status: targetStatus });
+      if (res.emptyRoutePlans && res.emptyRoutePlans.length > 0) {
+        setEmptyPlanNotice(res.emptyRoutePlans[0]);
+        setEmptyRouteActionData({
+          studentName: student.fullName,
+          emptyRoutePlans: res.emptyRoutePlans,
+        });
+      } else {
+        setEmptyPlanNotice(null);
+        setEmptyRouteActionData(null);
+      }
       setSuccessToast(
-        targetStatus === 'AVAILABLE'
-          ? 'Đã kích hoạt lại học sinh thành công.'
-          : 'Đã vô hiệu hóa học sinh thành công.'
+        res.message ||
+          (targetStatus === 'AVAILABLE'
+            ? 'Đã kích hoạt lại học sinh thành công.'
+            : 'Đã vô hiệu hóa học sinh thành công.')
       );
       setIsStatusModalOpen(false);
       setTargetStatus(null);
-      setTimeout(() => setSuccessToast(null), 3000);
+      setTimeout(() => setSuccessToast(null), 5000);
     } catch (err: any) {
       setErrorMessage(err?.message || 'Không thể cập nhật trạng thái học sinh.');
     } finally {
@@ -261,6 +293,52 @@ function StudentDetailPageContent() {
         <div className="flex items-center gap-2 p-3 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg animate-in fade-in duration-200">
           <CheckIcon className="w-4 h-4 text-emerald-600 flex-shrink-0" />
           <span>{successToast}</span>
+        </div>
+      )}
+
+      {/* Cảnh báo tuyến rỗng cần hủy phương án để tối ưu lại */}
+      {emptyPlanNotice && (
+        <div className="flex items-start justify-between gap-3 p-3.5 text-xs text-rose-900 bg-rose-50 border border-rose-200 rounded-xl animate-in fade-in duration-200">
+          <div className="flex items-start gap-2.5">
+            <AlertIcon className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-rose-900">
+                Tuyến {emptyPlanNotice.routeName} không còn học sinh (Vi phạm quy tắc vận hành)!
+              </p>
+              <p className="text-rose-800/90 mt-0.5">
+                Học sinh vừa vô hiệu hóa là học sinh cuối cùng của tuyến. Hệ thống yêu cầu hủy phương án{' '}
+                <strong>{emptyPlanNotice.planName}</strong> để tối ưu lại phương án tuyến cho nhà trường.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setCancellingPlan({
+                  planId: emptyPlanNotice.planId,
+                  planName: emptyPlanNotice.planName,
+                  defaultReason: `Tuyến ${emptyPlanNotice.routeName} không còn học sinh sau khi vô hiệu hóa học sinh`,
+                });
+              }}
+              className="px-3 py-1.5 rounded-lg bg-rose-600 text-white font-medium hover:bg-rose-700 transition-colors cursor-pointer text-xs"
+            >
+              Hủy toàn bộ phương án
+            </button>
+            <Link
+              href={`/admin/routes/plans/${emptyPlanNotice.planId}`}
+              className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition-colors cursor-pointer text-xs"
+            >
+              Xem phương án
+            </Link>
+            <button
+              type="button"
+              onClick={() => setEmptyPlanNotice(null)}
+              className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
         </div>
       )}
 
@@ -515,6 +593,9 @@ function StudentDetailPageContent() {
         </div>
       </div>
 
+      {/* Route Management Section */}
+      <StudentRoutingSection studentId={student.id} studentName={student.fullName} />
+
       {/* Request History Section */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
@@ -728,6 +809,45 @@ function StudentDetailPageContent() {
             setTargetStatus(null);
           }}
           onConfirm={handleConfirmStatusChange}
+        />
+      )}
+
+      {/* Empty Route Plan Action Modal (Triggered when disabling the last student of a route) */}
+      {emptyRouteActionData && (
+        <EmptyRoutePlanActionModal
+          isOpen={Boolean(emptyRouteActionData)}
+          studentName={emptyRouteActionData.studentName}
+          emptyRoutePlans={emptyRouteActionData.emptyRoutePlans}
+          onCancelPlanNow={(targetPlan) => {
+            const planToCancel = {
+              planId: targetPlan.planId,
+              planName: targetPlan.planName,
+              defaultReason: `Tuyến ${targetPlan.routeName} không còn học sinh sau khi vô hiệu hóa học sinh ${emptyRouteActionData.studentName}`,
+            };
+            setEmptyRouteActionData(null);
+            setCancellingPlan(planToCancel);
+          }}
+          onClose={() => setEmptyRouteActionData(null)}
+        />
+      )}
+
+      {/* Cancel Route Plan Modal (Can be triggered directly without leaving page) */}
+      {cancellingPlan && (
+        <CancelRoutePlanModal
+          isOpen={Boolean(cancellingPlan)}
+          routePlanId={cancellingPlan.planId}
+          routePlanName={cancellingPlan.planName}
+          defaultReason={cancellingPlan.defaultReason}
+          onClose={() => setCancellingPlan(null)}
+          onSuccess={() => {
+            setCancellingPlan(null);
+            setEmptyPlanNotice(null);
+            setSuccessToast(
+              'Đã hủy toàn bộ phương án tuyến thành công. Tài nguyên xe và tài xế đã được giải phóng.',
+            );
+            setTimeout(() => setSuccessToast(null), 5000);
+            fetchStudent();
+          }}
         />
       )}
     </div>

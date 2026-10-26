@@ -16,6 +16,7 @@ import {
   AlertIcon,
 } from '@/components/icons';
 import { QRCodeDisplay } from '@/components/common/qr-code';
+import { StudentRoutingSection } from '@/components/admin/students/student-routing-section';
 
 function SystemAdminStudentDetailPageContent() {
   const params = useParams();
@@ -222,6 +223,9 @@ function SystemAdminStudentDetailPageContent() {
           />
         </div>
       </div>
+
+      {/* Route Management Section */}
+      <StudentRoutingSection studentId={student.id} studentName={student.fullName} />
     </div>
   );
 }

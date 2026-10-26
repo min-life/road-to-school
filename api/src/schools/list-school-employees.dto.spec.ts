@@ -40,12 +40,12 @@ describe('ListSchoolEmployeesQueryDto Validation', () => {
     expect(errors.some((e) => e.property === 'page')).toBe(true);
   });
 
-  it('từ chối khi limit < 1 hoặc limit > 50', async () => {
+  it('từ chối khi limit < 1 hoặc limit > 100', async () => {
     const dto1 = plainToInstance(ListSchoolEmployeesQueryDto, { limit: '0' });
     const errors1 = await validate(dto1);
     expect(errors1.some((e) => e.property === 'limit')).toBe(true);
 
-    const dto2 = plainToInstance(ListSchoolEmployeesQueryDto, { limit: '51' });
+    const dto2 = plainToInstance(ListSchoolEmployeesQueryDto, { limit: '101' });
     const errors2 = await validate(dto2);
     expect(errors2.some((e) => e.property === 'limit')).toBe(true);
   });

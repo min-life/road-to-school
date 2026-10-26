@@ -9,12 +9,12 @@ import {
 import type { Role } from '../../lib/types.ts';
 
 describe('Admin Navigation Configuration & Role Filtering', () => {
-  it('SYSTEM_ADMIN phải nhìn thấy đầy đủ 6 mục điều hướng: Tổng quan, Trường học, Tài xế, Phương tiện, Yêu cầu, Cài đặt', () => {
+  it('SYSTEM_ADMIN phải nhìn thấy đầy đủ 9 mục điều hướng: Tổng quan, Trường học, Tài xế, Phương tiện, Phương án tuyến, Chuyến xe, Báo nghỉ, Yêu cầu, Cài đặt', () => {
     const items = getVisibleNavItems('SYSTEM_ADMIN');
     const ids = items.map((item) => item.id);
 
-    assert.equal(items.length, 6);
-    assert.deepEqual(ids, ['overview', 'schools', 'drivers', 'vehicles', 'requests', 'settings']);
+    assert.equal(items.length, 9);
+    assert.deepEqual(ids, ['overview', 'schools', 'drivers', 'vehicles', 'routes', 'trips', 'leave-notices', 'requests', 'settings']);
 
     const schoolsItem = items.find((i) => i.id === 'schools');
     assert.ok(schoolsItem, 'Mục Trường học phải tồn tại cho SYSTEM_ADMIN');
@@ -27,14 +27,39 @@ describe('Admin Navigation Configuration & Role Filtering', () => {
     const vehiclesItem = items.find((i) => i.id === 'vehicles');
     assert.ok(vehiclesItem, 'Mục Phương tiện phải tồn tại cho SYSTEM_ADMIN');
     assert.equal(vehiclesItem?.href, '/admin/vehicles');
+
+    const routesItem = items.find((i) => i.id === 'routes');
+    assert.ok(routesItem, 'Mục Phương án tuyến phải tồn tại cho SYSTEM_ADMIN');
+    assert.equal(routesItem?.href, '/admin/routes');
+    assert.equal(routesItem?.label, 'Phương án tuyến');
+
+    const tripsItem = items.find((i) => i.id === 'trips');
+    assert.ok(tripsItem, 'Mục Chuyến xe phải tồn tại cho SYSTEM_ADMIN');
+    assert.equal(tripsItem?.href, '/admin/trips');
+    assert.equal(tripsItem?.label, 'Chuyến xe');
+
+    const leaveNoticesItem = items.find((i) => i.id === 'leave-notices');
+    assert.ok(leaveNoticesItem, 'Mục Báo nghỉ phải tồn tại cho SYSTEM_ADMIN');
+    assert.equal(leaveNoticesItem?.href, '/admin/leave-notices');
+    assert.equal(leaveNoticesItem?.label, 'Báo nghỉ');
   });
 
-  it('SCHOOL_ADMIN phải nhìn thấy 5 mục điều hướng: Tổng quan, Học sinh, Giáo viên, Yêu cầu, Cài đặt; TUYỆT ĐỐI KHÔNG THẤY Trường học, Tài xế hay Phương tiện', () => {
+  it('SCHOOL_ADMIN phải nhìn thấy 8 mục điều hướng: Tổng quan, Phương án tuyến, Chuyến xe, Báo nghỉ, Học sinh, Giáo viên, Yêu cầu, Cài đặt; TUYỆT ĐỐI KHÔNG THẤY Trường học, Tài xế hay Phương tiện', () => {
     const items = getVisibleNavItems('SCHOOL_ADMIN');
     const ids = items.map((item) => item.id);
 
-    assert.equal(items.length, 5);
-    assert.deepEqual(ids, ['overview', 'students', 'teachers', 'requests', 'settings']);
+    assert.equal(items.length, 8);
+    assert.deepEqual(ids, ['overview', 'routes', 'trips', 'leave-notices', 'students', 'teachers', 'requests', 'settings']);
+
+    const routesItem = items.find((i) => i.id === 'routes');
+    assert.ok(routesItem, 'Mục Phương án tuyến phải tồn tại cho SCHOOL_ADMIN');
+    assert.equal(routesItem?.href, '/admin/routes');
+    assert.equal(routesItem?.label, 'Phương án tuyến');
+
+    const leaveNoticesItem = items.find((i) => i.id === 'leave-notices');
+    assert.ok(leaveNoticesItem, 'Mục Báo nghỉ phải tồn tại cho SCHOOL_ADMIN');
+    assert.equal(leaveNoticesItem?.href, '/admin/leave-notices');
+    assert.equal(leaveNoticesItem?.label, 'Báo nghỉ');
 
     const hasSchools = items.some((i) => i.id === 'schools');
     assert.equal(hasSchools, false, 'SCHOOL_ADMIN tuyệt đối không được nhìn thấy mục Trường học');

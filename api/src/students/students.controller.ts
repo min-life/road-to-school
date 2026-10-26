@@ -36,6 +36,7 @@ import {
   StudentListResponseDto,
   StudentDetailResponseDto,
   StudentItemDto,
+  StudentDisableImpactDto,
 } from './dto/index.js';
 
 @ApiTags('Students')
@@ -250,6 +251,52 @@ export class StudentsController {
     @CurrentUser() user: User,
   ): Promise<StudentDetailResponseDto> {
     return this.studentsService.getStudent(schoolId, id, user);
+  }
+
+  @Get(':id/disable-impact')
+  @Roles(Role.SCHOOL_ADMIN, Role.SYSTEM_ADMIN)
+  @ApiOperation({
+    summary: 'Đánh giá tác động trước khi vô hiệu hóa học sinh',
+    description:
+      'Tính toán số lượng phương án tuyến ảnh hưởng, số chuyến xe SCHEDULED sẽ bị loại bỏ học sinh và số chuyến có thể bị hủy do rỗng.',
+  })
+  @ApiParam({
+    name: 'schoolId',
+    description: 'Mã định danh UUID của trường học',
+    example: 'c1f8a847-75c1-4b36-a3d5-22e3914a8721',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Mã định danh UUID của học sinh',
+    example: 's1f8a847-75c1-4b36-a3d5-22e3914a8721',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Báo cáo tác động vô hiệu hóa học sinh',
+    type: StudentDisableImpactDto,
+  })
+  async getDisableImpact(
+    @Param(
+      'schoolId',
+      new ParseUUIDPipe({
+        version: '4',
+        exceptionFactory: () =>
+          new BadRequestException('Mã trường học không đúng định dạng UUID'),
+      }),
+    )
+    schoolId: string,
+    @Param(
+      'id',
+      new ParseUUIDPipe({
+        version: '4',
+        exceptionFactory: () =>
+          new BadRequestException('Mã học sinh không đúng định dạng UUID'),
+      }),
+    )
+    id: string,
+    @CurrentUser() user: User,
+  ): Promise<StudentDisableImpactDto> {
+    return this.studentsService.getDisableImpact(schoolId, id, user);
   }
 
   @Patch(':id/status')

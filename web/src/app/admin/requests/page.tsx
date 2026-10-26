@@ -14,6 +14,7 @@ import {
   EyeIcon,
 } from '@/components/icons';
 import { RequestDetailModal } from './request-detail-modal';
+import { PaginationControl } from '@/components/admin/common/pagination-control';
 
 export default function AdminRequestsPage() {
   const { user } = useAuth();
@@ -26,7 +27,7 @@ export default function AdminRequestsPage() {
   const [statusFilter, setStatusFilter] = useState<RequestStatus | ''>('');
   const [typeFilter, setTypeFilter] = useState<RequestType | ''>('');
   const [page, setPage] = useState(1);
-  const limit = 10;
+  const [limit, setLimit] = useState(10);
 
   // Data state
   const [requests, setRequests] = useState<StudentUpdateRequest[]>([]);
@@ -299,34 +300,18 @@ export default function AdminRequestsPage() {
         </div>
 
         {/* Pagination Footer */}
-        {!isLoading && totalPages > 1 && (
-          <div className="p-3.5 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between text-xs text-slate-500">
-            <span>
-              Hiển thị {requests.length} trên tổng số {total} yêu cầu
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="px-3 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 transition-colors"
-              >
-                Trước
-              </button>
-              <span className="font-medium text-slate-700">
-                {page} / {totalPages}
-              </span>
-              <button
-                type="button"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="px-3 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 transition-colors"
-              >
-                Sau
-              </button>
-            </div>
-          </div>
-        )}
+        <PaginationControl
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          limit={limit}
+          loading={isLoading}
+          onPageChange={(newPage) => setPage(newPage)}
+          onLimitChange={(newLimit) => {
+            setLimit(newLimit);
+            setPage(1);
+          }}
+        />
       </div>
 
       {/* Shared Detail Modal */}

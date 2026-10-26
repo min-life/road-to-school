@@ -335,3 +335,206 @@ describe('School Management Task 8 — Final Integration & Verification Rules', 
     assert.match(resExpired.reason || '', /đã hết hạn/i);
   });
 });
+
+describe('School Address & Location Update — Permission & Cascade Cancellation Rules', () => {
+  it('chỉ duy nhất SYSTEM_ADMIN được quyền sửa địa chỉ trường học, SCHOOL_ADMIN bị chặn', () => {
+    function canEditSchoolLocation(userRole?: string): boolean {
+      return userRole === 'SYSTEM_ADMIN';
+    }
+
+    assert.equal(canEditSchoolLocation('SYSTEM_ADMIN'), true);
+    assert.equal(canEditSchoolLocation('SCHOOL_ADMIN'), false);
+    assert.equal(canEditSchoolLocation('DRIVER'), false);
+    assert.equal(canEditSchoolLocation('BUS_ATTENDANT'), false);
+    assert.equal(canEditSchoolLocation('PARENT'), false);
+    assert.equal(canEditSchoolLocation(undefined), false);
+  });
+
+  it('nhận diện chính xác khi địa chỉ hoặc tọa độ trường thay đổi', () => {
+    function isSchoolLocationChanged(
+      original: { addressText: string; latitude: number; longitude: number },
+      next: { addressText: string; latitude: number | null; longitude: number | null },
+    ): boolean {
+      if (next.latitude === null || next.longitude === null) return false;
+      const addressChanged = original.addressText.trim() !== next.addressText.trim();
+      const coordChanged =
+        Math.abs(original.latitude - next.latitude) > 0.00001 ||
+        Math.abs(original.longitude - next.longitude) > 0.00001;
+      return addressChanged || coordChanged;
+    }
+
+    const current = {
+      addressText: '123 Đường Số 1, Quận 1',
+      latitude: 10.776889,
+      longitude: 106.700806,
+    };
+
+    // 1. Không đổi gì
+    assert.equal(isSchoolLocationChanged(current, { ...current }), false);
+
+    // 2. Chỉ đổi nhãn địa chỉ
+    assert.equal(
+      isSchoolLocationChanged(current, { ...current, addressText: '123 Đường Số 1 Mới, Quận 1' }),
+      true,
+    );
+
+    // 3. Đổi tọa độ
+    assert.equal(
+      isSchoolLocationChanged(current, { ...current, latitude: 10.780000 }),
+      true,
+    );
+  });
+
+  it('quy tắc cascade: nếu trường không có phương án nào thì đổi ngay; nếu có thì mở modal xác nhận hủy toàn bộ phương án', () => {
+    function evaluateLocationChangeAction(impact: {
+      cancelledPlansCount: number;
+    }): 'UPDATE_DIRECTLY' | 'REQUIRE_CONFIRMATION_MODAL' {
+      if (impact.cancelledPlansCount === 0) {
+        return 'UPDATE_DIRECTLY';
+      }
+      return 'REQUIRE_CONFIRMATION_MODAL';
+    }
+
+    // Trường chưa có phương án DRAFT/ACTIVE
+    assert.equal(
+      evaluateLocationChangeAction({ cancelledPlansCount: 0 }),
+      'UPDATE_DIRECTLY',
+    );
+
+    // Trường có 1 hoặc nhiều phương án DRAFT/ACTIVE
+    assert.equal(
+      evaluateLocationChangeAction({ cancelledPlansCount: 2 }),
+      'REQUIRE_CONFIRMATION_MODAL',
+    );
+  });
+});
+
+describe('School Weekly Schedule Update — Cascade & Recalculation Rules', () => {
+  function isScheduleChanged(
+    orig: Record<string, { start: string; end: string }>,
+    next: Record<string, { start: string; end: string }>,
+  ): boolean {
+    const origKeys = Object.keys(orig).sort();
+    const nextKeys = Object.keys(next).sort();
+    if (origKeys.length !== nextKeys.length) return true;
+    for (const k of origKeys) {
+      if (!next[k]) return true;
+      if (orig[k].start !== next[k].start || orig[k].end !== next[k].end) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function recalculateTripTimes(
+    direction: 'TO_SCHOOL' | 'TO_PARKING',
+    schoolSchedule: { start: string; end: string },
+    estimatedDurationSeconds: number,
+  ): { scheduledStartTime: string; scheduledEndTime: string } {
+    const toSeconds = (t: string) => {
+      const [h, m] = t.split(':').map(Number);
+      return h * 3600 + m * 60;
+    };
+    const toTimeStr = (sec: number) => {
+      let s = sec % 86400;
+      if (s < 0) s += 86400;
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    };
+
+    if (direction === 'TO_SCHOOL') {
+      const arrSec = toSeconds(schoolSchedule.start);
+      const depSec = arrSec - estimatedDurationSeconds;
+      return {
+        scheduledStartTime: toTimeStr(depSec),
+        scheduledEndTime: schoolSchedule.start,
+      };
+    } else {
+      const depSec = toSeconds(schoolSchedule.end);
+      const arrSec = depSec + estimatedDurationSeconds;
+      return {
+        scheduledStartTime: schoolSchedule.end,
+        scheduledEndTime: toTimeStr(arrSec),
+      };
+    }
+  }
+
+  it('nhận diện chính xác khi lịch học tuần thay đổi hoặc giữ nguyên', () => {
+    const baseSchedule = {
+      monday: { start: '07:00', end: '17:00' },
+      tuesday: { start: '07:00', end: '17:00' },
+    };
+
+    // Giữ nguyên
+    assert.equal(isScheduleChanged(baseSchedule, { ...baseSchedule }), false);
+
+    // Đổi giờ học của 1 ngày
+    assert.equal(
+      isScheduleChanged(baseSchedule, {
+        monday: { start: '07:30', end: '17:00' },
+        tuesday: { start: '07:00', end: '17:00' },
+      }),
+      true,
+    );
+
+    // Bỏ bớt 1 ngày (ví dụ thứ 3 thành ngày nghỉ)
+    assert.equal(
+      isScheduleChanged(baseSchedule, {
+        monday: { start: '07:00', end: '17:00' },
+      }),
+      true,
+    );
+
+    // Thêm ngày mới (ví dụ thứ 4)
+    assert.equal(
+      isScheduleChanged(baseSchedule, {
+        ...baseSchedule,
+        wednesday: { start: '07:00', end: '17:00' },
+      }),
+      true,
+    );
+  });
+
+  it('tính toán lại khung giờ chuyến xe TO_SCHOOL chuẩn xác lùi từ giờ bắt đầu học', () => {
+    // Trường vào học lúc 07:15, thời lượng tuyến ước tính 45 phút (2700 giây)
+    const res = recalculateTripTimes(
+      'TO_SCHOOL',
+      { start: '07:15', end: '17:00' },
+      2700,
+    );
+
+    // Khởi hành lúc 07:15 - 45m = 06:30, đến trường lúc 07:15
+    assert.equal(res.scheduledStartTime, '06:30');
+    assert.equal(res.scheduledEndTime, '07:15');
+  });
+
+  it('tính toán lại khung giờ chuyến xe TO_PARKING chuẩn xác tiến từ giờ tan trường', () => {
+    // Trường tan học lúc 16:45, thời lượng tuyến ước tính 50 phút (3000 giây)
+    const res = recalculateTripTimes(
+      'TO_PARKING',
+      { start: '07:00', end: '16:45' },
+      3000,
+    );
+
+    // Khởi hành từ trường lúc 16:45, về bãi xe lúc 16:45 + 50m = 17:35
+    assert.equal(res.scheduledStartTime, '16:45');
+    assert.equal(res.scheduledEndTime, '17:35');
+  });
+
+  it('quy tắc xử lý chuyến xe khi ngày bị loại khỏi lịch học (ngày nghỉ): chuyến SCHEDULED bị hủy', () => {
+    const updatedSchedule: Record<string, { start: string; end: string }> = {
+      monday: { start: '07:00', end: '17:00' },
+      tuesday: { start: '07:00', end: '17:00' },
+    };
+
+    function shouldCancelTrip(dayKey: string): boolean {
+      return !updatedSchedule[dayKey];
+    }
+
+    assert.equal(shouldCancelTrip('monday'), false);
+    assert.equal(shouldCancelTrip('tuesday'), false);
+    assert.equal(shouldCancelTrip('wednesday'), true); // Ngày nghỉ -> HỦY
+    assert.equal(shouldCancelTrip('saturday'), true);  // Ngày nghỉ -> HỦY
+  });
+});

@@ -6,8 +6,10 @@ import { ParentRequestsController } from './parent-requests.controller.js';
 import { SchoolRequestsController } from './school-requests.controller.js';
 import { SystemRequestsController } from './system-requests.controller.js';
 
+import { RoutesModule } from '../routes/routes.module.js';
+
 @Module({
-  imports: [PrismaModule, AuthModule],
+  imports: [PrismaModule, AuthModule, RoutesModule],
   controllers: [
     ParentRequestsController,
     SchoolRequestsController,

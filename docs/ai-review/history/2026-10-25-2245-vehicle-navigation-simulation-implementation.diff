@@ -1,0 +1,1919 @@
+diff --git a/api/prisma/migrations/20261025130000_add_trip_navigation_history/migration.sql b/api/prisma/migrations/20261025130000_add_trip_navigation_history/migration.sql
+new file mode 100644
+--- /dev/null
++++ b/api/prisma/migrations/20261025130000_add_trip_navigation_history/migration.sql
+@@ -0,0 +1,14 @@
++ALTER TABLE "trips" ADD COLUMN "navigation_state" JSONB;
++
++CREATE TABLE "trip_location_points" (
++    "trip_id" TEXT NOT NULL,
++    "sequence" INTEGER NOT NULL,
++    "latitude" DOUBLE PRECISION NOT NULL,
++    "longitude" DOUBLE PRECISION NOT NULL,
++    "recorded_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    "run_id" TEXT NOT NULL,
++    CONSTRAINT "trip_location_points_pkey" PRIMARY KEY ("trip_id", "sequence")
++);
++
++ALTER TABLE "trip_location_points" ADD CONSTRAINT "trip_location_points_trip_id_fkey"
++FOREIGN KEY ("trip_id") REFERENCES "trips"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+diff --git a/api/prisma/schema.prisma b/api/prisma/schema.prisma
+--- a/api/prisma/schema.prisma
++++ b/api/prisma/schema.prisma
+@@ -425,6 +425,7 @@ model Trip {
+   assignedDriverId       String         @map("assigned_driver_id")
+   assignedBusAttendantId String         @map("assigned_bus_attendant_id")
+   cancellationReason     String?        @map("cancellation_reason") @db.VarChar(500)
++  navigationState        Json?          @map("navigation_state")
+   createdAt              DateTime       @default(now()) @map("created_at")
+   updatedAt              DateTime       @updatedAt @map("updated_at")
+ 
+@@ -435,6 +436,7 @@ model Trip {
+   assignedDriver         User           @relation("TripDriver", fields: [assignedDriverId], references: [id], onDelete: Restrict)
+   assignedBusAttendant   User           @relation("TripBusAttendant", fields: [assignedBusAttendantId], references: [id], onDelete: Restrict)
+   attendances            TripAttendance[]
++  locationPoints         TripLocationPoint[]
+ 
+   @@unique([routeId, serviceDate])
+   @@index([schoolId, serviceDate])
+@@ -445,6 +447,20 @@ model Trip {
+   @@map("trips")
+ }
+ 
++/// Sparse recorded positions; no synthetic backfill and no source discriminator.
++model TripLocationPoint {
++  tripId     String   @map("trip_id")
++  sequence   Int
++  latitude   Float
++  longitude  Float
++  recordedAt DateTime @default(now()) @map("recorded_at")
++  runId      String   @map("run_id")
++  trip       Trip     @relation(fields: [tripId], references: [id], onDelete: Restrict)
++
++  @@id([tripId, sequence])
++  @@map("trip_location_points")
++}
++
+ /// Bảng quản lý danh sách học sinh (Roster) và trạng thái điểm danh theo từng chuyến xe thực tế
+ model TripAttendance {
+   id            String           @id @default(uuid())
+diff --git a/api/src/trips/dto/trip-navigation.dto.ts b/api/src/trips/dto/trip-navigation.dto.ts
+new file mode 100644
+--- /dev/null
++++ b/api/src/trips/dto/trip-navigation.dto.ts
+@@ -0,0 +1,105 @@
++import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
++import { Type } from 'class-transformer';
++import { IsDateString, IsDefined, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
++
++export const LOCATION_SOURCES = ['LIVE', 'TEST_AUTO', 'TEST_JOYSTICK'] as const;
++export type LocationSource = typeof LOCATION_SOURCES[number];
++
++export class NavigationSampleDto {
++  @ApiProperty({ minimum: -90, maximum: 90 })
++  @IsNumber() @Min(-90) @Max(90) latitude!: number;
++  @ApiProperty({ minimum: -180, maximum: 180 })
++  @IsNumber() @Min(-180) @Max(180) longitude!: number;
++  @ApiProperty({ format: 'date-time', description: 'Fresh device sample, at most 15 seconds old; never an offline backlog.' })
++  @IsDateString() capturedAt!: string;
++  @ApiPropertyOptional({ nullable: true, description: 'GPS accuracy in metres; LIVE requires <=50m.' })
++  @IsOptional() @IsNumber() @Min(0) @Max(10000) accuracyMeters?: number | null;
++}
++
++export class NavigationSessionDto {
++  @ApiProperty({ enum: ['START', 'STOP', 'SWITCH', 'RESUME'] })
++  @IsIn(['START', 'STOP', 'SWITCH', 'RESUME']) action!: 'START' | 'STOP' | 'SWITCH' | 'RESUME';
++  @ApiPropertyOptional({ enum: LOCATION_SOURCES, description: 'TEST uses simulation only, LIVE uses GPS only. Required for START/SWITCH.' })
++  @IsOptional() @IsIn(LOCATION_SOURCES) source?: LocationSource;
++  @ApiPropertyOptional({ nullable: true, description: 'Compare-and-set run from the latest navigation response; null for first START.' })
++  @IsOptional() @IsString() @MaxLength(80) expectedRunId?: string | null;
++}
++
++export class PublishPositionDto extends NavigationSampleDto {
++  @ApiProperty() @IsString() @MaxLength(80) runId!: string;
++  @ApiProperty({ minimum: 1 }) @IsInt() @Min(1) @Max(2147483647) sequence!: number;
++}
++
++export class NavigationSegmentDto {
++  @ApiProperty({ enum: ['CURRENT', 'ADVANCE'] }) @IsIn(['CURRENT', 'ADVANCE']) action!: 'CURRENT' | 'ADVANCE';
++  @ApiProperty() @IsString() @MaxLength(80) runId!: string;
++  @ApiProperty() @IsString() @MaxLength(80) routeVersion!: string;
++  @ApiProperty() @IsString() @MaxLength(80) expectedTargetStopId!: string;
++  @ApiProperty({ type: NavigationSampleDto })
++  @IsDefined() @Type(() => NavigationSampleDto) @ValidateNested() position!: NavigationSampleDto;
++}
++
++export class LocationHistoryQueryDto {
++  @ApiPropertyOptional({ default: 0, minimum: 0 })
++  @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(2147483647) afterSequence?: number;
++  @ApiPropertyOptional({ default: 500, maximum: 1000 })
++  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(1000) limit?: number;
++  @ApiPropertyOptional({ description: 'Use the first response boundary for every later page.' })
++  @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(2147483647) snapshotMaxSequence?: number;
++}
++
++export class LocationPointDto {
++  @ApiProperty() sequence!: number;
++  @ApiProperty() latitude!: number;
++  @ApiProperty() longitude!: number;
++  @ApiProperty({ format: 'date-time', description: 'Server acceptance timestamp, not reconstructed device history.' }) recordedAt!: Date;
++  @ApiProperty({ description: 'Opaque continuity token; break the rendered line when it changes.' }) runId!: string;
++}
++export class NavigationCheckpointDto {
++  @ApiProperty() runId!: string;
++  @ApiProperty() enabled!: boolean;
++  @ApiProperty({ enum: LOCATION_SOURCES }) activeSource!: LocationSource;
++  @ApiProperty({ nullable: true, type: String }) targetStopId!: string | null;
++  @ApiProperty() routeVersion!: string;
++}
++export class NavigationStateDto {
++  @ApiProperty() status!: string;
++  @ApiProperty() routeVersion!: string;
++  @ApiProperty({ type: LocationPointDto, nullable: true }) latestPosition!: LocationPointDto | null;
++  @ApiProperty({ enum: ['NONE', 'FRESH', 'STALE'] }) freshness!: string;
++  @ApiProperty({ format: 'date-time' }) serverNow!: Date;
++  @ApiProperty() canPublish!: boolean;
++  @ApiProperty() testMode!: boolean;
++  @ApiProperty({ type: NavigationCheckpointDto, nullable: true, description: 'Only current owner receives a resumable checkpoint; no Session ID exposed.' }) checkpoint!: NavigationCheckpointDto | null;
++  @ApiProperty() nextSequence!: number;
++  @ApiProperty({ type: String, nullable: true, description: 'Assigned Driver only: opaque CAS token for an explicit START; never a Session ID.' }) controlRunId!: string | null;
++  @ApiProperty({ default: 5000 }) publishIntervalMs!: number;
++}
++export class LocationHistoryDto {
++  @ApiProperty({ type: [LocationPointDto] }) points!: LocationPointDto[];
++  @ApiProperty() nextCursor!: number;
++  @ApiProperty() snapshotMaxSequence!: number;
++  @ApiProperty() hasMore!: boolean;
++}
++export class NavigationInstructionDto {
++  @ApiProperty() text!: string;
++  @ApiProperty() streetName!: string;
++  @ApiProperty() sign!: number;
++  @ApiProperty({ type: [Number], description: '[start,end] indices in the geometry in this same response.' }) interval!: [number, number];
++  @ApiProperty({ description: 'Metres until next instruction' }) distance!: number;
++}
++export class NavigationRouteDto {
++  @ApiProperty() segmentVersion!: string;
++  @ApiProperty({ nullable: true, type: String }) targetStopId!: string | null;
++  @ApiProperty() routeVersion!: string;
++  @ApiProperty({ description: 'Polyline5; empty only when finished=true.' }) geometry!: string;
++  @ApiProperty({ type: [NavigationInstructionDto] }) instructions!: NavigationInstructionDto[];
++  @ApiProperty() distanceMeters!: number;
++  @ApiProperty() durationSeconds!: number;
++  @ApiProperty() finished!: boolean;
++}
++export class PositionAckDto {
++  @ApiProperty() sequence!: number;
++  @ApiProperty() nextSequence!: number;
++  @ApiProperty({ format: 'date-time' }) recordedAt!: Date;
++}
+diff --git a/api/src/trips/trip-navigation.controller.ts b/api/src/trips/trip-navigation.controller.ts
+new file mode 100644
+--- /dev/null
++++ b/api/src/trips/trip-navigation.controller.ts
+@@ -0,0 +1,65 @@
++import { Body, Controller, Get, HttpCode, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
++import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
++import { Role, type User } from '@prisma/client';
++import { AuthGuard } from '../auth/auth.guard.js';
++import { RolesGuard } from '../auth/roles.guard.js';
++import { Roles } from '../auth/decorators/roles.decorator.js';
++import { CurrentSessionId, CurrentUser } from '../auth/decorators/auth-user.decorator.js';
++import { TripNavigationService } from './trip-navigation.service.js';
++import { LocationHistoryDto, LocationHistoryQueryDto, NavigationRouteDto, NavigationSegmentDto, NavigationSessionDto, NavigationStateDto, PositionAckDto, PublishPositionDto } from './dto/trip-navigation.dto.js';
++
++@ApiTags('Trip Navigation & Location')
++@ApiBearerAuth('JWT-auth')
++@ApiParam({ name: 'id', description: 'Trip ID; authorization follows Trip Detail object scope.' })
++@ApiResponse({ status: 400, description: 'Malformed position, stale sample, poor GPS accuracy, or invalid cursor.' })
++@ApiResponse({ status: 401, description: 'Session expired/revoked.' })
++@ApiResponse({ status: 403, description: 'Trip scope denied, not assigned Driver, or TEST source in LIVE.' })
++@ApiResponse({ status: 404, description: 'Trip not found.' })
++@ApiResponse({ status: 409, description: 'Trip terminal or stale owner/run/target/version/sequence.' })
++@ApiResponse({ status: 429, description: 'Position cadence 5s or routing cooldown20s; retryAfterMs in body.' })
++@ApiResponse({ status: 500, description: 'Internal error; operation is not confirmed successful.' })
++@Controller('trips/:id')
++@UseGuards(AuthGuard, RolesGuard)
++export class TripNavigationController {
++  constructor(private readonly navigation: TripNavigationService) {}
++
++  @Get('navigation')
++  @ApiOperation({ summary: 'Latest persisted vehicle position for five authorized roles; no synthetic initial marker.' })
++  @ApiResponse({ status: 200, type: NavigationStateDto })
++  state(@Param('id') id: string, @CurrentUser() user: User, @CurrentSessionId() sid: string) {
++    return this.navigation.navigation(id, user, sid);
++  }
++
++  @Put('navigation/session') @Roles(Role.DRIVER)
++  @ApiOperation({ summary: 'START/STOP/SWITCH/RESUME foreground navigation; never starts/completes the Trip.' })
++  @ApiBody({ type: NavigationSessionDto }) @ApiResponse({ status: 200, type: NavigationStateDto })
++  session(@Param('id') id: string, @Body() dto: NavigationSessionDto, @CurrentUser() user: User, @CurrentSessionId() sid: string) {
++    return this.navigation.session(id, dto, user, sid);
++  }
++
++  @Put('navigation/position') @Roles(Role.DRIVER)
++  @ApiOperation({ summary: 'Append a fresh position at most every5s; same-sequence retry is idempotent. No offline backfill.' })
++  @ApiBody({ type: PublishPositionDto }) @ApiResponse({ status: 200, type: PositionAckDto })
++  position(@Param('id') id: string, @Body() dto: PublishPositionDto, @CurrentUser() user: User, @CurrentSessionId() sid: string) {
++    return this.navigation.publish(id, dto, user, sid);
++  }
++
++  @Post('navigation/segment') @HttpCode(200) @Roles(Role.DRIVER)
++  @ApiOperation({ summary: 'VietMap P→current target only; ADVANCE changes navigation cursor, never business milestones.' })
++  @ApiBody({ type: NavigationSegmentDto }) @ApiResponse({ status: 200, type: NavigationRouteDto })
++  @ApiResponse({ status: 502, description: 'ROUTING_UNAVAILABLE: invalid geometry/instructions; no fallback guidance.' })
++  @ApiResponse({ status: 503, description: 'VietMap missing configuration, quota, timeout or upstream failure.' })
++  segment(@Param('id') id: string, @Body() dto: NavigationSegmentDto, @CurrentUser() user: User, @CurrentSessionId() sid: string) {
++    return this.navigation.segment(id, dto, user, sid);
++  }
++
++  @Get('location-history')
++  @ApiOperation({ summary: 'Recorded history ordered by sequence; split at run changes/gaps. Zero points means planned-line fallback.' })
++  @ApiQuery({ name: 'afterSequence', required: false, type: Number })
++  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Default500, max1000.' })
++  @ApiQuery({ name: 'snapshotMaxSequence', required: false, type: Number, description: 'Boundary returned on first page.' })
++  @ApiResponse({ status: 200, type: LocationHistoryDto })
++  history(@Param('id') id: string, @Query() dto: LocationHistoryQueryDto, @CurrentUser() user: User) {
++    return this.navigation.history(id, dto, user);
++  }
++}
+diff --git a/api/src/trips/trip-navigation.service.ts b/api/src/trips/trip-navigation.service.ts
+new file mode 100644
+--- /dev/null
++++ b/api/src/trips/trip-navigation.service.ts
+@@ -0,0 +1,197 @@
++import { BadRequestException, ConflictException, ForbiddenException, HttpException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
++import { Prisma, Role, type User } from '@prisma/client';
++import { randomUUID } from 'node:crypto';
++import { PrismaService } from '../prisma/prisma.service.js';
++import { TripsService } from './trips.service.js';
++import { VietMapNavigationService } from './vietmap-navigation.service.js';
++import { metresBetween, parseCheckpoint, routeFingerprint, type NavigationCheckpoint } from './utils/navigation-state.js';
++import type { LocationHistoryQueryDto, NavigationSampleDto, NavigationSegmentDto, NavigationSessionDto, PublishPositionDto } from './dto/trip-navigation.dto.js';
++
++const include = { route: { select: { polylineGeometry: true, stops: {
++  orderBy: [{ stopOrder: 'asc' as const }, { id: 'asc' as const }],
++  select: { id: true, stopOrder: true, stopType: true, latitude: true, longitude: true },
++} } }, attendances: { select: { studentId: true } } } satisfies Prisma.TripInclude;
++type NavigationTrip = Prisma.TripGetPayload<{ include: typeof include }>;
++const pointSelect = { sequence: true, latitude: true, longitude: true, recordedAt: true, runId: true } as const;
++const INTERVAL = 5000;
++
++@Injectable()
++export class TripNavigationService {
++  constructor(private readonly prisma: PrismaService, private readonly trips: TripsService,
++    private readonly directions: VietMapNavigationService) {}
++
++  private async read(id: string, db: Prisma.TransactionClient = this.prisma) {
++    const trip = await db.trip.findUnique({ where: { id }, include });
++    if (!trip) throw new NotFoundException('Không tìm thấy chuyến xe');
++    return trip;
++  }
++
++  private latest(id: string, db: Prisma.TransactionClient = this.prisma) {
++    return db.tripLocationPoint.findFirst({ where: { tripId: id }, orderBy: { sequence: 'desc' }, select: pointSelect });
++  }
++
++  private async locked<T>(id: string, share: boolean, work: (tx: Prisma.TransactionClient) => Promise<T>) {
++    return this.prisma.$transaction(async tx => {
++      await tx.$executeRaw`SET LOCAL lock_timeout = '1500ms'`;
++      if (share) await tx.$queryRaw`SELECT id FROM trips WHERE id = ${id} FOR SHARE`;
++      else await tx.$queryRaw`SELECT id FROM trips WHERE id = ${id} FOR UPDATE`;
++      return work(tx);
++    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted, timeout: 3500, maxWait: 2000 });
++  }
++
++  private async publisher(trip: NavigationTrip, user: User, sid: string, db: Prisma.TransactionClient) {
++    if (user.role !== Role.DRIVER || trip.assignedDriverId !== user.id) throw new ForbiddenException('Chỉ tài xế được phân công có thể phát vị trí');
++    if (trip.status !== 'IN_PROGRESS') throw new ConflictException('Chuyến xe không đang chạy');
++    const session = sid && await db.session.findUnique({ where: { id: sid } });
++    if (!session || session.userId !== user.id || session.revokedAt || session.expiresAt <= new Date()) throw new UnauthorizedException('Phiên không hợp lệ');
++  }
++
++  private owner(trip: NavigationTrip, sid: string, runId: string) {
++    const state = parseCheckpoint(trip.navigationState);
++    if (!state?.enabled || state.ownerSessionId !== sid || state.runId !== runId || state.routeVersion !== routeFingerprint(trip)) {
++      throw new ConflictException('Phiên điều hướng đã thay đổi');
++    }
++    if ((state.activeSource === 'LIVE') === this.trips.isTestMode()) throw new ForbiddenException('Nguồn vị trí không phù hợp TEST/LIVE');
++    return state;
++  }
++
++  private sample(sample: NavigationSampleDto, state: NavigationCheckpoint) {
++    const age = Date.now() - Date.parse(sample.capturedAt);
++    if (!Number.isFinite(age) || age < -5000 || age > 15000 || !Number.isFinite(sample.latitude) ||
++        !Number.isFinite(sample.longitude) || Math.abs(sample.latitude) > 90 || Math.abs(sample.longitude) > 180) throw new BadRequestException('Vị trí không hợp lệ hoặc đã cũ');
++    if (state.activeSource === 'LIVE' && (sample.accuracyMeters == null || sample.accuracyMeters > 50 || sample.accuracyMeters < 0)) throw new BadRequestException('GPS chưa đủ chính xác');
++  }
++
++  private async save(tx: Prisma.TransactionClient, id: string, state: NavigationCheckpoint) {
++    await tx.trip.update({ where: { id }, data: { navigationState: state as unknown as Prisma.InputJsonValue } });
++  }
++
++  async navigation(id: string, user: User, sid: string) {
++    const trip = await this.read(id);
++    await this.trips.assertTripAccess(trip, user);
++    const point = await this.latest(id);
++    const state = parseCheckpoint(trip.navigationState);
++    const driver = user.role === Role.DRIVER && trip.assignedDriverId === user.id;
++    const version = routeFingerprint(trip);
++    const current = driver && state?.ownerSessionId === sid && state.routeVersion === version;
++    const checkpoint = current ? { runId: state.runId, enabled: state.enabled, activeSource: state.activeSource,
++      targetStopId: state.targetStopId, routeVersion: state.routeVersion } : null;
++    return { status: trip.status, routeVersion: version, latestPosition: point,
++      freshness: !point ? 'NONE' : Date.now() - point.recordedAt.getTime() <= 15000 ? 'FRESH' : 'STALE',
++      serverNow: new Date(), canPublish: driver && trip.status === 'IN_PROGRESS', testMode: this.trips.isTestMode(),
++      checkpoint, controlRunId: driver ? state?.runId ?? null : null,
++      nextSequence: driver ? (point?.sequence ?? 0) + 1 : 0, publishIntervalMs: INTERVAL };
++  }
++
++  async session(id: string, dto: NavigationSessionDto, user: User, sid: string) {
++    await this.locked(id, false, async tx => {
++      const trip = await this.read(id, tx);
++      await this.publisher(trip, user, sid, tx);
++      const previous = parseCheckpoint(trip.navigationState);
++      if ((dto.expectedRunId ?? null) !== (previous?.runId ?? null)) throw new ConflictException('Tải lại phiên điều hướng');
++      const version = routeFingerprint(trip);
++      if (dto.action !== 'START' && (!previous || previous.ownerSessionId !== sid || previous.routeVersion !== version)) throw new ConflictException('Không thể khôi phục phiên điều hướng');
++      if (previous?.enabled && previous.ownerSessionId !== sid) {
++        const last = await this.latest(id, tx);
++        const activeAt = last?.runId === previous.runId ? last.recordedAt.getTime() : previous.activatedAt;
++        if (Date.now() - activeAt < 60000) throw new ConflictException('Một phiên khác đang điều hướng');
++      }
++      if (dto.action === 'RESUME' && !previous?.enabled) throw new ConflictException('Điều hướng đã dừng');
++      const source = dto.source ?? previous?.activeSource;
++      if (!source || ((dto.action === 'START' || dto.action === 'SWITCH') && !dto.source)) throw new BadRequestException('Chọn nguồn vị trí');
++      if (dto.action !== 'STOP' && (source === 'LIVE') === this.trips.isTestMode()) throw new ForbiddenException('Nguồn vị trí không phù hợp TEST/LIVE');
++      if ((dto.action === 'RESUME' || dto.action === 'STOP') && dto.source && source !== previous?.activeSource) throw new BadRequestException('Không đổi nguồn khi khôi phục');
++      const preserve = previous?.routeVersion === version;
++      const first = trip.route.stops[0];
++      const initial = first && ['PARKING_START', 'SCHOOL_DEPARTURE'].includes(first.stopType)
++        ? trip.route.stops.find((stop, index) => index > 0 && metresBetween(first, stop) > 1) ?? first : first;
++      const targetStopId = preserve ? previous.targetStopId : initial?.id ?? null;
++      if (targetStopId && !trip.route.stops.some(s => s.id === targetStopId)) throw new ConflictException('Điểm tiếp theo không hợp lệ');
++      if (!trip.route.stops.length && dto.action !== 'STOP') throw new ConflictException('Không có điểm điều hướng');
++      await this.save(tx, id, { version: 1, ownerSessionId: sid, runId: randomUUID(), enabled: dto.action !== 'STOP',
++        activeSource: source, targetStopId, routeVersion: version, activatedAt: Date.now(),
++        lastRouteRequestedAt: previous?.lastRouteRequestedAt ?? 0 });
++    });
++    return this.navigation(id, user, sid);
++  }
++
++  async publish(id: string, dto: PublishPositionDto, user: User, sid: string) {
++    try {
++      return await this.locked(id, true, async tx => {
++        const trip = await this.read(id, tx);
++        await this.publisher(trip, user, sid, tx);
++        const state = this.owner(trip, sid, dto.runId);
++        const existing = await tx.tripLocationPoint.findUnique({ where: { tripId_sequence: { tripId: id, sequence: dto.sequence } }, select: pointSelect });
++        if (existing) return this.retryAck(existing, dto);
++        this.sample(dto, state);
++        const last = await this.latest(id, tx);
++        if (dto.sequence !== (last?.sequence ?? 0) + 1) throw new ConflictException('Sequence đã thay đổi');
++        const delay = last ? INTERVAL - (Date.now() - last.recordedAt.getTime()) : 0;
++        if (delay > 0) throw new HttpException({ statusCode: 429, code: 'NAVIGATION_RATE_LIMIT', message: 'Chờ lượt cập nhật tiếp theo', retryAfterMs: delay }, 429);
++        const point = await tx.tripLocationPoint.create({ data: { tripId: id, sequence: dto.sequence,
++          latitude: dto.latitude, longitude: dto.longitude, runId: dto.runId }, select: pointSelect });
++        return { sequence: point.sequence, nextSequence: point.sequence + 1, recordedAt: point.recordedAt };
++      });
++    } catch (error) {
++      // A competing same-sequence insert rolled this transaction back. Revalidate before ack.
++      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') throw error;
++      const trip = await this.read(id);
++      await this.publisher(trip, user, sid, this.prisma);
++      this.owner(trip, sid, dto.runId);
++      const point = await this.prisma.tripLocationPoint.findUnique({ where: { tripId_sequence: { tripId: id, sequence: dto.sequence } }, select: pointSelect });
++      if (!point) throw new ConflictException('Sequence đã thay đổi');
++      return this.retryAck(point, dto);
++    }
++  }
++
++  private retryAck(point: { runId: string; latitude: number; longitude: number; sequence: number; recordedAt: Date }, dto: PublishPositionDto) {
++    if (point.runId !== dto.runId || point.latitude !== dto.latitude || point.longitude !== dto.longitude) throw new ConflictException('Sequence đã được dùng cho vị trí khác');
++    return { sequence: point.sequence, nextSequence: point.sequence + 1, recordedAt: point.recordedAt };
++  }
++
++  async segment(id: string, dto: NavigationSegmentDto, user: User, sid: string) {
++    const request = await this.locked(id, false, async tx => {
++      const trip = await this.read(id, tx);
++      await this.publisher(trip, user, sid, tx);
++      const state = this.owner(trip, sid, dto.runId);
++      this.sample(dto.position, state);
++      if (dto.routeVersion !== state.routeVersion || dto.expectedTargetStopId !== state.targetStopId) throw new ConflictException('Điểm điều hướng đã đổi');
++      const index = trip.route.stops.findIndex(s => s.id === state.targetStopId);
++      if (index < 0) throw new ConflictException('Điểm tiếp theo không hợp lệ');
++      if (dto.action === 'ADVANCE') {
++        if (metresBetween(dto.position, trip.route.stops[index]) > 30) throw new ConflictException('Chưa đến điểm tiếp theo');
++        // Only a navigation cursor changes; never touch attendance or operation milestones.
++        const reached = trip.route.stops[index];
++        state.targetStopId = trip.route.stops.find((stop, i) => i > index && metresBetween(reached, stop) > 1)?.id ?? null;
++      } else if (Date.now() - state.lastRouteRequestedAt < 20000) {
++        throw new HttpException({ statusCode: 429, code: 'NAVIGATION_RATE_LIMIT', message: 'Chờ cập nhật chỉ dẫn',
++          retryAfterMs: 20000 - (Date.now() - state.lastRouteRequestedAt) }, 429);
++      }
++      state.lastRouteRequestedAt = Date.now();
++      await this.save(tx, id, state);
++      return { state, target: trip.route.stops.find(s => s.id === state.targetStopId) };
++    });
++    const base = { segmentVersion: randomUUID(), targetStopId: request.state.targetStopId, routeVersion: request.state.routeVersion };
++    if (!request.target) return { ...base, geometry: '', instructions: [], distanceMeters: 0, durationSeconds: 0, finished: true };
++    const route = await this.directions.route(dto.position, request.target);
++    const current = await this.read(id);
++    await this.publisher(current, user, sid, this.prisma);
++    const state = this.owner(current, sid, dto.runId);
++    if (state.targetStopId !== base.targetStopId || state.lastRouteRequestedAt !== request.state.lastRouteRequestedAt) throw new ConflictException('Chỉ dẫn đã thay đổi');
++    return { ...base, ...route, finished: false };
++  }
++
++  async history(id: string, query: LocationHistoryQueryDto, user: User) {
++    const trip = await this.read(id);
++    await this.trips.assertTripAccess(trip, user);
++    const max = query.snapshotMaxSequence ?? (await this.latest(id))?.sequence ?? 0;
++    const cursor = query.afterSequence ?? 0;
++    if (cursor > max) throw new BadRequestException('Cursor không hợp lệ');
++    const limit = query.limit ?? 500;
++    const points = await this.prisma.tripLocationPoint.findMany({ where: { tripId: id, sequence: { gt: cursor, lte: max } },
++      orderBy: { sequence: 'asc' }, take: limit + 1, select: pointSelect });
++    const hasMore = points.length > limit;
++    if (hasMore) points.pop();
++    return { points, nextCursor: points.at(-1)?.sequence ?? cursor, hasMore, snapshotMaxSequence: max };
++  }
++}
+diff --git a/api/src/trips/trip-navigation.spec.ts b/api/src/trips/trip-navigation.spec.ts
+new file mode 100644
+--- /dev/null
++++ b/api/src/trips/trip-navigation.spec.ts
+@@ -0,0 +1,211 @@
++import { beforeEach, describe, expect, it, vi } from 'vitest';
++import { BadGatewayException, ConflictException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
++import { Prisma, Role } from '@prisma/client';
++import { TripsService } from './trips.service.js';
++import { TripNavigationService } from './trip-navigation.service.js';
++import { parseCheckpoint, routeFingerprint } from './utils/navigation-state.js';
++import { validateDirections, VietMapNavigationService } from './vietmap-navigation.service.js';
++import { encodePolyline } from '../routes/utils/polyline.util.js';
++import { plainToInstance } from 'class-transformer';
++import { validateSync } from 'class-validator';
++import { LocationHistoryQueryDto, NavigationSegmentDto } from './dto/trip-navigation.dto.js';
++
++// Isolated service tests: no PrismaClient, Nest app, HTTP fetch, cron, or database writes.
++describe('Navigation control and persisted-position contract (in memory only)', () => {
++  let db: any, trip: any, service: TripNavigationService, routes: any, testMode: boolean;
++  const driver = { id: 'driver', role: Role.DRIVER } as any;
++  const actor = (role: Role, id: string, schoolId = 'school') => ({ id, role, schoolId } as any);
++  const position = () => ({ latitude: 10, longitude: 106, capturedAt: new Date().toISOString(), accuracyMeters: 5 });
++  const checkpoint = () => ({ version: 1, ownerSessionId: 'sid', runId: 'run', enabled: true, activeSource: 'TEST_AUTO',
++    targetStopId: 'B', routeVersion: routeFingerprint(trip), activatedAt: Date.now(), lastRouteRequestedAt: 0 });
++  beforeEach(() => {
++    testMode = true;
++    trip = { id: 'trip', routeId: 'route', schoolId: 'school', status: 'IN_PROGRESS', assignedDriverId: 'driver',
++      assignedBusAttendantId: 'attendant', assignedVehicleId: 'vehicle', attendances: [{ studentId: 'child' }],
++      navigationState: null, route: { polylineGeometry: null, stops: [
++        { id: 'A', stopType: 'PARKING_START', stopOrder: 1, latitude: 10, longitude: 106 },
++        { id: 'B', stopType: 'PICKUP', stopOrder: 2, latitude: 10.001, longitude: 106 },
++        { id: 'C', stopType: 'SCHOOL_ARRIVAL', stopOrder: 3, latitude: 10.002, longitude: 106 },
++      ] } };
++    db = {
++      $executeRaw: vi.fn(), $queryRaw: vi.fn(), $transaction: vi.fn(async (fn: any) => fn(db)),
++      trip: { findUnique: vi.fn(async () => trip), update: vi.fn(async ({ data }: any) => { trip.navigationState = data.navigationState; return trip; }) },
++      session: { findUnique: vi.fn(async () => ({ userId: 'driver', revokedAt: null, expiresAt: new Date(Date.now() + 60000) })) },
++      parentStudentLink: { findMany: vi.fn(async () => [{ studentId: 'child' }]) },
++      tripLocationPoint: { findFirst: vi.fn(async () => null), findUnique: vi.fn(async () => null),
++        create: vi.fn(async ({ data }: any) => ({ ...data, recordedAt: new Date() })), findMany: vi.fn(async () => []) },
++    };
++    const trips = new TripsService(db, { get: () => testMode ? 'TEST' : 'LIVE' } as any);
++    routes = { route: vi.fn(async () => { throw new BadGatewayException('ROUTING_UNAVAILABLE'); }) };
++    service = new TripNavigationService(db, trips, routes);
++  });
++
++  it.each([[Role.SYSTEM_ADMIN, 'system'], [Role.SCHOOL_ADMIN, 'school-admin'], [Role.DRIVER, 'driver'],
++    [Role.BUS_ATTENDANT, 'attendant'], [Role.PARENT, 'parent']])('allows scoped %s to read history/latest without leaking owner', async (role, id) => {
++    trip.navigationState = checkpoint();
++    const state = await service.navigation('trip', actor(role as Role, id as string), 'observer-session');
++    expect(state.latestPosition).toBeNull(); expect(state.checkpoint).toBeNull();
++    expect(JSON.stringify(state)).not.toContain('ownerSessionId');
++    if (role !== Role.DRIVER) expect(state.controlRunId).toBeNull();
++    expect((await service.history('trip', {}, actor(role as Role, id as string))).points).toEqual([]);
++  });
++  it.each([[Role.SCHOOL_ADMIN, 'other-school'], [Role.DRIVER, 'school'], [Role.BUS_ATTENDANT, 'school']])('denies wrong scope %s', async (role, schoolId) => {
++    await expect(service.navigation('trip', actor(role as Role, 'wrong', schoolId as string), 'sid')).rejects.toBeInstanceOf(ForbiddenException);
++  });
++  it('denies Parent without linked roster membership', async () => {
++    db.parentStudentLink.findMany.mockResolvedValue([]);
++    await expect(service.history('trip', {}, actor(Role.PARENT, 'parent'))).rejects.toBeInstanceOf(ForbiddenException);
++  });
++  it('START preserves origin and stop order, only stores the cursor after the origin', async () => {
++    const stops = JSON.stringify(trip.route.stops);
++    const result = await service.session('trip', { action: 'START', source: 'TEST_AUTO' }, driver, 'sid');
++    expect(result.checkpoint?.targetStopId).toBe('B'); expect(JSON.stringify(trip.route.stops)).toBe(stops);
++    expect(db.trip.update.mock.calls[0][0].data).toEqual({ navigationState: expect.any(Object) });
++    expect(db.tripLocationPoint.create).not.toHaveBeenCalled();
++  });
++  it('STOP remains disabled and RESUME cannot restart it', async () => {
++    trip.navigationState = checkpoint();
++    const result = await service.session('trip', { action: 'STOP', expectedRunId: 'run' }, driver, 'sid');
++    expect(result.checkpoint?.enabled).toBe(false);
++    await expect(service.session('trip', { action: 'RESUME', expectedRunId: result.checkpoint!.runId }, driver, 'sid')).rejects.toBeInstanceOf(ConflictException);
++  });
++  it('keeps a real target when every stored stop is co-located', async () => {
++    trip.route.stops.forEach((s: any) => { s.latitude = 10; s.longitude = 106; });
++    const state = await service.session('trip', { action: 'START', source: 'TEST_AUTO' }, driver, 'sid');
++    expect(state.checkpoint?.targetStopId).toBe('A');
++    const result = await service.segment('trip', { action: 'ADVANCE', position: position(), runId: state.checkpoint!.runId,
++      routeVersion: state.routeVersion, expectedTargetStopId: 'A' }, driver, 'sid');
++    expect(result.finished).toBe(true); expect(trip.status).toBe('IN_PROGRESS');
++    expect(routes.route).not.toHaveBeenCalled();
++  });
++  it('RESUME changes run and preserves target without fabricating a point', async () => {
++    trip.navigationState = checkpoint();
++    const result = await service.session('trip', { action: 'RESUME', expectedRunId: 'run' }, driver, 'sid');
++    expect(result.checkpoint?.runId).not.toBe('run'); expect(result.checkpoint?.targetStopId).toBe('B');
++    expect(db.tripLocationPoint.create).not.toHaveBeenCalled();
++  });
++  it('SWITCH invalidates old run; rejects stale CAS and wrong session', async () => {
++    trip.navigationState = checkpoint();
++    await service.session('trip', { action: 'SWITCH', source: 'TEST_JOYSTICK', expectedRunId: 'run' }, driver, 'sid');
++    await expect(service.publish('trip', { ...position(), sequence: 1, runId: 'run' }, driver, 'sid')).rejects.toBeInstanceOf(ConflictException);
++    await expect(service.session('trip', { action: 'RESUME', expectedRunId: trip.navigationState.runId }, driver, 'other')).rejects.toBeInstanceOf(ConflictException);
++  });
++  it('does not reset provider rate budget when resuming or switching source', async () => {
++    trip.navigationState = { ...checkpoint(), lastRouteRequestedAt: Date.now() };
++    const result = await service.session('trip', { action: 'RESUME', expectedRunId: 'run' }, driver, 'sid');
++    await expect(service.segment('trip', { action: 'CURRENT', position: position(), runId: result.checkpoint!.runId,
++      routeVersion: result.routeVersion, expectedTargetStopId: 'B' }, driver, 'sid')).rejects.toMatchObject({ status: 429 });
++    expect(routes.route).not.toHaveBeenCalled();
++  });
++  it('rejects TEST sources in LIVE and does not start GPS in TEST', async () => {
++    testMode = false;
++    await expect(service.session('trip', { action: 'START', source: 'TEST_AUTO' }, driver, 'sid')).rejects.toBeInstanceOf(ForbiddenException);
++    testMode = true;
++    await expect(service.session('trip', { action: 'START', source: 'LIVE' }, driver, 'sid')).rejects.toBeInstanceOf(ForbiddenException);
++  });
++  it('rejects revoked Session and reassignment before publish', async () => {
++    trip.navigationState = checkpoint();
++    db.session.findUnique.mockResolvedValue({ userId: 'driver', revokedAt: new Date(), expiresAt: new Date(Date.now() + 60000) });
++    await expect(service.publish('trip', { ...position(), sequence: 1, runId: 'run' }, driver, 'sid')).rejects.toBeInstanceOf(UnauthorizedException);
++    trip.assignedDriverId = 'replacement';
++    await expect(service.publish('trip', { ...position(), sequence: 1, runId: 'run' }, driver, 'sid')).rejects.toBeInstanceOf(ForbiddenException);
++  });
++  it('uses short ReadCommitted SHARE transaction and appends without updating Trip', async () => {
++    trip.navigationState = checkpoint();
++    await service.publish('trip', { ...position(), sequence: 1, runId: 'run' }, driver, 'sid');
++    expect(db.$queryRaw.mock.calls[0][0].join('')).toContain('FOR SHARE');
++    expect(db.$transaction.mock.calls[0][1]).toMatchObject({ isolationLevel: 'ReadCommitted', timeout: 3500 });
++    expect(db.trip.update).not.toHaveBeenCalled();
++    expect(Object.keys(db.tripLocationPoint.create.mock.calls[0][0].data).sort()).toEqual(['latitude', 'longitude', 'runId', 'sequence', 'tripId']);
++  });
++  it('checks terminal state after acquiring lock; no point after Complete wins', async () => {
++    trip.navigationState = checkpoint();
++    db.$queryRaw.mockImplementation(async () => { trip.status = 'COMPLETED'; });
++    await expect(service.publish('trip', { ...position(), sequence: 1, runId: 'run' }, driver, 'sid')).rejects.toBeInstanceOf(ConflictException);
++    expect(db.tripLocationPoint.create).not.toHaveBeenCalled();
++  });
++  it('acknowledges same retry, conflicts different payload for the same sequence', async () => {
++    trip.navigationState = checkpoint();
++    const point = { latitude: 10, longitude: 106, runId: 'run', sequence: 1, recordedAt: new Date() };
++    db.tripLocationPoint.findUnique.mockResolvedValue(point);
++    expect((await service.publish('trip', { ...position(), sequence: 1, runId: 'run' }, driver, 'sid')).nextSequence).toBe(2);
++    await expect(service.publish('trip', { ...position(), latitude: 11, sequence: 1, runId: 'run' }, driver, 'sid')).rejects.toBeInstanceOf(ConflictException);
++    expect(db.tripLocationPoint.create).not.toHaveBeenCalled();
++  });
++  it('handles competing same-sequence insert without swallowing different data', async () => {
++    trip.navigationState = checkpoint();
++    db.tripLocationPoint.create.mockRejectedValue(new Prisma.PrismaClientKnownRequestError('duplicate', { code: 'P2002', clientVersion: '6' }));
++    db.tripLocationPoint.findUnique.mockResolvedValueOnce(null).mockResolvedValue({ latitude: 10, longitude: 106, runId: 'run', sequence: 1, recordedAt: new Date() });
++    expect((await service.publish('trip', { ...position(), sequence: 1, runId: 'run' }, driver, 'sid')).nextSequence).toBe(2);
++  });
++  it('rejects cadence and sequence errors; rejects stale samples without INSERT', async () => {
++    trip.navigationState = checkpoint();
++    db.tripLocationPoint.findFirst.mockResolvedValue({ sequence: 1, recordedAt: new Date() });
++    await expect(service.publish('trip', { ...position(), sequence: 2, runId: 'run' }, driver, 'sid')).rejects.toMatchObject({ status: 429 });
++    await expect(service.publish('trip', { ...position(), sequence: 5, runId: 'run' }, driver, 'sid')).rejects.toBeInstanceOf(ConflictException);
++    await expect(service.publish('trip', { ...position(), capturedAt: '2000-01-01T00:00:00Z', sequence: 2, runId: 'run' }, driver, 'sid')).rejects.toMatchObject({ status: 400 });
++    expect(db.tripLocationPoint.create).not.toHaveBeenCalled();
++  });
++  it('requires accurate fresh GPS in LIVE, without substituting a simulated point', async () => {
++    testMode = false;
++    trip.navigationState = { ...checkpoint(), activeSource: 'LIVE' };
++    await expect(service.publish('trip', { ...position(), accuracyMeters: null, sequence: 1, runId: 'run' }, driver, 'sid')).rejects.toMatchObject({ status: 400 });
++    await expect(service.publish('trip', { ...position(), accuracyMeters: 100, sequence: 1, runId: 'run' }, driver, 'sid')).rejects.toMatchObject({ status: 400 });
++    expect(db.tripLocationPoint.create).not.toHaveBeenCalled();
++  });
++  it('routes only P→B outside the transaction; provider failure never creates fallback', async () => {
++    trip.navigationState = checkpoint();
++    const dto = { action: 'CURRENT' as const, position: position(), runId: 'run', routeVersion: routeFingerprint(trip), expectedTargetStopId: 'B' };
++    await expect(service.segment('trip', dto, driver, 'sid')).rejects.toBeInstanceOf(BadGatewayException);
++    expect(routes.route).toHaveBeenCalledWith(dto.position, trip.route.stops[1]);
++    expect(routes.route.mock.invocationCallOrder[0]).toBeGreaterThan(db.trip.update.mock.invocationCallOrder[0]);
++    expect(db.tripLocationPoint.create).not.toHaveBeenCalled();
++  });
++  it('ADVANCE changes only the next cursor; retry cannot skip another stop', async () => {
++    trip.navigationState = checkpoint();
++    const dto = { action: 'ADVANCE' as const, position: { ...position(), latitude: 10.001 }, runId: 'run', routeVersion: routeFingerprint(trip), expectedTargetStopId: 'B' };
++    await expect(service.segment('trip', dto, driver, 'sid')).rejects.toBeInstanceOf(BadGatewayException);
++    expect(trip.navigationState.targetStopId).toBe('C'); expect(trip.status).toBe('IN_PROGRESS');
++    await expect(service.segment('trip', dto, driver, 'sid')).rejects.toBeInstanceOf(ConflictException);
++    expect(db.trip.update.mock.calls.every(([arg]: any) => Object.keys(arg.data).join() === 'navigationState')).toBe(true);
++  });
++  it('pages history by compound key and stable upper boundary', async () => {
++    db.tripLocationPoint.findMany.mockResolvedValue([{ sequence: 3 }, { sequence: 4 }, { sequence: 5 }]);
++    const page = await service.history('trip', { afterSequence: 2, snapshotMaxSequence: 8, limit: 2 }, driver);
++    expect(page).toMatchObject({ nextCursor: 4, hasMore: true, snapshotMaxSequence: 8 });
++    expect(db.tripLocationPoint.findMany.mock.calls[0][0]).toMatchObject({ where: { tripId: 'trip', sequence: { gt: 2, lte: 8 } }, take: 3 });
++  });
++});
++
++describe('Directions validation and checkpoint parsing (pure, not provider acceptance)', () => {
++  it('rejects missing nested position and out-of-range database cursors at the DTO boundary', () => {
++    const dto = plainToInstance(NavigationSegmentDto, { action: 'CURRENT', runId: 'run', routeVersion: 'v', expectedTargetStopId: 'B' });
++    expect(validateSync(dto).some(error => error.property === 'position')).toBe(true);
++    expect(validateSync(plainToInstance(LocationHistoryQueryDto, { afterSequence: 2147483648 }))).not.toHaveLength(0);
++  });
++  it('rejects empty/malformed directions instead of inventing instructions', () => {
++    expect(() => validateDirections({})).toThrow(BadGatewayException);
++    expect(() => validateDirections({ paths: [{ points: '???', distance: 10, time: 100, instructions: [] }] })).toThrow(BadGatewayException);
++  });
++  it('binds interval indices to the geometry in the same input', () => {
++    const points = encodePolyline([[10, 106], [10.001, 106]]);
++    const path = { points, distance: 100, time: 10000, instructions: [{ interval: [0, 1], sign: 0, text: '', distance: 100 }] };
++    expect(validateDirections({ paths: [path] })).toMatchObject({ geometry: points, durationSeconds: 10 });
++    path.instructions[0].interval = [0, 3];
++    expect(() => validateDirections({ paths: [path] })).toThrow(BadGatewayException);
++  });
++  it('rejects absent routing key before any external request', async () => {
++    const fetchSpy = vi.spyOn(globalThis, 'fetch');
++    try {
++      const adapter = new VietMapNavigationService({ get: () => undefined } as any);
++      await expect(adapter.route({ latitude: 10, longitude: 106 }, { latitude: 11, longitude: 106 })).rejects.toMatchObject({ status: 503 });
++      expect(fetchSpy).not.toHaveBeenCalled();
++    } finally { fetchSpy.mockRestore(); }
++  });
++  it('rejects corrupt checkpoint and changes fingerprint on assignment/stops', () => {
++    expect(parseCheckpoint({ version: 1, enabled: true })).toBeNull();
++    const trip = { routeId: 'r', assignedDriverId: 'd', assignedVehicleId: 'v', assignedBusAttendantId: 'a', route: { polylineGeometry: null, stops: [] } };
++    const before = routeFingerprint(trip); trip.assignedDriverId = 'replacement';
++    expect(routeFingerprint(trip)).not.toBe(before);
++  });
++});
+diff --git a/api/src/trips/trips.module.ts b/api/src/trips/trips.module.ts
+--- a/api/src/trips/trips.module.ts
++++ b/api/src/trips/trips.module.ts
+@@ -5,6 +5,9 @@ import { PrismaModule } from '../prisma/prisma.module.js';
+ import { AuthModule } from '../auth/auth.module.js';
+ import { TripsController } from './trips.controller.js';
+ import { TripsService } from './trips.service.js';
++import { TripNavigationService } from './trip-navigation.service.js';
++import { TripNavigationController } from './trip-navigation.controller.js';
++import { VietMapNavigationService } from './vietmap-navigation.service.js';
+ 
+ @Module({
+   imports: [
+@@ -13,8 +16,8 @@ import { TripsService } from './trips.service.js';
+     ConfigModule,
+     ScheduleModule.forRoot(),
+   ],
+-  controllers: [TripsController],
+-  providers: [TripsService],
++  controllers: [TripsController, TripNavigationController],
++  providers: [TripsService, TripNavigationService, VietMapNavigationService],
+   exports: [TripsService],
+ })
+ export class TripsModule {}
+diff --git a/api/src/trips/trips.service.ts b/api/src/trips/trips.service.ts
+--- a/api/src/trips/trips.service.ts
++++ b/api/src/trips/trips.service.ts
+@@ -78,7 +78,7 @@ export class TripsService {
+     }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
+   }
+ 
+-  private async assertTripAccess(trip: {
++  async assertTripAccess(trip: {
+     id: string; schoolId: string; assignedDriverId: string; assignedBusAttendantId: string;
+     attendances?: { studentId: string }[];
+   }, user: User): Promise<Set<string>> {
+diff --git a/api/src/trips/utils/navigation-state.ts b/api/src/trips/utils/navigation-state.ts
+new file mode 100644
+--- /dev/null
++++ b/api/src/trips/utils/navigation-state.ts
+@@ -0,0 +1,39 @@
++import { createHash } from 'node:crypto';
++import type { LocationSource } from '../dto/trip-navigation.dto.js';
++
++export interface NavigationCheckpoint {
++  version: 1;
++  ownerSessionId: string;
++  runId: string;
++  enabled: boolean;
++  activeSource: LocationSource;
++  targetStopId: string | null;
++  routeVersion: string;
++  activatedAt: number;
++  lastRouteRequestedAt: number;
++}
++
++export function parseCheckpoint(value: unknown): NavigationCheckpoint | null {
++  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
++  const s = value as Record<string, unknown>;
++  if (s.version !== 1 || typeof s.enabled !== 'boolean' ||
++      !['LIVE', 'TEST_AUTO', 'TEST_JOYSTICK'].includes(String(s.activeSource)) ||
++      !['ownerSessionId', 'runId', 'routeVersion'].every(k => typeof s[k] === 'string' && !!s[k]) ||
++      !(s.targetStopId === null || typeof s.targetStopId === 'string') ||
++      typeof s.activatedAt !== 'number' || !Number.isFinite(s.activatedAt) ||
++      typeof s.lastRouteRequestedAt !== 'number' || !Number.isFinite(s.lastRouteRequestedAt)) return null;
++  return s as unknown as NavigationCheckpoint;
++}
++
++export function routeFingerprint(trip: { routeId: string; assignedDriverId: string; assignedVehicleId: string;
++  assignedBusAttendantId: string; route: { polylineGeometry: string | null; stops: unknown[] } }) {
++  return createHash('sha256').update(JSON.stringify([trip.routeId, trip.assignedDriverId,
++    trip.assignedVehicleId, trip.assignedBusAttendantId, trip.route.polylineGeometry, trip.route.stops])).digest('hex');
++}
++
++export function metresBetween(a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }) {
++  const rad = Math.PI / 180;
++  const x = (b.longitude - a.longitude) * rad * Math.cos((a.latitude + b.latitude) * rad / 2);
++  const y = (b.latitude - a.latitude) * rad;
++  return Math.hypot(x, y) * 6371000;
++}
+diff --git a/api/src/trips/vietmap-navigation.service.ts b/api/src/trips/vietmap-navigation.service.ts
+new file mode 100644
+--- /dev/null
++++ b/api/src/trips/vietmap-navigation.service.ts
+@@ -0,0 +1,63 @@
++import { BadGatewayException, Injectable, ServiceUnavailableException } from '@nestjs/common';
++import { ConfigService } from '@nestjs/config';
++import { decodePolyline, encodePolyline } from '../routes/utils/polyline.util.js';
++import type { NavigationInstructionDto } from './dto/trip-navigation.dto.js';
++import { metresBetween } from './utils/navigation-state.js';
++
++/** Dedicated directions path: never calls VRP/TSP or returns a straight-line fallback. */
++@Injectable()
++export class VietMapNavigationService {
++  constructor(private readonly config: ConfigService) {}
++
++  async route(origin: { latitude: number; longitude: number }, target: { latitude: number; longitude: number }) {
++    const key = this.config.get<string>('VIETMAP_SERVICES_KEY');
++    if (!key) throw new ServiceUnavailableException('Chưa cấu hình dịch vụ chỉ dẫn');
++    const url = new URL('https://maps.vietmap.vn/api/route/v4');
++    url.searchParams.set('apikey', key);
++    url.searchParams.append('point', `${origin.latitude},${origin.longitude}`);
++    url.searchParams.append('point', `${target.latitude},${target.longitude}`);
++    url.searchParams.set('vehicle', 'car');
++    url.searchParams.set('points_encoded', 'true');
++    try {
++      const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
++      if (res.status === 429 || res.status >= 500) throw new ServiceUnavailableException('Chưa thể cập nhật chỉ dẫn');
++      if (!res.ok) throw new BadGatewayException('ROUTING_UNAVAILABLE');
++      const data = await res.json();
++      const route = validateDirections(data);
++      const coords = decodePolyline(route.geometry);
++      const first = { latitude: coords[0][0], longitude: coords[0][1] };
++      const last = { latitude: coords[coords.length - 1][0], longitude: coords[coords.length - 1][1] };
++      if (metresBetween(first, origin) > 100 || metresBetween(last, target) > 100) throw new BadGatewayException('ROUTING_UNAVAILABLE');
++      return route;
++    } catch (error) {
++      if (error instanceof BadGatewayException || error instanceof ServiceUnavailableException) throw error;
++      // Never include the request URL (API key) in logs/errors.
++      throw new ServiceUnavailableException('Chưa thể cập nhật chỉ dẫn');
++    }
++  }
++}
++
++export function validateDirections(data: any) {
++  const path = data?.paths?.[0];
++  if ((data?.code !== undefined && !['OK', 0].includes(data.code)) || !path || typeof path.points !== 'string' || !path.points || path.points.length > 1000000 ||
++      !Number.isFinite(path.distance) || path.distance < 0 || !Number.isFinite(path.time) || path.time < 0 ||
++      !Array.isArray(path.instructions) || !path.instructions.length) throw new BadGatewayException('ROUTING_UNAVAILABLE');
++  const coords = decodePolyline(path.points);
++  if (encodePolyline(coords) !== path.points || coords.length < 2 || coords.some(([lat, lng]) => !Number.isFinite(lat) || !Number.isFinite(lng) ||
++      Math.abs(lat) > 90 || Math.abs(lng) > 180)) throw new BadGatewayException('ROUTING_UNAVAILABLE');
++  let previousEnd = 0;
++  const instructions: NavigationInstructionDto[] = path.instructions.map((i: any) => {
++    if (!Array.isArray(i.interval) || i.interval.length !== 2 ||
++        !i.interval.every(Number.isInteger) || i.interval[0] !== previousEnd ||
++        i.interval[1] < i.interval[0] || i.interval[1] >= coords.length ||
++        !Number.isFinite(i.distance) || i.distance < 0 || !Number.isInteger(i.sign)) {
++      throw new BadGatewayException('ROUTING_UNAVAILABLE');
++    }
++    previousEnd = i.interval[1];
++    return { interval: i.interval, text: typeof i.text === 'string' ? i.text : '',
++      streetName: typeof i.street_name === 'string' ? i.street_name : '', sign: i.sign, distance: i.distance };
++  });
++  if (instructions[0].interval[0] !== 0 || previousEnd !== coords.length - 1) throw new BadGatewayException('ROUTING_UNAVAILABLE');
++  return { geometry: path.points as string, instructions, distanceMeters: path.distance as number,
++    durationSeconds: path.time / 1000 };
++}
+diff --git a/mobile/app.json b/mobile/app.json
+--- a/mobile/app.json
++++ b/mobile/app.json
+@@ -36,7 +36,16 @@
+           "backgroundColor": "#ffffff"
+         }
+       ],
+-      "expo-secure-store"
++      "expo-secure-store",
++      [
++        "expo-location",
++        {
++          "locationWhenInUsePermission": "Cho phép RoadToSchool sử dụng vị trí khi điều hướng chuyến xe.",
++          "isIosBackgroundLocationEnabled": false,
++          "isAndroidBackgroundLocationEnabled": false,
++          "isAndroidForegroundServiceEnabled": false
++        }
++      ]
+     ],
+     "experiments": {
+       "typedRoutes": true
+diff --git a/mobile/app/_layout.tsx b/mobile/app/_layout.tsx
+--- a/mobile/app/_layout.tsx
++++ b/mobile/app/_layout.tsx
+@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from '@/context/auth-context';
+ import { BusLogo } from '@/components/BusLogo';
+ import { RoleSplash } from '@/components/RoleSplash';
+ import { NetworkBanner } from '@/components/NetworkBanner';
++import { useNavigationReopen } from '@/hooks/use-navigation-reopen';
+ 
+ export {
+   ErrorBoundary,
+@@ -48,6 +49,7 @@ function RootNavigation() {
+ 
+   const segments = useSegments();
+   const router = useRouter();
++  useNavigationReopen(user?.id, user?.role, !isLoading && isAuthenticated && !splashRole);
+ 
+   // Xử lý điều hướng bảo vệ theo trạng thái xác thực
+   useEffect(() => {
+diff --git a/mobile/app/trip/[id].tsx b/mobile/app/trip/[id].tsx
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -34,6 +34,10 @@ import { useActiveRefresh } from '@/hooks/use-active-refresh';
+ import type { RefreshContext } from '@/utils/refresh-loop';
+ import { getTripMapSnapshot } from '@/utils/trip-map-data';
+ import { decodePolyline } from '@/utils/polyline';
++import { useTripNavigation } from '@/hooks/use-trip-navigation';
++import { TripNavigationControls } from '@/components/trip-navigation-controls';
++import { loadLocationHistory, navigationApi, type LocationPoint, type NavigationState } from '@/services/trip-navigation';
++import { recordedParts } from '@/utils/trip-navigation';
+ 
+ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+ 
+@@ -189,10 +193,18 @@ export default function MobileTripDetailScreen() {
+   const accessAllowed = useRef(true);
+   const metadataAt = useRef(0);
+   const identity = JSON.stringify([user?.id, user?.role, tripId]);
++  const [navigation, setNavigation] = useState<NavigationState | null>(null);
++  const [history, setHistory] = useState<LocationPoint[] | null>(null);
++  const [showPlanned, setShowPlanned] = useState(false);
++  const historyLoaded = useRef(false);
++  const webView = useRef<WebView<object>>(null);
++  const engine = useTripNavigation(identity, tripId, user?.id, trip?.stops ?? [], () => loadTripDetail());
+   useEffect(() => {
+     setTrip(null); setOperationalState(null); setAttendanceRoster([]); setLoading(true);
+     setConfirmModal(null); setAbsenceModalStudent(null); setQrModalVisible(false); setVerifiedStudent(null);
+     metadataAt.current = 0; accessAllowed.current = true;
++    setNavigation(null); setHistory(null); historyLoaded.current = false;
++    setShowPlanned(false);
+     qrGeneration.current++;
+   }, [identity]);
+ 
+@@ -200,21 +212,35 @@ export default function MobileTripDetailScreen() {
+     if (!tripId || !user) return;
+     try {
+       const refreshMetadata = immediate || !trip || Date.now() - metadataAt.current >= 20000;
+-      const [state, roster, detail] = await Promise.all([
++      const [state, roster, detail, location] = await Promise.all([
+         mobileApiClient.getOperationalState(tripId),
+         isDriverOrAttendant ? mobileApiClient.getTripAttendance(tripId) : Promise.resolve(null),
+         refreshMetadata ? mobileApiClient.getMobileTripDetail(tripId) : Promise.resolve(null),
++        navigationApi.state(tripId).catch(err => {
++          if ([401, 403, 404].includes(err?.statusCode)) throw err;
++          return null; // Telemetry failures must not break Trip Operations.
++        }),
+       ]);
+       if (!isCurrent()) return;
+       setOperationalState(state);
+       if (roster) setAttendanceRoster(roster.students || []);
+       if (detail) { setTrip(detail); metadataAt.current = Date.now(); }
++      if (location) { setNavigation(location); void engine.observe(location); }
++      else setNavigation(previous => previous ? { ...previous, freshness: 'STALE' } : null);
++      if ((state.status === 'COMPLETED' || state.status === 'CANCELLED') && !historyLoaded.current) {
++        try {
++          const points = await loadLocationHistory(tripId, isCurrent);
++          if (!isCurrent()) return;
++          if (points) { setHistory(points); historyLoaded.current = true; }
++        } catch { /* Keep the detail usable; a later focus retries history. */ }
++      }
+       setError(null);
+-      return state.status !== 'COMPLETED' && state.status !== 'CANCELLED';
++      return (state.status !== 'COMPLETED' && state.status !== 'CANCELLED') || !historyLoaded.current;
+     } catch (err: any) {
+       if (!isCurrent()) return;
+-      if (err?.statusCode === 403 || err?.statusCode === 404) {
++      if ([401, 403, 404].includes(err?.statusCode)) {
+         accessAllowed.current = false;
++        setNavigation(null); setHistory(null); engine.clear();
+         setTrip(null); setOperationalState(null); setAttendanceRoster([]);
+         setConfirmModal(null); setAbsenceModalStudent(null); setQrModalVisible(false); setVerifiedStudent(null);
+         setError(err.message); return false;
+@@ -300,12 +326,43 @@ export default function MobileTripDetailScreen() {
+           if (bounds.isValid()) {
+             map.fitBounds(bounds, { padding: [50, 50] });
+           }
++          var vehicle = null, activeLine = null, recordedLayers = L.layerGroup().addTo(map);
++          window.setNavigation = function(n) {
++            if (n.position) {
++              if (!vehicle) vehicle = L.marker(n.position, {icon: L.divIcon({className:'',html:'<div class="school-marker">🚌</div>',iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
++              else vehicle.setLatLng(n.position);
++            } else if (vehicle) { map.removeLayer(vehicle); vehicle = null; }
++            if (activeLine) { map.removeLayer(activeLine); activeLine = null; }
++            if (n.leg && n.leg.length > 1) activeLine = L.polyline(n.leg, {color:'#D97706',weight:6}).addTo(map);
++            if (typeof polyline !== 'undefined' && polyline) {
++              if (n.recorded) map.removeLayer(polyline);
++              else if (!map.hasLayer(polyline)) polyline.addTo(map);
++            }
++            recordedLayers.clearLayers();
++            (n.parts || []).forEach(function(part) {
++              if (part.length > 1) L.polyline(part, {color:'#059669',weight:5}).addTo(recordedLayers);
++              else if (part.length) L.circleMarker(part[0], {radius:5,color:'#059669'}).addTo(recordedLayers);
++            });
++          };
++          window.followVehicle = function() { if (vehicle) map.panTo(vehicle.getLatLng()); };
+         </script>
+       </body>
+       </html>
+     `;
+   }, [mapData, tilemapKey]);
+   const mapSource = useMemo(() => ({ html: mapHtml }), [mapHtml]);
++  const historyParts = useMemo(() => recordedParts(history ?? []), [history]);
++  const terminal = operationalState?.status === 'COMPLETED' || operationalState?.status === 'CANCELLED';
++  const mapUpdate = JSON.stringify({
++    position: (!terminal && engine.position) || (navigation?.latestPosition ? [navigation.latestPosition.latitude, navigation.latestPosition.longitude] : null),
++    leg: terminal ? [] : engine.segment,
++    recorded: terminal && !!history?.length && !showPlanned,
++    parts: terminal && !showPlanned ? historyParts : [],
++  });
++  const updateMap = useCallback(() => {
++    webView.current?.injectJavaScript('window.setNavigation && window.setNavigation(' + mapUpdate + '); true;');
++  }, [mapUpdate]);
++  useEffect(updateMap, [updateMap]);
+ 
+   // Operational Actions
+   const handleMarkReady = () => {
+@@ -605,14 +662,34 @@ export default function MobileTripDetailScreen() {
+     <View style={styles.container}>
+       {/* 1. Full Screen WebView Map (Memoized, strictly no reload on polling) */}
+       <View style={StyleSheet.absoluteFill}>
+-        <WebView
++        <WebView<object>
++          ref={webView}
+           source={mapSource}
+           style={StyleSheet.absoluteFill}
+           javaScriptEnabled={true}
+           domStorageEnabled={true}
+           scrollEnabled={false}
++          onLoadEnd={updateMap}
++        />
++      </View>
++
++      <View style={{ position: 'absolute', top: insets.top + 64, left: 12, right: 12 }}>
++        <TripNavigationControls
++          canPublish={isDriver && !!navigation?.canPublish && !terminal}
++          testMode={!!navigation?.testMode} mode={engine.mode} guidance={engine.guidance}
++          message={engine.message} change={engine.change} joystick={engine.joystick}
++          freshness={navigation?.freshness}
++          targetName={trip?.stops.find(s => s.id === engine.targetStopId)?.studentName || trip?.stops.find(s => s.id === engine.targetStopId)?.addressText}
++          historyLabel={terminal && history !== null ? history.length && !showPlanned ? 'Hành trình ghi nhận' : 'Tuyến dự kiến' : undefined}
++          hasGaps={!showPlanned && historyParts.length > 1}
++          showPlanned={showPlanned} selectPlan={terminal && history?.length ? setShowPlanned : undefined}
+         />
+       </View>
++      {(engine.position || navigation?.latestPosition) && <TouchableOpacity accessibilityRole="button"
++        onPress={() => webView.current?.injectJavaScript('window.followVehicle && window.followVehicle(); true;')}
++        style={{ position: 'absolute', top: insets.top + 12, right: 12, backgroundColor: colors.surface, padding: 10, borderRadius: 14 }}>
++        <Text style={{ color: colors.foreground, fontWeight: '600' }}>Theo xe</Text>
++      </TouchableOpacity>}
+ 
+       {/* Floating Back Button */}
+       <View style={[styles.floatingHeader, { top: insets.top + 10 }]}>
+diff --git a/mobile/components/trip-navigation-controls.tsx b/mobile/components/trip-navigation-controls.tsx
+new file mode 100644
+--- /dev/null
++++ b/mobile/components/trip-navigation-controls.tsx
+@@ -0,0 +1,50 @@
++import { Pressable, StyleSheet, Text, View } from 'react-native';
++import { colors } from '../constants/theme';
++import type { LocationSource } from '../services/trip-navigation';
++import type { nextGuidance } from '../utils/trip-navigation';
++
++interface Props {
++  canPublish: boolean; testMode: boolean; mode: LocationSource | null;
++  guidance: ReturnType<typeof nextGuidance>; message: string | null; targetName?: string;
++  freshness?: string; historyLabel?: string; hasGaps?: boolean;
++  showPlanned?: boolean; selectPlan?: (planned: boolean) => void;
++  change: (source?: LocationSource) => Promise<void>;
++  joystick: (bearing: number, speed: number) => void;
++}
++export function TripNavigationControls(p: Props) {
++  const button = (title: string, source: LocationSource) => <Pressable key={source}
++    accessibilityRole="button" onPress={() => { void p.change(source); }}
++    style={[styles.button, p.mode === source && styles.selected]}><Text style={styles.text}>{title}</Text></Pressable>;
++  return <View style={styles.card}>
++    {!!p.historyLabel && <Text style={styles.text}>{p.historyLabel}{p.hasGaps ? ' · Có đoạn chưa ghi nhận' : ''}</Text>}
++    {p.selectPlan && <View style={styles.row}>
++      <Pressable onPress={() => p.selectPlan?.(false)} style={[styles.button, !p.showPlanned && styles.selected]}><Text style={styles.text}>Hành trình ghi nhận</Text></Pressable>
++      <Pressable onPress={() => p.selectPlan?.(true)} style={[styles.button, p.showPlanned && styles.selected]}><Text style={styles.text}>Tuyến dự kiến</Text></Pressable>
++    </View>}
++    {!p.historyLabel && <Text style={styles.small}>{p.freshness === 'NONE' ? 'Chưa có vị trí' : p.freshness === 'STALE' ? 'Mất cập nhật' : 'Vị trí xe'}</Text>}
++    {!!p.message && <Text style={styles.text}>{p.message}</Text>}
++    {p.guidance && <><Text style={styles.guidance}>{p.guidance.text} · {p.guidance.metres} m</Text>
++      {!!p.guidance.streetName && <Text style={styles.small}>{p.guidance.streetName}</Text>}</>}
++    {p.mode && !!p.targetName && <Text numberOfLines={1} style={styles.small}>Điểm tiếp theo: {p.targetName}</Text>}
++    {p.canPublish && <View style={styles.row}>
++      {!p.testMode && button('Điều hướng', 'LIVE')}
++      {p.testMode && <>{button('Tự động di chuyển', 'TEST_AUTO')}{button('Lái thủ công', 'TEST_JOYSTICK')}</>}
++      {!!p.mode && <Pressable accessibilityRole="button" onPress={() => { void p.change(); }} style={styles.button}>
++        <Text style={styles.text}>Dừng</Text></Pressable>}
++    </View>}
++    {p.mode === 'TEST_JOYSTICK' && <View style={styles.row}>
++      {[[0, '↑'], [270, '←'], [180, '↓'], [90, '→']].map(([bearing, label]) => <Pressable key={bearing}
++        accessibilityLabel={`Lái ${label}`} onPressIn={() => p.joystick(Number(bearing), 8)}
++        onPressOut={() => p.joystick(Number(bearing), 0)} style={styles.direction}>
++        <Text style={styles.guidance}>{label}</Text></Pressable>)}
++    </View>}
++  </View>;
++}
++const styles = StyleSheet.create({
++  card: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 16, padding: 10, gap: 5 },
++  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
++  button: { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1, padding: 9, borderRadius: 10 },
++  selected: { backgroundColor: colors.primary }, direction: { backgroundColor: colors.primary, paddingHorizontal: 18, paddingVertical: 5, borderRadius: 8 },
++  text: { color: colors.foreground, fontSize: 12, fontWeight: '600' },
++  small: { color: colors.mutedText, fontSize: 11 }, guidance: { color: colors.foreground, fontSize: 16, fontWeight: '700' },
++});
+diff --git a/mobile/hooks/use-navigation-reopen.ts b/mobile/hooks/use-navigation-reopen.ts
+new file mode 100644
+--- /dev/null
++++ b/mobile/hooks/use-navigation-reopen.ts
+@@ -0,0 +1,37 @@
++import { useEffect, useRef, useState } from 'react';
++import { AppState } from 'react-native';
++import { useRouter, useSegments } from 'expo-router';
++import { navigationResumeStorage } from '../services/navigation-resume-storage';
++import { navigationApi } from '../services/trip-navigation';
++
++/** Restore the active Trip Detail once on launch; never create a second GPS engine. */
++export function useNavigationReopen(userId: string | undefined, role: string | undefined, ready: boolean) {
++  const checked = useRef<string | null>(null);
++  const [foregroundRun, setForegroundRun] = useState(0);
++  const router = useRouter(), segments = useSegments();
++  const inAuth = segments[0] === '(auth)', inTrip = segments[0] === 'trip';
++  useEffect(() => {
++    const sub = AppState.addEventListener('change', state => {
++      if (state === 'active') { checked.current = null; setForegroundRun(n => n + 1); }
++    });
++    return () => sub.remove();
++  }, []);
++  useEffect(() => {
++    if (!userId) { checked.current = null; return; }
++    if (!ready || role !== 'DRIVER' || inAuth || checked.current === userId) return;
++    checked.current = userId;
++    let cancelled = false;
++    void (async () => {
++      try {
++        const id = await navigationResumeStorage.get(userId);
++        if (!id || cancelled) return;
++        const state = await navigationApi.state(id);
++        if (cancelled) return;
++        if (state.status === 'IN_PROGRESS' && state.canPublish && state.checkpoint?.enabled) {
++          if (!inTrip) router.push({ pathname: '/trip/[id]', params: { id } });
++        } else await navigationResumeStorage.clear(userId);
++      } catch { checked.current = null; /* A subsequent foreground/auth retry may restore; never fabricate offline state. */ }
++    })();
++    return () => { cancelled = true; };
++  }, [userId, role, ready, router, inAuth, inTrip, foregroundRun]);
++}
+diff --git a/mobile/hooks/use-trip-navigation.ts b/mobile/hooks/use-trip-navigation.ts
+new file mode 100644
+--- /dev/null
++++ b/mobile/hooks/use-trip-navigation.ts
+@@ -0,0 +1,231 @@
++import { useCallback, useEffect, useRef, useState } from 'react';
++import { AppState } from 'react-native';
++import { useFocusEffect } from 'expo-router';
++import * as Location from 'expo-location';
++import { navigationApi, type Checkpoint, type LocationSource, type NavigationSegment, type NavigationState, type PositionSample } from '../services/trip-navigation';
++import { autoPosition, coordinate, cumulativeDistances, distance, joystickPosition, nextGuidance, projectProgress, type Coordinate } from '../utils/trip-navigation';
++import { decodePolyline } from '../utils/polyline';
++import type { MobileTripDetailStop } from '../services/api-client';
++import { navigationResumeStorage } from '../services/navigation-resume-storage';
++
++type Leg = NavigationSegment & { coords: Coordinate[]; cumulative: number[]; progress: number; travelled: number };
++type ViewState = { mode: LocationSource | null; position: Coordinate | null; segment: Coordinate[];
++  guidance: ReturnType<typeof nextGuidance>; message: string | null; targetStopId: string | null };
++const empty: ViewState = { mode: null, position: null, segment: [], guidance: null, message: null, targetStopId: null };
++
++/** One foreground engine. Remote state is supplied by the existing detail refresh, not another poller. */
++export function useTripNavigation(identity: string, tripId: string, userId: string | undefined, stops: MobileTripDetailStop[], onRefresh: () => void) {
++  const [view, setView] = useState<ViewState>(empty);
++  const remote = useRef<NavigationState | null>(null), cp = useRef<Checkpoint | null>(null);
++  const stopsRef = useRef(stops); stopsRef.current = stops;
++  const refreshRef = useRef(onRefresh); refreshRef.current = onRefresh;
++  const generation = useRef(0), foreground = useRef(false), busy = useRef(false);
++  const watcher = useRef<Location.LocationSubscription | null>(null), timer = useRef<ReturnType<typeof setInterval> | null>(null);
++  const leg = useRef<Leg | null>(null), sample = useRef<PositionSample | null>(null);
++  const sequence = useRef(1), routeBusy = useRef(false), publishBusy = useRef(false);
++  const routeAt = useRef(0), publishedAt = useRef(0), arrived = useRef(0), offroute = useRef(0);
++  const control = useRef({ bearing: 0, speed: 0 });
++
++  const suspend = useCallback(() => {
++    generation.current++;
++    watcher.current?.remove(); watcher.current = null;
++    if (timer.current) clearInterval(timer.current);
++    timer.current = null; cp.current = null; leg.current = null; sample.current = null;
++    control.current.speed = 0; routeBusy.current = false; publishBusy.current = false;
++    setView(v => ({ ...v, mode: null, segment: [], guidance: null }));
++  }, []);
++
++  const denied = (error: unknown) => [401, 403, 404].includes((error as { statusCode?: number })?.statusCode ?? 0);
++
++  async function route(action: 'CURRENT' | 'ADVANCE', token: number) {
++    const state = cp.current, position = sample.current;
++    if (!state?.targetStopId || !position || routeBusy.current || !foreground.current) return;
++    if (action === 'CURRENT' && Date.now() - routeAt.current < 20000) return;
++    routeAt.current = Date.now(); routeBusy.current = true;
++    // Hide guidance during replacement; never use old intervals with a new line.
++    setView(v => ({ ...v, guidance: null, message: 'Đang cập nhật chỉ dẫn' }));
++    try {
++      const result = await navigationApi.segment(tripId, state, position, action);
++      if (token !== generation.current) return;
++      cp.current = { ...state, targetStopId: result.targetStopId };
++      arrived.current = 0; offroute.current = 0;
++      if (result.finished) {
++        leg.current = null;
++        setView(v => ({ ...v, segment: [], guidance: null, targetStopId: null, message: 'Đã đến điểm cuối' }));
++        return;
++      }
++      const coords = decodePolyline(result.geometry);
++      leg.current = { ...result, coords, cumulative: cumulativeDistances(coords), progress: 0, travelled: 0 };
++      setView(v => ({ ...v, segment: coords, targetStopId: result.targetStopId, message: null }));
++    } catch (error) {
++      if (token !== generation.current) return;
++      leg.current = null;
++      setView(v => ({ ...v, segment: [], guidance: null, message: 'Chưa có chỉ dẫn' }));
++      const retry = (error as { retryAfterMs?: number })?.retryAfterMs;
++      if (typeof retry === 'number' && Number.isFinite(retry) && retry > 0) routeAt.current = Date.now() - 20000 + Math.min(20000, retry);
++      // ADVANCE may have persisted its cursor before an upstream failure; refetch before retry.
++      refreshRef.current();
++      if (denied(error)) suspend();
++    } finally { if (token === generation.current) routeBusy.current = false; }
++  }
++
++  async function publish(token: number) {
++    if (publishBusy.current || !cp.current || !sample.current || Date.now() - publishedAt.current < 5000) return;
++    const state = cp.current, position = sample.current;
++    if (Date.now() - Date.parse(position.capturedAt) > 10000) return;
++    publishBusy.current = true; publishedAt.current = Date.now();
++    try {
++      const ack = await navigationApi.publish(tripId, state, sequence.current, position);
++      if (token === generation.current) sequence.current = Math.max(sequence.current, ack.nextSequence);
++    } catch (error) {
++      if (token !== generation.current) return;
++      if (denied(error)) { suspend(); remote.current = null; }
++      else if ((error as { statusCode?: number })?.statusCode === 409) { suspend(); refreshRef.current(); }
++      // No queue/replay: future attempts use a fresh sample. Poll resynchronizes sequence after an uncertain ack.
++    } finally { if (token === generation.current) publishBusy.current = false; }
++  }
++
++  function accept(position: PositionSample, token: number) {
++    if (token !== generation.current || !foreground.current || !cp.current) return;
++    const age = Date.now() - Date.parse(position.capturedAt);
++    if (!Number.isFinite(age) || age > 10000 || age < -5000) return;
++    if (cp.current.activeSource === 'LIVE' && position.capturedAt === sample.current?.capturedAt) return;
++    if (cp.current.activeSource === 'LIVE' && (position.accuracyMeters == null || position.accuracyMeters > 50)) {
++      setView(v => ({ ...v, guidance: null, message: 'GPS yếu' })); return;
++    }
++    if (cp.current.activeSource === 'LIVE' && sample.current) {
++      const seconds = (Date.parse(position.capturedAt) - Date.parse(sample.current.capturedAt)) / 1000;
++      if (seconds <= 0 || distance(coordinate(sample.current), coordinate(position)) > Math.max(100, seconds * 70 + 100)) {
++        setView(v => ({ ...v, guidance: null, message: 'GPS yếu' })); return;
++      }
++    }
++    sample.current = position;
++    const p = coordinate(position);
++    setView(v => ({ ...v, position: p }));
++    const current = leg.current;
++    const target = stopsRef.current.find(s => s.id === cp.current?.targetStopId);
++    if (!current) {
++      const first = stopsRef.current[0];
++      // Avoid requesting a zero-length initial depot leg. Only the first target can use this rule.
++      if (target && first?.id === target.id && distance(p, coordinate(target)) <= 20) {
++        if (++arrived.current >= 3) void route('ADVANCE', token);
++      } else { arrived.current = 0; void route('CURRENT', token); }
++    } else if (!routeBusy.current) {
++      const projection = projectProgress(current.coords, current.cumulative, p, current.progress);
++      if (projection.gap > 40) {
++        arrived.current = 0; offroute.current++;
++        setView(v => ({ ...v, guidance: null, message: 'Đang lệch tuyến' }));
++        if (offroute.current >= 3) void route('CURRENT', token);
++      } else {
++        offroute.current = 0; current.progress = projection.progress;
++        const remaining = (current.cumulative.at(-1) ?? 0) - current.progress;
++        const close = target && remaining <= 25 && distance(p, coordinate(target)) <= 30;
++        arrived.current = close ? arrived.current + 1 : 0;
++        setView(v => ({ ...v, guidance: nextGuidance(current.instructions, current.cumulative, current.progress), message: null }));
++        if (arrived.current >= 3) void route('ADVANCE', token);
++      }
++    }
++    void publish(token);
++  }
++
++  async function activate(state: NavigationState, token: number) {
++    if (!state.checkpoint?.enabled || token !== generation.current || !foreground.current) return;
++    cp.current = state.checkpoint; sequence.current = state.nextSequence;
++    if (userId) void navigationResumeStorage.remember(userId, tripId).catch(() => {});
++    routeAt.current = 0; publishedAt.current = 0; arrived.current = 0; offroute.current = 0;
++    setView(v => ({ ...v, mode: state.checkpoint!.activeSource, targetStopId: state.checkpoint!.targetStopId,
++      message: state.checkpoint!.targetStopId ? null : 'Đã đến điểm cuối' }));
++    if (state.checkpoint.activeSource === 'LIVE') {
++      try {
++        const permission = await Location.requestForegroundPermissionsAsync();
++        if (token !== generation.current || !foreground.current) return;
++        if (!permission.granted) { setView(v => ({ ...v, message: 'Chưa có GPS' })); return; }
++        const subscription = await Location.watchPositionAsync({ accuracy: Location.Accuracy.High, timeInterval: 1000, distanceInterval: 2 }, p =>
++          accept({ latitude: p.coords.latitude, longitude: p.coords.longitude, accuracyMeters: p.coords.accuracy, capturedAt: new Date(p.timestamp).toISOString() }, token));
++        if (token !== generation.current || !foreground.current) subscription.remove();
++        else {
++          watcher.current = subscription;
++          timer.current = setInterval(() => {
++            if (token !== generation.current) return;
++            if (!sample.current || Date.now() - Date.parse(sample.current.capturedAt) > 10000) {
++              setView(v => ({ ...v, guidance: null, message: 'Chưa có GPS' }));
++            }
++          }, 1000);
++        }
++      } catch { if (token === generation.current) setView(v => ({ ...v, message: 'Chưa có GPS' })); }
++      return;
++    }
++    const origin = state.latestPosition ?? stopsRef.current[0];
++    if (!origin) { setView(v => ({ ...v, message: 'Chưa có điểm xuất phát' })); return; }
++    let p = coordinate(origin), lastTick = performance.now();
++    timer.current = setInterval(() => {
++      if (token !== generation.current || !foreground.current) return;
++      const now = performance.now(), seconds = Math.min(1.5, (now - lastTick) / 1000); lastTick = now;
++      const current = leg.current;
++      if (cp.current?.activeSource === 'TEST_AUTO') {
++        if (current && !routeBusy.current) {
++          current.travelled = Math.min(current.cumulative.at(-1) ?? 0, current.travelled + seconds * 8);
++          p = autoPosition(current.coords, current.cumulative, current.travelled);
++        }
++      } else p = joystickPosition(p, control.current.bearing, control.current.speed, seconds);
++      accept({ latitude: p[0], longitude: p[1], capturedAt: new Date().toISOString() }, token);
++    }, 1000);
++  }
++
++  const observe = async (state: NavigationState) => {
++    remote.current = state;
++    if (!state.canPublish || state.status !== 'IN_PROGRESS') { if (cp.current) suspend(); return; }
++    if (cp.current) {
++      if (!state.checkpoint?.enabled || state.checkpoint.runId !== cp.current.runId || state.routeVersion !== cp.current.routeVersion) { suspend(); return; }
++      sequence.current = Math.max(sequence.current, state.nextSequence);
++      // Reconcile ADVANCE even when the provider request failed after checkpoint commit.
++      if (!routeBusy.current && cp.current.targetStopId !== state.checkpoint.targetStopId) {
++        cp.current = state.checkpoint; leg.current = null; arrived.current = 0;
++        setView(v => ({ ...v, segment: [], guidance: null, targetStopId: state.checkpoint!.targetStopId }));
++      }
++      return;
++    }
++    if (!foreground.current || busy.current || !state.checkpoint?.enabled || !stopsRef.current.length) return;
++    busy.current = true;
++    const token = generation.current;
++    try {
++      const resumed = await navigationApi.session(tripId, 'RESUME', state.checkpoint.runId);
++      if (token !== generation.current) return;
++      remote.current = resumed; await activate(resumed, token);
++    } catch { if (token === generation.current) setView(v => ({ ...v, message: 'Chưa thể khôi phục điều hướng' })); }
++    finally { busy.current = false; }
++  };
++
++  async function change(source?: LocationSource) {
++    if (busy.current || !remote.current?.canPublish || !foreground.current) return;
++    busy.current = true;
++    const previous = cp.current;
++    suspend(); const token = generation.current;
++    try {
++      const action = !source ? 'STOP' : previous?.enabled ? 'SWITCH' : 'START';
++      const result = await navigationApi.session(tripId, action, remote.current.controlRunId, source);
++      if (token !== generation.current) return;
++      remote.current = result;
++      if (source) await activate(result, token);
++      else if (userId) void navigationResumeStorage.clear(userId).catch(() => {});
++      refreshRef.current();
++    } catch (error) {
++      if (token === generation.current) setView(v => ({ ...v, message: error instanceof Error ? error.message : 'Chưa thể điều hướng' }));
++      refreshRef.current();
++    } finally { busy.current = false; }
++  }
++
++  useEffect(() => { remote.current = null; suspend(); setView(empty); }, [identity, suspend]);
++  useFocusEffect(useCallback(() => {
++    foreground.current = AppState.currentState === 'active';
++    const sub = AppState.addEventListener('change', state => {
++      foreground.current = state === 'active';
++      if (!foreground.current) suspend();
++      // The existing focus/AppState detail loop supplies fresh state to observe on resume.
++    });
++    return () => { foreground.current = false; sub.remove(); suspend(); };
++  }, [identity, suspend]));
++
++  return { ...view, observe, change, clear: () => { suspend(); remote.current = null; setView(empty); },
++    joystick: (bearing: number, speed: number) => { control.current = { bearing, speed }; } };
++}
+diff --git a/mobile/package-lock.json b/mobile/package-lock.json
+--- a/mobile/package-lock.json
++++ b/mobile/package-lock.json
+@@ -16,6 +16,7 @@
+         "expo-font": "~58.0.9",
+         "expo-image-picker": "~58.0.10",
+         "expo-linking": "~58.0.14",
++        "expo-location": "~58.0.19",
+         "expo-router": "~58.0.26",
+         "expo-secure-store": "~58.0.2",
+         "expo-splash-screen": "~58.0.11",
+@@ -3759,6 +3760,26 @@
+         "react-native": "*"
+       }
+     },
++    "node_modules/expo-location": {
++      "version": "58.0.19",
++      "resolved": "https://registry.npmjs.org/expo-location/-/expo-location-58.0.19.tgz",
++      "integrity": "sha512-p6cZEJ9W4vkFckgaMDWSZwJQQNzVse9u+mCOe3nDgnEHfEV3WfHM3rXUNw5jcUSfwb8+Ixsn9KP3LT9d75qPgg==",
++      "license": "MIT",
++      "dependencies": {
++        "@expo/image-utils": "^0.12.5"
++      },
++      "peerDependencies": {
++        "expo": "*",
++        "expo-task-manager": "*",
++        "react": "*",
++        "react-native": "*"
++      },
++      "peerDependenciesMeta": {
++        "expo-task-manager": {
++          "optional": true
++        }
++      }
++    },
+     "node_modules/expo-modules-autolinking": {
+       "version": "58.0.15",
+       "resolved": "https://registry.npmjs.org/expo-modules-autolinking/-/expo-modules-autolinking-58.0.15.tgz",
+diff --git a/mobile/package.json b/mobile/package.json
+--- a/mobile/package.json
++++ b/mobile/package.json
+@@ -11,6 +11,7 @@
+     "expo-font": "~58.0.9",
+     "expo-image-picker": "~58.0.10",
+     "expo-linking": "~58.0.14",
++    "expo-location": "~58.0.19",
+     "expo-router": "~58.0.26",
+     "expo-secure-store": "~58.0.2",
+     "expo-splash-screen": "~58.0.11",
+diff --git a/mobile/scripts/trip-navigation.test.ts b/mobile/scripts/trip-navigation.test.ts
+new file mode 100644
+--- /dev/null
++++ b/mobile/scripts/trip-navigation.test.ts
+@@ -0,0 +1,57 @@
++import { describe, it } from 'node:test';
++import assert from 'node:assert/strict';
++import { autoPosition, cumulativeDistances, distance, joystickPosition, nextGuidance, projectProgress, recordedParts } from '../utils/trip-navigation.ts';
++
++describe('Navigation geometry and independent movement providers (pure only)', () => {
++  const line: [number, number][] = [[10, 106], [10.001, 106], [10.001, 106.001]];
++  const cumulative = cumulativeDistances(line);
++  it('Auto follows distance along a bend, clamps at the endpoint', () => {
++    assert.ok(distance(autoPosition(line, cumulative, 55), [10.0005, 106]) < 2);
++    assert.deepEqual(autoPosition(line, cumulative, 10000), line[2]);
++    assert.throws(() => autoPosition([], [], 1));
++  });
++  it('Joystick moves independently of routing and stops when released', () => {
++    const p: [number, number] = [10, 106];
++    assert.deepEqual(joystickPosition(p, 90, 0, 1), p);
++    const east = joystickPosition(p, 90, 8, 1);
++    assert.ok(east[1] > p[1]); assert.ok(Math.abs(distance(p, east) - 8) < 0.1);
++  });
++  it('Joystick caps elapsed time instead of filling background downtime', () => {
++    assert.ok(distance(line[0], joystickPosition(line[0], 0, 8, 1000)) <= 16.1);
++  });
++  it('projection ignores a nearby future crossing and does not regress due to noise', () => {
++    const loop: [number, number][] = [[10, 106], [10.01, 106], [10.01, 106.01], [10, 106.01], [10, 106]];
++    const progress = projectProgress(loop, cumulativeDistances(loop), loop[0], 0);
++    assert.ok(progress.progress < 1);
++    assert.equal(projectProgress(line, cumulative, [10.0004, 106], 50).progress, 50);
++  });
++  it('TBT uses the next instruction START index and provider sign when text is a street', () => {
++    const instructions = [
++      { interval: [0, 1] as [number, number], sign: 0, text: '', streetName: '', distance: 111 },
++      { interval: [1, 2] as [number, number], sign: 2, text: 'Road', streetName: 'Road', distance: 100 },
++      { interval: [2, 2] as [number, number], sign: 4, text: '', streetName: '', distance: 0 },
++    ];
++    const guidance = nextGuidance(instructions, cumulative, 50)!;
++    assert.equal(guidance.text, 'Rẽ phải'); assert.equal(guidance.metres, Math.round(cumulative[1] - 50));
++    assert.equal(nextGuidance(instructions, cumulative, 130)!.text, 'Đến điểm dừng');
++  });
++  it('unknown empty instructions never become invented turns', () => {
++    assert.equal(nextGuidance([{ interval: [0, 0], sign: 999, text: '', streetName: '', distance: 0 }], [0], 0), null);
++  });
++  it('a final continuous instruction uses remaining geometry distance, not zero metres', () => {
++    const result = nextGuidance([{ interval: [0, 2], sign: 0, text: '', streetName: '', distance: cumulative[2] }], cumulative, 50)!;
++    assert.equal(result.text, 'Tiếp tục đến điểm dừng');
++    assert.equal(result.metres, Math.round(cumulative[2] - 50));
++  });
++});
++describe('Recorded history, never planned geometry backfill', () => {
++  const point = (sequence: number, runId: string, seconds: number) => ({ sequence, runId, latitude: 10, longitude: 106, recordedAt: new Date(seconds * 1000).toISOString() });
++  it('empty remains empty and one point remains one marker', () => {
++    assert.deepEqual(recordedParts([]), []);
++    assert.deepEqual(recordedParts([point(1, 'run', 0)]), [[[10, 106]]]);
++  });
++  it('splits run changes, long gaps, and missing sequences', () => {
++    const parts = recordedParts([point(1, 'a', 0), point(2, 'a', 5), point(3, 'a', 40), point(4, 'b', 45), point(6, 'b', 50)]);
++    assert.deepEqual(parts.map(p => p.length), [2, 1, 1, 1]);
++  });
++});
+diff --git a/mobile/services/api-client.ts b/mobile/services/api-client.ts
+--- a/mobile/services/api-client.ts
++++ b/mobile/services/api-client.ts
+@@ -37,6 +37,7 @@ export interface ApiErrorResponse {
+   code: string;
+   message: string;
+   errors?: string[];
++  retryAfterMs?: number;
+ }
+ 
+ export type StudentStatus = 'AVAILABLE' | 'DISABLED';
+@@ -127,6 +128,7 @@ export class ApiError extends Error {
+   statusCode: number;
+   code: string;
+   errors?: string[];
++  retryAfterMs?: number;
+ 
+   constructor(res: ApiErrorResponse) {
+     super(res.message);
+@@ -134,6 +136,7 @@ export class ApiError extends Error {
+     this.statusCode = res.statusCode;
+     this.code = res.code;
+     this.errors = res.errors;
++    this.retryAfterMs = res.retryAfterMs;
+   }
+ }
+ 
+@@ -348,6 +351,7 @@ class MobileApiClient {
+         code: errorData.code || 'UNKNOWN_ERROR',
+         message: errorData.message || 'Thao tác không thành công',
+         errors: errorData.errors,
++        retryAfterMs: errorData.retryAfterMs,
+       });
+     }
+ 
+diff --git a/mobile/services/navigation-resume-storage.ts b/mobile/services/navigation-resume-storage.ts
+new file mode 100644
+--- /dev/null
++++ b/mobile/services/navigation-resume-storage.ts
+@@ -0,0 +1,9 @@
++import * as SecureStore from 'expo-secure-store';
++
++// A launch hint only. Session, enabled flag and target are always revalidated by the server.
++const key = (userId: string) => `rts.navigation.trip.${userId}`;
++export const navigationResumeStorage = {
++  get: (userId: string) => SecureStore.getItemAsync(key(userId)),
++  remember: (userId: string, tripId: string) => SecureStore.setItemAsync(key(userId), tripId),
++  clear: (userId: string) => SecureStore.deleteItemAsync(key(userId)),
++};
+diff --git a/mobile/services/trip-navigation.ts b/mobile/services/trip-navigation.ts
+new file mode 100644
+--- /dev/null
++++ b/mobile/services/trip-navigation.ts
+@@ -0,0 +1,47 @@
++import { mobileApiClient } from './api-client';
++
++export type LocationSource = 'LIVE' | 'TEST_AUTO' | 'TEST_JOYSTICK';
++export interface Position { latitude: number; longitude: number }
++export interface PositionSample extends Position { capturedAt: string; accuracyMeters?: number | null }
++export interface LocationPoint extends Position { sequence: number; recordedAt: string; runId: string }
++export interface Checkpoint { runId: string; enabled: boolean; activeSource: LocationSource; targetStopId: string | null; routeVersion: string }
++export interface NavigationState {
++  status: string; routeVersion: string; latestPosition: LocationPoint | null; freshness: 'NONE' | 'FRESH' | 'STALE';
++  serverNow: string; canPublish: boolean; testMode: boolean; checkpoint: Checkpoint | null;
++  controlRunId: string | null; nextSequence: number; publishIntervalMs: number;
++}
++export interface Instruction { interval: [number, number]; text: string; streetName: string; sign: number; distance: number }
++export interface NavigationSegment {
++  segmentVersion: string; routeVersion: string; targetStopId: string | null; geometry: string;
++  instructions: Instruction[]; distanceMeters: number; durationSeconds: number; finished: boolean;
++}
++export interface HistoryPage { points: LocationPoint[]; nextCursor: number; snapshotMaxSequence: number; hasMore: boolean }
++
++const path = (id: string) => `/trips/${encodeURIComponent(id)}`;
++export const navigationApi = {
++  state: (id: string) => mobileApiClient.request<NavigationState>(`${path(id)}/navigation`),
++  session: (id: string, action: 'START' | 'RESUME' | 'STOP' | 'SWITCH', expectedRunId: string | null, source?: LocationSource) =>
++    mobileApiClient.request<NavigationState>(`${path(id)}/navigation/session`, { method: 'PUT', body: JSON.stringify({ action, expectedRunId, source }) }),
++  segment: (id: string, cp: Checkpoint, position: PositionSample, action: 'CURRENT' | 'ADVANCE') =>
++    mobileApiClient.request<NavigationSegment>(`${path(id)}/navigation/segment`, { method: 'POST', body: JSON.stringify({
++      action, runId: cp.runId, routeVersion: cp.routeVersion, expectedTargetStopId: cp.targetStopId, position,
++    }) }, 0, 13000),
++  publish: (id: string, cp: Checkpoint, sequence: number, sample: PositionSample) =>
++    mobileApiClient.request<{ nextSequence: number }>(`${path(id)}/navigation/position`, { method: 'PUT', body: JSON.stringify({ runId: cp.runId, sequence, ...sample }) }),
++  history: (id: string, afterSequence = 0, snapshotMaxSequence?: number) =>
++    mobileApiClient.request<HistoryPage>(`${path(id)}/location-history?afterSequence=${afterSequence}${snapshotMaxSequence === undefined ? '' : `&snapshotMaxSequence=${snapshotMaxSequence}`}`),
++};
++
++export async function loadLocationHistory(id: string, isCurrent: () => boolean) {
++  const points: LocationPoint[] = [];
++  let cursor = 0, snapshot: number | undefined;
++  do {
++    const page = await navigationApi.history(id, cursor, snapshot);
++    if (!isCurrent()) return null;
++    points.push(...page.points);
++    if (!page.hasMore) return points;
++    if (page.nextCursor <= cursor) throw new Error('Không thể tải tiếp hành trình');
++    cursor = page.nextCursor; snapshot = page.snapshotMaxSequence;
++  } while (isCurrent());
++  return null;
++}
+diff --git a/mobile/utils/trip-navigation.ts b/mobile/utils/trip-navigation.ts
+new file mode 100644
+--- /dev/null
++++ b/mobile/utils/trip-navigation.ts
+@@ -0,0 +1,76 @@
++import type { Instruction, LocationPoint, Position } from '../services/trip-navigation';
++
++export type Coordinate = [number, number];
++const R = 6371000, RAD = Math.PI / 180;
++export const coordinate = (p: Position): Coordinate => [p.latitude, p.longitude];
++export function distance(a: Coordinate, b: Coordinate) {
++  return R * Math.hypot((b[0] - a[0]) * RAD, (b[1] - a[1]) * RAD * Math.cos((a[0] + b[0]) * RAD / 2));
++}
++export function cumulativeDistances(coords: Coordinate[]) {
++  const result = [0];
++  for (let i = 1; i < coords.length; i++) result.push(result[i - 1] + distance(coords[i - 1], coords[i]));
++  return result;
++}
++
++/** Restrict projection to continuous progress; a nearby crossing must not skip a loop. */
++export function projectProgress(coords: Coordinate[], cumulative: number[], position: Coordinate, previous = 0, maxForward = 150) {
++  let bestDistance = Infinity, progress = previous;
++  const cos = Math.cos(position[0] * RAD);
++  for (let i = 1; i < coords.length; i++) {
++    if (cumulative[i] < previous - 25 || cumulative[i - 1] > previous + maxForward) continue;
++    const a = coords[i - 1], b = coords[i];
++    const dx = (b[1] - a[1]) * cos, dy = b[0] - a[0];
++    const px = (position[1] - a[1]) * cos, py = position[0] - a[0];
++    const t = Math.max(0, Math.min(1, (px * dx + py * dy) / (dx * dx + dy * dy || 1)));
++    const gap = Math.hypot(px - dx * t, py - dy * t) * RAD * R;
++    const along = cumulative[i - 1] + t * (cumulative[i] - cumulative[i - 1]);
++    if (gap < bestDistance && along >= previous - 25 && along <= previous + maxForward) { bestDistance = gap; progress = along; }
++  }
++  return { gap: bestDistance, progress: Math.max(previous, progress) };
++}
++
++/** Auto movement has no dependency on joystick movement. */
++export function autoPosition(coords: Coordinate[], cumulative: number[], travelled: number): Coordinate {
++  if (!coords.length) throw new Error('No valid navigation geometry');
++  const end = cumulative.at(-1) ?? 0;
++  const m = Math.max(0, Math.min(end, travelled));
++  const i = cumulative.findIndex((v, index) => index > 0 && v >= m);
++  if (i < 0) return coords[coords.length - 1];
++  const t = (m - cumulative[i - 1]) / (cumulative[i] - cumulative[i - 1] || 1);
++  return [coords[i - 1][0] + (coords[i][0] - coords[i - 1][0]) * t,
++    coords[i - 1][1] + (coords[i][1] - coords[i - 1][1]) * t];
++}
++
++/** Manual virtual location; metres/second and bearing degrees. */
++export function joystickPosition(position: Coordinate, bearing: number, speed: number, seconds: number): Coordinate {
++  const metres = Math.max(0, speed) * Math.max(0, Math.min(seconds, 2));
++  return [position[0] + Math.cos(bearing * RAD) * metres / R / RAD,
++    position[1] + Math.sin(bearing * RAD) * metres / R / RAD / Math.max(0.01, Math.cos(position[0] * RAD))];
++}
++
++const signs: Record<number, string> = { '-8': 'Quay đầu', '-7': 'Đi chếch trái', '-3': 'Rẽ ngoặt trái', '-2': 'Rẽ trái', '-1': 'Rẽ nhẹ trái',
++  0: 'Đi thẳng', 1: 'Rẽ nhẹ phải', 2: 'Rẽ phải', 3: 'Rẽ ngoặt phải', 4: 'Đến điểm dừng', 6: 'Vào vòng xuyến', 7: 'Đi chếch phải', 8: 'Quay đầu' };
++export function nextGuidance(instructions: Instruction[], cumulative: number[], progress: number) {
++  // A sign belongs at the START of its interval, not at the current interval's end.
++  const upcoming = instructions.find((i, index) => index > 0 && cumulative[i.interval[0]] >= progress - 3);
++  const next = upcoming ?? instructions.at(-1);
++  if (!next) return null;
++  const providerText = next.text.trim();
++  const text = (!providerText || providerText === next.streetName.trim()) ? signs[next.sign] : providerText;
++  if (!text) return null; // Unknown provider sign must not become an invented turn.
++  const continues = !upcoming && next.sign !== 4;
++  return { text: continues && progress > cumulative[next.interval[0]] + 3 ? 'Tiếp tục đến điểm dừng' : text,
++    streetName: next.streetName,
++    metres: Math.max(0, Math.round((continues ? cumulative.at(-1) ?? 0 : cumulative[next.interval[0]]) - progress)) };
++}
++
++export function recordedParts(points: LocationPoint[]) {
++  const parts: Coordinate[][] = [];
++  points.forEach((p, i) => {
++    const prev = points[i - 1];
++    if (!prev || p.runId !== prev.runId || p.sequence !== prev.sequence + 1 ||
++        Date.parse(p.recordedAt) - Date.parse(prev.recordedAt) > 15000) parts.push([]);
++    parts[parts.length - 1].push(coordinate(p));
++  });
++  return parts;
++}
+diff --git a/web/src/app/admin/trips/[id]/page.tsx b/web/src/app/admin/trips/[id]/page.tsx
+--- a/web/src/app/admin/trips/[id]/page.tsx
++++ b/web/src/app/admin/trips/[id]/page.tsx
+@@ -1,6 +1,6 @@
+ 'use client';
+ 
+-import React, { useState, useEffect, useMemo, use } from 'react';
++import React, { useState, useEffect, useMemo, useRef, use } from 'react';
+ import Link from 'next/link';
+ import { useRouter } from 'next/navigation';
+ import { apiClient, ApiError } from '@/lib/api-client';
+@@ -19,6 +19,7 @@ import {
+ } from '@/components/icons';
+ import { RouteMap, MapPoint } from '@/components/admin/routes/route-map';
+ import { TripAssignmentModal } from '@/components/admin/trips/trip-assignment-modal';
++import { getRecordedHistory, getTripLocation, splitRecordedHistory, type RecordedPoint, type TripLocationState } from '@/lib/trip-location';
+ 
+ export default function AdminTripDetailPage({
+   params,
+@@ -34,24 +35,47 @@ export default function AdminTripDetailPage({
+   const [trip, setTrip] = useState<TripDetail | null>(null);
+   const [loading, setLoading] = useState(true);
+   const [error, setError] = useState<string | null>(null);
++  const [location, setLocation] = useState<TripLocationState | null>(null);
++  const [history, setHistory] = useState<RecordedPoint[] | null>(null);
++  const [showPlanned, setShowPlanned] = useState(false);
++  const metadataAt = useRef(0), historyLoaded = useRef(false);
++  const historyParts = useMemo(() => splitRecordedHistory(history ?? []), [history]);
+ 
+   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+   const [focusPoint, setFocusPoint] = useState<{ latitude: number; longitude: number; zoom?: number } | null>(null);
+ 
+ 
+-  const fetchTripDetail = async ({ isCurrent }: RefreshContext) => {
++  const fetchTripDetail = async ({ isCurrent, immediate }: RefreshContext) => {
+     if (!user) return;
+     try {
+       setError(null);
+-      const res = await apiClient.getTripDetail(tripId);
++      const [detail, position] = await Promise.all([
++        immediate || !trip || Date.now() - metadataAt.current >= 15000 ? apiClient.getTripDetail(tripId) : Promise.resolve(null),
++        getTripLocation(tripId).catch(err => {
++          if (err instanceof ApiError && [401, 403, 404].includes(err.statusCode)) throw err;
++          return null;
++        }),
++      ]);
++      let res = detail;
+       if (!isCurrent()) return;
+-      setTrip(res);
+-      if (res.status !== 'SCHEDULED') setIsEditModalOpen(false);
+-      return res.status !== 'COMPLETED' && res.status !== 'CANCELLED';
++      if (!res && trip && position?.status && trip.status !== position.status) res = await apiClient.getTripDetail(tripId);
++      if (!isCurrent()) return;
++      if (res) { setTrip(res); metadataAt.current = Date.now(); }
++      if (position) setLocation(position);
++      else setLocation(previous => previous ? { ...previous, freshness: 'STALE' } : null);
++      const status = res?.status ?? position?.status ?? trip?.status;
++      if (status !== 'SCHEDULED') setIsEditModalOpen(false);
++      const terminal = status === 'COMPLETED' || status === 'CANCELLED';
++      if (terminal && !historyLoaded.current) {
++        const points = await getRecordedHistory(tripId, isCurrent);
++        if (!isCurrent()) return;
++        if (points) { setHistory(points); historyLoaded.current = true; }
++      }
++      return !terminal || !historyLoaded.current;
+     } catch (err: unknown) {
+       if (!isCurrent()) return;
+-      if (err instanceof ApiError && (err.statusCode === 403 || err.statusCode === 404)) {
+-        setTrip(null); setIsEditModalOpen(false); setError(err.message); return false;
++      if (err instanceof ApiError && [401, 403, 404].includes(err.statusCode)) {
++        setTrip(null); setLocation(null); setHistory(null); setIsEditModalOpen(false); setError(err.message); return false;
+       }
+       if (!trip) setError(err instanceof Error ? err.message : 'Không thể tải thông tin chi tiết chuyến xe');
+     } finally {
+@@ -60,8 +84,9 @@ export default function AdminTripDetailPage({
+   };
+   const identity = JSON.stringify([tripId, user?.id, user?.role, user?.schoolId]);
+   // eslint-disable-next-line react-hooks/set-state-in-effect -- Clear private details when the authenticated scope changes.
+-  useEffect(() => { setTrip(null); setIsEditModalOpen(false); setLoading(true); }, [identity]);
+-  const loadTripDetail = useVisibleRefresh(identity, fetchTripDetail);
++  useEffect(() => { setTrip(null); setLocation(null); setHistory(null); historyLoaded.current = false; metadataAt.current = 0;
++    setShowPlanned(false); setIsEditModalOpen(false); setLoading(true); }, [identity]);
++  const loadTripDetail = useVisibleRefresh(identity, fetchTripDetail, 5000);
+ 
+   const canEditAssignment = useMemo(() => {
+     if (!currentUserRole || !trip) return false;
+@@ -297,11 +322,23 @@ export default function AdminTripDetailPage({
+           </div>
+ 
+           <div className="p-3">
++            <p className="text-xs text-slate-500 mb-2">
++              {trip.status === 'COMPLETED' || trip.status === 'CANCELLED'
++                ? history === null ? 'Đang tải hành trình' : history.length && !showPlanned ? 'Hành trình ghi nhận' : 'Tuyến dự kiến'
++                : !location?.latestPosition ? 'Chưa có vị trí' : location.freshness === 'STALE' ? 'Mất cập nhật' : `Cập nhật lúc ${new Date(location.latestPosition.recordedAt).toLocaleTimeString('vi-VN')}`}
++              {!showPlanned && historyParts.length > 1 ? ' · Có đoạn chưa ghi nhận' : ''}
++            </p>
++            {!!history?.length && <div className="flex gap-2 mb-2 text-xs">
++              <button className={`px-3 py-2 rounded-lg ${!showPlanned ? 'bg-amber-200' : 'bg-slate-100'}`} onClick={() => setShowPlanned(false)}>Hành trình ghi nhận</button>
++              <button className={`px-3 py-2 rounded-lg ${showPlanned ? 'bg-amber-200' : 'bg-slate-100'}`} onClick={() => setShowPlanned(true)}>Tuyến dự kiến</button>
++            </div>}
+             <RouteMap
+               schoolLocation={schoolLocation}
+               parkingLocation={parkingLocation}
+               points={mapPoints}
+               polylineGeometry={trip.polylineGeometry}
++              vehiclePosition={location?.latestPosition}
++              recordedTrack={history?.length && !showPlanned ? historyParts : undefined}
+               focusPoint={focusPoint}
+               height="500px"
+               className="rounded-xl overflow-hidden"
+diff --git a/web/src/components/admin/routes/route-map.tsx b/web/src/components/admin/routes/route-map.tsx
+--- a/web/src/components/admin/routes/route-map.tsx
++++ b/web/src/components/admin/routes/route-map.tsx
+@@ -4,6 +4,8 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
+ import { decodePolyline } from '@/lib/polyline';
+ import { SpinnerIcon } from '@/components/icons';
+ import 'maplibre-gl/dist/maplibre-gl.css';
++import type { VehiclePosition } from '@/lib/trip-location';
++import type { Marker } from 'maplibre-gl';
+ 
+ export interface MapPoint {
+   id: string;
+@@ -26,6 +28,8 @@ interface RouteMapProps {
+   focusPoint?: { latitude: number; longitude: number; zoom?: number } | null;
+   onPointClick?: (point: MapPoint) => void;
+   className?: string;
++  vehiclePosition?: VehiclePosition | null;
++  recordedTrack?: VehiclePosition[][];
+ }
+ 
+ export function RouteMap({
+@@ -37,10 +41,13 @@ export function RouteMap({
+   focusPoint,
+   onPointClick,
+   className = '',
++  vehiclePosition,
++  recordedTrack,
+ }: RouteMapProps) {
+   const mapContainerRef = useRef<HTMLDivElement | null>(null);
+   const mapInstanceRef = useRef<any>(null);
+   const markersRef = useRef<any[]>([]);
++  const vehicleMarkerRef = useRef<Marker | null>(null);
+   const hasFitInitialBoundsRef = useRef(false);
+   const lastPolylineRef = useRef<string | null | undefined>(undefined);
+ 
+@@ -75,6 +82,8 @@ export function RouteMap({
+           hasCoords = true;
+         }
+       });
++      recordedTrack?.flat().forEach(pt => { bounds.extend([pt.longitude, pt.latitude]); hasCoords = true; });
++      if (vehiclePosition) { bounds.extend([vehiclePosition.longitude, vehiclePosition.latitude]); hasCoords = true; }
+ 
+       if (polylineGeometry) {
+         const coords = decodePolyline(polylineGeometry);
+@@ -94,7 +103,7 @@ export function RouteMap({
+         }
+       }
+     });
+-  }, [parkingLocation, schoolLocation, points, polylineGeometry]);
++  }, [parkingLocation, schoolLocation, points, polylineGeometry, recordedTrack, vehiclePosition]);
+ 
+   // Initialize Map
+   useEffect(() => {
+@@ -171,6 +180,7 @@ export function RouteMap({
+       if (mapInstanceRef.current) {
+         mapInstanceRef.current.remove();
+         mapInstanceRef.current = null;
++        vehicleMarkerRef.current = null;
+       }
+     };
+   }, [tilemapKey]);
+@@ -320,7 +330,7 @@ export function RouteMap({
+       const polylineSourceId = 'route-polyline-source';
+       const polylineLayerId = 'route-polyline-layer';
+ 
+-      if (polylineGeometry) {
++      if (polylineGeometry && recordedTrack === undefined) {
+         const coordinates = decodePolyline(polylineGeometry);
+         coordinates.forEach((coord) => bounds.extend(coord));
+         hasCoordinates = true;
+@@ -383,11 +393,48 @@ export function RouteMap({
+         }
+       }
+     });
+-  }, [schoolLocation, parkingLocation, points, polylineGeometry, mapLoaded, onPointClick]);
++  }, [schoolLocation, parkingLocation, points, polylineGeometry, mapLoaded, onPointClick, recordedTrack]);
++
++  useEffect(() => {
++    const map = mapInstanceRef.current;
++    if (!map || !mapLoaded) return;
++    let cancelled = false;
++    if (!vehiclePosition) { vehicleMarkerRef.current?.remove(); vehicleMarkerRef.current = null; return; }
++    void import('maplibre-gl').then(module => {
++      if (cancelled) return;
++      const maplibre = (module as typeof module & { default?: typeof module }).default ?? module;
++      if (!vehicleMarkerRef.current) {
++        const el = document.createElement('div');
++        el.textContent = '🚌'; el.title = 'Vị trí xe';
++        el.className = 'rounded-full bg-white border-2 border-amber-400 p-1 text-xl shadow-md';
++        vehicleMarkerRef.current = new maplibre.Marker({ element: el }).setLngLat([vehiclePosition.longitude, vehiclePosition.latitude]).addTo(map);
++      } else vehicleMarkerRef.current.setLngLat([vehiclePosition.longitude, vehiclePosition.latitude]);
++    });
++    return () => { cancelled = true; };
++  }, [vehiclePosition, mapLoaded]);
++
++  useEffect(() => {
++    const map = mapInstanceRef.current;
++    if (!map || !mapLoaded) return;
++    const id = 'trip-recorded-history';
++    const data = { type: 'FeatureCollection', features: (recordedTrack ?? []).filter(p => p.length).map(part => ({
++      type: 'Feature', properties: {}, geometry: part.length === 1
++        ? { type: 'Point', coordinates: [part[0].longitude, part[0].latitude] }
++        : { type: 'LineString', coordinates: part.map(p => [p.longitude, p.latitude]) },
++    })) };
++    if (map.getSource(id)) map.getSource(id).setData(data);
++    else {
++      map.addSource(id, { type: 'geojson', data });
++      map.addLayer({ id, source: id, type: 'line', filter: ['==', '$type', 'LineString'], paint: { 'line-color': '#059669', 'line-width': 5 } });
++      map.addLayer({ id: id + '-points', source: id, type: 'circle', filter: ['==', '$type', 'Point'], paint: { 'circle-color': '#059669', 'circle-radius': 5 } });
++    }
++  }, [recordedTrack, mapLoaded]);
+ 
+   return (
+     <div className={`relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 ${className}`}>
+       <div ref={mapContainerRef} style={{ width: '100%', height }} />
++      {mapLoaded && vehiclePosition && <button type="button" className="absolute top-14 left-3 bg-white rounded-xl px-3 py-2 text-xs shadow-md"
++        onClick={() => mapInstanceRef.current?.flyTo({ center: [vehiclePosition.longitude, vehiclePosition.latitude], duration: 500 })}>Theo xe</button>}
+ 
+       {!mapLoaded && !mapError && (
+         <div className="absolute inset-0 bg-slate-100/80 backdrop-blur-xs flex flex-col items-center justify-center gap-2 text-slate-500 text-xs">
+diff --git a/web/src/lib/trip-location-history.test.ts b/web/src/lib/trip-location-history.test.ts
+new file mode 100644
+--- /dev/null
++++ b/web/src/lib/trip-location-history.test.ts
+@@ -0,0 +1,17 @@
++import { describe, it } from 'node:test';
++import assert from 'node:assert/strict';
++import { splitRecordedHistory } from './trip-location-history.ts';
++
++const point = (sequence: number, runId: string, seconds: number) => ({ sequence, runId, latitude: 10, longitude: 106, recordedAt: new Date(seconds * 1000).toISOString() });
++describe('Web recorded-history rendering boundaries', () => {
++  it('keeps zero history distinct from an isolated recorded point', () => {
++    assert.deepEqual(splitRecordedHistory([]), []);
++    assert.deepEqual(splitRecordedHistory([point(1, 'a', 0)]), [[{ latitude: 10, longitude: 106 }]]);
++  });
++  it('does not bridge run changes or long time gaps', () => {
++    assert.deepEqual(splitRecordedHistory([point(1, 'a', 0), point(2, 'a', 5), point(3, 'b', 10), point(4, 'b', 40)]).map(p => p.length), [2, 1, 1]);
++  });
++  it('keeps cadence-boundary points together but splits missing sequence ranges', () => {
++    assert.deepEqual(splitRecordedHistory([point(1, 'a', 0), point(2, 'a', 15), point(4, 'a', 20)]).map(p => p.length), [2, 1]);
++  });
++});
+diff --git a/web/src/lib/trip-location-history.ts b/web/src/lib/trip-location-history.ts
+new file mode 100644
+--- /dev/null
++++ b/web/src/lib/trip-location-history.ts
+@@ -0,0 +1,14 @@
++export interface VehiclePosition { latitude: number; longitude: number }
++export interface RecordedPoint extends VehiclePosition { sequence: number; recordedAt: string; runId: string }
++
++/** Keep each recorded run/gap separate; single points remain points rather than invented lines. */
++export function splitRecordedHistory(points: RecordedPoint[]) {
++  const parts: VehiclePosition[][] = [];
++  points.forEach((point, index) => {
++    const previous = points[index - 1];
++    if (!previous || point.runId !== previous.runId || point.sequence !== previous.sequence + 1 ||
++      Date.parse(point.recordedAt) - Date.parse(previous.recordedAt) > 15000) parts.push([]);
++    parts[parts.length - 1].push({ latitude: point.latitude, longitude: point.longitude });
++  });
++  return parts;
++}
+diff --git a/web/src/lib/trip-location.ts b/web/src/lib/trip-location.ts
+new file mode 100644
+--- /dev/null
++++ b/web/src/lib/trip-location.ts
+@@ -0,0 +1,20 @@
++import { apiClient } from './api-client';
++
++import type { RecordedPoint } from './trip-location-history';
++export { splitRecordedHistory, type RecordedPoint, type VehiclePosition } from './trip-location-history';
++export interface TripLocationState { status: string; latestPosition: RecordedPoint | null; freshness: 'NONE' | 'FRESH' | 'STALE'; serverNow: string }
++interface HistoryPage { points: RecordedPoint[]; nextCursor: number; snapshotMaxSequence: number; hasMore: boolean }
++export const getTripLocation = (id: string) => apiClient.request<TripLocationState>(`/trips/${encodeURIComponent(id)}/navigation`);
++export async function getRecordedHistory(id: string, isCurrent: () => boolean) {
++  const points: RecordedPoint[] = [];
++  let after = 0, boundary: number | undefined;
++  do {
++    const page = await apiClient.request<HistoryPage>(`/trips/${encodeURIComponent(id)}/location-history?afterSequence=${after}${boundary === undefined ? '' : `&snapshotMaxSequence=${boundary}`}`);
++    if (!isCurrent()) return null;
++    points.push(...page.points);
++    if (!page.hasMore) return points;
++    if (page.nextCursor <= after) throw new Error('Không thể tải tiếp hành trình');
++    after = page.nextCursor; boundary = page.snapshotMaxSequence;
++  } while (isCurrent());
++  return null;
++}

@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,7 +26,35 @@ export default function ParentRequestDetailScreen() {
 
   const [detail, setDetail] = useState<StudentUpdateRequestDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleCancelRequest = () => {
+    if (!detail || isCancelling) return;
+    Alert.alert(
+      'Hủy yêu cầu',
+      'Bạn có chắc chắn muốn hủy yêu cầu cập nhật này không?',
+      [
+        { text: 'Không', style: 'cancel' },
+        {
+          text: 'Hủy yêu cầu',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsCancelling(true);
+              const updated = await mobileApiClient.cancelParentRequest(detail.id);
+              setDetail(updated);
+              Alert.alert('Thành công', 'Đã hủy yêu cầu thành công.');
+            } catch (err: any) {
+              Alert.alert('Lỗi', err?.message || 'Không thể hủy yêu cầu.');
+            } finally {
+              setIsCancelling(false);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   useEffect(() => {
     if (!requestId) return;
@@ -71,6 +100,12 @@ export default function ParentRequestDetailScreen() {
         return (
           <View style={[styles.badge, styles.rejectedBadge]}>
             <Text style={styles.rejectedBadgeText}>Đã từ chối</Text>
+          </View>
+        );
+      case 'CANCELLED':
+        return (
+          <View style={[styles.badge, styles.cancelledBadge]}>
+            <Text style={styles.cancelledBadgeText}>Đã hủy</Text>
           </View>
         );
     }
@@ -151,6 +186,25 @@ export default function ParentRequestDetailScreen() {
                 <Text style={styles.metaValue}>
                   {new Date(detail.reviewedAt).toLocaleString('vi-VN')}
                 </Text>
+              </View>
+            )}
+
+            {/* Resolution outcome */}
+            {detail.resolution && (
+              <View style={styles.resolutionBox}>
+                <Ionicons name="git-branch-outline" size={16} color="#0284C7" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.resolutionTitle}>Kết quả xử lý phân tuyến:</Text>
+                  <Text style={styles.resolutionOutcome}>
+                    {detail.resolution.outcome === 'DIRECT_UPDATE'
+                      ? 'Đã cập nhật trực tiếp địa chỉ học sinh (chưa phân vào tuyến nào).'
+                      : detail.resolution.outcome === 'REOPTIMIZED'
+                      ? 'Đã tối ưu hóa và cập nhật học sinh vào tuyến xe mới.'
+                      : detail.resolution.outcome === 'REMOVED_FROM_ROUTES'
+                      ? 'Đã cập nhật địa chỉ và loại học sinh khỏi tuyến cũ (chờ nhà trường phân tuyến lại).'
+                      : detail.resolution.outcome}
+                  </Text>
+                </View>
               </View>
             )}
 
@@ -238,6 +292,25 @@ export default function ParentRequestDetailScreen() {
               </View>
             )}
           </View>
+
+          {/* Cancel button for PENDING requests */}
+          {detail.status === 'PENDING' && (
+            <TouchableOpacity
+              style={styles.cancelRequestBtn}
+              onPress={handleCancelRequest}
+              disabled={isCancelling}
+              activeOpacity={0.8}
+            >
+              {isCancelling ? (
+                <ActivityIndicator size="small" color="#DC2626" />
+              ) : (
+                <>
+                  <Ionicons name="close-circle-outline" size={18} color="#DC2626" />
+                  <Text style={styles.cancelRequestBtnText}>Hủy yêu cầu này</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
         </ScrollView>
       )}
     </View>
@@ -343,6 +416,53 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#B91C1C',
+  },
+  cancelledBadge: {
+    backgroundColor: '#F1F5F9',
+  },
+  cancelledBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  resolutionBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    borderRadius: 10,
+    padding: 10,
+    gap: 8,
+    marginTop: 4,
+  },
+  resolutionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0369A1',
+    marginBottom: 2,
+  },
+  resolutionOutcome: {
+    fontSize: 12,
+    color: '#0C4A6E',
+    lineHeight: 16,
+  },
+  cancelRequestBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 12,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  cancelRequestBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#DC2626',
   },
   metaDivider: {
     height: 1,

@@ -10,10 +10,9 @@ import {
   SpinnerIcon,
   SchoolIcon,
   AlertIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   CheckIcon,
 } from '@/components/icons';
+import { PaginationControl } from '@/components/admin/common/pagination-control';
 import { AddSchoolModal } from '@/components/admin/schools/add-school-modal';
 import { SchoolStatusDialog } from '@/components/admin/schools/school-status-dialog';
 
@@ -39,6 +38,7 @@ export default function AdminSchoolsPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ACTIVE' | 'INACTIVE' | ''>('');
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
 
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -51,14 +51,14 @@ export default function AdminSchoolsPage() {
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchSchools = useCallback(
-    async (targetPage = page, targetSearch = search, targetStatus = statusFilter) => {
+    async (targetPage = page, targetLimit = limit, targetSearch = search, targetStatus = statusFilter) => {
       try {
         setIsLoading(true);
         setErrorMessage(null);
 
         const response = await apiClient.getSchools({
           page: targetPage,
-          limit: 10,
+          limit: targetLimit,
           search: targetSearch || undefined,
           status: targetStatus || undefined,
         });
@@ -74,12 +74,12 @@ export default function AdminSchoolsPage() {
         setIsLoading(false);
       }
     },
-    [page, search, statusFilter],
+    [page, limit, search, statusFilter],
   );
 
   useEffect(() => {
-    fetchSchools(page, search, statusFilter);
-  }, [fetchSchools, page, search, statusFilter]);
+    fetchSchools(page, limit, search, statusFilter);
+  }, [fetchSchools, page, limit, search, statusFilter]);
 
   const handleSearchChange = (val: string) => {
     setSearch(val);
@@ -96,7 +96,7 @@ export default function AdminSchoolsPage() {
 
   const handleAddSuccess = () => {
     setSuccessToast('Đã tạo trường học mới thành công.');
-    fetchSchools(1, search, statusFilter);
+    fetchSchools(1, limit, search, statusFilter);
     setTimeout(() => {
       setSuccessToast(null);
     }, 4000);
@@ -108,7 +108,7 @@ export default function AdminSchoolsPage() {
         ? 'Đã kích hoạt lại trường học thành công.'
         : 'Đã chuyển trường học sang trạng thái ngừng hoạt động.',
     );
-    fetchSchools(page, search, statusFilter);
+    fetchSchools(page, limit, search, statusFilter);
     setTimeout(() => {
       setSuccessToast(null);
     }, 4000);
@@ -323,33 +323,18 @@ export default function AdminSchoolsPage() {
         </div>
 
         {/* 6.4 Pagination */}
-        {meta.totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/50 text-xs text-slate-600">
-            <div>
-              Hiển thị trang {meta.page} / {meta.totalPages} (Tổng số {meta.totalItems} trường học)
-            </div>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1 || isLoading}
-                className="p-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
-                aria-label="Trang trước"
-              >
-                <ChevronLeftIcon className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
-                disabled={page >= meta.totalPages || isLoading}
-                className="p-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
-                aria-label="Trang sau"
-              >
-                <ChevronRightIcon className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
+        <PaginationControl
+          page={meta.page}
+          totalPages={meta.totalPages}
+          total={meta.totalItems}
+          limit={limit}
+          loading={isLoading}
+          onPageChange={(newPage) => setPage(newPage)}
+          onLimitChange={(newLimit) => {
+            setLimit(newLimit);
+            setPage(1);
+          }}
+        />
       </div>
 
       {/* Add School Modal */}

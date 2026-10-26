@@ -166,6 +166,9 @@ export class OtpService {
     } else if (purpose === OtpPurpose.STUDENT_UPDATE_REQUEST) {
       purposeText = 'yêu cầu cập nhật thông tin học sinh';
       subject = 'Mã xác thực yêu cầu cập nhật thông tin học sinh RoadToSchool';
+    } else if (purpose === OtpPurpose.LEAVE_NOTICE) {
+      purposeText = 'báo nghỉ chuyến xe';
+      subject = 'Mã xác thực báo nghỉ RoadToSchool';
     }
 
     const messageContent = `Mã xác thực ${purposeText} RoadToSchool của bạn là: ${otp}. Mã có hiệu lực trong ${minutes} phút. Vui lòng không chia sẻ mã này với bất kỳ ai.`;
@@ -208,12 +211,10 @@ export class OtpService {
         );
       }
     } else {
-      // SMS channel (Console mode only trong development)
-      if (process.env.NODE_ENV === 'development') {
-        this.logger.log(
-          `[AUTH_SMS_CONSOLE] Gửi đến SĐT: ${identifier} | Nội dung: ${messageContent} | Hạn: ${minutes} phút`,
-        );
-      }
+      // SMS channel (Console mode only trong development/test)
+      this.logger.log(
+        `[AUTH_SMS_CONSOLE] Gửi đến SĐT: ${identifier} | Nội dung: ${messageContent} | Hạn: ${minutes} phút`,
+      );
     }
   }
 
@@ -537,6 +538,157 @@ export class OtpService {
 
       return consumedChallenge;
     });
+  }
+
+  maskIdentifier(destination: string, channel: DeliveryChannel): string {
+    if (channel === DeliveryChannel.EMAIL) {
+      const parts = destination.split('@');
+      if (parts.length !== 2) return destination;
+      const [name, domain] = parts;
+      const visible = name.length > 2 ? name.slice(0, 1) + '••••' + name.slice(-1) : name.slice(0, 1) + '••••';
+      return `${visible}@${domain}`;
+    }
+    // SMS / phone
+    const clean = destination.replace(/\s+/g, '');
+    if (clean.length <= 4) return clean;
+    const prefix = clean.slice(0, 2);
+    const suffix = clean.slice(-3);
+    return `${prefix}•••••${suffix}`;
+  }
+
+  async createLeaveNoticeChallenge(
+    actorId: string,
+    studentId: string | null,
+    contacts: { channel: DeliveryChannel; destination: string; isConsole: boolean }[],
+    payloadHash: string,
+  ): Promise<{
+    challengeId: string;
+    maskedChannels: { channel: DeliveryChannel; destination: string; isConsole: boolean }[];
+    expiresInSeconds: number;
+  }> {
+    if (!contacts.length) {
+      throw new BadRequestException('Chưa có thông tin liên hệ hợp lệ để nhận mã xác thực');
+    }
+
+    const ttlSeconds = this.getOtpTtlSeconds();
+    const now = new Date();
+
+    // Rate limit: Không cho phép gửi lại khi mã gần nhất của actor và student chưa hết hạn
+    const latestChallenge = await this.prisma.otpChallenge.findFirst({
+      where: {
+        userId: actorId,
+        studentId: studentId ?? undefined,
+        purpose: OtpPurpose.LEAVE_NOTICE,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (latestChallenge && now < latestChallenge.expiresAt) {
+      const remainingSeconds = Math.ceil(
+        (latestChallenge.expiresAt.getTime() - now.getTime()) / 1000,
+      );
+      throw new BadRequestException(
+        `Vui lòng chờ ${remainingSeconds} giây trước khi yêu cầu mã xác thực mới`,
+      );
+    }
+
+    const otp = this.generateOtp();
+    const otpHash = this.hashOtp(otp);
+    const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
+
+    const primaryIdentifier = contacts.map((c) => c.destination).join(',');
+
+    const challenge = await this.prisma.otpChallenge.create({
+      data: {
+        userId: actorId,
+        studentId: studentId ?? undefined,
+        identifier: primaryIdentifier,
+        channel: contacts[0].channel,
+        purpose: OtpPurpose.LEAVE_NOTICE,
+        otpHash,
+        payloadHash,
+        attempts: 0,
+        expiresAt,
+      },
+    });
+
+    // Dispatch fan-out: send OTP to every eligible contact channel
+    for (const c of contacts) {
+      await this.dispatchNotification(
+        c.channel,
+        c.destination,
+        otp,
+        OtpPurpose.LEAVE_NOTICE,
+        ttlSeconds,
+      );
+    }
+
+    return {
+      challengeId: challenge.id,
+      maskedChannels: contacts.map((c) => ({
+        channel: c.channel,
+        destination: this.maskIdentifier(c.destination, c.channel),
+        isConsole: c.isConsole,
+      })),
+      expiresInSeconds: ttlSeconds,
+    };
+  }
+
+  async verifyAndConsumeLeaveNoticeChallenge(
+    tx: any,
+    challengeId: string,
+    plainOtp: string,
+    expectedPayloadHash: string,
+  ): Promise<OtpChallenge> {
+    const challenge = await tx.otpChallenge.findUnique({
+      where: { id: challengeId },
+    });
+
+    if (!challenge || challenge.purpose !== OtpPurpose.LEAVE_NOTICE) {
+      throw new BadRequestException('Mã xác thực không tồn tại hoặc không hợp lệ');
+    }
+
+    if (challenge.consumedAt !== null) {
+      throw new BadRequestException('Mã xác thực đã được sử dụng trước đó');
+    }
+
+    const now = new Date();
+    if (now >= challenge.expiresAt) {
+      throw new BadRequestException('Mã xác thực đã hết hạn. Vui lòng yêu cầu mã mới');
+    }
+
+    if (challenge.attempts >= 5) {
+      throw new BadRequestException(
+        'Bạn đã vượt quá số lần thử OTP cho phép (tối đa 5 lần). Vui lòng yêu cầu mã mới.',
+      );
+    }
+
+    if (challenge.payloadHash && challenge.payloadHash !== expectedPayloadHash) {
+      throw new BadRequestException(
+        'Dữ liệu báo nghỉ không khớp với mã OTP đã cấp. Vui lòng gửi lại yêu cầu OTP mới.',
+      );
+    }
+
+    const inputHash = this.hashOtp(plainOtp.trim());
+    if (inputHash !== challenge.otpHash) {
+      await tx.otpChallenge.update({
+        where: { id: challengeId },
+        data: { attempts: { increment: 1 } },
+      });
+      const remaining = 5 - (challenge.attempts + 1);
+      throw new BadRequestException(
+        remaining > 0
+          ? `Mã xác thực không chính xác. Bạn còn ${remaining} lần thử.`
+          : 'Mã xác thực không chính xác. Bạn đã hết số lần thử cho mã này.',
+      );
+    }
+
+    const consumedChallenge = await tx.otpChallenge.update({
+      where: { id: challengeId },
+      data: { consumedAt: now },
+    });
+
+    return consumedChallenge;
   }
 }
 

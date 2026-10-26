@@ -41,6 +41,11 @@ import {
   CreateSchoolAdminDto,
   CreateSchoolAdminResponseDto,
   SchoolEmployeeDetailResponseDto,
+  SchoolLocationImpactDto,
+  UpdateSchoolLocationDto,
+  UpdateSchoolContractDto,
+  UpdateSchoolScheduleDto,
+  UpdateSchoolScheduleResponseDto,
 } from './dto/index.js';
 
 @ApiTags('Schools')
@@ -449,5 +454,100 @@ export class SchoolsController {
       ? this.schoolsService.createSchoolAdmin(id, dto, user)
       : this.schoolsService.createSchoolAdmin(id, dto);
   }
+
+  @Get(':id/settings')
+  @Roles(Role.SYSTEM_ADMIN, Role.SCHOOL_ADMIN)
+  @ApiOperation({
+    summary: 'Lấy cấu hình chi tiết của trường học',
+    description:
+      'Lấy thông tin địa chỉ, tọa độ, hợp đồng và lịch tuần của trường học. SYSTEM_ADMIN có thể xem mọi trường; SCHOOL_ADMIN chỉ được xem trường của mình.',
+  })
+  @ApiParam({ name: 'id', description: 'Mã UUID trường học' })
+  @ApiResponse({ status: 200, description: 'Cấu hình trường học' })
+  async getSettings(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.schoolsService.getSchoolSettings(id, user);
+  }
+
+  @Get(':id/location-impact')
+  @Roles(Role.SYSTEM_ADMIN)
+  @ApiOperation({
+    summary: 'Đánh giá tác động trước khi thay đổi vị trí trường học (Chỉ SYSTEM_ADMIN)',
+    description:
+      'Trả về số lượng phương án DRAFT/ACTIVE và chuyến xe SCHEDULED sẽ bị hủy nếu vị trí trường thay đổi, cùng số chuyến xe IN_PROGRESS được bảo lưu. Chỉ Quản trị viên hệ thống (SYSTEM_ADMIN) có quyền thực hiện.',
+  })
+  @ApiParam({ name: 'id', description: 'Mã UUID trường học' })
+  @ApiResponse({ status: 200, description: 'Đánh giá tác động thay đổi vị trí', type: SchoolLocationImpactDto })
+  async getLocationImpact(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: User,
+    @Query('latitude') latitude?: string,
+    @Query('longitude') longitude?: string,
+  ): Promise<SchoolLocationImpactDto> {
+    return this.schoolsService.getLocationImpact(
+      id,
+      user,
+      latitude ? parseFloat(latitude) : undefined,
+      longitude ? parseFloat(longitude) : undefined,
+    );
+  }
+
+  @Patch(':id/location')
+  @Roles(Role.SYSTEM_ADMIN)
+  @ApiOperation({
+    summary: 'Cập nhật địa chỉ và vị trí trường học kèm cascade hủy các phương án liên quan (Chỉ SYSTEM_ADMIN)',
+    description:
+      'Chỉ Quản trị viên hệ thống (SYSTEM_ADMIN) có quyền thực hiện. Khi sửa địa chỉ trường, nếu trường có bất kỳ phương án nào (DRAFT/ACTIVE) thì tự động hủy toàn bộ phương án đó và các chuyến xe SCHEDULED liên quan.',
+  })
+  @ApiParam({ name: 'id', description: 'Mã UUID trường học' })
+  @ApiResponse({ status: 200, description: 'Cập nhật vị trí thành công' })
+  async updateLocation(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateSchoolLocationDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.schoolsService.updateLocation(id, dto, user);
+  }
+
+  @Patch(':id/contract')
+  @Roles(Role.SYSTEM_ADMIN)
+  @ApiOperation({
+    summary: 'Cập nhật / gia hạn hợp đồng trường học (Chỉ SYSTEM_ADMIN)',
+    description:
+      'Chỉ được cập nhật khi trường không còn phương án DRAFT hoặc ACTIVE. Ngày bắt đầu mới phải từ ngày hôm nay trở đi (giờ VN).',
+  })
+  @ApiParam({ name: 'id', description: 'Mã UUID trường học' })
+  @ApiResponse({ status: 200, description: 'Cập nhật hợp đồng thành công' })
+  async updateContract(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateSchoolContractDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.schoolsService.updateContract(id, dto, user);
+  }
+
+  @Patch(':id/schedule')
+  @Roles(Role.SYSTEM_ADMIN)
+  @ApiOperation({
+    summary: 'Cập nhật lịch học tuần của trường học (Chỉ SYSTEM_ADMIN)',
+    description:
+      'Cập nhật lịch học theo tuần của trường học. Tự động hủy các chuyến xe SCHEDULED vào các ngày không còn lịch học, và cập nhật lại khung giờ xuất phát/kết thúc cho các chuyến xe SCHEDULED vào các ngày có lịch học mới.',
+  })
+  @ApiParam({ name: 'id', description: 'Mã UUID trường học' })
+  @ApiResponse({
+    status: 200,
+    description: 'Cập nhật lịch học thành công',
+    type: UpdateSchoolScheduleResponseDto,
+  })
+  async updateSchedule(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateSchoolScheduleDto,
+    @CurrentUser() user: User,
+  ): Promise<UpdateSchoolScheduleResponseDto> {
+    return this.schoolsService.updateSchedule(id, dto, user);
+  }
 }
+
 

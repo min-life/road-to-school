@@ -15,6 +15,9 @@ import {
   DriverIcon,
   VehicleIcon,
   RequestIcon,
+  RouteIcon,
+  BusIcon,
+  CalendarIcon,
 } from '@/components/icons';
 import { Role } from '@/lib/types';
 import { getVisibleNavItems, AdminNavItem } from './admin-nav.config';
@@ -49,6 +52,12 @@ export function AdminSidebar({
         return <DriverIcon className={iconClass} />;
       case 'vehicles':
         return <VehicleIcon className={iconClass} />;
+      case 'routes':
+        return <RouteIcon className={iconClass} />;
+      case 'trips':
+        return <BusIcon className={iconClass} />;
+      case 'leave-notices':
+        return <CalendarIcon className={iconClass} />;
       case 'students':
         return <StudentIcon className={iconClass} />;
       case 'teachers':

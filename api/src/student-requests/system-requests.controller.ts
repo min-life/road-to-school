@@ -30,6 +30,9 @@ import {
   StudentUpdateRequestDto,
   StudentUpdateRequestDetailDto,
   StudentUpdateRequestListResponseDto,
+  ApproveAddressRequestDto,
+  StudentAddressRoutingPreviewDto,
+  StudentAddressRoutingPreviewResponseDto,
 } from './dto/index.js';
 
 @ApiTags('System Admin Address Update Requests')
@@ -89,12 +92,35 @@ export class SystemRequestsController {
     );
   }
 
+  @Post(':requestId/routing-preview')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'SYSTEM_ADMIN kiểm tra tính khả thi định tuyến trước khi duyệt',
+    description:
+      'Chạy mô phỏng định tuyến địa chỉ mới cho từng tuyến học sinh tham gia và đánh giá tính khả thi.',
+  })
+  @ApiParam({
+    name: 'requestId',
+    description: 'Mã định danh yêu cầu cập nhật (UUID)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Kết quả mô phỏng định tuyến',
+    type: StudentAddressRoutingPreviewResponseDto,
+  })
+  async previewRouting(
+    @Param('requestId', ParseUUIDPipe) requestId: string,
+    @Body() dto: StudentAddressRoutingPreviewDto,
+  ): Promise<StudentAddressRoutingPreviewResponseDto> {
+    return this.studentRequestsService.previewAddressRouting(requestId, dto);
+  }
+
   @Post(':requestId/approve')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'SYSTEM_ADMIN phê duyệt yêu cầu cập nhật địa chỉ học sinh',
     description:
-      'Chính sách One Valid Decision: Một trong hai bên (School Admin hoặc System Admin) phê duyệt thành công sẽ cập nhật địa chỉ học sinh và chốt trạng thái APPROVED.',
+      'Chính sách One Valid Decision: Hỗ trợ các hành động DIRECT_UPDATE, REOPTIMIZED hoặc REMOVED_FROM_ROUTES tùy thuộc vào kết quả kiểm tra định tuyến.',
   })
   @ApiParam({
     name: 'requestId',
@@ -121,12 +147,14 @@ export class SystemRequestsController {
   async approveAddressRequest(
     @CurrentUser() user: User,
     @Param('requestId', ParseUUIDPipe) requestId: string,
+    @Body() dto?: ApproveAddressRequestDto,
   ): Promise<StudentUpdateRequestDto> {
     return this.studentRequestsService.approveRequest(
       requestId,
       user.id,
       user.role,
       null,
+      dto,
     );
   }
 

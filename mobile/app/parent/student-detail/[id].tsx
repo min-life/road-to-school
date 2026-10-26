@@ -276,7 +276,76 @@ export default function StudentDetailScreen() {
               <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
             </TouchableOpacity>
 
-            {/* 3. Hủy liên kết học sinh */}
+            {/* 3. Tuyến đường đưa đón */}
+            <TouchableOpacity
+              style={styles.actionItemButton}
+              onPress={() => {
+                router.push({
+                  pathname: '/parent/route-detail',
+                  params: { studentId: student.id, studentName: student.fullName },
+                });
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIconCircle, { backgroundColor: '#FEF3C7' }]}>
+                <Ionicons name="bus-outline" size={18} color="#D97706" />
+              </View>
+              <View style={styles.actionTextContainer}>
+                <Text style={styles.actionTitle}>Tuyến đường đưa đón</Text>
+                <Text style={styles.actionSubtext}>
+                  Lộ trình di chuyển, giờ đón/trả và xe dự kiến
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+            </TouchableOpacity>
+
+            {/* 4. Lịch học & Xe đưa đón */}
+            <TouchableOpacity
+              style={styles.actionItemButton}
+              onPress={() => {
+                router.push({
+                  pathname: '/parent/schedule',
+                  params: { studentId: student.id, studentName: student.fullName },
+                });
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIconCircle, { backgroundColor: '#E0E7FF' }]}>
+                <Ionicons name="calendar-outline" size={18} color="#4F46E5" />
+              </View>
+              <View style={styles.actionTextContainer}>
+                <Text style={styles.actionTitle}>Lịch học & Xe đưa đón</Text>
+                <Text style={styles.actionSubtext}>
+                  Lịch trình các chuyến xe đưa đón theo từng ngày trong tuần
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+            </TouchableOpacity>
+
+            {/* 5. Báo nghỉ */}
+            <TouchableOpacity
+              style={styles.actionItemButton}
+              onPress={() => {
+                router.push({
+                  pathname: '/leave-notices',
+                  params: { studentId: student.id, studentName: student.fullName },
+                } as any);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIconCircle, { backgroundColor: '#FEF3C7' }]}>
+                <Ionicons name="calendar-outline" size={18} color="#D97706" />
+              </View>
+              <View style={styles.actionTextContainer}>
+                <Text style={styles.actionTitle}>Báo nghỉ</Text>
+                <Text style={styles.actionSubtext}>
+                  Xem lịch sử báo nghỉ và tạo báo nghỉ cho chuyến xe
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+            </TouchableOpacity>
+
+            {/* 6. Hủy liên kết học sinh */}
             <TouchableOpacity
               style={[styles.actionItemButton, styles.unlinkItemButton]}
               onPress={handleUnlink}

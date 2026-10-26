@@ -14,10 +14,14 @@ import {
   StudentStatus,
   Student,
   StudentUpdateRequest,
+  RoutePlanStatus,
+  TripStatus,
+  RouteDirection,
 } from '@prisma/client';
 import * as crypto from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { OtpService } from '../auth/otp.service.js';
+import { VietMapVRPService } from '../routes/vietmap-vrp.service.js';
 import {
   CreateRequestOtpDto,
   VerifyRequestOtpDto,
@@ -28,6 +32,10 @@ import {
   StudentUpdateRequestDto,
   StudentUpdateRequestDetailDto,
   StudentUpdateRequestListResponseDto,
+  StudentAddressRoutingPreviewDto,
+  StudentAddressRoutingPreviewResponseDto,
+  ApproveAddressRequestDto,
+  RouteFeasibilityItemDto,
 } from './dto/index.js';
 
 /**
@@ -56,11 +64,44 @@ export function hashProposedPayload(type: RequestType, payload: Record<string, a
 @Injectable()
 export class StudentRequestsService {
   private readonly logger = new Logger(StudentRequestsService.name);
+  private readonly addressPreviewSessions = new Map<
+    string,
+    {
+      previewToken: string;
+      requestId: string;
+      studentId: string;
+      newLatitude: number;
+      newLongitude: number;
+      newAddressText: string;
+      routes: Array<{
+        routeId: string;
+        newGeometry: string;
+        newDistanceMeters: number;
+        newDurationSeconds: number;
+        newPlannedArrivalTime?: string;
+      }>;
+      createdAt: number;
+      expectedFingerprint: string;
+    }
+  >();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly otpService: OtpService,
+    private readonly vietmapVRPService: VietMapVRPService,
   ) {}
+
+  private parseTimeToSeconds(time: string): number {
+    const [h, m] = (time || '07:00').split(':').map(Number);
+    return (h || 0) * 3600 + (m || 0) * 60;
+  }
+
+  private secondsToTimeString(seconds: number): string {
+    const totalMins = Math.floor(seconds / 60);
+    const h = Math.floor(totalMins / 60) % 24;
+    const m = totalMins % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
 
   /**
    * Kiểm định tính hợp lệ và ý nghĩa của dữ liệu đề xuất thay đổi so với dữ liệu hiện tại
@@ -141,6 +182,7 @@ export class StudentRequestsService {
       reviewedBy?: { id: string; fullName: string } | null;
     },
   ): StudentUpdateRequestDto {
+    const resolution = (req as any).resolution as Record<string, any> | null;
     return {
       id: req.id,
       studentId: req.studentId,
@@ -157,6 +199,12 @@ export class StudentRequestsService {
       rejectionReason: req.rejectionReason,
       reviewedBy: req.reviewedBy?.fullName || null,
       reviewedAt: req.reviewedAt ? req.reviewedAt.toISOString() : null,
+      resolution,
+      resolutionOutcome: resolution?.outcome || null,
+      canCancel: req.status === RequestStatus.PENDING,
+      canCheckRouting: req.status === RequestStatus.PENDING && req.type === RequestType.ADDRESS_UPDATE,
+      canApprove: req.status === RequestStatus.PENDING,
+      canReject: req.status === RequestStatus.PENDING,
       createdAt: req.createdAt.toISOString(),
       updatedAt: req.updatedAt.toISOString(),
     };
@@ -416,6 +464,52 @@ export class StudentRequestsService {
     return this.mapToDto(request);
   }
 
+  /**
+   * Phụ huynh hủy yêu cầu cập nhật địa chỉ khi còn ở trạng thái PENDING (không cần OTP).
+   */
+  async cancelParentRequest(parentId: string, requestId: string): Promise<StudentUpdateRequestDto> {
+    const request = await this.prisma.studentUpdateRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        student: true,
+        parent: { select: { id: true, fullName: true } },
+        school: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Yêu cầu không tồn tại');
+    }
+
+    if (request.parentId !== parentId) {
+      throw new ForbiddenException('Bạn không có quyền hủy yêu cầu này');
+    }
+
+    if (request.status !== RequestStatus.PENDING) {
+      throw new ConflictException('Chỉ có thể hủy yêu cầu đang ở trạng thái chờ duyệt (PENDING)');
+    }
+
+    const updated = await this.prisma.studentUpdateRequest.update({
+      where: { id: requestId },
+      data: {
+        status: RequestStatus.CANCELLED,
+        resolution: {
+          outcome: 'CANCELLED_BY_PARENT',
+          cancelledAt: new Date().toISOString(),
+        },
+      },
+      include: {
+        student: true,
+        parent: { select: { id: true, fullName: true } },
+        school: { select: { id: true, name: true } },
+        reviewedBy: { select: { id: true, fullName: true } },
+      },
+    });
+
+    this.logger.log(`Phụ huynh ${parentId} đã hủy yêu cầu ${requestId}`);
+    return this.mapToDto(updated);
+  }
+
   // =========================================================================
   // 2. SCHOOL ADMIN APIS (Section 10)
   // =========================================================================
@@ -604,6 +698,23 @@ export class StudentRequestsService {
       throw new BadRequestException('Không thể cập nhật địa chỉ khi học sinh đang bị vô hiệu hóa (DISABLED)');
     }
 
+    const activeRouteStop = await this.prisma.routeStop.findFirst({
+      where: {
+        studentId,
+        route: {
+          routePlan: {
+            status: { in: [RoutePlanStatus.DRAFT, RoutePlanStatus.ACTIVE] },
+          },
+        },
+      },
+    });
+
+    if (activeRouteStop) {
+      throw new BadRequestException(
+        'Học sinh đang thuộc phương án phân tuyến DRAFT hoặc ACTIVE. Không thể cập nhật địa chỉ trực tiếp.',
+      );
+    }
+
     const updated = await this.prisma.student.update({
       where: { id: studentId },
       data: {
@@ -733,6 +844,7 @@ export class StudentRequestsService {
     reviewerId: string,
     reviewerRole: Role,
     reviewerSchoolId?: string | null,
+    approveDto?: ApproveAddressRequestDto,
   ): Promise<StudentUpdateRequestDto> {
     return this.prisma.$transaction(async (tx) => {
       // 1. Tải yêu cầu và thông tin học sinh
@@ -776,6 +888,8 @@ export class StudentRequestsService {
         );
       }
 
+      let resolutionData: Record<string, any> | null = null;
+
       // 5. Kiểm tra xung đột dữ liệu cũ (Stale Data Policy - Section 1.6)
       if (request.type === RequestType.INFORMATION_UPDATE) {
         const before = request.beforeData as Record<string, any>;
@@ -812,16 +926,144 @@ export class StudentRequestsService {
           );
         }
 
-        // Cập nhật địa chỉ và tọa độ học sinh nguyên tử
         const proposed = request.proposedData as Record<string, any>;
+        const newAddressText = String(proposed.addressText).trim();
+        const newLatitude = Number(proposed.latitude);
+        const newLongitude = Number(proposed.longitude);
+
+        // Kiểm tra xem học sinh có thuộc tuyến DRAFT hoặc ACTIVE nào không
+        const routeStops = await tx.routeStop.findMany({
+          where: {
+            studentId: request.studentId,
+            route: {
+              routePlan: {
+                status: { in: [RoutePlanStatus.DRAFT, RoutePlanStatus.ACTIVE] },
+              },
+            },
+          },
+          include: {
+            route: true,
+          },
+        });
+
+        if (reviewerRole === Role.SCHOOL_ADMIN && routeStops.length > 0) {
+          throw new BadRequestException(
+            'Học sinh đang thuộc phương án phân tuyến. Yêu cầu đổi địa chỉ phải do Quản trị viên hệ thống (System Admin) kiểm tra lộ trình và phê duyệt.',
+          );
+        }
+
+        // Cập nhật địa chỉ và tọa độ học sinh nguyên tử
         await tx.student.update({
           where: { id: request.studentId },
           data: {
-            addressText: String(proposed.addressText).trim(),
-            latitude: Number(proposed.latitude),
-            longitude: Number(proposed.longitude),
+            addressText: newAddressText,
+            latitude: newLatitude,
+            longitude: newLongitude,
           },
         });
+
+        let outcome: 'DIRECT_UPDATE' | 'REOPTIMIZED' | 'REMOVED_FROM_ROUTES' = 'DIRECT_UPDATE';
+
+        if (routeStops.length > 0) {
+          const decision = approveDto?.decision || approveDto?.resolutionOutcome || 'REOPTIMIZED';
+          const routeIds = Array.from(new Set(routeStops.map((rs: any) => rs.routeId)));
+
+          if (decision === 'REMOVED_FROM_ROUTES') {
+            outcome = 'REMOVED_FROM_ROUTES';
+
+            // Xóa điểm dừng của học sinh
+            await tx.routeStop.deleteMany({
+              where: {
+                studentId: request.studentId,
+                routeId: { in: routeIds },
+              },
+            });
+
+            // Loại học sinh khỏi các Trip SCHEDULED chưa vận hành
+            const unoperatedScheduledTrips = await tx.trip.findMany({
+              where: {
+                routeId: { in: routeIds },
+                status: TripStatus.SCHEDULED,
+                actualStartTime: null,
+                attendantReadyAt: null,
+              },
+              include: {
+                attendances: true,
+              },
+            });
+
+            for (const trip of unoperatedScheduledTrips) {
+              await tx.tripAttendance.updateMany({
+                where: {
+                  tripId: trip.id,
+                  studentId: request.studentId,
+                  excludedAt: null,
+                },
+                data: {
+                  excludedAt: new Date(),
+                  exclusionReason: 'STUDENT_ADDRESS_CHANGED_REMOVED',
+                },
+              });
+
+              // Kiểm tra nếu chuyến không còn học sinh hoạt động nào -> Hủy chuyến
+              const activeCount = trip.attendances.filter(
+                (a) => a.studentId !== request.studentId && !a.excludedAt,
+              ).length;
+              if (activeCount === 0) {
+                await tx.trip.update({
+                  where: { id: trip.id },
+                  data: {
+                    status: TripStatus.CANCELLED,
+                    cancellationReason: 'Hủy tự động do tuyến không còn học sinh sau khi đổi địa chỉ',
+                  },
+                });
+              }
+            }
+          } else {
+            // REOPTIMIZED: Cập nhật tọa độ điểm dừng và geometry/metrics đã preview trên các tuyến
+            outcome = 'REOPTIMIZED';
+            let previewSession: any = null;
+            if (approveDto?.previewToken) {
+              previewSession = this.addressPreviewSessions.get(approveDto.previewToken);
+            }
+
+            if (previewSession && Array.isArray(previewSession.routes)) {
+              for (const r of previewSession.routes) {
+                await tx.route.update({
+                  where: { id: r.routeId },
+                  data: {
+                    polylineGeometry: r.newGeometry,
+                    totalDistanceMeters: r.newDistanceMeters,
+                    estimatedDurationSeconds: r.newDurationSeconds,
+                  },
+                });
+              }
+            }
+
+            await tx.routeStop.updateMany({
+              where: {
+                studentId: request.studentId,
+                routeId: { in: routeIds },
+              },
+              data: {
+                addressText: newAddressText,
+                latitude: newLatitude,
+                longitude: newLongitude,
+              },
+            });
+
+            if (approveDto?.previewToken) {
+              this.addressPreviewSessions.delete(approveDto.previewToken);
+            }
+          }
+        }
+
+        resolutionData = {
+          outcome,
+          reviewedByRole: reviewerRole,
+          affectedRoutesCount: routeStops.length,
+          reviewedAt: new Date().toISOString(),
+        };
       }
 
       // 6. Chuyển trạng thái yêu cầu sang APPROVED và lưu người duyệt
@@ -831,6 +1073,7 @@ export class StudentRequestsService {
           status: RequestStatus.APPROVED,
           reviewedById: reviewerId,
           reviewedAt: new Date(),
+          resolution: resolutionData || Prisma.DbNull,
         },
         include: {
           student: true,
@@ -913,5 +1156,315 @@ export class StudentRequestsService {
 
       return this.mapToDto(updatedRequest);
     });
+  }
+
+  /**
+   * Mô phỏng và kiểm tra tính khả thi định tuyến cho yêu cầu đổi địa chỉ của học sinh
+   * Sử dụng routing solver thực tế và hai tiêu chí tối ưu (Thời gian tối đa tuyến & Thời gian dừng tại điểm)
+   */
+  async previewAddressRouting(
+    requestId: string,
+    dto?: StudentAddressRoutingPreviewDto,
+  ): Promise<StudentAddressRoutingPreviewResponseDto> {
+    const request = await this.prisma.studentUpdateRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        student: true,
+        school: true,
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Yêu cầu không tồn tại');
+    }
+
+    if (request.type !== RequestType.ADDRESS_UPDATE) {
+      throw new BadRequestException('Chỉ hỗ trợ xem trước định tuyến cho yêu cầu đổi địa chỉ');
+    }
+
+    if (request.status !== RequestStatus.PENDING) {
+      throw new ConflictException('Yêu cầu không còn ở trạng thái chờ duyệt (PENDING)');
+    }
+
+    const proposed = request.proposedData as Record<string, any>;
+    const newLat = Number(proposed.latitude);
+    const newLng = Number(proposed.longitude);
+
+    if (
+      Number.isNaN(newLat) ||
+      Number.isNaN(newLng) ||
+      newLat < -90 ||
+      newLat > 90 ||
+      newLng < -180 ||
+      newLng > 180
+    ) {
+      throw new BadRequestException('Tọa độ địa chỉ đề xuất mới không hợp lệ');
+    }
+
+    // Tìm các tuyến DRAFT hoặc ACTIVE mà học sinh đang tham gia
+    const studentStops = await this.prisma.routeStop.findMany({
+      where: {
+        studentId: request.studentId,
+        route: {
+          routePlan: {
+            status: { in: [RoutePlanStatus.DRAFT, RoutePlanStatus.ACTIVE] },
+          },
+        },
+      },
+      include: {
+        route: {
+          include: {
+            routePlan: true,
+            proposedVehicle: true,
+            stops: {
+              orderBy: { stopOrder: 'asc' },
+            },
+          },
+        },
+      },
+    });
+
+    if (studentStops.length === 0) {
+      return {
+        previewToken: null,
+        allFeasible: true,
+        overallFeasibility: 'FEASIBLE',
+        hasInfeasible: false,
+        hasUnavailable: false,
+        routes: [],
+        scheduledTripsToRefreshCount: 0,
+        affectedScheduledTripsCount: 0,
+        frozenTripsCount: 0,
+        preservedTripsCount: 0,
+        expectedFingerprint: 'NO_ACTIVE_ROUTES',
+      };
+    }
+
+    const routeItems: RouteFeasibilityItemDto[] = [];
+    const sessionRoutes: Array<{
+      routeId: string;
+      newGeometry: string;
+      newDistanceMeters: number;
+      newDurationSeconds: number;
+      newPlannedArrivalTime?: string;
+    }> = [];
+
+    let allFeasible = true;
+    let hasInfeasible = false;
+    let hasUnavailable = false;
+
+    for (const rs of studentStops) {
+      const route = rs.route;
+      const vehicleCap = route.proposedVehicle?.seatCount || 30;
+      const studentCount = route.stops.filter((s: any) => s.studentId).length;
+      const isCapacityOk = studentCount <= vehicleCap;
+
+      // Tiêu chí tối ưu: Ưu tiên tham số truyền vào -> Route constraints -> RoutePlan constraints -> Defaults (90m, 60s)
+      const planConstraints = (route.routePlan.routingConstraints as any) || {};
+      const routeConstraints = (route.routingConstraints as any) || {};
+      const maxDurationMinutes = Math.max(
+        10,
+        Number(
+          dto?.routingConstraints?.maxRouteDurationMinutes ??
+            routeConstraints.maxRouteDurationMinutes ??
+            planConstraints.maxRouteDurationMinutes ??
+            90,
+        ),
+      );
+      const defaultStopServiceSeconds = Math.max(
+        10,
+        Math.min(
+          300,
+          Number(
+            dto?.routingConstraints?.defaultStopServiceSeconds ??
+              routeConstraints.defaultStopServiceSeconds ??
+              planConstraints.defaultStopServiceSeconds ??
+              60,
+          ),
+        ),
+      );
+      const stopOverrides =
+        dto?.routingConstraints?.stopServiceOverrides ??
+        routeConstraints.stopServiceOverrides ??
+        planConstraints.stopServiceOverrides ??
+        [];
+
+      // Tạo chuỗi điểm dừng với tọa độ mới của học sinh này, giữ nguyên tọa độ của tất cả học sinh khác
+      let studentStopIndex = 0;
+      const updatedPoints: { latitude: number; longitude: number }[] = route.stops.map((s, idx) => {
+        if (s.studentId === request.studentId) {
+          studentStopIndex = idx;
+          return { latitude: newLat, longitude: newLng };
+        }
+        return { latitude: s.latitude, longitude: s.longitude };
+      });
+
+      const calc = await this.vietmapVRPService.calculateRoute(updatedPoints);
+
+      if (calc.status === 'UNAVAILABLE') {
+        hasUnavailable = true;
+        allFeasible = false;
+        routeItems.push({
+          routeId: route.id,
+          routeName: route.name,
+          direction: route.direction,
+          planId: route.routePlanId,
+          planStatus: route.routePlan.status,
+          status: 'UNAVAILABLE',
+          feasibility: 'UNAVAILABLE',
+          reason: calc.reason,
+          infeasibilityReason: calc.reason,
+          totalStudents: studentCount,
+          oldDurationSeconds: route.estimatedDurationSeconds,
+          newDurationSeconds: route.estimatedDurationSeconds,
+          oldDistanceMeters: route.totalDistanceMeters,
+          newDistanceMeters: route.totalDistanceMeters,
+          newPolylineGeometry: route.polylineGeometry,
+        });
+      } else {
+        // Tính tổng thời gian dừng tại các điểm trên tuyến
+        let serviceSecondsTotal = 0;
+        let serviceBeforeStudent = 0;
+        for (let i = 0; i < route.stops.length; i++) {
+          const s = route.stops[i];
+          if (s.studentId) {
+            const match = stopOverrides.find(
+              (o: any) => o.studentId === s.studentId && (!o.direction || o.direction === route.direction),
+            );
+            const sSec =
+              match && typeof match.serviceSeconds === 'number' && match.serviceSeconds > 0
+                ? Math.round(match.serviceSeconds)
+                : defaultStopServiceSeconds;
+            serviceSecondsTotal += sSec;
+            if (i < studentStopIndex) {
+              serviceBeforeStudent += sSec;
+            }
+          }
+        }
+
+        const totalRouteDuration = calc.durationSeconds + serviceSecondsTotal;
+        let feasible = true;
+        let reason: string | undefined;
+
+        if (!isCapacityOk) {
+          feasible = false;
+          reason = `Vượt quá sức chứa phương tiện (${vehicleCap} chỗ, hiện tại ${studentCount})`;
+        } else if (totalRouteDuration > maxDurationMinutes * 60) {
+          feasible = false;
+          reason = `Thời gian tuyến (${Math.round(totalRouteDuration / 60)} phút) vượt quá giới hạn tối đa (${maxDurationMinutes} phút)`;
+        }
+
+        if (!feasible) {
+          allFeasible = false;
+          hasInfeasible = true;
+        }
+
+        // Tính giờ dự kiến mới tại điểm dừng của học sinh
+        let newPlannedArrivalTime: string | undefined;
+        const drivingFraction = updatedPoints.length > 1 ? studentStopIndex / (updatedPoints.length - 1) : 0.5;
+
+        if (route.direction === RouteDirection.TO_SCHOOL) {
+          const arrSec = this.parseTimeToSeconds(route.arrivalTime || '07:15');
+          const depSec = arrSec - totalRouteDuration;
+          const stopSec = Math.round(depSec + calc.durationSeconds * drivingFraction + serviceBeforeStudent);
+          newPlannedArrivalTime = this.secondsToTimeString(stopSec);
+        } else {
+          const depSec = this.parseTimeToSeconds(route.departureTime || '16:30');
+          const stopSec = Math.round(depSec + calc.durationSeconds * drivingFraction + serviceBeforeStudent);
+          newPlannedArrivalTime = this.secondsToTimeString(stopSec);
+        }
+
+        routeItems.push({
+          routeId: route.id,
+          routeName: route.name,
+          direction: route.direction,
+          planId: route.routePlanId,
+          planStatus: route.routePlan.status,
+          status: feasible ? 'FEASIBLE' : 'INFEASIBLE',
+          feasibility: feasible ? 'FEASIBLE' : 'INFEASIBLE',
+          reason,
+          infeasibilityReason: reason,
+          totalStudents: studentCount,
+          oldDurationSeconds: route.estimatedDurationSeconds,
+          newDurationSeconds: totalRouteDuration,
+          oldDistanceMeters: route.totalDistanceMeters,
+          newDistanceMeters: calc.distanceMeters,
+          newPolylineGeometry: calc.geometry,
+          newPlannedArrivalTime,
+        });
+
+        sessionRoutes.push({
+          routeId: route.id,
+          newGeometry: calc.geometry,
+          newDistanceMeters: calc.distanceMeters,
+          newDurationSeconds: totalRouteDuration,
+          newPlannedArrivalTime,
+        });
+      }
+    }
+
+    const routeIds = Array.from(new Set(studentStops.map((rs: any) => rs.routeId)));
+    const scheduledTripsCount = await this.prisma.trip.count({
+      where: {
+        routeId: { in: routeIds },
+        status: TripStatus.SCHEDULED,
+        actualStartTime: null,
+        attendantReadyAt: null,
+      },
+    });
+
+    const frozenTripsCount = await this.prisma.trip.count({
+      where: {
+        routeId: { in: routeIds },
+        OR: [
+          { status: TripStatus.IN_PROGRESS },
+          { status: TripStatus.COMPLETED },
+          { actualStartTime: { not: null } },
+          { attendantReadyAt: { not: null } },
+        ],
+      },
+    });
+
+    const expectedFingerprint = crypto
+      .createHash('sha256')
+      .update(`${request.id}_${newLat}_${newLng}_${routeIds.sort().join(',')}`)
+      .digest('hex')
+      .slice(0, 16);
+
+    let previewToken: string | null = null;
+    if (allFeasible) {
+      previewToken = `prev_${request.id}_${Date.now()}`;
+      this.addressPreviewSessions.set(previewToken, {
+        previewToken,
+        requestId: request.id,
+        studentId: request.studentId,
+        newLatitude: newLat,
+        newLongitude: newLng,
+        newAddressText: proposed.addressText || '',
+        routes: sessionRoutes,
+        createdAt: Date.now(),
+        expectedFingerprint,
+      });
+    }
+
+    const overallFeasibility: 'FEASIBLE' | 'INFEASIBLE' | 'UNAVAILABLE' = hasUnavailable
+      ? 'UNAVAILABLE'
+      : allFeasible
+      ? 'FEASIBLE'
+      : 'INFEASIBLE';
+
+    return {
+      previewToken,
+      allFeasible,
+      overallFeasibility,
+      hasInfeasible,
+      hasUnavailable,
+      routes: routeItems,
+      scheduledTripsToRefreshCount: scheduledTripsCount,
+      affectedScheduledTripsCount: scheduledTripsCount,
+      frozenTripsCount,
+      preservedTripsCount: frozenTripsCount,
+      expectedFingerprint,
+    };
   }
 }

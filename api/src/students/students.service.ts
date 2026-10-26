@@ -6,7 +6,17 @@ import {
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
-import { Prisma, Role, StudentStatus, User } from '@prisma/client';
+import {
+  Prisma,
+  Role,
+  StudentStatus,
+  User,
+  RoutePlanStatus,
+  TripStatus,
+  RequestStatus,
+  LeaveNoticeStatus,
+} from '@prisma/client';
+import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CloudinaryService } from '../schools/cloudinary.service.js';
 import { generateStudentCode } from './utils/student-code.generator.js';
@@ -17,6 +27,7 @@ import {
   StudentListResponseDto,
   StudentDetailResponseDto,
   StudentItemDto,
+  StudentDisableImpactDto,
 } from './dto/index.js';
 
 @Injectable()
@@ -443,6 +454,141 @@ export class StudentsService {
   }
 
   /**
+   * Đánh giá tác động trước khi vô hiệu hóa học sinh (DISABLED)
+   */
+  async getDisableImpact(
+    schoolId: string,
+    studentId: string,
+    currentUser?: User,
+  ): Promise<StudentDisableImpactDto> {
+    if (currentUser) {
+      if (currentUser.role === Role.SCHOOL_ADMIN && currentUser.schoolId !== schoolId) {
+        throw new ForbiddenException('Bạn không có quyền xem thông tin học sinh của trường học khác');
+      }
+    }
+
+    const student = await this.prisma.student.findFirst({
+      where: { id: studentId, schoolId },
+    });
+
+    if (!student) {
+      throw new NotFoundException('Không tìm thấy học sinh');
+    }
+
+    // 1. Tìm các RouteStop DRAFT hoặc ACTIVE mà học sinh đang tham gia
+    const studentStops = await this.prisma.routeStop.findMany({
+      where: {
+        studentId,
+        route: {
+          routePlan: {
+            status: { in: [RoutePlanStatus.DRAFT, RoutePlanStatus.ACTIVE] },
+          },
+        },
+      },
+      include: {
+        route: {
+          include: {
+            routePlan: true,
+            stops: { select: { studentId: true } },
+          },
+        },
+      },
+    });
+
+    const draftPlanIds = new Set<string>();
+    const activePlanIds = new Set<string>();
+    const routeIds = new Set<string>();
+    let emptyRoutesCount = 0;
+    const emptyRoutePlans: {
+      planId: string;
+      planName: string;
+      planStatus: RoutePlanStatus;
+      routeId: string;
+      routeName: string;
+    }[] = [];
+
+    for (const stop of studentStops) {
+      const plan = stop.route.routePlan;
+      if (plan.status === RoutePlanStatus.DRAFT) draftPlanIds.add(plan.id);
+      if (plan.status === RoutePlanStatus.ACTIVE) activePlanIds.add(plan.id);
+      routeIds.add(stop.routeId);
+
+      const otherStudentsCount = stop.route.stops.filter(
+        (s) => s.studentId && s.studentId !== studentId,
+      ).length;
+      if (otherStudentsCount === 0) {
+        emptyRoutesCount++;
+        emptyRoutePlans.push({
+          planId: plan.id,
+          planName: plan.name,
+          planStatus: plan.status,
+          routeId: stop.route.id,
+          routeName: stop.route.name,
+        });
+      }
+    }
+
+    const routeIdArray = Array.from(routeIds);
+    let cancellableScheduledTripsCount = 0;
+    let frozenTripsCount = 0;
+
+    if (routeIdArray.length > 0) {
+      cancellableScheduledTripsCount = await this.prisma.trip.count({
+        where: {
+          routeId: { in: routeIdArray },
+          status: TripStatus.SCHEDULED,
+          actualStartTime: null,
+          attendantReadyAt: null,
+          attendances: {
+            some: { studentId, excludedAt: null },
+          },
+        },
+      });
+
+      frozenTripsCount = await this.prisma.trip.count({
+        where: {
+          routeId: { in: routeIdArray },
+          attendances: {
+            some: { studentId },
+          },
+          OR: [
+            { status: { in: [TripStatus.IN_PROGRESS, TripStatus.COMPLETED] } },
+            { actualStartTime: { not: null } },
+            { attendantReadyAt: { not: null } },
+          ],
+        },
+      });
+    }
+
+    const expectedFingerprint = createHash('sha256')
+      .update(`${studentId}_${routeIdArray.sort().join(',')}`)
+      .digest('hex')
+      .slice(0, 16);
+
+    const requiresPlanCancellation = emptyRoutePlans.length > 0;
+
+    return {
+      studentId: student.id,
+      code: student.code,
+      fullName: student.fullName,
+      schoolId: student.schoolId,
+      affectedDraftPlansCount: draftPlanIds.size,
+      draftRoutePlansCount: draftPlanIds.size,
+      affectedActivePlansCount: activePlanIds.size,
+      activeRoutePlansCount: activePlanIds.size,
+      affectedRoutesCount: routeIds.size,
+      cancellableScheduledTripsCount,
+      scheduledTripsCount: cancellableScheduledTripsCount,
+      frozenTripsCount,
+      emptyRoutesCount,
+      emptyRoutesWillCancelTripsCount: emptyRoutesCount,
+      emptyRoutePlans,
+      requiresPlanCancellation,
+      expectedFingerprint,
+    };
+  }
+
+  /**
    * Cập nhật trạng thái hoạt động của học sinh (AVAILABLE <-> DISABLED).
    * - Chỉ SCHOOL_ADMIN được phép thực hiện cho học sinh của trường mình.
    */
@@ -474,6 +620,223 @@ export class StudentsService {
 
     if (!student) {
       throw new NotFoundException('Không tìm thấy học sinh');
+    }
+
+    if (dto.status === StudentStatus.DISABLED && student.status !== StudentStatus.DISABLED) {
+      // Cascade nguyên tử khi DISABLED
+      return this.prisma.$transaction(async (tx) => {
+        // 1. Cập nhật trạng thái học sinh
+        const updated = await tx.student.update({
+          where: { id: studentId },
+          data: { status: StudentStatus.DISABLED },
+        });
+
+        // 2. Tìm các điểm dừng trên các Route DRAFT hoặc ACTIVE
+        const studentStops = await tx.routeStop.findMany({
+          where: {
+            studentId,
+            route: {
+              routePlan: {
+                status: { in: [RoutePlanStatus.DRAFT, RoutePlanStatus.ACTIVE] },
+              },
+            },
+          },
+          include: {
+            route: {
+              include: {
+                routePlan: true,
+                stops: {
+                  select: { id: true, studentId: true, stopOrder: true },
+                },
+              },
+            },
+          },
+        });
+
+        // Xác định các tuyến/phương án trở thành rỗng (học sinh này là học sinh cuối cùng)
+        const emptyRoutePlans: {
+          planId: string;
+          planName: string;
+          planStatus: RoutePlanStatus;
+          routeId: string;
+          routeName: string;
+        }[] = [];
+
+        for (const stop of studentStops) {
+          const otherStudents = stop.route.stops.filter(
+            (s) => s.studentId && s.studentId !== studentId,
+          );
+          if (otherStudents.length === 0) {
+            emptyRoutePlans.push({
+              planId: stop.route.routePlan.id,
+              planName: stop.route.routePlan.name,
+              planStatus: stop.route.routePlan.status,
+              routeId: stop.route.id,
+              routeName: stop.route.name,
+            });
+          }
+        }
+
+        const routeIds = Array.from(new Set(studentStops.map((s) => s.routeId)));
+
+        if (routeIds.length > 0) {
+          // Xóa điểm dừng của học sinh khỏi các Route
+          await tx.routeStop.deleteMany({
+            where: {
+              studentId,
+              routeId: { in: routeIds },
+            },
+          });
+
+          // Đánh lại thứ tự stopOrder cho các điểm dừng còn lại trên từng tuyến
+          for (const rId of routeIds) {
+            const remainingStops = await tx.routeStop.findMany({
+              where: { routeId: rId },
+              orderBy: { stopOrder: 'asc' },
+            });
+            for (let idx = 0; idx < remainingStops.length; idx++) {
+              const rs = remainingStops[idx];
+              if (rs.stopOrder !== idx + 1) {
+                await tx.routeStop.update({
+                  where: { id: rs.id },
+                  data: { stopOrder: idx + 1 },
+                });
+              }
+            }
+          }
+
+          // 3. Đồng bộ danh sách học sinh trên các Trip SCHEDULED chưa vận hành
+          const unoperatedTrips = await tx.trip.findMany({
+            where: {
+              routeId: { in: routeIds },
+              status: TripStatus.SCHEDULED,
+              actualStartTime: null,
+              attendantReadyAt: null,
+            },
+            include: {
+              attendances: true,
+            },
+          });
+
+          for (const trip of unoperatedTrips) {
+            // Loại học sinh khỏi TripAttendance
+            await tx.tripAttendance.updateMany({
+              where: {
+                tripId: trip.id,
+                studentId,
+                excludedAt: null,
+              },
+              data: {
+                excludedAt: new Date(),
+                exclusionReason: 'STUDENT_DISABLED',
+              },
+            });
+
+            // Đồng bộ routeSnapshot nếu có
+            if (trip.routeSnapshot && typeof trip.routeSnapshot === 'object') {
+              const snap = trip.routeSnapshot as any;
+              if (Array.isArray(snap.stops)) {
+                const updatedStops = snap.stops
+                  .filter((s: any) => s.studentId !== studentId)
+                  .map((s: any, idx: number) => ({ ...s, stopOrder: idx + 1 }));
+                await tx.trip.update({
+                  where: { id: trip.id },
+                  data: {
+                    routeSnapshot: {
+                      ...snap,
+                      stops: updatedStops,
+                    },
+                  },
+                });
+              }
+            }
+
+            // Hủy các đơn nghỉ phép liên quan của học sinh trên chuyến này
+            await tx.leaveNotice.updateMany({
+              where: {
+                tripId: trip.id,
+                studentId,
+                status: {
+                  in: [
+                    LeaveNoticeStatus.RECORDED,
+                    LeaveNoticeStatus.PENDING_REPLACEMENT,
+                  ],
+                },
+              },
+              data: {
+                status: LeaveNoticeStatus.WITHDRAWN,
+                processedAt: new Date(),
+                processedById: currentUser?.id,
+              },
+            });
+
+            // Nếu chuyến xe trở thành rỗng (không còn học sinh hoạt động) -> HỦY CHUYẾN
+            const activeCount = trip.attendances.filter(
+              (a) => a.studentId !== studentId && !a.excludedAt,
+            ).length;
+            if (activeCount === 0) {
+              await tx.trip.update({
+                where: { id: trip.id },
+                data: {
+                  status: TripStatus.CANCELLED,
+                  cancellationReason:
+                    'Chuyến xe bị hủy tự động do tuyến không còn học sinh sau khi học sinh bị vô hiệu hóa',
+                  cancelledAt: new Date(),
+                  cancelledById: currentUser?.id,
+                },
+              });
+            }
+          }
+        }
+
+        // 4. Tự động hủy mọi yêu cầu cập nhật PENDING của học sinh
+        await tx.studentUpdateRequest.updateMany({
+          where: {
+            studentId,
+            status: RequestStatus.PENDING,
+          },
+          data: {
+            status: RequestStatus.CANCELLED,
+            resolution: {
+              outcome: 'CANCELLED_DUE_TO_DISABLED',
+              cancelledAt: new Date().toISOString(),
+            },
+          },
+        });
+
+        let message = 'Đã vô hiệu hóa học sinh thành công.';
+        const requiresPlanCancellation = emptyRoutePlans.length > 0;
+        if (requiresPlanCancellation) {
+          const planNames = Array.from(new Set(emptyRoutePlans.map((p) => `"${p.planName}"`))).join(', ');
+          const routeNames = Array.from(new Set(emptyRoutePlans.map((p) => `"${p.routeName}"`))).join(', ');
+          message = `Đã vô hiệu hóa học sinh và loại khỏi tuyến. CẢNH BÁO VI PHẠM BẤT BIẾN: Đây là học sinh cuối cùng của tuyến ${routeNames}. Hệ thống tuyệt đối không cho phép tuyến xe không có học sinh. Bắt buộc phải hủy phương án ${planNames} để tối ưu lại lộ trình.`;
+        }
+
+        this.logger.log(`Student ${student.code} was DISABLED with atomic cascade.`);
+
+        return {
+          id: updated.id,
+          code: updated.code,
+          schoolId: updated.schoolId,
+          fullName: updated.fullName,
+          guardianPhone: updated.guardianPhone,
+          avatarUrl: updated.avatarUrl,
+          addressText: updated.addressText,
+          latitude: updated.latitude,
+          longitude: updated.longitude,
+          status: updated.status,
+          hasAddress: this.computeHasAddress(
+            updated.addressText,
+            updated.latitude,
+            updated.longitude,
+          ),
+          createdAt: updated.createdAt.toISOString(),
+          updatedAt: updated.updatedAt.toISOString(),
+          message,
+          emptyRoutePlans,
+          requiresPlanCancellation,
+        };
+      });
     }
 
     const updated = await this.prisma.student.update({

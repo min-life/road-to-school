@@ -13,9 +13,8 @@ import {
   CheckIcon,
   DriverIcon,
   PhoneIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
 } from '@/components/icons';
+import { PaginationControl } from '@/components/admin/common/pagination-control';
 import { AddDriverModal } from '@/components/admin/drivers/add-driver-modal';
 
 function DriversPageContent() {
@@ -23,7 +22,7 @@ function DriversPageContent() {
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const [limit, setLimit] = useState(10);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
 
@@ -271,40 +270,18 @@ function DriversPageContent() {
         </div>
 
         {/* Pagination */}
-        {total > 0 && (
-          <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600">
-            <div>
-              Hiển thị <span className="font-semibold">{drivers.length}</span> /{' '}
-              <span className="font-semibold">{total}</span> tài xế
-            </div>
-
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1 || isLoading}
-                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                aria-label="Trang trước"
-              >
-                <ChevronLeftIcon className="w-4 h-4 text-slate-600" />
-              </button>
-
-              <span className="px-2 py-1 font-semibold text-slate-800">
-                {page} / {totalPages}
-              </span>
-
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages || isLoading}
-                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                aria-label="Trang sau"
-              >
-                <ChevronRightIcon className="w-4 h-4 text-slate-600" />
-              </button>
-            </div>
-          </div>
-        )}
+        <PaginationControl
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          limit={limit}
+          loading={isLoading}
+          onPageChange={(newPage) => setPage(newPage)}
+          onLimitChange={(newLimit) => {
+            setLimit(newLimit);
+            setPage(1);
+          }}
+        />
       </div>
 
       {/* Add Driver Modal */}

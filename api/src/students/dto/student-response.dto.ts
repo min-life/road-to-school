@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { StudentStatus } from '@prisma/client';
 import { PaginationMetaDto } from '../../schools/dto/school-response.dto.js';
+import { EmptyRoutePlanSummaryDto } from './student-disable-impact.dto.js';
 
 export class StudentItemDto {
   @ApiProperty({
@@ -86,6 +87,26 @@ export class StudentItemDto {
     example: '2026-10-23T10:00:00.000Z',
   })
   updatedAt: string;
+
+  @ApiProperty({
+    description: 'Thông báo chi tiết tác động nghiệp vụ (nếu có)',
+    required: false,
+  })
+  message?: string;
+
+  @ApiProperty({
+    description: 'Danh sách các phương án có tuyến trở thành rỗng (học sinh cuối cùng)',
+    required: false,
+    type: () => [EmptyRoutePlanSummaryDto],
+  })
+  emptyRoutePlans?: EmptyRoutePlanSummaryDto[];
+
+  @ApiProperty({
+    description: 'Cờ cảnh báo bắt buộc hủy phương án (vi phạm bất biến không được phép có tuyến 0 học sinh)',
+    required: false,
+    example: true,
+  })
+  requiresPlanCancellation?: boolean;
 }
 
 export class StudentListResponseDto {

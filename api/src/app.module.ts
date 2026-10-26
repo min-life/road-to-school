@@ -10,6 +10,9 @@ import { ParentsModule } from './parents/parents.module.js';
 import { SystemSettingsModule } from './system-settings/system-settings.module.js';
 import { VehiclesModule } from './vehicles/vehicles.module.js';
 import { StudentRequestsModule } from './student-requests/student-requests.module.js';
+import { RoutesModule } from './routes/routes.module.js';
+import { TripsModule } from './trips/trips.module.js';
+import { LeaveNoticesModule } from './leave-notices/leave-notices.module.js';
 
 @Module({
   imports: [
@@ -27,6 +30,9 @@ import { StudentRequestsModule } from './student-requests/student-requests.modul
     SystemSettingsModule,
     VehiclesModule,
     StudentRequestsModule,
+    RoutesModule,
+    TripsModule,
+    LeaveNoticesModule,
   ],
 })
 export class AppModule {}

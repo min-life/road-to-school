@@ -16,10 +16,16 @@ import {
   AlertIcon,
   CheckIcon,
   StudentIcon,
+  RouteIcon,
+  BusIcon,
 } from '@/components/icons';
+import { useAuth } from '@/components/auth/auth-provider';
 import { SchoolStatusDialog } from '@/components/admin/schools/school-status-dialog';
+import { EditSchoolModal } from '@/components/admin/schools/edit-school-modal';
 import { SchoolEmployeesTab } from '@/components/admin/schools/school-employees-tab';
 import { StudentTable } from '@/components/admin/students/student-table';
+import { SchoolRoutesTab } from '@/components/admin/schools/school-routes-tab';
+import { SchoolTripsTab } from '@/components/admin/schools/school-trips-tab';
 
 function formatDate(dateStr: string): string {
   if (!dateStr) return '';
@@ -52,6 +58,7 @@ const DAY_ORDER = [
 ];
 
 export default function AdminSchoolDetailPage() {
+  const { user } = useAuth();
   const params = useParams();
   const router = useRouter();
   const schoolId = params?.id as string;
@@ -61,11 +68,12 @@ export default function AdminSchoolDetailPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
-  // Status modal
+  // Edit & Status modal
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
 
-  // Horizontal Tabs (employees, students)
-  const [activeTab, setActiveTab] = useState<'employees' | 'students'>('employees');
+  // Horizontal Tabs (employees, students, routes, trips)
+  const [activeTab, setActiveTab] = useState<'employees' | 'students' | 'routes' | 'trips'>('employees');
 
   const fetchSchoolDetail = useCallback(async () => {
     if (!schoolId) return;
@@ -218,8 +226,17 @@ export default function AdminSchoolDetailPage() {
             </div>
           </div>
 
-          {/* Action Button: Đổi trạng thái */}
-          <div className="shrink-0">
+          {/* Action Buttons */}
+          <div className="shrink-0 flex items-center gap-2">
+            {user?.role === 'SYSTEM_ADMIN' && (
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(true)}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 shadow-2xs"
+              >
+                Chỉnh sửa trường & vị trí
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setIsStatusDialogOpen(true)}
@@ -311,6 +328,32 @@ export default function AdminSchoolDetailPage() {
             <StudentIcon className="w-4 h-4" />
             <span>Học sinh</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('routes')}
+            className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
+              activeTab === 'routes'
+                ? 'border-[#FFCB56] text-[#1E293B]'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <RouteIcon className="w-4 h-4" />
+            <span>Phương án tuyến</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('trips')}
+            className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
+              activeTab === 'trips'
+                ? 'border-[#FFCB56] text-[#1E293B]'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <BusIcon className="w-4 h-4" />
+            <span>Chuyến xe</span>
+          </button>
         </div>
 
         {/* Tab Content */}
@@ -331,7 +374,35 @@ export default function AdminSchoolDetailPage() {
             />
           </div>
         )}
+
+        {activeTab === 'routes' && (
+          <SchoolRoutesTab
+            schoolId={school.id}
+            schoolName={school.name}
+            isSchoolActive={school.isActive}
+          />
+        )}
+
+        {activeTab === 'trips' && (
+          <SchoolTripsTab
+            schoolId={school.id}
+            schoolName={school.name}
+          />
+        )}
       </div>
+
+      {/* Edit School & Location Modal */}
+      <EditSchoolModal
+        isOpen={isEditModalOpen}
+        school={school}
+        userRole={user?.role}
+        onClose={() => setIsEditModalOpen(false)}
+        onSuccess={(msg?: string) => {
+          setIsEditModalOpen(false);
+          setSuccessToast(msg || 'Cập nhật thông tin trường học thành công.');
+          fetchSchoolDetail();
+        }}
+      />
 
       {/* Status Confirmation Dialog */}
       <SchoolStatusDialog

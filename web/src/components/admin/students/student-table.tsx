@@ -3,19 +3,22 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { apiClient } from '@/lib/api-client';
-import type { StudentListItem, StudentStatus } from '@/lib/types';
+import type { StudentListItem, StudentStatus, EmptyRoutePlanInfo } from '@/lib/types';
 import {
   SearchIcon,
   SpinnerIcon,
   AlertIcon,
   CheckIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   StudentIcon,
   PhoneIcon,
 } from '@/components/icons';
+import { PaginationControl } from '@/components/admin/common/pagination-control';
 import { StudentFilters } from './student-filters';
 import { StatusConfirmModal } from './status-confirm-modal';
+import { InsertStudentModal } from './insert-student-modal';
+import { EmptyRoutePlanActionModal } from './empty-route-plan-action-modal';
+import { CancelRoutePlanModal } from '@/components/admin/routes/cancel-route-plan-modal';
+import { authStorage } from '@/lib/auth-storage';
 
 interface StudentTableProps {
   schoolId: string;
@@ -35,7 +38,7 @@ export function StudentTable({
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'AVAILABLE' | 'DISABLED'>('ALL');
   const [addressFilter, setAddressFilter] = useState<'ALL' | 'HAS_ADDRESS' | 'NO_ADDRESS'>('ALL');
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const [limit, setLimit] = useState(10);
 
   // Data state
   const [students, setStudents] = useState<StudentListItem[]>([]);
@@ -50,6 +53,18 @@ export function StudentTable({
   const [targetStatus, setTargetStatus] = useState<StudentStatus | null>(null);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+
+  // Student insertion state (System Admin)
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [insertingStudent, setInsertingStudent] = useState<StudentListItem | null>(null);
+  const [isInsertModalOpen, setIsInsertModalOpen] = useState(false);
+
+  useEffect(() => {
+    const user = authStorage.getUser();
+    if (user) {
+      setCurrentUserRole(user.role);
+    }
+  }, []);
 
   // Ref to track latest request to prevent stale overwrite
   const latestRequestRef = useRef(0);
@@ -111,13 +126,40 @@ export function StudentTable({
     setIsStatusModalOpen(true);
   };
 
+  const [emptyPlanNotice, setEmptyPlanNotice] = useState<{
+    planId: string;
+    planName: string;
+    routeName: string;
+  } | null>(null);
+
+  const [emptyRouteActionData, setEmptyRouteActionData] = useState<{
+    studentName: string;
+    emptyRoutePlans: EmptyRoutePlanInfo[];
+  } | null>(null);
+
+  const [cancellingPlan, setCancellingPlan] = useState<{
+    planId: string;
+    planName: string;
+    defaultReason: string;
+  } | null>(null);
+
   const handleConfirmStatusChange = async () => {
     if (!selectedStudent || !targetStatus || !schoolId) return;
 
     try {
       setIsUpdatingStatus(true);
-      await apiClient.updateStudentStatus(schoolId, selectedStudent.id, targetStatus);
-      handleStatusUpdateSuccess(selectedStudent.id, targetStatus);
+      const res = await apiClient.updateStudentStatus(schoolId, selectedStudent.id, targetStatus);
+      handleStatusUpdateSuccess(selectedStudent.id, targetStatus, res);
+      if (res.emptyRoutePlans && res.emptyRoutePlans.length > 0) {
+        setEmptyPlanNotice(res.emptyRoutePlans[0]);
+        setEmptyRouteActionData({
+          studentName: selectedStudent.fullName,
+          emptyRoutePlans: res.emptyRoutePlans,
+        });
+      } else {
+        setEmptyPlanNotice(null);
+        setEmptyRouteActionData(null);
+      }
       setIsStatusModalOpen(false);
       setSelectedStudent(null);
       setTargetStatus(null);
@@ -128,16 +170,24 @@ export function StudentTable({
     }
   };
 
-  const handleStatusUpdateSuccess = (studentId: string, newStatus: StudentStatus) => {
+  const handleStatusUpdateSuccess = (
+    studentId: string,
+    newStatus: StudentStatus,
+    res?: { message?: string; emptyRoutePlans?: any[] },
+  ) => {
     setStudents((prev) =>
       prev.map((s) => (s.id === studentId ? { ...s, status: newStatus } : s))
     );
-    setSuccessToast(
-      newStatus === 'AVAILABLE'
-        ? 'Đã kích hoạt lại học sinh thành công.'
-        : 'Đã vô hiệu hóa học sinh thành công.'
-    );
-    setTimeout(() => setSuccessToast(null), 3000);
+    if (res?.message) {
+      setSuccessToast(res.message);
+    } else {
+      setSuccessToast(
+        newStatus === 'AVAILABLE'
+          ? 'Đã kích hoạt lại học sinh thành công.'
+          : 'Đã vô hiệu hóa học sinh thành công.'
+      );
+    }
+    setTimeout(() => setSuccessToast(null), 5000);
   };
 
   return (
@@ -147,6 +197,52 @@ export function StudentTable({
         <div className="flex items-center gap-2 p-3 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg animate-in fade-in duration-200">
           <CheckIcon className="w-4 h-4 text-emerald-600 flex-shrink-0" />
           <span>{successToast}</span>
+        </div>
+      )}
+
+      {/* Cảnh báo tuyến rỗng cần hủy phương án để tối ưu lại */}
+      {emptyPlanNotice && (
+        <div className="flex items-start justify-between gap-3 p-3.5 text-xs text-rose-900 bg-rose-50 border border-rose-200 rounded-xl animate-in fade-in duration-200">
+          <div className="flex items-start gap-2.5">
+            <AlertIcon className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-rose-900">
+                Tuyến {emptyPlanNotice.routeName} không còn học sinh (Vi phạm quy tắc vận hành)!
+              </p>
+              <p className="text-rose-800/90 mt-0.5">
+                Học sinh vừa vô hiệu hóa là học sinh cuối cùng của tuyến. Hệ thống yêu cầu hủy phương án{' '}
+                <strong>{emptyPlanNotice.planName}</strong> để tối ưu lại phương án tuyến cho nhà trường.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setCancellingPlan({
+                  planId: emptyPlanNotice.planId,
+                  planName: emptyPlanNotice.planName,
+                  defaultReason: `Tuyến ${emptyPlanNotice.routeName} không còn học sinh sau khi vô hiệu hóa học sinh`,
+                });
+              }}
+              className="px-3 py-1.5 rounded-lg bg-rose-600 text-white font-medium hover:bg-rose-700 transition-colors cursor-pointer text-xs"
+            >
+              Hủy toàn bộ phương án
+            </button>
+            <Link
+              href={`/admin/routes/plans/${emptyPlanNotice.planId}`}
+              className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition-colors cursor-pointer text-xs"
+            >
+              Xem phương án
+            </Link>
+            <button
+              type="button"
+              onClick={() => setEmptyPlanNotice(null)}
+              className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
         </div>
       )}
 
@@ -336,6 +432,19 @@ export function StudentTable({
                             Xem chi tiết
                           </Link>
 
+                          {currentUserRole === 'SYSTEM_ADMIN' && isAvailable && student.hasAddress && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setInsertingStudent(student);
+                                setIsInsertModalOpen(true);
+                              }}
+                              className="text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                            >
+                              Thêm vào tuyến
+                            </button>
+                          )}
+
                           {!readOnly && (
                             <button
                               type="button"
@@ -360,46 +469,25 @@ export function StudentTable({
         </div>
 
         {/* Pagination bar */}
-        {total > 0 && (
-          <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600">
-            <div>
-              Hiển thị <span className="font-semibold">{students.length}</span> /{' '}
-              <span className="font-semibold">{total}</span> học sinh
-            </div>
-
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1 || isLoading}
-                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                aria-label="Trang trước"
-              >
-                <ChevronLeftIcon className="w-4 h-4 text-slate-600" />
-              </button>
-
-              <span className="px-2 py-1 font-semibold text-slate-800">
-                {page} / {totalPages}
-              </span>
-
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages || isLoading}
-                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                aria-label="Trang sau"
-              >
-                <ChevronRightIcon className="w-4 h-4 text-slate-600" />
-              </button>
-            </div>
-          </div>
-        )}
+        <PaginationControl
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          limit={limit}
+          loading={isLoading}
+          onPageChange={(newPage) => setPage(newPage)}
+          onLimitChange={(newLimit) => {
+            setLimit(newLimit);
+            setPage(1);
+          }}
+        />
       </div>
 
       {/* Status Confirm Modal */}
       {selectedStudent && targetStatus && (
         <StatusConfirmModal
           isOpen={isStatusModalOpen}
+          schoolId={schoolId}
           student={selectedStudent}
           targetStatus={targetStatus}
           isLoading={isUpdatingStatus}
@@ -409,6 +497,62 @@ export function StudentTable({
             setTargetStatus(null);
           }}
           onConfirm={handleConfirmStatusChange}
+        />
+      )}
+
+      {/* Insert Student into Existing Route Pair Modal (System Admin) */}
+      <InsertStudentModal
+        isOpen={isInsertModalOpen}
+        studentId={insertingStudent?.id || null}
+        studentName={insertingStudent?.fullName}
+        onClose={() => {
+          setIsInsertModalOpen(false);
+          setInsertingStudent(null);
+        }}
+        onSuccess={() => {
+          setIsInsertModalOpen(false);
+          setInsertingStudent(null);
+          setSuccessToast('Đã thêm học sinh vào cặp tuyến thành công.');
+          fetchStudents();
+        }}
+      />
+
+      {/* Empty Route Plan Action Modal (Triggered when disabling the last student of a route) */}
+      {emptyRouteActionData && (
+        <EmptyRoutePlanActionModal
+          isOpen={Boolean(emptyRouteActionData)}
+          studentName={emptyRouteActionData.studentName}
+          emptyRoutePlans={emptyRouteActionData.emptyRoutePlans}
+          onCancelPlanNow={(targetPlan) => {
+            const planToCancel = {
+              planId: targetPlan.planId,
+              planName: targetPlan.planName,
+              defaultReason: `Tuyến ${targetPlan.routeName} không còn học sinh sau khi vô hiệu hóa học sinh ${emptyRouteActionData.studentName}`,
+            };
+            setEmptyRouteActionData(null);
+            setCancellingPlan(planToCancel);
+          }}
+          onClose={() => setEmptyRouteActionData(null)}
+        />
+      )}
+
+      {/* Cancel Route Plan Modal (Can be triggered directly without leaving page) */}
+      {cancellingPlan && (
+        <CancelRoutePlanModal
+          isOpen={Boolean(cancellingPlan)}
+          routePlanId={cancellingPlan.planId}
+          routePlanName={cancellingPlan.planName}
+          defaultReason={cancellingPlan.defaultReason}
+          onClose={() => setCancellingPlan(null)}
+          onSuccess={() => {
+            setCancellingPlan(null);
+            setEmptyPlanNotice(null);
+            setSuccessToast(
+              'Đã hủy toàn bộ phương án tuyến thành công. Tài nguyên xe và tài xế đã được giải phóng.',
+            );
+            setTimeout(() => setSuccessToast(null), 5000);
+            fetchStudents();
+          }}
         />
       )}
     </div>

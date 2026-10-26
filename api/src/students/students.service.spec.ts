@@ -4,7 +4,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { Role, StudentStatus, Prisma } from '@prisma/client';
+import { Role, StudentStatus, Prisma, RoutePlanStatus, TripStatus, LeaveNoticeStatus } from '@prisma/client';
 import { StudentsService } from './students.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CloudinaryService } from '../schools/cloudinary.service.js';
@@ -63,6 +63,27 @@ describe('StudentsService', () => {
         create: vi.fn(),
         update: vi.fn(),
       },
+      routeStop: {
+        findMany: vi.fn().mockResolvedValue([]),
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      tripAttendance: {
+        findMany: vi.fn().mockResolvedValue([]),
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+      trip: {
+        count: vi.fn().mockResolvedValue(0),
+        findMany: vi.fn().mockResolvedValue([]),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      leaveNotice: {
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+      studentUpdateRequest: {
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+      $transaction: vi.fn(async (cb) => cb(prisma)),
     } as unknown as PrismaService;
 
     cloudinaryService = {
@@ -437,6 +458,157 @@ describe('StudentsService', () => {
           mockSystemAdmin,
         ),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('loại học sinh khỏi tuyến, đồng bộ chuyến SCHEDULED và cảnh báo phương án rỗng khi là học sinh cuối cùng', async () => {
+      vi.mocked(prisma.student.findFirst).mockResolvedValue(mockStudent as any);
+      vi.mocked(prisma.student.update).mockResolvedValue({
+        ...mockStudent,
+        status: StudentStatus.DISABLED,
+      } as any);
+
+      const mockRoute = {
+        id: 'route-1',
+        name: 'Tuyến Sáng Lê Quý Đôn 1',
+        routePlan: {
+          id: 'plan-1',
+          name: 'Phương án Học kỳ 1',
+          status: RoutePlanStatus.ACTIVE,
+        },
+        stops: [
+          { id: 'stop-student-1', studentId: 'student-uuid-1', stopOrder: 1 },
+        ],
+      };
+
+      vi.mocked(prisma.routeStop.findMany).mockResolvedValueOnce([
+        {
+          id: 'stop-student-1',
+          studentId: 'student-uuid-1',
+          routeId: 'route-1',
+          route: mockRoute,
+        },
+      ] as any);
+
+      // Remaining stops after delete is empty
+      vi.mocked(prisma.routeStop.findMany).mockResolvedValueOnce([]);
+
+      const mockTrip = {
+        id: 'trip-1',
+        routeId: 'route-1',
+        status: TripStatus.SCHEDULED,
+        actualStartTime: null,
+        attendantReadyAt: null,
+        attendances: [
+          { studentId: 'student-uuid-1', excludedAt: null },
+        ],
+        routeSnapshot: {
+          stops: [
+            { id: 'stop-student-1', studentId: 'student-uuid-1', stopOrder: 1 },
+          ],
+        },
+      };
+
+      vi.mocked(prisma.trip.findMany).mockResolvedValue([mockTrip] as any);
+
+      const result = await service.updateStatus(
+        schoolId,
+        'student-uuid-1',
+        { status: StudentStatus.DISABLED },
+        mockSchoolAdmin,
+      );
+
+      // 1. Phải xóa routeStop của học sinh
+      expect(prisma.routeStop.deleteMany).toHaveBeenCalledWith({
+        where: {
+          studentId: 'student-uuid-1',
+          routeId: { in: ['route-1'] },
+        },
+      });
+
+      // 2. Phải đánh dấu excludedAt trên tripAttendance
+      expect(prisma.tripAttendance.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            tripId: 'trip-1',
+            studentId: 'student-uuid-1',
+            excludedAt: null,
+          },
+          data: expect.objectContaining({
+            exclusionReason: 'STUDENT_DISABLED',
+          }),
+        }),
+      );
+
+      // 3. Phải đồng bộ routeSnapshot loại bỏ học sinh
+      expect(prisma.trip.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'trip-1' },
+          data: expect.objectContaining({
+            routeSnapshot: expect.objectContaining({
+              stops: [],
+            }),
+          }),
+        }),
+      );
+
+      // 4. Do chuyến xe không còn học sinh hoạt động nào -> Hủy chuyến
+      expect(prisma.trip.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'trip-1' },
+          data: expect.objectContaining({
+            status: TripStatus.CANCELLED,
+          }),
+        }),
+      );
+
+      // 5. Kết quả phải trả về emptyRoutePlans và message cảnh báo
+      expect(result.emptyRoutePlans).toBeDefined();
+      expect(result.emptyRoutePlans?.length).toBe(1);
+      expect(result.emptyRoutePlans?.[0].planId).toBe('plan-1');
+      expect(result.emptyRoutePlans?.[0].routeName).toBe('Tuyến Sáng Lê Quý Đôn 1');
+      expect(result.message).toContain('học sinh cuối cùng');
+    });
+  });
+
+  describe('getDisableImpact', () => {
+    it('phát hiện đúng tuyến sẽ rỗng và trả về emptyRoutePlans khi học sinh là người duy nhất trên tuyến', async () => {
+      vi.mocked(prisma.student.findFirst).mockResolvedValue(mockStudent as any);
+
+      const mockRoute = {
+        id: 'route-single',
+        name: 'Tuyến Độc Nhất',
+        routePlan: {
+          id: 'plan-active-1',
+          name: 'Phương án Chính Thức',
+          status: RoutePlanStatus.ACTIVE,
+        },
+        stops: [
+          { studentId: 'student-uuid-1' },
+        ],
+      };
+
+      vi.mocked(prisma.routeStop.findMany).mockResolvedValue([
+        {
+          id: 'stop-single',
+          studentId: 'student-uuid-1',
+          routeId: 'route-single',
+          route: mockRoute,
+        },
+      ] as any);
+
+      vi.mocked(prisma.trip.count).mockResolvedValue(2);
+
+      const impact = await service.getDisableImpact(schoolId, 'student-uuid-1', mockSchoolAdmin);
+
+      expect(impact.studentId).toBe('student-uuid-1');
+      expect(impact.code).toBe(mockStudent.code);
+      expect(impact.emptyRoutesCount).toBe(1);
+      expect(impact.emptyRoutePlans.length).toBe(1);
+      expect(impact.emptyRoutePlans[0].planId).toBe('plan-active-1');
+      expect(impact.emptyRoutePlans[0].routeName).toBe('Tuyến Độc Nhất');
+      expect(impact.activeRoutePlansCount).toBe(1);
+      expect(impact.scheduledTripsCount).toBe(2);
+      expect(impact.requiresPlanCancellation).toBe(true);
     });
   });
 });

@@ -28,6 +28,41 @@ import {
   UpdateStudentAddressDto,
   ChangePasswordDto,
   AvatarResponse,
+  RoutePreparationData,
+  OptimizeRouteDto,
+  RoutePreviewResponse,
+  RouteItem,
+  RouteListResponse,
+  RoutePlanItem,
+  RoutePlanListResponse,
+  StudentRoutingDetail,
+  ApprovalReadinessResponse,
+  AssignVehicleGroupRequest,
+  AssignDriverGroupRequest,
+  AssignBusAttendantGroupRequest,
+  CandidateVehiclesResponse,
+  CandidateDriversResponse,
+  CandidateBusAttendantsResponse,
+  TripItem,
+  TripDetail,
+  TripListResponse,
+  GenerateTripsRequest,
+  GenerateTripsResponse,
+  UpdateTripAssignmentRequest,
+  LeaveNoticeItem,
+  LeaveNoticeListResponse,
+  ReplacementCandidatesResponse,
+  AssignReplacementDto,
+  CancelTripFromNoticeDto,
+  ParkingLotImpactResponse,
+  SchoolLocationImpactResponse,
+  RoutePlanCancellationImpactResponse,
+  StudentDisableImpactResponse,
+  UpdateStudentStatusResponse,
+  StudentInsertionOptionsResponse,
+  StudentInsertionPreviewResponse,
+  SystemRequestRoutingPreviewResponse,
+  WeeklySchedule,
 } from './types';
 
 const API_BASE_URL =
@@ -285,10 +320,89 @@ class ApiClient {
     return this.request<SchoolDetail>(`/schools/${id}`, { method: 'GET' });
   }
 
+  async getSchoolDetail(id: string): Promise<SchoolDetail> {
+    return this.getSchool(id);
+  }
+
   async createSchool(formData: FormData): Promise<SchoolDetail> {
     return this.request<SchoolDetail>('/schools', {
       method: 'POST',
       body: formData,
+    });
+  }
+
+  async updateSchool(id: string, formData: FormData): Promise<SchoolDetail> {
+    return this.request<SchoolDetail>(`/schools/${id}`, {
+      method: 'PUT',
+      body: formData,
+    });
+  }
+
+  async getSchoolLocationImpact(
+    schoolId: string,
+    latitude: number,
+    longitude: number,
+  ): Promise<SchoolLocationImpactResponse> {
+    return this.request<SchoolLocationImpactResponse>(
+      `/schools/${schoolId}/location-impact?latitude=${latitude}&longitude=${longitude}`,
+      { method: 'GET' },
+    );
+  }
+
+  async updateSchoolLocation(
+    schoolId: string,
+    dto: {
+      addressText: string;
+      latitude: number;
+      longitude: number;
+      reason?: string;
+      expectedFingerprint?: string;
+    },
+  ): Promise<{
+    success: boolean;
+    message: string;
+    school: SchoolDetail;
+    cancelledPlansCount: number;
+    cancelledTripsCount: number;
+  }> {
+    return this.request(`/schools/${schoolId}/location`, {
+      method: 'PATCH',
+      body: JSON.stringify(dto),
+    });
+  }
+
+  async updateSchoolContract(
+    schoolId: string,
+    dto: {
+      contractStartDate: string;
+      contractEndDate: string;
+      reason?: string;
+      expectedUpdatedAt?: string;
+    },
+  ): Promise<any> {
+    return this.request(`/schools/${schoolId}/contract`, {
+      method: 'PATCH',
+      body: JSON.stringify(dto),
+    });
+  }
+
+  async updateSchoolSchedule(
+    schoolId: string,
+    weeklySchedule: WeeklySchedule,
+  ): Promise<{
+    success: boolean;
+    message: string;
+    school: {
+      id: string;
+      name: string;
+      weeklySchedule: Record<string, any>;
+    };
+    cancelledTripsCount: number;
+    updatedTripsCount: number;
+  }> {
+    return this.request(`/schools/${schoolId}/schedule`, {
+      method: 'PATCH',
+      body: JSON.stringify({ weeklySchedule }),
     });
   }
 
@@ -421,12 +535,63 @@ class ApiClient {
     schoolId: string,
     studentId: string,
     status: 'AVAILABLE' | 'DISABLED',
-  ): Promise<StudentListItem> {
-    return this.request<StudentListItem>(
+  ): Promise<UpdateStudentStatusResponse> {
+    return this.request<UpdateStudentStatusResponse>(
       `/schools/${schoolId}/students/${studentId}/status`,
       {
         method: 'PATCH',
         body: JSON.stringify({ status }),
+      },
+    );
+  }
+
+  async getStudentDisableImpact(
+    schoolId: string,
+    studentId: string,
+  ): Promise<StudentDisableImpactResponse> {
+    return this.request<StudentDisableImpactResponse>(
+      `/schools/${schoolId}/students/${studentId}/disable-impact`,
+      { method: 'GET' },
+    );
+  }
+
+  async getStudentInsertionOptions(
+    studentId: string,
+  ): Promise<StudentInsertionOptionsResponse> {
+    return this.request<StudentInsertionOptionsResponse>(
+      `/routes/students/${studentId}/insertion-options`,
+      { method: 'GET' },
+    );
+  }
+
+  async previewStudentInsertion(dto: {
+    studentId: string;
+    outboundRouteId: string;
+    returnRouteId: string;
+    routingConstraints?: {
+      maxRouteDurationMinutes?: number;
+      defaultStopServiceSeconds?: number;
+      stopServiceOverrides?: Array<{ studentId: string; serviceSeconds: number; direction?: string }>;
+    };
+  }): Promise<StudentInsertionPreviewResponse> {
+    return this.request<StudentInsertionPreviewResponse>(
+      '/routes/student-insertions/preview',
+      {
+        method: 'POST',
+        body: JSON.stringify(dto),
+      },
+    );
+  }
+
+  async confirmStudentInsertion(dto: {
+    previewToken: string;
+    expectedFingerprint?: string;
+  }): Promise<{ success: boolean; message: string; outboundRouteId?: string; returnRouteId?: string }> {
+    return this.request<{ success: boolean; message: string; outboundRouteId?: string; returnRouteId?: string }>(
+      '/routes/student-insertions/confirm',
+      {
+        method: 'POST',
+        body: JSON.stringify(dto),
       },
     );
   }
@@ -493,6 +658,16 @@ class ApiClient {
     return this.request<ParkingLot>('/system-settings/parking-lot', {
       method: 'GET',
     });
+  }
+
+  async getParkingLotImpact(
+    latitude: number,
+    longitude: number,
+  ): Promise<ParkingLotImpactResponse> {
+    return this.request<ParkingLotImpactResponse>(
+      `/system-settings/parking-lot/impact?latitude=${latitude}&longitude=${longitude}`,
+      { method: 'GET' },
+    );
   }
 
   async updateParkingLot(dto: UpdateParkingLotDto): Promise<ParkingLot> {
@@ -669,9 +844,44 @@ class ApiClient {
 
   async approveSystemAdminRequest(
     requestId: string,
+    body?: {
+      decision?: 'DIRECT_UPDATE' | 'REOPTIMIZED' | 'REMOVED_FROM_ROUTES';
+      resolutionOutcome?: 'DIRECT_UPDATE' | 'REOPTIMIZED' | 'REMOVED_FROM_ROUTES';
+      previewToken?: string;
+      expectedFingerprint?: string;
+      note?: string;
+    },
   ): Promise<StudentUpdateRequest> {
     return this.request<StudentUpdateRequest>(
       `/system-admin/update-requests/${requestId}/approve`,
+      {
+        method: 'POST',
+        body: body ? JSON.stringify(body) : undefined,
+      },
+    );
+  }
+
+  async getSystemRequestRoutingPreview(
+    requestId: string,
+    constraints?: {
+      maxRouteDurationMinutes?: number;
+      defaultStopServiceSeconds?: number;
+    },
+  ): Promise<SystemRequestRoutingPreviewResponse> {
+    return this.request<SystemRequestRoutingPreviewResponse>(
+      `/system-admin/update-requests/${requestId}/routing-preview`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ routingConstraints: constraints }),
+      },
+    );
+  }
+
+  async cancelParentUpdateRequest(
+    requestId: string,
+  ): Promise<{ message: string; id: string; status: string }> {
+    return this.request<{ message: string; id: string; status: string }>(
+      `/parents/update-requests/${requestId}/cancel`,
       { method: 'POST' },
     );
   }
@@ -687,6 +897,297 @@ class ApiClient {
         body: JSON.stringify(dto || {}),
       },
     );
+  }
+
+  // ==========================================
+  // Route Management & VRP Optimization APIs
+  // ==========================================
+
+  async getRoutePreparationData(schoolId: string): Promise<RoutePreparationData> {
+    return this.request<RoutePreparationData>(`/routes/preparation/${schoolId}`, {
+      method: 'GET',
+    });
+  }
+
+  async optimizeRoutePreview(dto: OptimizeRouteDto): Promise<RoutePreviewResponse> {
+    return this.request<RoutePreviewResponse>('/routes/optimize-preview', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    });
+  }
+
+  async cancelReturnRoute(
+    previewToken: string,
+    returnRouteIndex: number,
+  ): Promise<RoutePreviewResponse> {
+    return this.request<RoutePreviewResponse>('/routes/preview/cancel-return', {
+      method: 'POST',
+      body: JSON.stringify({ previewToken, returnRouteIndex }),
+    });
+  }
+
+  async confirmRoutePlan(dto: {
+    previewToken: string;
+    planName?: string;
+    name?: string;
+  }): Promise<RoutePlanItem> {
+    const payload = {
+      previewToken: dto.previewToken,
+      ...(dto.planName || dto.name ? { planName: dto.planName || dto.name } : {}),
+    };
+    return this.request<RoutePlanItem>('/routes/confirm-plan', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async listRoutePlans(params?: {
+    search?: string;
+    schoolId?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<RoutePlanListResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.search) searchParams.set('search', params.search.trim());
+    if (params?.schoolId) searchParams.set('schoolId', params.schoolId);
+    if (params?.status) searchParams.set('status', params.status);
+    if (params?.page) searchParams.set('page', String(params.page));
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    const query = searchParams.toString();
+    const endpoint = query ? `/routes/route-plans?${query}` : '/routes/route-plans';
+    return this.request<RoutePlanListResponse>(endpoint, { method: 'GET' });
+  }
+
+  async getRoutePlanDetail(id: string): Promise<RoutePlanItem> {
+    return this.request<RoutePlanItem>(`/routes/route-plans/${id}`, {
+      method: 'GET',
+    });
+  }
+
+  async getRoutePlanCancellationImpact(
+    id: string,
+  ): Promise<RoutePlanCancellationImpactResponse> {
+    return this.request<RoutePlanCancellationImpactResponse>(
+      `/routes/route-plans/${id}/cancellation-impact`,
+      { method: 'GET' },
+    );
+  }
+
+  async cancelRoutePlan(
+    id: string,
+    reason: string,
+    expectedFingerprint?: string,
+  ): Promise<{ message: string; cancelledTripsCount?: number }> {
+    return this.request<{ message: string; cancelledTripsCount?: number }>(
+      `/routes/route-plans/${id}/cancel`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ reason, expectedFingerprint }),
+      },
+    );
+  }
+
+  async listRoutes(params?: {
+    schoolId?: string;
+    direction?: string;
+    status?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<RouteListResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.schoolId) searchParams.set('schoolId', params.schoolId);
+    if (params?.direction) searchParams.set('direction', params.direction);
+    if (params?.status) searchParams.set('status', params.status);
+    if (params?.search && params.search.trim()) searchParams.set('search', params.search.trim());
+    if (params?.page) searchParams.set('page', String(params.page));
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    const query = searchParams.toString();
+    const endpoint = query ? `/routes?${query}` : '/routes';
+    return this.request<RouteListResponse>(endpoint, { method: 'GET' });
+  }
+
+  async getRouteDetail(id: string): Promise<RouteItem> {
+    return this.request<RouteItem>(`/routes/${id}`, { method: 'GET' });
+  }
+
+  async getStudentRoutingDetail(studentId: string): Promise<StudentRoutingDetail> {
+    return this.request<StudentRoutingDetail>(`/routes/students/${studentId}/routing`, {
+      method: 'GET',
+    });
+  }
+
+  // ==========================================
+  // RoutePlan Approval & Assignment Groups
+  // ==========================================
+
+  async getApprovalReadiness(planId: string): Promise<ApprovalReadinessResponse> {
+    return this.request<ApprovalReadinessResponse>(
+      `/routes/route-plans/${planId}/approval-readiness`,
+      { method: 'GET' },
+    );
+  }
+
+  async approveRoutePlan(
+    planId: string,
+  ): Promise<{ message: string; routePlan: RoutePlanItem }> {
+    return this.request<{ message: string; routePlan: RoutePlanItem }>(
+      `/routes/route-plans/${planId}/approve`,
+      { method: 'POST' },
+    );
+  }
+
+  async replaceVehicleGroup(
+    planId: string,
+    dto: AssignVehicleGroupRequest,
+  ): Promise<{ message: string; updatedRoutesCount: number }> {
+    return this.request<{ message: string; updatedRoutesCount: number }>(
+      `/routes/route-plans/${planId}/assignments/vehicle`,
+      { method: 'PATCH', body: JSON.stringify(dto) },
+    );
+  }
+
+  async assignDriverGroup(
+    planId: string,
+    dto: AssignDriverGroupRequest,
+  ): Promise<{ message: string; updatedRoutesCount: number }> {
+    return this.request<{ message: string; updatedRoutesCount: number }>(
+      `/routes/route-plans/${planId}/assignments/driver`,
+      { method: 'PATCH', body: JSON.stringify(dto) },
+    );
+  }
+
+  async assignBusAttendantGroup(
+    planId: string,
+    dto: AssignBusAttendantGroupRequest,
+  ): Promise<{ message: string; updatedRoutesCount: number }> {
+    return this.request<{ message: string; updatedRoutesCount: number }>(
+      `/routes/route-plans/${planId}/assignments/bus-attendant`,
+      { method: 'PATCH', body: JSON.stringify(dto) },
+    );
+  }
+
+  async getCandidateVehicles(
+    planId: string,
+    currentVehicleId?: string,
+  ): Promise<CandidateVehiclesResponse> {
+    const query = currentVehicleId ? `?currentVehicleId=${currentVehicleId}` : '';
+    return this.request<CandidateVehiclesResponse>(
+      `/routes/route-plans/${planId}/candidate-vehicles${query}`,
+      { method: 'GET' },
+    );
+  }
+
+  async getCandidateDrivers(planId: string): Promise<CandidateDriversResponse> {
+    return this.request<CandidateDriversResponse>(
+      `/routes/route-plans/${planId}/candidate-drivers`,
+      { method: 'GET' },
+    );
+  }
+
+  async getCandidateBusAttendants(planId: string): Promise<CandidateBusAttendantsResponse> {
+    return this.request<CandidateBusAttendantsResponse>(
+      `/routes/route-plans/${planId}/candidate-bus-attendants`,
+      { method: 'GET' },
+    );
+  }
+
+  // ==========================================
+  // Trips Management
+  // ==========================================
+
+  async listTrips(params?: {
+    schoolId?: string;
+    status?: string;
+    fromDate?: string;
+    toDate?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<TripListResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.schoolId) searchParams.set('schoolId', params.schoolId);
+    if (params?.status) searchParams.set('status', params.status);
+    if (params?.fromDate) searchParams.set('fromDate', params.fromDate);
+    if (params?.toDate) searchParams.set('toDate', params.toDate);
+    if (params?.page) searchParams.set('page', String(params.page));
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    const query = searchParams.toString();
+    const endpoint = query ? `/trips?${query}` : '/trips';
+    return this.request<TripListResponse>(endpoint, { method: 'GET', signal: AbortSignal.timeout(15000) });
+  }
+
+  async getTripDetail(tripId: string): Promise<TripDetail> {
+    return this.request<TripDetail>(`/trips/${tripId}`, { method: 'GET', signal: AbortSignal.timeout(15000) });
+  }
+
+  async generateTrips(dto: GenerateTripsRequest): Promise<GenerateTripsResponse> {
+    return this.request<GenerateTripsResponse>('/trips/generate', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    });
+  }
+
+  async updateTripAssignment(
+    tripId: string,
+    dto: UpdateTripAssignmentRequest,
+  ): Promise<{ message: string; trip: TripDetail }> {
+    return this.request<{ message: string; trip: TripDetail }>(
+      `/trips/${tripId}/assignment`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(dto),
+      },
+    );
+  }
+
+  async listLeaveNotices(params?: {
+    page?: number;
+    limit?: number;
+    kind?: string;
+    status?: string;
+    serviceDate?: string;
+    direction?: string;
+    search?: string;
+  }): Promise<LeaveNoticeListResponse> {
+    const sp = new URLSearchParams();
+    if (params?.page) sp.set('page', String(params.page));
+    if (params?.limit) sp.set('limit', String(params.limit));
+    if (params?.kind) sp.set('kind', params.kind);
+    if (params?.status) sp.set('status', params.status);
+    if (params?.serviceDate) sp.set('serviceDate', params.serviceDate);
+    if (params?.direction) sp.set('direction', params.direction);
+    if (params?.search) sp.set('search', params.search);
+    const qs = sp.toString() ? `?${sp.toString()}` : '';
+    return this.request<LeaveNoticeListResponse>(`/leave-notices${qs}`);
+  }
+
+  async getLeaveNoticeDetail(id: string): Promise<LeaveNoticeItem> {
+    return this.request<LeaveNoticeItem>(`/leave-notices/${id}`);
+  }
+
+  async getReplacementCandidates(noticeId: string): Promise<ReplacementCandidatesResponse> {
+    return this.request<ReplacementCandidatesResponse>(`/leave-notices/${noticeId}/replacement-candidates`);
+  }
+
+  async assignReplacement(
+    noticeId: string,
+    dto: AssignReplacementDto,
+  ): Promise<LeaveNoticeItem> {
+    return this.request<LeaveNoticeItem>(`/leave-notices/${noticeId}/assign-replacement`, {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    });
+  }
+
+  async cancelTripFromNotice(
+    noticeId: string,
+    dto: CancelTripFromNoticeDto,
+  ): Promise<LeaveNoticeItem> {
+    return this.request<LeaveNoticeItem>(`/leave-notices/${noticeId}/cancel-trip`, {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    });
   }
 }
 

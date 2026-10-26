@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
-import type { StudentUpdateRequestDetail, UserRole } from '@/lib/types';
+import type { StudentUpdateRequestDetail, UserRole, SystemRequestRoutingPreviewResponse } from '@/lib/types';
 import {
   SpinnerIcon,
   AlertIcon,
@@ -11,6 +11,7 @@ import {
   StudentIcon,
   PhoneIcon,
   CloseIcon,
+  RouteIcon,
 } from '@/components/icons';
 
 interface RequestDetailModalProps {
@@ -43,6 +44,14 @@ export function RequestDetailModal({
   const [rejectReason, setRejectReason] = useState('');
   const [isSubmittingReject, setIsSubmittingReject] = useState(false);
 
+  // Routing Preview state (for SYSTEM_ADMIN on ADDRESS_UPDATE)
+  const [routingPreview, setRoutingPreview] = useState<SystemRequestRoutingPreviewResponse | null>(null);
+  const [isLoadingRoutingPreview, setIsLoadingRoutingPreview] = useState(false);
+  const [routingError, setRoutingError] = useState<string | null>(null);
+  const [maxRouteDurationMinutes, setMaxRouteDurationMinutes] = useState(90);
+  const [defaultStopServiceSeconds, setDefaultStopServiceSeconds] = useState(60);
+  const [selectedOutcome, setSelectedOutcome] = useState<'DIRECT_UPDATE' | 'REOPTIMIZED' | 'REMOVED_FROM_ROUTES'>('DIRECT_UPDATE');
+
   // Load detail
   useEffect(() => {
     if (!isOpen || !requestId) {
@@ -51,6 +60,8 @@ export function RequestDetailModal({
       setIsConfirmingApprove(false);
       setIsConfirmingReject(false);
       setRejectReason('');
+      setRoutingPreview(null);
+      setRoutingError(null);
       return;
     }
 
@@ -90,13 +101,44 @@ export function RequestDetailModal({
 
   if (!isOpen) return null;
 
-  const handleApprove = async () => {
+  const handleCheckRouting = async () => {
+    if (!detail) return;
+    setIsLoadingRoutingPreview(true);
+    setRoutingError(null);
+    try {
+      const res = await apiClient.getSystemRequestRoutingPreview(detail.id, {
+        maxRouteDurationMinutes,
+        defaultStopServiceSeconds,
+      });
+      setRoutingPreview(res);
+      if (res.overallFeasibility === 'FEASIBLE') {
+        setSelectedOutcome('REOPTIMIZED');
+      } else if (res.overallFeasibility === 'INFEASIBLE') {
+        setSelectedOutcome('REMOVED_FROM_ROUTES');
+      } else if (res.routes.length === 0) {
+        setSelectedOutcome('DIRECT_UPDATE');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Không thể kiểm tra định tuyến';
+      setRoutingError(msg);
+    } finally {
+      setIsLoadingRoutingPreview(false);
+    }
+  };
+
+  const handleApprove = async (outcomeOverride?: 'DIRECT_UPDATE' | 'REOPTIMIZED' | 'REMOVED_FROM_ROUTES') => {
     if (!detail) return;
     try {
       setIsSubmittingApprove(true);
       setError(null);
+      const outcome = outcomeOverride || selectedOutcome;
       if (role === 'SYSTEM_ADMIN') {
-        await apiClient.approveSystemAdminRequest(detail.id);
+        await apiClient.approveSystemAdminRequest(detail.id, {
+          decision: outcome,
+          resolutionOutcome: outcome,
+          previewToken: routingPreview?.previewToken || undefined,
+          expectedFingerprint: routingPreview?.expectedFingerprint || undefined,
+        });
       } else if (schoolId) {
         await apiClient.approveSchoolRequest(schoolId, detail.id);
       }
@@ -166,6 +208,12 @@ export function RequestDetailModal({
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
             Đã từ chối
+          </span>
+        );
+      case 'CANCELLED':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300">
+            Phụ huynh đã hủy
           </span>
         );
       default:
@@ -395,6 +443,152 @@ export function RequestDetailModal({
                     )}
                   </div>
                 )}
+
+                {/* Display existing resolution if already resolved */}
+                {detail.resolution && (
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
+                    <span className="font-semibold text-slate-700">Kết quả xử lý phân tuyến: </span>
+                    <span className="font-bold text-slate-900">
+                      {detail.resolution.outcome === 'DIRECT_UPDATE'
+                        ? 'Cập nhật trực tiếp địa chỉ học sinh (chưa phân tuyến)'
+                        : detail.resolution.outcome === 'REOPTIMIZED'
+                        ? 'Đã tối ưu và cập nhật vào tuyến xe mới'
+                        : detail.resolution.outcome === 'REMOVED_FROM_ROUTES'
+                        ? 'Đã cập nhật địa chỉ và loại học sinh khỏi các tuyến'
+                        : detail.resolution.outcome}
+                    </span>
+                  </div>
+                )}
+
+                {/* Routing Feasibility Check (System Admin on ADDRESS_UPDATE) */}
+                {role === 'SYSTEM_ADMIN' && detail.type === 'ADDRESS_UPDATE' && detail.status === 'PENDING' && (
+                  <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/40 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <RouteIcon className="w-4 h-4 text-amber-600" />
+                        <span className="font-bold text-xs text-slate-800">
+                          Kiểm tra tác động phân tuyến
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={isLoadingRoutingPreview}
+                        onClick={handleCheckRouting}
+                        className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      >
+                        {isLoadingRoutingPreview && <SpinnerIcon className="w-3.5 h-3.5 animate-spin" />}
+                        <span>{routingPreview ? 'Kiểm tra lại' : 'Kiểm tra tuyến'}</span>
+                      </button>
+                    </div>
+
+                    {/* Hai tiêu chí tối ưu đúng nghiệp vụ */}
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <label className="block text-[11px] text-slate-700 font-semibold mb-1">
+                          Thời gian tối đa tuyến (phút)
+                        </label>
+                        <input
+                          type="number"
+                          min={10}
+                          max={180}
+                          value={maxRouteDurationMinutes}
+                          onChange={(e) => {
+                            setMaxRouteDurationMinutes(Number(e.target.value) || 10);
+                            setRoutingPreview(null);
+                            setRoutingError(null);
+                          }}
+                          className="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg bg-white"
+                        />
+                        <span className="text-[10px] text-slate-500">Giới hạn tổng di chuyển & dừng</span>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] text-slate-700 font-semibold mb-1">
+                          Thời gian dừng tại điểm (giây)
+                        </label>
+                        <input
+                          type="number"
+                          min={10}
+                          max={300}
+                          value={defaultStopServiceSeconds}
+                          onChange={(e) => {
+                            setDefaultStopServiceSeconds(Number(e.target.value) || 60);
+                            setRoutingPreview(null);
+                            setRoutingError(null);
+                          }}
+                          className="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg bg-white"
+                        />
+                        <span className="text-[10px] text-slate-500">Thời gian phục vụ đón/trả</span>
+                      </div>
+                    </div>
+
+                    {routingError && (
+                      <div className="p-2 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700">
+                        {routingError}
+                      </div>
+                    )}
+
+                    {/* Routing Check Result */}
+                    {routingPreview && (
+                      <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2.5 text-xs">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                          <span className="font-semibold text-slate-700">Tình trạng kiểm tra:</span>
+                          {routingPreview.overallFeasibility === 'FEASIBLE' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <CheckIcon className="w-3 h-3" /> Khả thi trên mọi tuyến
+                            </span>
+                          ) : routingPreview.overallFeasibility === 'INFEASIBLE' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                              <AlertIcon className="w-3 h-3" /> Không khả thi trên ít nhất 1 tuyến
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              <AlertIcon className="w-3 h-3" /> Dịch vụ định tuyến tạm gián đoạn
+                            </span>
+                          )}
+                        </div>
+
+                        {routingPreview.routes.length === 0 ? (
+                          <p className="text-slate-500 italic">
+                            Học sinh chưa tham gia tuyến DRAFT/ACTIVE nào. Có thể duyệt cập nhật hồ sơ trực tiếp.
+                          </p>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <p className="font-medium text-slate-700">Các tuyến liên quan:</p>
+                            {routingPreview.routes.map((rt) => (
+                              <div
+                                key={rt.routeId}
+                                className={`p-2 rounded-lg border flex items-center justify-between text-xs ${
+                                  rt.feasibility === 'FEASIBLE'
+                                    ? 'bg-emerald-50/40 border-emerald-200 text-emerald-900'
+                                    : 'bg-rose-50/40 border-rose-200 text-rose-900'
+                                }`}
+                              >
+                                <div>
+                                  <span className="font-bold">{rt.routeName}</span> ({rt.direction === 'TO_SCHOOL' ? 'Đến trường' : 'Về nhà'})
+                                  {rt.newPlannedArrivalTime && (
+                                    <span className="block text-[11px] text-slate-600">
+                                      Giờ dự kiến mới: {rt.newPlannedArrivalTime}
+                                    </span>
+                                  )}
+                                  {rt.infeasibilityReason && (
+                                    <span className="block text-[11px] text-rose-700 font-medium">
+                                      Lý do: {rt.infeasibilityReason}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="font-semibold">{rt.feasibility}</span>
+                              </div>
+                            ))}
+
+                            <div className="text-[11px] text-slate-500 pt-1">
+                              {routingPreview.affectedScheduledTripsCount} chuyến SCHEDULED sẽ cập nhật • {routingPreview.preservedTripsCount} chuyến đang chạy giữ nguyên dữ liệu cũ.
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Rejection Form Input */}
@@ -447,7 +641,9 @@ export function RequestDetailModal({
               {isConfirmingApprove && (
                 <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-emerald-900 text-xs">Xác nhận phê duyệt</span>
+                    <span className="font-bold text-emerald-900 text-xs">
+                      Xác nhận phê duyệt ({selectedOutcome === 'REOPTIMIZED' ? 'Cập nhật tuyến mới' : selectedOutcome === 'REMOVED_FROM_ROUTES' ? 'Loại khỏi tuyến' : 'Cập nhật trực tiếp'})
+                    </span>
                     <button
                       type="button"
                       onClick={() => setIsConfirmingApprove(false)}
@@ -457,8 +653,11 @@ export function RequestDetailModal({
                     </button>
                   </div>
                   <p className="text-xs text-emerald-800">
-                    Bạn có chắc chắn muốn phê duyệt yêu cầu này? Dữ liệu của học sinh{' '}
-                    <strong>{detail.studentName}</strong> sẽ được cập nhật trực tiếp trên hệ thống.
+                    {selectedOutcome === 'REOPTIMIZED'
+                      ? `Phê duyệt và áp dụng tuyến mới cho học sinh ${detail.studentName}. Các chuyến xe SCHEDULED chưa điểm danh sẽ được cập nhật.`
+                      : selectedOutcome === 'REMOVED_FROM_ROUTES'
+                      ? `Phê duyệt cập nhật địa chỉ và loại học sinh ${detail.studentName} khỏi mọi tuyến DRAFT/ACTIVE hiện tại.`
+                      : `Dữ liệu của học sinh ${detail.studentName} sẽ được cập nhật trực tiếp trên hệ thống.`}
                   </p>
                   <div className="flex justify-end gap-2">
                     <button
@@ -471,11 +670,11 @@ export function RequestDetailModal({
                     <button
                       type="button"
                       disabled={isSubmittingApprove}
-                      onClick={handleApprove}
+                      onClick={() => handleApprove()}
                       className="px-4 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
                     >
                       {isSubmittingApprove && <SpinnerIcon className="w-3.5 h-3.5 animate-spin" />}
-                      Xác nhận phê duyệt
+                      Xác nhận
                     </button>
                   </div>
                 </div>
@@ -504,24 +703,76 @@ export function RequestDetailModal({
                 Từ chối
               </button>
 
-              <button
-                type="button"
-                disabled={detail.isStale}
-                onClick={() => setIsConfirmingApprove(true)}
-                className={`px-4 py-2 text-xs font-semibold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer ${
-                  detail.isStale
-                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
-                    : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs'
-                }`}
-                title={
-                  detail.isStale
-                    ? 'Không thể duyệt yêu cầu lỗi thời do dữ liệu học sinh đã thay đổi'
-                    : 'Phê duyệt yêu cầu'
-                }
-              >
-                <CheckIcon className="w-4 h-4" />
-                Phê duyệt
-              </button>
+              {/* Phê duyệt theo ngữ cảnh: System Admin có tuyến vs không có tuyến */}
+              {role === 'SYSTEM_ADMIN' && detail.type === 'ADDRESS_UPDATE' ? (
+                !routingPreview ? (
+                  <button
+                    type="button"
+                    disabled={isLoadingRoutingPreview}
+                    onClick={handleCheckRouting}
+                    className="px-4 py-2 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    {isLoadingRoutingPreview && <SpinnerIcon className="w-3.5 h-3.5 animate-spin" />}
+                    <span>Kiểm tra tuyến</span>
+                  </button>
+                ) : routingPreview.overallFeasibility === 'FEASIBLE' ? (
+                  <button
+                    type="button"
+                    disabled={detail.isStale}
+                    onClick={() => {
+                      setSelectedOutcome('REOPTIMIZED');
+                      setIsConfirmingApprove(true);
+                    }}
+                    className="px-4 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <CheckIcon className="w-4 h-4" />
+                    <span>Xác nhận tuyến mới</span>
+                  </button>
+                ) : routingPreview.overallFeasibility === 'INFEASIBLE' ? (
+                  <button
+                    type="button"
+                    disabled={detail.isStale}
+                    onClick={() => {
+                      setSelectedOutcome('REMOVED_FROM_ROUTES');
+                      setIsConfirmingApprove(true);
+                    }}
+                    className="px-4 py-2 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <AlertIcon className="w-4 h-4" />
+                    <span>Duyệt & Loại khỏi tuyến</span>
+                  </button>
+                ) : routingPreview.routes.length === 0 ? (
+                  <button
+                    type="button"
+                    disabled={detail.isStale}
+                    onClick={() => {
+                      setSelectedOutcome('DIRECT_UPDATE');
+                      setIsConfirmingApprove(true);
+                    }}
+                    className="px-4 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <CheckIcon className="w-4 h-4" />
+                    <span>Duyệt trực tiếp</span>
+                  </button>
+                ) : null
+              ) : (
+                <button
+                  type="button"
+                  disabled={detail.isStale}
+                  onClick={() => {
+                    setSelectedOutcome('DIRECT_UPDATE');
+                    setIsConfirmingApprove(true);
+                  }}
+                  className={`px-4 py-2 text-xs font-semibold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer ${
+                    detail.isStale
+                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
+                      : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs'
+                  }`}
+                >
+                  <CheckIcon className="w-4 h-4" />
+                  Phê duyệt
+                </button>
+              )}
             </div>
           )}
         </div>

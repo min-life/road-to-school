@@ -25,7 +25,7 @@ export class ListSchoolEmployeesQueryDto {
   page?: number = 1;
 
   @ApiPropertyOptional({
-    description: 'Số lượng nhân viên trên mỗi trang (1-50)',
+    description: 'Số lượng nhân viên trên mỗi trang (1-100)',
     example: 10,
     default: 10,
   })
@@ -33,7 +33,7 @@ export class ListSchoolEmployeesQueryDto {
   @Type(() => Number)
   @IsInt({ message: 'Số lượng mỗi trang phải là số nguyên' })
   @Min(1, { message: 'Số lượng mỗi trang tối thiểu là 1' })
-  @Max(50, { message: 'Số lượng mỗi trang tối đa là 50' })
+  @Max(100, { message: 'Số lượng mỗi trang tối đa là 100' })
   limit?: number = 10;
 
   @ApiPropertyOptional({

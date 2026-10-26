@@ -4,3 +4,4 @@ export * from './review-request.dto.js';
 export * from './update-address.dto.js';
 export * from './list-requests.dto.js';
 export * from './request-response.dto.js';
+export * from './routing-preview.dto.js';

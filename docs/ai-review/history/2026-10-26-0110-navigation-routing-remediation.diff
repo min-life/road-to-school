@@ -1,0 +1,301 @@
+diff --git a/api/src/trips/trip-navigation.service.ts b/api/src/trips/trip-navigation.service.ts
+--- a/api/src/trips/trip-navigation.service.ts
++++ b/api/src/trips/trip-navigation.service.ts
+@@ -104,8 +104,15 @@ export class TripNavigationService {
+       const first = trip.route.stops[0];
+       const initial = first && ['PARKING_START', 'SCHOOL_DEPARTURE'].includes(first.stopType)
+         ? trip.route.stops.find((stop, index) => index > 0 && metresBetween(first, stop) > 1) ?? first : first;
+-      const preserve = dto.action === 'SWITCH' && previous?.routeVersion === version && !!previous?.targetStopId;
+-      const targetStopId = preserve ? previous.targetStopId : initial?.id ?? null;
++      const hasValidPrevious = previous !== null && previous.routeVersion === version;
++      let targetStopId: string | null;
++      if (dto.action === 'RESUME' || dto.action === 'SWITCH' || dto.action === 'STOP') {
++        targetStopId = hasValidPrevious ? previous.targetStopId : (initial?.id ?? null);
++      } else if (dto.action === 'START') {
++        targetStopId = (hasValidPrevious && previous.targetStopId !== undefined) ? previous.targetStopId : (initial?.id ?? null);
++      } else {
++        targetStopId = initial?.id ?? null;
++      }
+       if (targetStopId && !trip.route.stops.some(s => s.id === targetStopId)) throw new ConflictException('Điểm tiếp theo không hợp lệ');
+       if (!trip.route.stops.length && dto.action !== 'STOP') throw new ConflictException('Không có điểm điều hướng');
+-      const lastRouteRequestedAt = dto.action === 'START' || dto.action === 'SWITCH' ? 0 : previous?.lastRouteRequestedAt ?? 0;
++      const lastRouteRequestedAt = dto.action === 'START' && !hasValidPrevious ? 0 : previous?.lastRouteRequestedAt ?? 0;
+       await this.save(tx, id, { version: 1, ownerSessionId: sid, runId: randomUUID(), enabled: dto.action !== 'STOP',
+diff --git a/api/src/trips/trip-navigation.spec.ts b/api/src/trips/trip-navigation.spec.ts
+--- a/api/src/trips/trip-navigation.spec.ts
++++ b/api/src/trips/trip-navigation.spec.ts
+@@ -86,6 +86,21 @@ describe('TripNavigationService', () => {
+     expect(result.checkpoint?.runId).not.toBe('run'); expect(result.checkpoint?.targetStopId).toBe('B');
+     expect(db.tripLocationPoint.create).not.toHaveBeenCalled();
+   });
++  it('RESUME preserves finished null targetStopId and does not reset to initial', async () => {
++    trip.navigationState = { ...checkpoint(), targetStopId: null };
++    const result = await service.session('trip', { action: 'RESUME', expectedRunId: 'run' }, driver, 'sid');
++    expect(result.checkpoint?.targetStopId).toBeNull();
++  });
++  it('STOP preserves targetStopId while setting enabled to false', async () => {
++    trip.navigationState = { ...checkpoint(), targetStopId: 'C' };
++    const result = await service.session('trip', { action: 'STOP', expectedRunId: 'run' }, driver, 'sid');
++    expect(result.checkpoint?.enabled).toBe(false);
++    expect(result.checkpoint?.targetStopId).toBe('C');
++  });
++  it('re-START on existing valid checkpoint preserves current targetStopId', async () => {
++    trip.navigationState = { ...checkpoint(), targetStopId: 'C' };
++    const result = await service.session('trip', { action: 'START', source: 'TEST_AUTO', expectedRunId: 'run' }, driver, 'sid');
++    expect(result.checkpoint?.targetStopId).toBe('C');
++  });
+   it('SWITCH invalidates old run; rejects stale CAS and wrong session', async () => {
+diff --git a/mobile/hooks/use-trip-navigation.ts b/mobile/hooks/use-trip-navigation.ts
+--- a/mobile/hooks/use-trip-navigation.ts
++++ b/mobile/hooks/use-trip-navigation.ts
+@@ -46,7 +46,16 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
+   const control = useRef({ bearing: 0, speed: 0, pressStartedAt: 0, pendingDuration: 0, pendingBearing: 0 });
+ 
++  // Dedicated monotonic request IDs to guarantee request ownership without stuck busy flags
++  const activeRouteId = useRef(0);
++  const activePublishId = useRef(0);
++  const activeActionId = useRef(0);
++
+   const suspend = useCallback(() => {
+     generation.current++;
++    activeRouteId.current++;
++    activePublishId.current++;
++    activeActionId.current++;
+     watcher.current?.remove(); watcher.current = null;
+@@ -74,7 +83,8 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
+     routeAt.current = Date.now();
+     routeBusy.current = true;
++    const reqId = ++activeRouteId.current;
+     setView(v => ({ ...v, message: action === 'CURRENT' && v.segment.length ? 'Đang cập nhật chỉ dẫn' : 'Đang tải tuyến đường' }));
+     try {
+       const result = await navigationApi.segment(tripId, state, position, action);
+-      if (token !== generation.current) return;
++      if (token !== generation.current || reqId !== activeRouteId.current) return;
+@@ -100,7 +110,7 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
+       }));
+     } catch (error) {
+-      if (token !== generation.current) return;
++      if (token !== generation.current || reqId !== activeRouteId.current) return;
+       const retry = (error as { retryAfterMs?: number })?.retryAfterMs;
+@@ -118,7 +128,9 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
+       }
+     } finally {
+-      if (token === generation.current) routeBusy.current = false;
++      if (reqId === activeRouteId.current) {
++        routeBusy.current = false;
++      }
+     }
+   }
+@@ -328,6 +340,18 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
++    // Automatic resume: ONLY resume active movement if the user previously had an active session remembered in SecureStore
++    if (userId) {
++      try {
++        const rememberedTripId = await navigationResumeStorage.get(userId);
++        if (rememberedTripId !== tripId) {
++          // Trip was only prepared or stopped; do not auto-start movement loop
++          return;
++        }
++      } catch {
++        return;
++      }
++    }
++
+     const actId = ++activeActionId.current;
+     busy.current = true;
+@@ -361,10 +385,25 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
+-  async function prepare() {
+-    if (busy.current || !remote.current?.canPublish || !foreground.current) return;
++  async function prepare(freshState?: NavigationState) {
++    if (!foreground.current) return;
++    const actId = ++activeActionId.current;
++    busy.current = true;
+     const token = generation.current;
+     try {
++      let state = freshState ?? remote.current;
++      if (!state?.canPublish) {
++        try {
++          state = await navigationApi.state(tripId);
++          remote.current = state;
++        } catch {
++          // State fetch failed
++        }
++      }
++      if (!state?.canPublish) {
++        if (token === generation.current && actId === activeActionId.current) {
++          setView(v => ({ ...v, message: 'Chưa thể khởi tạo điều hướng' }));
++        }
++        return;
++      }
+       const origin = stopsRef.current[0];
+@@ -439,6 +478,16 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
+-    suspend();
++    if (!isSwitchingTest) {
++      suspend();
++    } else {
++      generation.current++;
++      activeRouteId.current++; // Invalidate any inflight route from the previous mode
++      routeBusy.current = false; // Release routeBusy so new mode can route immediately
++      if (timer.current) clearInterval(timer.current);
++      timer.current = null;
++      control.current = { bearing: 0, speed: 0, pressStartedAt: 0, pendingDuration: 0, pendingBearing: 0 };
++    }
++    const currentLocalPos: Coordinate = sample.current ? coordinate(sample.current) : (view.position ?? coordinate(stopsRef.current[0]));
+     const token = generation.current;
+@@ -459,6 +508,24 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
+         if (userId) void navigationResumeStorage.remember(userId, tripId).catch(() => {});
++
++        // Mode switch geometry reuse validation:
++        if (isSwitchingTest && leg.current) {
++          const sameTarget = leg.current.targetStopId === result.checkpoint?.targetStopId;
++          const sameVersion = leg.current.routeVersion === result.checkpoint?.routeVersion;
++          if (sameTarget && sameVersion) {
++            const proj = projectProgress(leg.current.coords, leg.current.cumulative, currentLocalPos, leg.current.progress);
++            if (proj.gap <= 40) {
++              // On-route: synchronize travelled with progress
++              leg.current.progress = proj.progress;
++              leg.current.travelled = proj.progress;
++            } else {
++              // Off-route: invalidate old geometry so activate requests a fresh route from current position
++              leg.current = null;
++            }
++          } else {
++            leg.current = null;
++          }
++        }
+diff --git a/mobile/components/trip-navigation-controls.tsx b/mobile/components/trip-navigation-controls.tsx
+--- a/mobile/components/trip-navigation-controls.tsx
++++ b/mobile/components/trip-navigation-controls.tsx
+@@ -25,3 +25,3 @@ export function TripNavigationControls(p: Props) {
+     {!p.historyLabel && <Text style={styles.small}>
+-      {p.hasLocalPosition ? (p.mode === 'LIVE' ? 'GPS trực tiếp' : 'Vị trí xe')
++      {p.hasLocalPosition ? (p.mode === 'LIVE' ? 'GPS trực tiếp' : (p.mode ? 'Vị trí xe' : 'Sẵn sàng điều hướng'))
+         : (p.freshness === 'NONE' ? 'Chưa có vị trí' : p.freshness === 'STALE' ? 'Mất cập nhật' : 'Vị trí xe')}
+diff --git a/mobile/app/trip/[id].tsx b/mobile/app/trip/[id].tsx
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -396,3 +396,6 @@ export default function MobileTripDetailScreen() {
+   const terminal = operationalState?.status === 'COMPLETED' || operationalState?.status === 'CANCELLED';
+-  const hidePlanned = (!terminal && ((engine.traveled.length > 0) || (engine.remaining.length > 0) || (engine.segment.length > 0)) && !showPlanned)
++  const isDriverActiveNavigation = isDriver && !terminal && operationalState?.status === 'IN_PROGRESS';
++  const hidePlanned = isDriverActiveNavigation
++    ? !showPlanned
+     : (terminal && !!history?.length && !showPlanned);
+@@ -449,2 +452,19 @@ export default function MobileTripDetailScreen() {
+           setConfirmModal(null);
++          if (isDriver) {
++            try {
++              const freshNav = await navigationApi.state(tripId);
++              setNavigation(freshNav);
++              if (freshNav.testMode) {
++                void engine.prepare(freshNav);
++              } else {
++                void engine.change('LIVE');
++              }
++            } catch {
++              if (navigation?.testMode) {
++                void engine.prepare();
++              } else {
++                void engine.change('LIVE');
++              }
++            }
++          }
+diff --git a/mobile/scripts/trip-navigation.test.ts b/mobile/scripts/trip-navigation.test.ts
+--- a/mobile/scripts/trip-navigation.test.ts
++++ b/mobile/scripts/trip-navigation.test.ts
+@@ -196,0 +197,97 @@ describe('Two-tone progress geometry split (splitSegment)', () => {
++describe('Request ownership and lifecycle coordination', () => {
++  it('superseded request does not clear busy flag of a newer active request', () => {
++    let activeRouteId = 0;
++    let routeBusy = false;
++
++    // Request 1 starts
++    const req1 = ++activeRouteId;
++    routeBusy = true;
++
++    // Mode switch or new request supersedes request 1
++    const req2 = ++activeRouteId;
++    routeBusy = true;
++
++    // Request 1 finishes late in finally:
++    if (req1 === activeRouteId) {
++      routeBusy = false;
++    }
++    assert.equal(routeBusy, true, 'Request 1 must NOT clear routeBusy because Request 2 owns it');
++
++    // Request 2 finishes in finally:
++    if (req2 === activeRouteId) {
++      routeBusy = false;
++    }
++    assert.equal(routeBusy, false, 'Request 2 releases routeBusy because it is the current owner');
++  });
++
++  it('Manual to Auto preserves progress when on-route and avoids resetting travelled to 0', () => {
++    const coords: [number, number][] = [[10.770, 106.700], [10.771, 106.700], [10.772, 106.700]];
++    const cumulative = cumulativeDistances(coords);
++    const leg = { coords, cumulative, progress: 0, travelled: 0, targetStopId: 'stop-1', routeVersion: 'v1' };
++
++    // Driver steers with joystick to halfway point
++    const currentPos: [number, number] = [10.7705, 106.700];
++    const proj = projectProgress(leg.coords, leg.cumulative, currentPos, leg.progress);
++    assert.ok(proj.gap <= 40, 'Vehicle is within on-route threshold');
++
++    // accept() updates both progress and travelled
++    leg.progress = proj.progress;
++    leg.travelled = proj.progress;
++    assert.ok(leg.travelled > 50, 'Travelled must advance with manual driving');
++
++    // When driver switches to Auto:
++    const checkpointResult = { targetStopId: 'stop-1', routeVersion: 'v1' };
++    const sameTarget = leg.targetStopId === checkpointResult.targetStopId;
++    const sameVersion = leg.routeVersion === checkpointResult.routeVersion;
++    assert.ok(sameTarget && sameVersion, 'Route target and version match');
++
++    // Recheck projection at current position
++    const switchProj = projectProgress(leg.coords, leg.cumulative, currentPos, leg.progress);
++    if (switchProj.gap <= 40) {
++      leg.progress = switchProj.progress;
++      leg.travelled = switchProj.progress;
++    }
++    assert.equal(leg.travelled, leg.progress, 'Auto travelled must start from manual progress, not 0');
++  });
++
++  it('Manual to Auto off-route invalidates old geometry to prevent snap-teleport', () => {
++    const coords: [number, number][] = [[10.770, 106.700], [10.771, 106.700], [10.772, 106.700]];
++    const cumulative = cumulativeDistances(coords);
++    let leg: any = { coords, cumulative, progress: 50, travelled: 50, targetStopId: 'stop-1', routeVersion: 'v1' };
++
++    // Driver drove off-route by 100 meters
++    const offroutePos: [number, number] = [10.7705, 106.705];
++    const proj = projectProgress(leg.coords, leg.cumulative, offroutePos, leg.progress);
++    assert.ok(proj.gap > 40, 'Vehicle is off-route');
++
++    if (proj.gap > 40) {
++      leg = null; // Invalidate geometry, require fresh route from current position
++    }
++    assert.equal(leg, null, 'Off-route vehicle must not reuse old geometry');
++  });
++
++  it('Planned line visibility: hidden for Driver in active trip, visible for Observer', () => {
++    const isDriver = true;
++    const terminal = false;
++    const status = 'IN_PROGRESS';
++    let showPlanned = false;
++
++    // Driver view
++    const isDriverActiveNavigation = isDriver && !terminal && status === 'IN_PROGRESS';
++    let hidePlanned = isDriverActiveNavigation ? !showPlanned : (terminal && !showPlanned);
++    assert.equal(hidePlanned, true, 'Planned line must be hidden for Driver in active navigation by default');
++
++    // Driver toggles Tham chiếu
++    showPlanned = true;
++    hidePlanned = isDriverActiveNavigation ? !showPlanned : (terminal && !showPlanned);
++    assert.equal(hidePlanned, false, 'Planned line must show for Driver when Tham chiếu is toggled on');
++
++    // Observer view (Parent / Admin: isDriver === false)
++    const isObserver = false;
++    const isObserverActiveNavigation = isObserver && !terminal && status === 'IN_PROGRESS';
++    showPlanned = false;
++    const observerHidePlanned = isObserverActiveNavigation ? !showPlanned : (terminal && !showPlanned);
++    assert.equal(observerHidePlanned, false, 'Planned line must NOT be hidden for Observer during active trip');
++  });
++});

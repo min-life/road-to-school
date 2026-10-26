@@ -3,6 +3,7 @@ import {
   Get,
   Put,
   Body,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -12,6 +13,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { SystemSettingsService } from './system-settings.service.js';
 import { AuthGuard } from '../auth/auth.guard.js';
@@ -22,6 +24,7 @@ import { Role, type User } from '@prisma/client';
 import {
   UpdateParkingLotDto,
   ParkingLotResponseDto,
+  ParkingLotImpactDto,
 } from './dto/parking-lot.dto.js';
 
 @ApiTags('System Settings')
@@ -43,6 +46,31 @@ export class SystemSettingsController {
   })
   async getParkingLot(): Promise<ParkingLotResponseDto | null> {
     return this.settingsService.getParkingLot();
+  }
+
+  @Get('parking-lot/impact')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(Role.SYSTEM_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Đánh giá tác động trước khi thay đổi vị trí bãi đỗ xe trung tâm (Chỉ SYSTEM_ADMIN)',
+    description:
+      'Trả về số lượng phương án tuyến DRAFT/ACTIVE và chuyến xe SCHEDULED toàn hệ thống sẽ bị hủy nếu vị trí bãi xe thay đổi.',
+  })
+  @ApiQuery({ name: 'latitude', required: false, description: 'Vĩ độ mới dự kiến' })
+  @ApiQuery({ name: 'longitude', required: false, description: 'Kinh độ mới dự kiến' })
+  @ApiResponse({
+    status: 200,
+    description: 'Đánh giá tác động thành công',
+    type: ParkingLotImpactDto,
+  })
+  async getParkingLotImpact(
+    @Query('latitude') latitude?: string,
+    @Query('longitude') longitude?: string,
+  ): Promise<ParkingLotImpactDto> {
+    const lat = latitude !== undefined && latitude !== '' ? parseFloat(latitude) : undefined;
+    const lng = longitude !== undefined && longitude !== '' ? parseFloat(longitude) : undefined;
+    return this.settingsService.getParkingLotImpact(lat, lng);
   }
 
   @Put('parking-lot')

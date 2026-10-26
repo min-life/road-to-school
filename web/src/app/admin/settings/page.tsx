@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { authStorage } from '@/lib/auth-storage';
 import { apiClient, ApiError } from '@/lib/api-client';
-import { ParkingLot } from '@/lib/types';
+import { ParkingLot, ParkingLotImpactResponse } from '@/lib/types';
 import { vietmapService, VietmapSuggestion } from '@/lib/vietmap';
 import {
   LogoutIcon,
@@ -61,6 +61,13 @@ export default function AdminSettingsPage() {
   const [parkingSuccessMsg, setParkingSuccessMsg] = useState<string | null>(null);
   const [parkingErrorMsg, setParkingErrorMsg] = useState<string | null>(null);
   const parkingSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Parking relocation impact modal state
+  const [parkingImpact, setParkingImpact] = useState<ParkingLotImpactResponse | null>(null);
+  const [isParkingImpactModalOpen, setIsParkingImpactModalOpen] = useState(false);
+  const [parkingRelocateReason, setParkingRelocateReason] = useState('');
+  const [parkingRelocateReasonError, setParkingRelocateReasonError] = useState<string | null>(null);
+  const [isConfirmingRelocation, setIsConfirmingRelocation] = useState(false);
 
   // Tải dữ liệu bãi đỗ xe nếu là SYSTEM_ADMIN
   const fetchParkingLot = useCallback(async () => {
@@ -254,17 +261,88 @@ export default function AdminSettingsPage() {
 
     setIsSavingParkingLot(true);
     try {
-      const updated = await apiClient.updateParkingLot({
-        addressText: parkingAddress.trim(),
-        latitude: parkingLat,
-        longitude: parkingLng,
-      });
-      setParkingLot(updated);
-      setParkingSuccessMsg('Cập nhật vị trí bãi xe trung tâm thành công');
+      // 1. Kiểm tra xem tọa độ có thay đổi so với hiện tại không
+      const coordsChanged =
+        !parkingLot ||
+        Math.abs((parkingLot.latitude || 0) - parkingLat) > 1e-6 ||
+        Math.abs((parkingLot.longitude || 0) - parkingLng) > 1e-6;
+
+      if (!coordsChanged) {
+        // Chỉ sửa nhãn địa chỉ, tọa độ giữ nguyên -> Cập nhật trực tiếp
+        const updated = await apiClient.updateParkingLot({
+          addressText: parkingAddress.trim(),
+          latitude: parkingLat,
+          longitude: parkingLng,
+        });
+        setParkingLot(updated);
+        setParkingSuccessMsg('Cập nhật địa chỉ bãi xe trung tâm thành công (không đổi tọa độ)');
+        return;
+      }
+
+      // 2. Tọa độ có thay đổi -> Lấy tác động từ hệ thống
+      const impact = await apiClient.getParkingLotImpact(parkingLat, parkingLng);
+      const totalAffectedPlans =
+        (impact.cancelledPlansCount ??
+          ((impact.totalDraftPlansCount || 0) + (impact.totalActivePlansCount || 0))) || 0;
+
+      // Yêu cầu: "nếu chưa có bất kì phương án nào ở draft, active thì tiến hành đổi, còn nếu có thì hủy mọi phương án đó"
+      if (totalAffectedPlans === 0) {
+        // Chưa có phương án DRAFT hay ACTIVE nào trên toàn hệ thống -> Tiến hành đổi ngay lập tức
+        const updated = await apiClient.updateParkingLot({
+          addressText: parkingAddress.trim(),
+          latitude: parkingLat,
+          longitude: parkingLng,
+        });
+        setParkingLot(updated);
+        setParkingSuccessMsg('Cập nhật vị trí bãi đỗ xe trung tâm thành công (hệ thống chưa có phương án nào bị ảnh hưởng)');
+        return;
+      }
+
+      // Có phương án DRAFT hoặc ACTIVE -> Mở modal cảnh báo & hủy phương án
+      setParkingImpact(impact);
+      setParkingRelocateReason('Bãi xe trung tâm thay đổi vị trí');
+      setParkingRelocateReasonError(null);
+      setIsParkingImpactModalOpen(true);
     } catch (err: any) {
       setParkingErrorMsg(err?.message || 'Cập nhật bãi xe thất bại. Vui lòng thử lại.');
     } finally {
       setIsSavingParkingLot(false);
+    }
+  };
+
+  const handleConfirmParkingRelocation = async () => {
+    if (!parkingRelocateReason.trim()) {
+      setParkingRelocateReasonError('Vui lòng nhập lý do thay đổi vị trí bãi xe (bắt buộc)');
+      return;
+    }
+    if (parkingLat === null || parkingLng === null || !parkingImpact) return;
+
+    setIsConfirmingRelocation(true);
+    setParkingRelocateReasonError(null);
+    try {
+      const fingerprint = parkingImpact.fingerprint || parkingImpact.expectedFingerprint;
+      const cancelledPlans =
+        parkingImpact.cancelledPlansCount ??
+        ((parkingImpact.totalDraftPlansCount || 0) + (parkingImpact.totalActivePlansCount || 0));
+      const cancelledTrips =
+        parkingImpact.cancelledTripsCount ?? (parkingImpact.totalScheduledTripsCount || 0);
+
+      const updated = await apiClient.updateParkingLot({
+        addressText: parkingAddress.trim(),
+        latitude: parkingLat,
+        longitude: parkingLng,
+        reason: parkingRelocateReason.trim(),
+        expectedFingerprint: fingerprint,
+      });
+      setParkingLot(updated);
+      setIsParkingImpactModalOpen(false);
+      setParkingSuccessMsg(
+        `Cập nhật vị trí bãi xe thành công! Đã cascade hủy ${cancelledPlans} phương án tuyến toàn hệ thống và ${cancelledTrips} chuyến xe lập lịch.`,
+      );
+    } catch (err: any) {
+      setParkingRelocateReasonError(err?.message || 'Xác nhận thay đổi thất bại');
+    } finally {
+      setIsConfirmingRelocation(false);
     }
   };
 
@@ -660,6 +738,92 @@ export default function AdminSettingsPage() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Modal xác nhận đổi vị trí bãi đỗ xe trung tâm (Toàn hệ thống) */}
+      {isParkingImpactModalOpen && parkingImpact && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg p-6 space-y-5">
+            <div className="flex items-start gap-3">
+              <div className="p-3 bg-rose-50 text-rose-600 rounded-xl shrink-0">
+                <AlertIcon className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-lg font-bold text-slate-900">
+                  Xác nhận đổi vị trí bãi đỗ xe trung tâm
+                </h3>
+                <p className="text-sm text-slate-500">
+                  Hành động này có tác động trên toàn hệ thống và không thể hoàn tác.
+                </p>
+              </div>
+            </div>
+
+            {/* Thống kê tác động */}
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2 text-sm text-slate-700">
+              <div className="flex items-center justify-between">
+                <span>Phương án DRAFT/ACTIVE bị hủy toàn hệ thống:</span>
+                <span className="font-bold text-rose-600">
+                  {parkingImpact.cancelledPlansCount ??
+                    ((parkingImpact.totalDraftPlansCount || 0) + (parkingImpact.totalActivePlansCount || 0))}{' '}
+                  phương án
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Chuyến xe SCHEDULED liên quan bị hủy:</span>
+                <span className="font-bold text-rose-600">
+                  {parkingImpact.cancelledTripsCount ?? (parkingImpact.totalScheduledTripsCount || 0)} chuyến
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Chuyến xe đang chạy (IN_PROGRESS) giữ nguyên:</span>
+                <span className="font-bold text-emerald-600">
+                  {parkingImpact.inProgressTripsPreservedCount ?? (parkingImpact.totalInProgressTripsCount || 0)} chuyến
+                </span>
+              </div>
+            </div>
+
+            {/* Nhập lý do bắt buộc */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-slate-700">
+                Lý do thay đổi vị trí <span className="text-rose-500">*</span>
+              </label>
+              <textarea
+                value={parkingRelocateReason}
+                onChange={(e) => {
+                  setParkingRelocateReason(e.target.value);
+                  setParkingRelocateReasonError(null);
+                }}
+                rows={3}
+                placeholder="Nhập lý do thay đổi tọa độ bãi xe trung tâm..."
+                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+              />
+              {parkingRelocateReasonError && (
+                <p className="text-xs text-rose-600 font-medium">{parkingRelocateReasonError}</p>
+              )}
+            </div>
+
+            {/* Hành động */}
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isConfirmingRelocation}
+                onClick={() => setIsParkingImpactModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={isConfirmingRelocation}
+                onClick={handleConfirmParkingRelocation}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-sm font-bold text-white transition-colors cursor-pointer flex items-center gap-2 shadow-xs"
+              >
+                {isConfirmingRelocation && <SpinnerIcon className="w-4 h-4 animate-spin" />}
+                <span>Xác nhận & Hủy phương án</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

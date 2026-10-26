@@ -61,6 +61,27 @@ export class StudentUpdateRequestDto {
   @ApiPropertyOptional({ example: null, nullable: true })
   reviewedAt: string | null;
 
+  @ApiPropertyOptional({ example: { outcome: 'REOPTIMIZED', affectedRoutesCount: 2 } })
+  resolution?: Record<string, any> | null;
+
+  @ApiPropertyOptional({ example: 'REOPTIMIZED', enum: ['DIRECT_UPDATE', 'REOPTIMIZED', 'REMOVED_FROM_ROUTES'] })
+  resolutionOutcome?: string | null;
+
+  @ApiPropertyOptional({ example: true })
+  canCancel?: boolean;
+
+  @ApiPropertyOptional({ example: true })
+  canCheckRouting?: boolean;
+
+  @ApiPropertyOptional({ example: true })
+  canApprove?: boolean;
+
+  @ApiPropertyOptional({ example: true })
+  canReject?: boolean;
+
+  @ApiPropertyOptional({ example: null })
+  blockedReason?: string | null;
+
   @ApiProperty({ example: '2026-10-23T12:00:00.000Z' })
   createdAt: string;
 

@@ -6,146 +6,516 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
+  RefreshControl,
 } from 'react-native';
+import { useActiveRefresh } from '@/hooks/use-active-refresh';
+import type { RefreshContext } from '@/utils/refresh-loop';
+import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors } from '@/constants/theme';
-import { checkBackendHealth, getApiBaseUrl, HealthResponse } from '@/services/api';
 import { useAuth } from '@/context/auth-context';
-
-type ConnectionState = 'idle' | 'loading' | 'connected' | 'error';
+import { useQuickLeaveNotice } from '@/hooks/use-quick-leave-notice';
+import {
+  mobileApiClient,
+  MobileHomeTrip,
+  ParentHomeCardItem,
+} from '@/services/api-client';
 
 export default function HomeScreen() {
+  const router = useRouter();
   const { user } = useAuth();
-  const [connectionState, setConnectionState] = useState<ConnectionState>('loading');
-  const [healthData, setHealthData] = useState<HealthResponse | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [apiUrl, setApiUrl] = useState<string>('');
+  const { triggerQuickLeaveNotice, isRequesting } = useQuickLeaveNotice();
 
-  let roleLabel = 'Người dùng';
-  switch (user?.role) {
-    case 'DRIVER':
-      roleLabel = 'Tài xế';
-      break;
-    case 'BUS_ATTENDANT':
-      roleLabel = 'Giáo viên';
-      break;
-    case 'PARENT':
-      roleLabel = 'Phụ huynh học sinh';
-      break;
-  }
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const runHealthCheck = useCallback(async () => {
-    setConnectionState('loading');
-    setErrorMessage(null);
-    const resolvedUrl = getApiBaseUrl();
-    setApiUrl(resolvedUrl);
+  // Driver & Attendant state
+  const [hasHomeTrip, setHasHomeTrip] = useState(false);
+  const [homeTrip, setHomeTrip] = useState<MobileHomeTrip | null>(null);
 
+  // Parent state
+  const [parentCards, setParentCards] = useState<ParentHomeCardItem[]>([]);
+
+  const fetchHomeData = async ({ isCurrent }: RefreshContext) => {
+    if (!user) return;
     try {
-      const data = await checkBackendHealth(5000);
-      setHealthData(data);
-      setConnectionState('connected');
+      setError(null);
+      if (user.role === 'DRIVER' || user.role === 'BUS_ATTENDANT') {
+        const res = await mobileApiClient.getHomeTrip();
+        if (!isCurrent()) return;
+        setHasHomeTrip(res.hasTrip);
+        setHomeTrip(res.trip || null);
+      } else if (user.role === 'PARENT') {
+        const res = await mobileApiClient.getParentHomeCards();
+        if (!isCurrent()) return;
+        setParentCards(res.items || []);
+      }
     } catch (err: any) {
-      setConnectionState('error');
-      setErrorMessage(err.message || 'Cannot connect to backend');
+      if (!isCurrent()) return;
+      if (err?.statusCode === 403 || err?.statusCode === 404) {
+        setHomeTrip(null); setHasHomeTrip(false); setParentCards([]);
+        setError(err.message); return false;
+      }
+      if (!homeTrip && !parentCards.length) setError(err?.message || 'Không thể tải dữ liệu trang chủ');
+    } finally {
+      if (isCurrent()) { setLoading(false); setRefreshing(false); }
     }
-  }, []);
+  };
+  const identity = JSON.stringify([user?.id, user?.role]);
+  useEffect(() => { setHomeTrip(null); setParentCards([]); setHasHomeTrip(false); setLoading(true); }, [identity]);
+  const { refresh: loadHomeData } = useActiveRefresh(identity, fetchHomeData, 8000);
 
-  useEffect(() => {
-    runHealthCheck();
-  }, [runHealthCheck]);
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadHomeData();
+  }, [loadHomeData]);
+
+  const getRoleLabel = () => {
+    switch (user?.role) {
+      case 'DRIVER':
+        return 'Tài xế';
+      case 'BUS_ATTENDANT':
+        return 'Giáo viên giám sát';
+      case 'PARENT':
+        return 'Phụ huynh học sinh';
+      default:
+        return 'Quản trị viên';
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'IN_PROGRESS':
+        return { label: 'Đang di chuyển', bg: '#DCFCE7', text: '#15803D' };
+      case 'SCHEDULED':
+        return { label: 'Chờ khởi hành', bg: '#FEF3C7', text: '#B45309' };
+      case 'COMPLETED':
+        return { label: 'Đã hoàn thành', bg: '#E0E7FF', text: '#4338CA' };
+      default:
+        return { label: status, bg: '#F1F5F9', text: '#475569' };
+    }
+  };
+
+  const getAttendanceBadge = (status: string, isAlighted?: boolean) => {
+    switch (status) {
+      case 'PRESENT':
+        if (isAlighted) {
+          return { label: 'Đã xuống xe an toàn', bg: '#DCFCE7', text: '#15803D', icon: 'checkmark-done-circle' };
+        }
+        return { label: 'Đã lên xe', bg: '#DCFCE7', text: '#15803D', icon: 'checkmark-circle' };
+      case 'ABSENT':
+        return { label: 'Vắng mặt', bg: '#FEE2E2', text: '#B91C1C', icon: 'close-circle' };
+      case 'UNMARKED':
+      default:
+        return { label: 'Chưa điểm danh', bg: '#FEF3C7', text: '#B45309', icon: 'time-outline' };
+    }
+  };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Header Banner with Authenticated Role */}
-      <View style={styles.heroCard}>
-        {user ? (
-          <>
-            <View style={[styles.badge, { backgroundColor: colors.primary }]}>
-              <Text style={[styles.badgeText, { color: colors.foreground, fontWeight: '700' }]}>
-                {roleLabel}
-              </Text>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+      }
+    >
+      {/* Tiện ích Card (Wireframe 6.1) */}
+      <View style={styles.utilityCard}>
+        <View style={styles.utilityHeader}>
+          <Text style={styles.utilityCardTitle}>Tiện ích</Text>
+          <TouchableOpacity
+            style={styles.refreshIconBtn}
+            onPress={onRefresh}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="refresh" size={18} color="#64748B" />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.utilityCenter}>
+          <TouchableOpacity
+            style={styles.utilityActionBtn}
+            onPress={() => router.push('/leave-notices' as any)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.utilityIconWrap}>
+              <Ionicons name="calendar-outline" size={24} color="#1E293B" />
             </View>
-            <Text style={styles.title}>Chào mừng, {user.fullName}!</Text>
-            <Text style={styles.subtitle}>
-              Hệ thống giám sát và quản lý xe đưa đón học sinh RoadToSchool.
-            </Text>
-          </>
+            <Text style={styles.utilityActionText}>Báo nghỉ</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Main Content Area */}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Đang cập nhật chuyến xe...</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="alert-circle-outline" size={40} color="#EF4444" />
+          <Text style={styles.emptyTitle}>Lỗi kết nối</Text>
+          <Text style={styles.emptySubtitle}>{error}</Text>
+          <TouchableOpacity style={styles.actionBtn} onPress={loadHomeData}>
+            <Text style={styles.actionBtnText}>Thử lại</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (user?.role === 'DRIVER' || user?.role === 'BUS_ATTENDANT') ? (
+        /* ================= DRIVER & ATTENDANT HOME (D06: Single Trip) ================= */
+        hasHomeTrip && homeTrip ? (
+          <View style={styles.tripCard}>
+            {/* Header: Direction & Status */}
+            <View style={styles.tripCardHeader}>
+              <View
+                style={[
+                  styles.directionPill,
+                  homeTrip.direction === 'TO_SCHOOL' ? styles.dirSchool : styles.dirReturn,
+                ]}
+              >
+                <Ionicons
+                  name={homeTrip.direction === 'TO_SCHOOL' ? 'arrow-forward' : 'arrow-back'}
+                  size={14}
+                  color={homeTrip.direction === 'TO_SCHOOL' ? '#2563EB' : '#D97706'}
+                />
+                <Text
+                  style={[
+                    styles.directionPillText,
+                    homeTrip.direction === 'TO_SCHOOL' ? styles.dirTextSchool : styles.dirTextReturn,
+                  ]}
+                >
+                  {homeTrip.direction === 'TO_SCHOOL' ? 'Chiều đi (Đến trường)' : 'Chiều về (Về trạm)'}
+                </Text>
+              </View>
+
+              <View
+                style={[
+                  styles.statusPill,
+                  homeTrip.assignmentStatus === 'WAITING_ASSIGNMENT'
+                    ? { backgroundColor: '#FEF3C7' }
+                    : { backgroundColor: getStatusBadge(homeTrip.status).bg },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.statusPillText,
+                    homeTrip.assignmentStatus === 'WAITING_ASSIGNMENT'
+                      ? { color: '#B45309' }
+                      : { color: getStatusBadge(homeTrip.status).text },
+                  ]}
+                >
+                  {homeTrip.assignmentStatus === 'WAITING_ASSIGNMENT'
+                    ? 'Chờ phân công'
+                    : getStatusBadge(homeTrip.status).label}
+                </Text>
+              </View>
+            </View>
+
+            {/* Route Name & School */}
+            <Text style={styles.tripRouteName}>{homeTrip.routeName}</Text>
+            <View style={styles.metaRow}>
+              <Ionicons name="school-outline" size={15} color="#64748B" />
+              <Text style={styles.metaText}>{homeTrip.schoolName}</Text>
+            </View>
+
+            {/* Scheduled Time & Service Date */}
+            <View style={styles.timeBadgeContainer}>
+              <View style={styles.timeBadge}>
+                <Ionicons name="time-outline" size={15} color="#1E293B" />
+                <Text style={styles.timeBadgeText}>{homeTrip.scheduledTime}</Text>
+              </View>
+              <Text style={styles.dateText}>{homeTrip.serviceDate}</Text>
+            </View>
+
+            {/* Info Grid */}
+            <View style={styles.infoGrid}>
+              <View style={styles.infoCol}>
+                <View style={styles.infoColHeader}>
+                  <Ionicons name="bus-outline" size={16} color="#475569" />
+                  <Text style={styles.infoColTitle}>Xe đưa đón</Text>
+                </View>
+                <Text style={styles.infoColMain}>{homeTrip.vehiclePlate}</Text>
+                <Text style={styles.infoColSub}>
+                  {homeTrip.vehicleSeats} chỗ • {homeTrip.studentCount} HS
+                </Text>
+              </View>
+
+              <View style={styles.infoColDivider} />
+
+              <View style={styles.infoCol}>
+                <View style={styles.infoColHeader}>
+                  <Ionicons name="people-outline" size={16} color="#475569" />
+                  <Text style={styles.infoColTitle}>Nhân sự phụ trách</Text>
+                </View>
+                <Text style={styles.infoColMain} numberOfLines={1}>
+                  TX: {homeTrip.driver.fullName}
+                  {homeTrip.driver.isCurrentUser ? ' (Bạn)' : ''}
+                </Text>
+                <Text style={styles.infoColSub} numberOfLines={1}>
+                  GV: {homeTrip.busAttendant.fullName}
+                  {homeTrip.busAttendant.isCurrentUser ? ' (Bạn)' : ''}
+                </Text>
+              </View>
+            </View>
+
+            {/* Operational Highlight */}
+            {homeTrip.status === 'SCHEDULED' ? (
+              <View
+                style={[
+                  styles.opsHighlight,
+                  homeTrip.operationalState.isAttendantReady
+                    ? styles.opsHighlightSuccess
+                    : styles.opsHighlightPending,
+                ]}
+              >
+                <Ionicons
+                  name={
+                    homeTrip.operationalState.isAttendantReady
+                      ? 'checkmark-circle-outline'
+                      : 'alert-circle-outline'
+                  }
+                  size={18}
+                  color={homeTrip.operationalState.isAttendantReady ? '#15803D' : '#B45309'}
+                />
+                <Text
+                  style={[
+                    styles.opsHighlightText,
+                    {
+                      color: homeTrip.operationalState.isAttendantReady ? '#15803D' : '#B45309',
+                    },
+                  ]}
+                >
+                  {homeTrip.operationalState.isAttendantReady
+                    ? 'Giáo viên đã xác nhận sẵn sàng khởi hành'
+                    : user?.role === 'BUS_ATTENDANT'
+                    ? 'Vui lòng xác nhận sẵn sàng trước khi xe chạy'
+                    : 'Chờ giáo viên giám sát xác nhận sẵn sàng'}
+                </Text>
+              </View>
+            ) : homeTrip.status === 'IN_PROGRESS' ? (
+              <View style={[styles.opsHighlight, styles.opsHighlightProgress]}>
+                <Ionicons name="radio-button-on" size={18} color="#2563EB" />
+                <Text style={[styles.opsHighlightText, { color: '#1E40AF' }]}>
+                  Điểm danh: {homeTrip.operationalState.markedCount}/
+                  {homeTrip.operationalState.totalStudents} học sinh (
+                  {homeTrip.operationalState.presentCount} có mặt,{' '}
+                  {homeTrip.operationalState.absentCount} vắng)
+                </Text>
+              </View>
+            ) : null}
+
+            {/* View Detail Action Button & Báo nghỉ Button */}
+            <View style={{ gap: 8 }}>
+              <TouchableOpacity
+                style={styles.primaryBtn}
+                onPress={() => router.push(`/trip/${homeTrip.id}` as any)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.primaryBtnText}>Xem chi tiết & Vận hành</Text>
+                <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+              </TouchableOpacity>
+
+              {homeTrip.canReportLeave && (
+                <TouchableOpacity
+                  style={styles.leaveNoticeCardBtn}
+                  disabled={isRequesting(homeTrip.id)}
+                  onPress={() =>
+                    triggerQuickLeaveNotice({
+                      tripId: homeTrip.id,
+                      subjectName: user?.fullName || 'Nhân sự',
+                      routeName: homeTrip.routeName,
+                      serviceDate: homeTrip.serviceDate,
+                      direction: homeTrip.direction,
+                      onSuccess: () => loadHomeData(),
+                    })
+                  }
+                  activeOpacity={0.8}
+                >
+                  {isRequesting(homeTrip.id) ? (
+                    <ActivityIndicator size="small" color="#D97706" />
+                  ) : (
+                    <>
+                      <Ionicons name="calendar-outline" size={16} color="#D97706" />
+                      <Text style={styles.leaveNoticeCardBtnText}>Báo nghỉ chuyến này</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
         ) : (
-          <>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>Phase 1 Authentication</Text>
-            </View>
-            <Text style={styles.title}>RoadToSchool Mobile</Text>
-            <Text style={styles.subtitle}>
-              Hệ thống giám sát và quản lý xe đưa đón học sinh.
+          <View style={styles.emptyContainer}>
+            <Ionicons name="bus-outline" size={48} color="#94A3B8" />
+            <Text style={styles.emptyTitle}>Không có chuyến xe cần vận hành</Text>
+            <Text style={styles.emptySubtitle}>
+              Hiện không có chuyến xe nào trong khung giờ hoạt động hoặc chuyến xe hôm nay đã hoàn thành.
             </Text>
-          </>
-        )}
-      </View>
+            <TouchableOpacity
+              style={styles.secondaryBtn}
+              onPress={() => router.push('/(tabs)/schedule' as any)}
+            >
+              <Ionicons name="calendar-outline" size={16} color="#1E293B" />
+              <Text style={styles.secondaryBtnText}>Xem toàn bộ lịch trình</Text>
+            </TouchableOpacity>
+          </View>
+        )
+      ) : user?.role === 'PARENT' ? (
+        /* ================= PARENT HOME (D05, D06, D10) ================= */
+        parentCards.length > 0 ? (
+          <View style={styles.parentCardList}>
+            {parentCards.map((card) => {
+              const att = getAttendanceBadge(card.attendanceStatus, card.childIsAlighted);
+              return (
+                <View key={card.studentId} style={styles.tripCard}>
+                  {/* Student Header */}
+                  <View style={styles.parentStudentHeader}>
+                    <View style={styles.avatarCircle}>
+                      <Ionicons name="person" size={20} color="#475569" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.studentName}>{card.studentName}</Text>
+                      <Text style={styles.metaText}>{card.schoolName}</Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.statusPill,
+                        { backgroundColor: getStatusBadge(card.tripStatus).bg },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.statusPillText,
+                          { color: getStatusBadge(card.tripStatus).text },
+                        ]}
+                      >
+                        {getStatusBadge(card.tripStatus).label}
+                      </Text>
+                    </View>
+                  </View>
 
-      {/* Backend Connectivity Test Card */}
-      <View style={styles.testCard}>
-        <View style={styles.testHeader}>
-          <Ionicons name="hardware-chip-outline" size={20} color={colors.foreground} />
-          <Text style={styles.testTitle}>Backend Connectivity</Text>
-        </View>
+                  {/* Route & Time */}
+                  <View style={styles.parentRouteBox}>
+                    <View style={styles.directionRow}>
+                      <Ionicons
+                        name={card.direction === 'TO_SCHOOL' ? 'arrow-forward' : 'arrow-back'}
+                        size={14}
+                        color={card.direction === 'TO_SCHOOL' ? '#2563EB' : '#D97706'}
+                      />
+                      <Text style={styles.parentRouteName} numberOfLines={1}>
+                        {card.routeName}
+                      </Text>
+                    </View>
+                    <View style={styles.parentTimeRow}>
+                      <Ionicons name="time-outline" size={14} color="#64748B" />
+                      <Text style={styles.parentTimeText}>
+                        {card.scheduledTime} • {card.serviceDate}
+                      </Text>
+                    </View>
+                  </View>
 
-        <View style={styles.urlRow}>
-          <Text style={styles.label}>Resolved API Host:</Text>
-          <Text style={styles.urlValue} numberOfLines={1}>
-            {apiUrl || 'Detecting host...'}
+                  {/* Attendance Card (D10: Parent sees absence reason if ABSENT) */}
+                  <View style={[styles.attendanceBox, { backgroundColor: att.bg }]}>
+                    <View style={styles.attendanceBoxHeader}>
+                      <Ionicons name={att.icon as any} size={18} color={att.text} />
+                      <Text style={[styles.attendanceBoxTitle, { color: att.text }]}>
+                        {att.label}
+                      </Text>
+                      {card.markedAt ? (
+                        <Text style={[styles.markedAtText, { color: att.text }]}>
+                          {new Date(card.markedAt).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </Text>
+                      ) : null}
+                    </View>
+
+                    {card.attendanceStatus === 'ABSENT' && card.absenceReason ? (
+                      <View style={styles.absenceReasonBox}>
+                        <Text style={styles.absenceReasonLabel}>Lý do vắng:</Text>
+                        <Text style={styles.absenceReasonContent}>{card.absenceReason}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  {/* Vehicle & Driver */}
+                  <View style={styles.parentDriverRow}>
+                    <Text style={styles.parentDriverText}>
+                      Biển số: <Text style={{ fontWeight: '600' }}>{card.vehiclePlate}</Text> • TX:{' '}
+                      <Text style={{ fontWeight: '600' }}>{card.driverName}</Text>
+                    </Text>
+                  </View>
+
+                  {/* Action & Báo nghỉ Button */}
+                  <View style={{ gap: 8 }}>
+                    <TouchableOpacity
+                      style={styles.primaryBtn}
+                      onPress={() => router.push(`/trip/${card.tripId}` as any)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.primaryBtnText}>Theo dõi lộ trình</Text>
+                      <Ionicons name="navigate-outline" size={16} color="#FFFFFF" />
+                    </TouchableOpacity>
+
+                    {card.canReportLeave && (
+                      <TouchableOpacity
+                        style={styles.leaveNoticeCardBtn}
+                        disabled={isRequesting(card.tripId)}
+                        onPress={() =>
+                          triggerQuickLeaveNotice({
+                            tripId: card.tripId,
+                            studentId: card.studentId,
+                            subjectName: card.studentName,
+                            routeName: card.routeName,
+                            serviceDate: card.serviceDate,
+                            direction: card.direction,
+                            onSuccess: () => loadHomeData(),
+                          })
+                        }
+                        activeOpacity={0.8}
+                      >
+                        {isRequesting(card.tripId) ? (
+                          <ActivityIndicator size="small" color="#D97706" />
+                        ) : (
+                          <>
+                            <Ionicons name="calendar-outline" size={16} color="#D97706" />
+                            <Text style={styles.leaveNoticeCardBtnText}>Báo nghỉ chuyến này</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        ) : (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="people-outline" size={48} color="#94A3B8" />
+            <Text style={styles.emptyTitle}>Chưa có chuyến xe cho con</Text>
+            <Text style={styles.emptySubtitle}>
+              Hiện không có lịch đưa đón nào trong khung giờ hôm nay cho học sinh của bạn.
+            </Text>
+            <TouchableOpacity
+              style={styles.secondaryBtn}
+              onPress={() => router.push('/(tabs)/schedule' as any)}
+            >
+              <Ionicons name="calendar-outline" size={16} color="#1E293B" />
+              <Text style={styles.secondaryBtnText}>Xem lịch tuần của con</Text>
+            </TouchableOpacity>
+          </View>
+        )
+      ) : (
+        /* Fallback for other roles */
+        <View style={styles.emptyContainer}>
+          <Ionicons name="shield-checkmark-outline" size={48} color="#94A3B8" />
+          <Text style={styles.emptyTitle}>Tài khoản quản trị</Text>
+          <Text style={styles.emptySubtitle}>
+            Vui lòng đăng nhập trên giao diện Web Dashboard để sử dụng đầy đủ các công cụ quản lý.
           </Text>
         </View>
-
-        {/* Status display */}
-        <View style={styles.statusBox}>
-          {connectionState === 'loading' && (
-            <View style={styles.statusRow}>
-              <ActivityIndicator size="small" color={colors.foreground} />
-              <Text style={styles.statusLoadingText}>Checking connection...</Text>
-            </View>
-          )}
-
-          {connectionState === 'connected' && (
-            <View style={styles.statusRow}>
-              <Ionicons name="checkmark-circle" size={22} color={colors.success} />
-              <View style={styles.statusTextContainer}>
-                <Text style={styles.statusConnectedText}>Connected to Backend</Text>
-                {healthData?.timestamp && (
-                  <Text style={styles.timestampText}>
-                    Server Time: {new Date(healthData.timestamp).toLocaleTimeString()}
-                  </Text>
-                )}
-              </View>
-            </View>
-          )}
-
-          {connectionState === 'error' && (
-            <View style={styles.statusRow}>
-              <Ionicons name="alert-circle" size={22} color={colors.error} />
-              <View style={styles.statusTextContainer}>
-                <Text style={styles.statusErrorText}>Connection failed</Text>
-                <Text style={styles.errorDetailText}>{errorMessage}</Text>
-              </View>
-            </View>
-          )}
-        </View>
-
-        {/* Retry button */}
-        <TouchableOpacity
-          style={[
-            styles.retryButton,
-            connectionState === 'loading' && styles.buttonDisabled,
-          ]}
-          onPress={runHealthCheck}
-          disabled={connectionState === 'loading'}
-          activeOpacity={0.8}>
-          <Ionicons name="refresh" size={18} color={colors.foreground} />
-          <Text style={styles.retryButtonText}>
-            {connectionState === 'loading' ? 'Checking...' : 'Retry Connection'}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      )}
     </ScrollView>
   );
 }
@@ -153,129 +523,446 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#F8FAFC',
   },
   content: {
     padding: 16,
     gap: 16,
   },
   heroCard: {
-    backgroundColor: colors.surface,
-    padding: 20,
+    backgroundColor: '#FFFFFF',
+    padding: 18,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  heroHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   badge: {
     alignSelf: 'flex-start',
-    backgroundColor: colors.primary,
+    backgroundColor: '#FEF3C7',
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 999,
-    marginBottom: 10,
+    borderRadius: 8,
   },
   badgeText: {
     fontSize: 12,
     fontWeight: '700',
-    color: colors.foreground,
+    color: '#B45309',
+  },
+  refreshIconBtn: {
+    padding: 4,
   },
   title: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '700',
-    color: colors.foreground,
-    marginBottom: 6,
+    color: '#0F172A',
+    marginBottom: 4,
   },
   subtitle: {
-    fontSize: 14,
-    color: colors.mutedText,
-    lineHeight: 20,
+    fontSize: 13,
+    color: '#64748B',
+    lineHeight: 18,
   },
-  testCard: {
-    backgroundColor: colors.surface,
-    padding: 18,
+  loadingContainer: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 13,
+    color: '#64748B',
+  },
+  emptyContainer: {
+    backgroundColor: '#FFFFFF',
+    padding: 28,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
   },
-  testHeader: {
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 6,
+  },
+  tripCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 3,
+    gap: 12,
+  },
+  tripCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  directionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  dirSchool: {
+    backgroundColor: '#EFF6FF',
+  },
+  dirReturn: {
+    backgroundColor: '#FFFBEB',
+  },
+  directionPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  dirTextSchool: {
+    color: '#2563EB',
+  },
+  dirTextReturn: {
+    color: '#D97706',
+  },
+  statusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  tripRouteName: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  metaText: {
+    fontSize: 13,
+    color: '#64748B',
+  },
+  timeBadgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  timeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  timeBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  dateText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#64748B',
+  },
+  infoGrid: {
+    flexDirection: 'row',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  infoCol: {
+    flex: 1,
+    gap: 3,
+  },
+  infoColDivider: {
+    width: 1,
+    backgroundColor: '#CBD5E1',
+    marginHorizontal: 10,
+  },
+  infoColHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 2,
+  },
+  infoColTitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+    textTransform: 'uppercase',
+  },
+  infoColMain: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  infoColSub: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  opsHighlight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 12,
+    padding: 10,
+    borderRadius: 10,
   },
-  testTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.foreground,
+  opsHighlightSuccess: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
   },
-  urlRow: {
-    marginBottom: 12,
+  opsHighlightPending: {
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
   },
-  label: {
+  opsHighlightProgress: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  opsHighlightText: {
     fontSize: 12,
-    color: colors.mutedText,
-    marginBottom: 2,
-  },
-  urlValue: {
-    fontSize: 13,
-    fontFamily: 'monospace',
-    color: colors.foreground,
-    fontWeight: '500',
-  },
-  statusBox: {
-    backgroundColor: colors.background,
-    padding: 14,
-    borderRadius: 12,
-    marginBottom: 14,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  statusTextContainer: {
+    fontWeight: '600',
     flex: 1,
   },
-  statusLoadingText: {
-    fontSize: 14,
-    color: colors.foreground,
-  },
-  statusConnectedText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.success,
-  },
-  timestampText: {
-    fontSize: 12,
-    color: colors.mutedText,
-    marginTop: 2,
-  },
-  statusErrorText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.error,
-  },
-  errorDetailText: {
-    fontSize: 12,
-    color: colors.mutedText,
-    marginTop: 2,
-  },
-  retryButton: {
+  primaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: colors.primary,
-    paddingVertical: 12,
+    backgroundColor: '#1E293B',
+    paddingVertical: 13,
+    borderRadius: 12,
+  },
+  primaryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  secondaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 10,
+    backgroundColor: '#F1F5F9',
   },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  retryButtonText: {
-    fontSize: 14,
+  secondaryBtnText: {
+    fontSize: 13,
     fontWeight: '600',
-    color: colors.foreground,
+    color: '#1E293B',
+  },
+  actionBtn: {
+    backgroundColor: '#1E293B',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  actionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  parentCardList: {
+    gap: 16,
+  },
+  parentStudentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  avatarCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  studentName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  parentRouteBox: {
+    backgroundColor: '#F8FAFC',
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 4,
+  },
+  directionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  parentRouteName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  parentTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  parentTimeText: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  attendanceBox: {
+    padding: 12,
+    borderRadius: 10,
+    gap: 6,
+  },
+  attendanceBoxHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  attendanceBoxTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    flex: 1,
+  },
+  markedAtText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  absenceReasonBox: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.06)',
+    paddingTop: 6,
+  },
+  absenceReasonLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#991B1B',
+  },
+  absenceReasonContent: {
+    fontSize: 12,
+    color: '#7F1D1D',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  parentDriverRow: {
+    paddingVertical: 2,
+  },
+  parentDriverText: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  utilityCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  utilityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  utilityCardTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1E293B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  utilityCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
+  utilityActionBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  utilityIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: '#FFCB56',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  utilityActionText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  leaveNoticeCardBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#FFFDF6',
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+    borderRadius: 12,
+    paddingVertical: 10,
+  },
+  leaveNoticeCardBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#D97706',
   },
 });

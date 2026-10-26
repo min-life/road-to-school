@@ -4,8 +4,9 @@ import {
   BadRequestException,
   BadGatewayException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
-import { Role, Prisma } from '@prisma/client';
+import { Role, Prisma, RoutePlanStatus, TripStatus, RouteDirection, LeaveNoticeStatus } from '@prisma/client';
 import { SchoolsService } from './schools.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CloudinaryService } from './cloudinary.service.js';
@@ -70,6 +71,20 @@ describe('SchoolsService', () => {
         findFirst: vi.fn(),
         create: vi.fn(),
       },
+      routePlan: {
+        findMany: vi.fn(),
+        updateMany: vi.fn(),
+      },
+      trip: {
+        count: vi.fn(),
+        findMany: vi.fn(),
+        update: vi.fn(),
+        updateMany: vi.fn(),
+      },
+      leaveNotice: {
+        updateMany: vi.fn(),
+      },
+      $transaction: vi.fn(async (cb) => cb(prisma)),
     } as unknown as PrismaService;
 
     cloudinaryService = {
@@ -1124,6 +1139,324 @@ describe('SchoolsService', () => {
           mockSchoolAdminUser,
         ),
       ).rejects.toThrow();
+    });
+  });
+
+  describe('getLocationImpact', () => {
+    const sysAdminUser = { id: 'admin-1', role: Role.SYSTEM_ADMIN } as any;
+    const schoolAdminUser = { id: 'school-admin-1', role: Role.SCHOOL_ADMIN, schoolId: mockSchool.id } as any;
+
+    it('từ chối SCHOOL_ADMIN truy cập đánh giá tác động vị trí trường học', async () => {
+      await expect(
+        service.getLocationImpact(mockSchool.id, schoolAdminUser),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('từ chối khi không tìm thấy trường học', async () => {
+      vi.mocked(prisma.school.findUnique).mockResolvedValue(null);
+
+      await expect(
+        service.getLocationImpact('non-existent-id', sysAdminUser),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('trả về đúng số lượng phương án và chuyến xe bị ảnh hưởng cho SYSTEM_ADMIN', async () => {
+      vi.mocked(prisma.school.findUnique).mockResolvedValue(mockSchool as any);
+      vi.mocked(prisma.routePlan.findMany).mockResolvedValue([
+        { id: 'plan-1', status: RoutePlanStatus.DRAFT, routes: [{ id: 'route-1' }] },
+        { id: 'plan-2', status: RoutePlanStatus.ACTIVE, routes: [{ id: 'route-2' }] },
+      ] as any);
+      vi.mocked(prisma.trip.count)
+        .mockResolvedValueOnce(5) // scheduledTripsCount
+        .mockResolvedValueOnce(1); // inProgressTripsCount
+
+      const res = await service.getLocationImpact(mockSchool.id, sysAdminUser, 21.05, 105.8);
+
+      expect(res.schoolId).toBe(mockSchool.id);
+      expect(res.draftPlansCount).toBe(1);
+      expect(res.activePlansCount).toBe(1);
+      expect(res.cancelledPlansCount).toBe(2);
+      expect(res.scheduledTripsCount).toBe(5);
+      expect(res.cancelledTripsCount).toBe(5);
+      expect(res.inProgressTripsCount).toBe(1);
+      expect(res.hasCoordinateChanged).toBe(true);
+      expect(res.fingerprint).toBeDefined();
+    });
+  });
+
+  describe('updateLocation', () => {
+    const sysAdminUser = { id: 'admin-1', role: Role.SYSTEM_ADMIN } as any;
+    const schoolAdminUser = { id: 'school-admin-1', role: Role.SCHOOL_ADMIN, schoolId: mockSchool.id } as any;
+    const updateDto = {
+      addressText: 'Số 99 đường Mới, Hà Nội',
+      latitude: 21.05,
+      longitude: 105.8,
+    };
+
+    it('từ chối SCHOOL_ADMIN cập nhật địa chỉ trường học', async () => {
+      await expect(
+        service.updateLocation(mockSchool.id, updateDto, schoolAdminUser),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('từ chối khi không tìm thấy trường học', async () => {
+      vi.mocked(prisma.school.findUnique).mockResolvedValue(null);
+
+      await expect(
+        service.updateLocation('non-existent-id', updateDto, sysAdminUser),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('hủy toàn bộ phương án DRAFT/ACTIVE và chuyến xe SCHEDULED nếu trường có phương án', async () => {
+      vi.mocked(prisma.school.findUnique).mockResolvedValue(mockSchool as any);
+      vi.mocked(prisma.routePlan.findMany).mockResolvedValue([
+        { id: 'plan-1', status: RoutePlanStatus.DRAFT, routes: [{ id: 'route-1' }] },
+        { id: 'plan-2', status: RoutePlanStatus.ACTIVE, routes: [{ id: 'route-2' }] },
+      ] as any);
+      vi.mocked(prisma.trip.findMany).mockResolvedValue([
+        { id: 'trip-1' },
+        { id: 'trip-2' },
+      ] as any);
+      vi.mocked(prisma.school.update).mockResolvedValue({
+        ...mockSchool,
+        addressText: updateDto.addressText,
+        latitude: updateDto.latitude,
+        longitude: updateDto.longitude,
+      } as any);
+
+      const res = await service.updateLocation(mockSchool.id, updateDto, sysAdminUser);
+
+      expect(res.success).toBe(true);
+      expect(res.cancelledPlansCount).toBe(2);
+      expect(res.cancelledTripsCount).toBe(2);
+      expect(prisma.routePlan.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: { in: ['plan-1', 'plan-2'] } },
+          data: expect.objectContaining({
+            status: RoutePlanStatus.CANCELLED,
+            cancelledById: sysAdminUser.id,
+          }),
+        }),
+      );
+      expect(prisma.trip.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: { in: ['trip-1', 'trip-2'] } },
+          data: expect.objectContaining({
+            status: TripStatus.CANCELLED,
+            cancelledById: sysAdminUser.id,
+          }),
+        }),
+      );
+    });
+
+    it('cập nhật thành công không hủy phương án nếu trường không có phương án nào', async () => {
+      vi.mocked(prisma.school.findUnique).mockResolvedValue(mockSchool as any);
+      vi.mocked(prisma.routePlan.findMany).mockResolvedValue([]);
+      vi.mocked(prisma.school.update).mockResolvedValue({
+        ...mockSchool,
+        addressText: updateDto.addressText,
+        latitude: updateDto.latitude,
+        longitude: updateDto.longitude,
+      } as any);
+
+      const res = await service.updateLocation(mockSchool.id, updateDto, sysAdminUser);
+
+      expect(res.success).toBe(true);
+      expect(res.cancelledPlansCount).toBe(0);
+      expect(res.cancelledTripsCount).toBe(0);
+      expect(prisma.routePlan.updateMany).not.toHaveBeenCalled();
+      expect(prisma.trip.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('từ chối khi expectedFingerprint bị xung đột', async () => {
+      vi.mocked(prisma.school.findUnique).mockResolvedValue(mockSchool as any);
+      vi.mocked(prisma.routePlan.findMany).mockResolvedValue([]);
+
+      await expect(
+        service.updateLocation(
+          mockSchool.id,
+          { ...updateDto, expectedFingerprint: 'invalid-fingerprint' },
+          sysAdminUser,
+        ),
+      ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe('updateSchedule', () => {
+    const sysAdminUser = { id: 'admin-1', role: Role.SYSTEM_ADMIN } as any;
+    const schoolAdminUser = { id: 'school-admin-1', role: Role.SCHOOL_ADMIN } as any;
+
+    const validNewSchedule = {
+      weeklySchedule: {
+        monday: { start: '07:30', end: '16:45' },
+        tuesday: { start: '07:30', end: '16:45' },
+        friday: { start: '07:30', end: '16:45' },
+      },
+    };
+
+    it('từ chối khi người dùng không phải SYSTEM_ADMIN', async () => {
+      await expect(
+        service.updateSchedule(mockSchool.id, validNewSchedule, schoolAdminUser),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('từ chối khi không tìm thấy trường học', async () => {
+      vi.mocked(prisma.school.findUnique).mockResolvedValue(null);
+
+      await expect(
+        service.updateSchedule('non-existent-id', validNewSchedule, sysAdminUser),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('từ chối khi weeklySchedule không hợp lệ', async () => {
+      vi.mocked(prisma.school.findUnique).mockResolvedValue(mockSchool as any);
+
+      await expect(
+        service.updateSchedule(
+          mockSchool.id,
+          { weeklySchedule: { invalid_day: { start: '07:00', end: '17:00' } } as any },
+          sysAdminUser,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('hủy các chuyến xe SCHEDULED vào ngày không còn lịch học và cập nhật leave notices', async () => {
+      vi.mocked(prisma.school.findUnique).mockResolvedValue(mockSchool as any);
+
+      // 2026-10-28 là Thứ 4 (Wednesday) - không có trong validNewSchedule
+      const wednesdayTrip = {
+        id: 'trip-wed',
+        serviceDate: new Date('2026-10-28T00:00:00.000Z'),
+        direction: RouteDirection.TO_SCHOOL,
+        status: TripStatus.SCHEDULED,
+        scheduledStartTime: '06:15',
+        scheduledEndTime: '07:00',
+        route: {
+          id: 'route-1',
+          direction: RouteDirection.TO_SCHOOL,
+          estimatedDurationSeconds: 2700,
+        },
+        routeSnapshot: { departureTime: '06:15' },
+      };
+
+      vi.mocked(prisma.trip.findMany).mockResolvedValue([wednesdayTrip] as any);
+      vi.mocked(prisma.trip.update).mockResolvedValue({ ...wednesdayTrip, status: TripStatus.CANCELLED } as any);
+      vi.mocked(prisma.school.update).mockResolvedValue({
+        ...mockSchool,
+        weeklySchedule: validNewSchedule.weeklySchedule,
+      } as any);
+
+      const res = await service.updateSchedule(mockSchool.id, validNewSchedule, sysAdminUser);
+
+      expect(res.success).toBe(true);
+      expect(res.cancelledTripsCount).toBe(1);
+      expect(res.updatedTripsCount).toBe(0);
+      expect(prisma.trip.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'trip-wed' },
+          data: expect.objectContaining({
+            status: TripStatus.CANCELLED,
+            cancellationReason: 'Lịch học trường đã thay đổi (ngày nghỉ)',
+            cancelledById: sysAdminUser.id,
+          }),
+        }),
+      );
+      expect(prisma.leaveNotice.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            tripId: 'trip-wed',
+            status: LeaveNoticeStatus.PENDING_REPLACEMENT,
+          },
+          data: expect.objectContaining({
+            status: LeaveNoticeStatus.TRIP_CANCELLED,
+            processedById: sysAdminUser.id,
+          }),
+        }),
+      );
+    });
+
+    it('cập nhật lại khung giờ cho chuyến xe SCHEDULED vào ngày có lịch học mới', async () => {
+      vi.mocked(prisma.school.findUnique).mockResolvedValue(mockSchool as any);
+
+      // 2026-10-26 là Thứ 2 (Monday) - TO_SCHOOL: start mới là 07:30, duration = 45m (2700s) -> departure 06:45
+      const mondayTripToSchool = {
+        id: 'trip-mon-in',
+        serviceDate: new Date('2026-10-26T00:00:00.000Z'),
+        direction: RouteDirection.TO_SCHOOL,
+        status: TripStatus.SCHEDULED,
+        scheduledStartTime: '06:15',
+        scheduledEndTime: '07:00',
+        scheduledStartAt: new Date('2026-10-25T23:15:00.000Z'),
+        scheduledEndAt: new Date('2026-10-26T00:00:00.000Z'),
+        route: {
+          id: 'route-in',
+          direction: RouteDirection.TO_SCHOOL,
+          estimatedDurationSeconds: 2700,
+        },
+        routeSnapshot: { departureTime: '06:15' },
+      };
+
+      // 2026-10-26 là Thứ 2 (Monday) - TO_PARKING: end mới là 16:45, duration = 45m (2700s) -> departure 16:45, arrival 17:30
+      const mondayTripToParking = {
+        id: 'trip-mon-out',
+        serviceDate: new Date('2026-10-26T00:00:00.000Z'),
+        direction: RouteDirection.TO_PARKING,
+        status: TripStatus.SCHEDULED,
+        scheduledStartTime: '17:30',
+        scheduledEndTime: '18:15',
+        scheduledStartAt: new Date('2026-10-26T10:30:00.000Z'),
+        scheduledEndAt: new Date('2026-10-26T11:15:00.000Z'),
+        route: {
+          id: 'route-out',
+          direction: RouteDirection.TO_PARKING,
+          estimatedDurationSeconds: 2700,
+        },
+        routeSnapshot: { departureTime: '17:30' },
+      };
+
+      vi.mocked(prisma.trip.findMany).mockResolvedValue([
+        mondayTripToSchool,
+        mondayTripToParking,
+      ] as any);
+      vi.mocked(prisma.trip.update).mockResolvedValue({} as any);
+      vi.mocked(prisma.school.update).mockResolvedValue({
+        ...mockSchool,
+        weeklySchedule: validNewSchedule.weeklySchedule,
+      } as any);
+
+      const res = await service.updateSchedule(mockSchool.id, validNewSchedule, sysAdminUser);
+
+      expect(res.success).toBe(true);
+      expect(res.cancelledTripsCount).toBe(0);
+      expect(res.updatedTripsCount).toBe(2);
+
+      // Verify trip TO_SCHOOL updated to 06:45 - 07:30
+      expect(prisma.trip.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'trip-mon-in' },
+          data: expect.objectContaining({
+            scheduledStartTime: '06:45',
+            scheduledEndTime: '07:30',
+            routeSnapshot: expect.objectContaining({
+              departureTime: '06:45',
+            }),
+          }),
+        }),
+      );
+
+      // Verify trip TO_PARKING updated to 16:45 - 17:30
+      expect(prisma.trip.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'trip-mon-out' },
+          data: expect.objectContaining({
+            scheduledStartTime: '16:45',
+            scheduledEndTime: '17:30',
+            routeSnapshot: expect.objectContaining({
+              departureTime: '16:45',
+            }),
+          }),
+        }),
+      );
     });
   });
 });
