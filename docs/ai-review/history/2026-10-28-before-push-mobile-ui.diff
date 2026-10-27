@@ -1,0 +1,24 @@
+diff --git "a/C:\\Users\\phuon\\AppData\\Local\\Temp/r2s-onboarding-before-remove-counter.tsx" b/mobile/components/onboarding/OnboardingCarousel.tsx
+index 34657f5..17c2d55 100644
+--- "a/C:\\Users\\phuon\\AppData\\Local\\Temp/r2s-onboarding-before-remove-counter.tsx"
++++ b/mobile/components/onboarding/OnboardingCarousel.tsx
+@@ -53,9 +53,6 @@ export function OnboardingCarousel({ saving, error, onComplete, onContinueWithou
+       <StatusBar style="dark" />
+       <View style={[styles.frame, { width: pageWidth }]}>
+         <View style={styles.header}>
+-          <Text style={styles.counter} accessibilityLiveRegion="polite">
+-            {active + 1} / {onboardingSlides.length}
+-          </Text>
+           <Pressable
+             accessibilityRole="button" disabled={saving} onPress={() => { void onComplete(); }}
+             style={({ pressed }) => [styles.skip, pressed && styles.pressed, saving && styles.disabled]}
+@@ -127,8 +124,7 @@ export function OnboardingCarousel({ saving, error, onComplete, onContinueWithou
+ const styles = StyleSheet.create({
+   screen: { flex: 1, backgroundColor: colors.surface },
+   frame: { flex: 1, alignSelf: 'center' },
+-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingTop: 4 },
+-  counter: { color: colors.mutedText, fontSize: 13, fontWeight: '500' },
++  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingHorizontal: 24, paddingTop: 4 },
+   skip: { minHeight: 48, minWidth: 80, alignItems: 'flex-end', justifyContent: 'center' },
+   skipLabel: { color: colors.mutedText, fontSize: 14, fontWeight: '600' },
+   pages: { flex: 1 },

@@ -11,6 +11,8 @@ import { RoleSplash } from '@/components/RoleSplash';
 import { NetworkBanner } from '@/components/NetworkBanner';
 import { useNavigationReopen } from '@/hooks/use-navigation-reopen';
 import { NotificationsProvider, useNotifications } from '@/context/notifications-context';
+import { OnboardingProvider, useOnboarding } from '@/context/onboarding-context';
+import { getOnboardingDestination } from '@/utils/onboarding-route';
 
 export {
   ErrorBoundary,
@@ -51,13 +53,25 @@ function RootNavigation() {
   const segments = useSegments();
   const router = useRouter();
   const { navigationPending } = useNotifications();
+  const onboarding = useOnboarding();
   useNavigationReopen(user?.id, user?.role, !isLoading && isAuthenticated && !splashRole && !navigationPending);
 
   // Xử lý điều hướng bảo vệ theo trạng thái xác thực
   useEffect(() => {
-    if (isLoading || splashRole) return;
+    if (isLoading || splashRole || !onboarding.ready) return;
 
     const inAuthGroup = segments[0] === '(auth)';
+    const onboardingDestination = getOnboardingDestination({
+      ready: onboarding.ready,
+      completed: onboarding.completed,
+      authenticated: isAuthenticated,
+      inAuthGroup,
+      authScreen: inAuthGroup ? segments[1] : undefined,
+    });
+    if (onboardingDestination) {
+      router.replace(onboardingDestination === 'onboarding' ? '/(auth)/onboarding' : '/(auth)/login');
+      return;
+    }
 
     if (!isAuthenticated && !inAuthGroup) {
       router.replace('/(auth)/login');
@@ -69,7 +83,7 @@ function RootNavigation() {
         router.replace('/(tabs)');
       }
     }
-  }, [isLoading, isAuthenticated, segments, splashRole, user, router]);
+  }, [isLoading, isAuthenticated, segments, splashRole, user, router, onboarding.ready, onboarding.completed]);
 
   // Hiển thị thông báo khi phiên đăng nhập bị thu hồi hoặc hết hạn
   useEffect(() => {
@@ -84,7 +98,7 @@ function RootNavigation() {
   }, [sessionExpiredMessage, clearSessionExpired]);
 
   // Screen M1: Application Splash (chỉ hiển thị khi đang nạp font hoặc khôi phục phiên)
-  if (isLoading) {
+  if (isLoading || !onboarding.ready) {
     return (
       <View style={styles.appSplashContainer}>
         <BusLogo size={76} />
@@ -145,7 +159,9 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={RoadToSchoolTheme}>
       <AuthProvider>
-        <NotificationsProvider><RootNavigation /></NotificationsProvider>
+        <OnboardingProvider>
+          <NotificationsProvider><RootNavigation /></NotificationsProvider>
+        </OnboardingProvider>
       </AuthProvider>
     </ThemeProvider>
   );

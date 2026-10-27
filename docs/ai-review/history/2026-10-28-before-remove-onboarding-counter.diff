@@ -1,0 +1,467 @@
+diff --git a/mobile/app/(auth)/_layout.tsx b/mobile/app/(auth)/_layout.tsx
+index 54a5f80..953b2d3 100644
+--- a/mobile/app/(auth)/_layout.tsx
++++ b/mobile/app/(auth)/_layout.tsx
+@@ -8,6 +8,7 @@ export default function AuthLayout() {
+         animation: 'slide_from_right',
+       }}
+     >
++      <Stack.Screen name="onboarding" options={{ animation: 'none', gestureEnabled: false }} />
+       <Stack.Screen name="login" />
+       <Stack.Screen name="register" />
+       <Stack.Screen name="verify-otp" />
+diff --git a/mobile/app/_layout.tsx b/mobile/app/_layout.tsx
+index 0b04141..f84b4c4 100644
+--- a/mobile/app/_layout.tsx
++++ b/mobile/app/_layout.tsx
+@@ -11,6 +11,8 @@ import { RoleSplash } from '@/components/RoleSplash';
+ import { NetworkBanner } from '@/components/NetworkBanner';
+ import { useNavigationReopen } from '@/hooks/use-navigation-reopen';
+ import { NotificationsProvider, useNotifications } from '@/context/notifications-context';
++import { OnboardingProvider, useOnboarding } from '@/context/onboarding-context';
++import { getOnboardingDestination } from '@/utils/onboarding-route';
+
+ export {
+   ErrorBoundary,
+@@ -51,13 +53,25 @@ function RootNavigation() {
+   const segments = useSegments();
+   const router = useRouter();
+   const { navigationPending } = useNotifications();
++  const onboarding = useOnboarding();
+   useNavigationReopen(user?.id, user?.role, !isLoading && isAuthenticated && !splashRole && !navigationPending);
+
+   // Xử lý điều hướng bảo vệ theo trạng thái xác thực
+   useEffect(() => {
+-    if (isLoading || splashRole) return;
++    if (isLoading || splashRole || !onboarding.ready) return;
+
+     const inAuthGroup = segments[0] === '(auth)';
++    const onboardingDestination = getOnboardingDestination({
++      ready: onboarding.ready,
++      completed: onboarding.completed,
++      authenticated: isAuthenticated,
++      inAuthGroup,
++      authScreen: inAuthGroup ? segments[1] : undefined,
++    });
++    if (onboardingDestination) {
++      router.replace(onboardingDestination === 'onboarding' ? '/(auth)/onboarding' : '/(auth)/login');
++      return;
++    }
+
+     if (!isAuthenticated && !inAuthGroup) {
+       router.replace('/(auth)/login');
+@@ -69,7 +83,7 @@ function RootNavigation() {
+         router.replace('/(tabs)');
+       }
+     }
+-  }, [isLoading, isAuthenticated, segments, splashRole, user, router]);
++  }, [isLoading, isAuthenticated, segments, splashRole, user, router, onboarding.ready, onboarding.completed]);
+
+   // Hiển thị thông báo khi phiên đăng nhập bị thu hồi hoặc hết hạn
+   useEffect(() => {
+@@ -84,7 +98,7 @@ function RootNavigation() {
+   }, [sessionExpiredMessage, clearSessionExpired]);
+
+   // Screen M1: Application Splash (chỉ hiển thị khi đang nạp font hoặc khôi phục phiên)
+-  if (isLoading) {
++  if (isLoading || !onboarding.ready) {
+     return (
+       <View style={styles.appSplashContainer}>
+         <BusLogo size={76} />
+@@ -145,7 +159,9 @@ export default function RootLayout() {
+   return (
+     <ThemeProvider value={RoadToSchoolTheme}>
+       <AuthProvider>
+-        <NotificationsProvider><RootNavigation /></NotificationsProvider>
++        <OnboardingProvider>
++          <NotificationsProvider><RootNavigation /></NotificationsProvider>
++        </OnboardingProvider>
+       </AuthProvider>
+     </ThemeProvider>
+   );
+diff --git a/mobile/app/(auth)/onboarding.tsx b/mobile/app/(auth)/onboarding.tsx
+new file mode 100644
+index 0000000..ad0ce5e
+--- /dev/null
++++ b/mobile/app/(auth)/onboarding.tsx
+@@ -0,0 +1,7 @@
++import { OnboardingCarousel } from '@/components/onboarding/OnboardingCarousel';
++import { useOnboarding } from '@/context/onboarding-context';
++
++export default function OnboardingScreen() {
++  const { saving, error, complete, continueWithoutSaving } = useOnboarding();
++  return <OnboardingCarousel saving={saving} error={error} onComplete={complete} onContinueWithoutSaving={continueWithoutSaving} />;
++}
+diff --git a/mobile/assets/images/onboarding/slide1.jpg b/mobile/assets/images/onboarding/slide1.jpg
+new file mode 100644
+index 0000000..462e134
+Binary files /dev/null and b/mobile/assets/images/onboarding/slide1.jpg differ
+diff --git a/mobile/assets/images/onboarding/slide2.jpg b/mobile/assets/images/onboarding/slide2.jpg
+new file mode 100644
+index 0000000..d6f94f2
+Binary files /dev/null and b/mobile/assets/images/onboarding/slide2.jpg differ
+diff --git a/mobile/assets/images/onboarding/slide3.jpg b/mobile/assets/images/onboarding/slide3.jpg
+new file mode 100644
+index 0000000..30cf81a
+Binary files /dev/null and b/mobile/assets/images/onboarding/slide3.jpg differ
+diff --git a/mobile/assets/images/onboarding/slide4.jpg b/mobile/assets/images/onboarding/slide4.jpg
+new file mode 100644
+index 0000000..387d01e
+Binary files /dev/null and b/mobile/assets/images/onboarding/slide4.jpg differ
+diff --git a/mobile/components/onboarding/OnboardingCarousel.tsx b/mobile/components/onboarding/OnboardingCarousel.tsx
+new file mode 100644
+index 0000000..34657f5
+--- /dev/null
++++ b/mobile/components/onboarding/OnboardingCarousel.tsx
+@@ -0,0 +1,152 @@
++import React, { useEffect, useRef, useState } from 'react';
++import {
++  AccessibilityInfo, ActivityIndicator, FlatList, Image, Pressable,
++  ScrollView, StyleSheet, Text, useWindowDimensions, View,
++  type NativeScrollEvent, type NativeSyntheticEvent,
++} from 'react-native';
++import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
++import { StatusBar } from 'expo-status-bar';
++import Ionicons from '@expo/vector-icons/Ionicons';
++import { colors } from '@/constants/theme';
++import { onboardingSlides } from '@/constants/onboarding';
++
++interface Props {
++  saving: boolean;
++  error: string | null;
++  onComplete: () => Promise<void>;
++  onContinueWithoutSaving: () => void;
++}
++
++export function OnboardingCarousel({ saving, error, onComplete, onContinueWithoutSaving }: Props) {
++  const { width, height } = useWindowDimensions();
++  const insets = useSafeAreaInsets();
++  const pageWidth = Math.max(1, Math.min(width - insets.left - insets.right, 600));
++  const imageHeight = Math.min(280, Math.max(120, (height - insets.top - insets.bottom - 180) / 2));
++  const list = useRef<FlatList<(typeof onboardingSlides)[number]>>(null);
++  const [active, setActive] = useState(0);
++  const [reduceMotion, setReduceMotion] = useState(true);
++  const last = active === onboardingSlides.length - 1;
++
++  useEffect(() => {
++    let cancelled = false;
++    void AccessibilityInfo.isReduceMotionEnabled().then(value => {
++      if (!cancelled) setReduceMotion(value);
++    }).catch(() => { /* Default to no motion when the preference is unavailable. */ });
++    const listener = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
++    return () => { cancelled = true; listener.remove(); };
++  }, []);
++
++  function select(index: number) {
++    const next = Math.max(0, Math.min(index, onboardingSlides.length - 1));
++    setActive(next);
++    list.current?.scrollToOffset({ offset: next * pageWidth, animated: !reduceMotion });
++  }
++
++  function onScrollEnd(event: NativeSyntheticEvent<NativeScrollEvent>) {
++    setActive(Math.max(0, Math.min(
++      Math.round(event.nativeEvent.contentOffset.x / pageWidth), onboardingSlides.length - 1,
++    )));
++  }
++
++  return (
++    <SafeAreaView style={styles.screen} edges={['top', 'bottom', 'left', 'right']}>
++      <StatusBar style="dark" />
++      <View style={[styles.frame, { width: pageWidth }]}>
++        <View style={styles.header}>
++          <Text style={styles.counter} accessibilityLiveRegion="polite">
++            {active + 1} / {onboardingSlides.length}
++          </Text>
++          <Pressable
++            accessibilityRole="button" disabled={saving} onPress={() => { void onComplete(); }}
++            style={({ pressed }) => [styles.skip, pressed && styles.pressed, saving && styles.disabled]}
++          >
++            <Text style={styles.skipLabel}>Bỏ qua</Text>
++          </Pressable>
++        </View>
++
++        <FlatList
++          key={pageWidth} ref={list} data={onboardingSlides} horizontal pagingEnabled
++          initialNumToRender={4} initialScrollIndex={active} keyExtractor={item => item.id}
++          getItemLayout={(_, index) => ({ length: pageWidth, offset: pageWidth * index, index })}
++          showsHorizontalScrollIndicator={false} onMomentumScrollEnd={onScrollEnd}
++          extraData={active} style={styles.pages}
++          renderItem={({ item, index }) => (
++            <ScrollView
++              style={{ width: pageWidth }} contentContainerStyle={styles.slide}
++              showsVerticalScrollIndicator={false} directionalLockEnabled
++              accessibilityElementsHidden={index !== active}
++              importantForAccessibility={index === active ? 'auto' : 'no-hide-descendants'}
++            >
++              <Image source={item.image} style={[styles.image, { height: imageHeight }]} resizeMode="contain" accessible={false} />
++              <View style={styles.copy}>
++                <Text accessibilityRole="header" style={styles.title}>{item.title}</Text>
++                <Text style={styles.description}>{item.description}</Text>
++              </View>
++            </ScrollView>
++          )}
++        />
++
++        <View style={styles.footer}>
++          <View style={styles.pagination} accessibilityRole="tablist" accessibilityLabel="Trang giới thiệu">
++            {onboardingSlides.map((slide, index) => (
++              <Pressable
++                key={slide.id} accessibilityRole="tab" accessibilityLabel={`Trang ${index + 1}: ${slide.title}`}
++                accessibilityState={{ selected: index === active }} onPress={() => select(index)}
++                style={styles.dotTarget}
++              >
++                <View style={[styles.dot, index === active && styles.activeDot]} />
++              </Pressable>
++            ))}
++          </View>
++          {error && (
++            <View style={styles.error} accessibilityRole="alert">
++              <Text style={styles.errorText}>{error}</Text>
++              <Pressable accessibilityRole="button" onPress={onContinueWithoutSaving} style={styles.fallback}>
++                <Text style={styles.fallbackLabel}>Tiếp tục không lưu</Text>
++              </Pressable>
++            </View>
++          )}
++          <Pressable
++            accessibilityRole="button" accessibilityState={{ busy: saving, disabled: saving }} disabled={saving}
++            onPress={() => { if (last || error) void onComplete(); else select(active + 1); }}
++            style={({ pressed }) => [styles.primary, pressed && styles.pressed, saving && styles.disabled]}
++          >
++            {saving ? <ActivityIndicator color={colors.foreground} accessibilityLabel="Đang lưu" /> : (
++              <>
++                <Text style={styles.primaryLabel}>{error ? 'Thử lại' : last ? 'Bắt đầu' : 'Tiếp theo'}</Text>
++                <Ionicons name="arrow-forward" size={20} color={colors.foreground} accessible={false} />
++              </>
++            )}
++          </Pressable>
++        </View>
++      </View>
++    </SafeAreaView>
++  );
++}
++
++const styles = StyleSheet.create({
++  screen: { flex: 1, backgroundColor: colors.surface },
++  frame: { flex: 1, alignSelf: 'center' },
++  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingTop: 4 },
++  counter: { color: colors.mutedText, fontSize: 13, fontWeight: '500' },
++  skip: { minHeight: 48, minWidth: 80, alignItems: 'flex-end', justifyContent: 'center' },
++  skipLabel: { color: colors.mutedText, fontSize: 14, fontWeight: '600' },
++  pages: { flex: 1 },
++  slide: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 16 },
++  image: { width: '100%' },
++  copy: { marginTop: 24, alignItems: 'center' },
++  title: { color: colors.foreground, fontSize: 26, fontWeight: '700', lineHeight: 36, textAlign: 'center' },
++  description: { color: colors.mutedText, fontSize: 16, lineHeight: 25, textAlign: 'center', marginTop: 16, maxWidth: 400 },
++  footer: { paddingHorizontal: 24, paddingBottom: 12 },
++  pagination: { flexDirection: 'row', justifyContent: 'center', marginBottom: 12 },
++  dotTarget: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
++  dot: { width: 9, height: 9, borderRadius: 9, backgroundColor: colors.border },
++  activeDot: { width: 24, backgroundColor: colors.primary },
++  primary: { minHeight: 52, borderRadius: 26, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 14 },
++  primaryLabel: { color: colors.foreground, fontSize: 16, fontWeight: '700' },
++  pressed: { opacity: 0.8 }, disabled: { opacity: 0.6 },
++  error: { padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 12 },
++  errorText: { color: colors.error, fontSize: 13, lineHeight: 20 },
++  fallback: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
++  fallbackLabel: { color: colors.foreground, fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' },
++});
+diff --git a/mobile/constants/onboarding.ts b/mobile/constants/onboarding.ts
+new file mode 100644
+index 0000000..a91d583
+--- /dev/null
++++ b/mobile/constants/onboarding.ts
+@@ -0,0 +1,26 @@
++export const onboardingSlides = [
++  {
++    id: 'school-bus',
++    image: require('../assets/images/onboarding/slide1.jpg'),
++    title: 'RoadToSchool',
++    description: 'Đồng hành cùng con trên hành trình đến trường.',
++  },
++  {
++    id: 'safety',
++    image: require('../assets/images/onboarding/slide2.jpg'),
++    title: 'An tâm mỗi hành trình',
++    description: 'Theo dõi chuyến xe và trạng thái lên, xuống xe của con.',
++  },
++  {
++    id: 'team',
++    image: require('../assets/images/onboarding/slide3.jpg'),
++    title: 'Cùng chăm sóc học sinh',
++    description: 'Tài xế và giáo viên phụ xe phối hợp trên từng chuyến.',
++  },
++  {
++    id: 'connected',
++    image: require('../assets/images/onboarding/slide4.jpg'),
++    title: 'Luôn kết nối',
++    description: 'Xem lịch đưa đón và cập nhật thông báo trong ứng dụng.',
++  },
++] as const;
+diff --git a/mobile/context/onboarding-context.tsx b/mobile/context/onboarding-context.tsx
+new file mode 100644
+index 0000000..7e19cec
+--- /dev/null
++++ b/mobile/context/onboarding-context.tsx
+@@ -0,0 +1,61 @@
++import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
++import { onboardingStorage } from '@/services/onboarding-storage';
++
++interface OnboardingState {
++  ready: boolean;
++  completed: boolean;
++  saving: boolean;
++  error: string | null;
++  complete: () => Promise<void>;
++  continueWithoutSaving: () => void;
++}
++
++const OnboardingContext = createContext<OnboardingState | undefined>(undefined);
++
++export function OnboardingProvider({ children }: { children: React.ReactNode }) {
++  const [ready, setReady] = useState(false);
++  const [completed, setCompleted] = useState(false);
++  const [saving, setSaving] = useState(false);
++  const [error, setError] = useState<string | null>(null);
++  const pending = useRef(false);
++
++  useEffect(() => {
++    let cancelled = false;
++    void onboardingStorage.isCompleted().then(value => {
++      if (!cancelled) { setCompleted(value); setReady(true); }
++    });
++    return () => { cancelled = true; };
++  }, []);
++
++  const complete = useCallback(async () => {
++    if (pending.current) return;
++    pending.current = true;
++    setSaving(true);
++    setError(null);
++    try {
++      await onboardingStorage.complete();
++      setCompleted(true);
++    } catch {
++      setError('Chưa lưu được lựa chọn trên thiết bị. Bạn có thể thử lại hoặc tiếp tục.');
++    } finally {
++      pending.current = false;
++      setSaving(false);
++    }
++  }, []);
++
++  const continueWithoutSaving = useCallback(() => {
++    if (!pending.current) setCompleted(true);
++  }, []);
++
++  return (
++    <OnboardingContext.Provider value={{ ready, completed, saving, error, complete, continueWithoutSaving }}>
++      {children}
++    </OnboardingContext.Provider>
++  );
++}
++
++export function useOnboarding() {
++  const value = useContext(OnboardingContext);
++  if (!value) throw new Error('useOnboarding must be used within OnboardingProvider');
++  return value;
++}
+diff --git a/mobile/scripts/onboarding-route.test.ts b/mobile/scripts/onboarding-route.test.ts
+new file mode 100644
+index 0000000..83fb68e
+--- /dev/null
++++ b/mobile/scripts/onboarding-route.test.ts
+@@ -0,0 +1,35 @@
++import { describe, it } from 'node:test';
++import assert from 'node:assert/strict';
++import { getOnboardingDestination } from '../utils/onboarding-route.ts';
++
++const firstLaunch = { ready: true, completed: false, authenticated: false, inAuthGroup: false };
++
++describe('onboarding entry routing without auth/API changes', () => {
++  it('waits for local preference loading', () => {
++    assert.equal(getOnboardingDestination({ ...firstLaunch, ready: false }), null);
++  });
++  it('introduces a first-time signed-out user before login', () => {
++    assert.equal(getOnboardingDestination(firstLaunch), 'onboarding');
++    assert.equal(getOnboardingDestination({ ...firstLaunch, inAuthGroup: true, authScreen: 'login' }), 'onboarding');
++  });
++  it('does not redirect repeatedly while viewing onboarding', () => {
++    assert.equal(getOnboardingDestination({ ...firstLaunch, inAuthGroup: true, authScreen: 'onboarding' }), null);
++  });
++  it('returns completed/skipped onboarding to the existing login', () => {
++    assert.equal(getOnboardingDestination({ ...firstLaunch, completed: true, inAuthGroup: true, authScreen: 'onboarding' }), 'login');
++    assert.equal(getOnboardingDestination({ ...firstLaunch, completed: true, inAuthGroup: true, authScreen: 'login' }), null);
++  });
++  it('never interrupts an authenticated session', () => {
++    for (const authScreen of [undefined, 'login', 'onboarding']) {
++      assert.equal(getOnboardingDestination({ ...firstLaunch, authenticated: true, inAuthGroup: !!authScreen, authScreen }), null);
++    }
++  });
++  it('preserves direct registration, OTP and password-reset routes', () => {
++    for (const authScreen of ['register', 'verify-otp', 'forgot-password', 'reset-password']) {
++      assert.equal(getOnboardingDestination({ ...firstLaunch, inAuthGroup: true, authScreen }), null);
++    }
++  });
++  it('leaves existing signed-out protected-route guarding in place after completion', () => {
++    assert.equal(getOnboardingDestination({ ...firstLaunch, completed: true }), null);
++  });
++});
+diff --git a/mobile/services/onboarding-storage.ts b/mobile/services/onboarding-storage.ts
+new file mode 100644
+index 0000000..9533f2d
+--- /dev/null
++++ b/mobile/services/onboarding-storage.ts
+@@ -0,0 +1,28 @@
++import * as SecureStore from 'expo-secure-store';
++import { Platform } from 'react-native';
++
++// This device preference is separate from authentication and survives logout.
++const ONBOARDING_KEY = 'r2s_onboarding_v1_completed';
++
++export const onboardingStorage = {
++  async isCompleted(): Promise<boolean> {
++    try {
++      const value = Platform.OS === 'web'
++        ? (typeof window !== 'undefined' ? window.localStorage.getItem(ONBOARDING_KEY) : null)
++        : await SecureStore.getItemAsync(ONBOARDING_KEY);
++      return value === 'true';
++    } catch {
++      // An unavailable preference must never be mistaken for an auth failure.
++      return false;
++    }
++  },
++
++  async complete(): Promise<void> {
++    if (Platform.OS === 'web') {
++      if (typeof window === 'undefined') throw new Error('Storage unavailable');
++      window.localStorage.setItem(ONBOARDING_KEY, 'true');
++    } else {
++      await SecureStore.setItemAsync(ONBOARDING_KEY, 'true');
++    }
++  },
++};
+diff --git a/mobile/utils/onboarding-route.ts b/mobile/utils/onboarding-route.ts
+new file mode 100644
+index 0000000..e1b06cb
+--- /dev/null
++++ b/mobile/utils/onboarding-route.ts
+@@ -0,0 +1,19 @@
++interface OnboardingRouteState {
++  ready: boolean;
++  completed: boolean;
++  authenticated: boolean;
++  inAuthGroup: boolean;
++  authScreen?: string;
++}
++
++/** Only intercept the unauthenticated entry point, never an OTP/deep-link flow. */
++export function getOnboardingDestination(state: OnboardingRouteState): 'onboarding' | 'login' | null {
++  if (!state.ready || state.authenticated) return null;
++  if (state.authScreen === 'onboarding' && state.inAuthGroup) {
++    return state.completed ? 'login' : null;
++  }
++  if (!state.completed && (!state.inAuthGroup || state.authScreen === 'login')) {
++    return 'onboarding';
++  }
++  return null;
++}
