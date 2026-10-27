@@ -215,3 +215,12 @@ Khi bắt đầu phiên làm việc trong Codex:
    - `cd mobile && npx tsc --noEmit`
 3. **Tuyệt đối tuân thủ Test Data Policy**: Không chèn dữ liệu test vào PostgreSQL.
 4. **Chờ yêu cầu cụ thể từ Product Owner**: Không tự ý sửa code hay refactor khi PO chưa giao task mới.
+
+## Addendum 27/10/2026 — Notifications & Admin Overview (Codex)
+
+- /admin có Tổng quan cho SYSTEM_ADMIN/SCHOOL_ADMIN: backlog theo quyền mọi ngày, actual Trip partition theo serviceDate, attention bounded và inventory hiện trạng. School scope được kiểm phía API; dashboard filter không thu hẹp chuông toàn tài khoản.
+- API thêm OverviewModule, NotificationsModule và typed target resolver. Inbox Notification lưu cùng business transaction; key unique theo recipient/event; bulk cancellation gộp theo người/ngày. Unread riêng với unresolved incident count. Không backfill sự kiện cũ.
+- Prisma thêm bảng notifications + sessions.push_token nullable unique. Migration 20261027000000_add_notifications đã deploy local, tổng14 migrations current; schema validate/generate và drift check qua. Không tạo business test records.
+- Web có chuông/popover + /admin/notifications; Mobile có chuông ở header các tab + /notifications, mở đích kiểm quyền. Cài expo-notifications cùng4transitive packages, không đổi version package hiện có.
+- Push OFF nếu không đặt PUSH_NOTIFICATIONS_ENABLED=true. PO chọn bàn giao cấu hình EAS/FCM/APNs; chưa project ID/credentials/native build/device UAT, chưa gửi push. Xem docs/ai-review/notifications-push-setup.md.
+- Verification và rủi ro đầy đủ ở docs/ai-review/LATEST.md. Không coi static/mocked/bundle checks là chứng nhận production hoặc kiểm chứng mọi nghiệp vụ incident trước đó.

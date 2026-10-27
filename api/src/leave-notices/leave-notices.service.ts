@@ -1,3 +1,6 @@
+import { notifyLeave } from '../notifications/notification-events.js';
+import { actionableLeaveWhere, adminSchoolScope } from '../overview/operations-policy.js';
+import { notifyAssignment, notifyCancelledTrips } from '../notifications/notification-writer.js';
 import {
   BadRequestException,
   ConflictException,
@@ -461,6 +464,7 @@ export class LeaveNoticesService {
         },
       });
 
+      await notifyLeave(tx, notice.id, user.id);
       this.logger.log(`LeaveNotice ${notice.id} created for kind ${kind} on Trip ${trip.id}`);
       return this.mapNoticeResponse(notice, user);
     });
@@ -553,6 +557,7 @@ export class LeaveNoticesService {
         }
       }
 
+      await notifyLeave(tx, notice.id, user.id);
       this.logger.log(`LeaveNotice ${notice.id} withdrawn by User ${user.id}`);
       return this.mapNoticeResponse(updated, user);
     });
@@ -563,13 +568,18 @@ export class LeaveNoticesService {
    */
   async listNotices(user: User, query: ListLeaveNoticesQueryDto): Promise<LeaveNoticeListResponseDto> {
     const where: Prisma.LeaveNoticeWhereInput = {};
+    if (user.role === Role.SYSTEM_ADMIN || user.role === Role.SCHOOL_ADMIN) {
+      const schoolId = adminSchoolScope(user, query.schoolId);
+      if (schoolId) where.trip = { schoolId };
+      if (query.actionable) where.AND = [actionableLeaveWhere(user.role, schoolId)];
+    }
 
     if (query.kind) where.kind = query.kind;
     if (query.status) where.status = query.status;
     if (query.studentId) where.studentId = query.studentId;
 
     if (query.serviceDate || query.direction) {
-      where.trip = {};
+      where.trip = { ...((where.trip as Prisma.TripWhereInput) || {}) };
       if (query.serviceDate) where.trip.serviceDate = new Date(query.serviceDate);
       if (query.direction) where.trip.direction = query.direction;
     }
@@ -863,6 +873,8 @@ export class LeaveNoticesService {
         },
       });
 
+      await notifyAssignment(tx, trip.id, notice.kind === LeaveNoticeKind.DRIVER ? trip.assignedDriverId : trip.assignedBusAttendantId, replacementUser.id, `leave:${notice.id}`, user.id);
+      await notifyLeave(tx, notice.id, user.id);
       this.logger.log(`LeaveNotice ${notice.id} replaced by User ${replacementUser.id} via Admin ${user.id}`);
       return this.mapNoticeResponse(updatedNotice, user);
     });
@@ -946,6 +958,7 @@ export class LeaveNoticesService {
         },
       });
 
+      await notifyCancelledTrips(tx, [trip.id], `leave:${notice.id}`, user.id);
       this.logger.log(`Trip ${trip.id} CANCELLED from LeaveNotice ${notice.id} by Admin ${user.id}`);
       return this.mapNoticeResponse(updated!, user);
     });

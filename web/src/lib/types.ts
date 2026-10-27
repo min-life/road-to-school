@@ -1074,3 +1074,64 @@ export interface UpdateTripAssignmentRequest {
   driverId?: string;
   busAttendantId?: string;
 }
+
+export type TripIncidentType =
+  | 'ATTENDANT_MISSING'
+  | 'DRIVER_MISSING'
+  | 'OFF_ROUTE'
+  | 'LATE_STOP';
+
+export type TripIncidentStatus =
+  | 'WAITING_ASSIGNMENT'
+  | 'WAITING_CONFIRMATION'
+  | 'RESOLVED'
+  | 'CONFIRMED'
+  | 'CLOSED';
+
+export interface TripIncident {
+  id: string;
+  tripId: string;
+  type: TripIncidentType;
+  status: TripIncidentStatus;
+  reportedById?: string | null;
+  reportedByName?: string | null;
+  reportedByRole?: string | null;
+  description?: string | null;
+  context?: any;
+  processedById?: string | null;
+  processedByName?: string | null;
+  processedAt?: string | null;
+  resolution?: any;
+  createdAt: string;
+  updatedAt: string;
+  routeId?: string;
+  routeName?: string;
+  direction?: 'TO_SCHOOL' | 'TO_PARKING';
+  serviceDate?: string;
+  schoolId?: string;
+  schoolName?: string;
+  scheduledStartTime?: string | null;
+  scheduledEndTime?: string | null;
+}
+
+export interface TripIncidentListResponse {
+  items: TripIncident[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface IncidentCandidate {
+  id: string;
+  fullName: string;
+  phone?: string | null;
+  email?: string | null;
+  role: string;
+}
+
+export interface IncidentCandidatesResponse {
+  candidates: IncidentCandidate[];
+  total: number;
+}
+

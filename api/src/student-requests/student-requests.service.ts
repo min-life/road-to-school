@@ -1,3 +1,6 @@
+import { notifyCancelledTrips } from '../notifications/notification-writer.js';
+import { notifyRequest } from '../notifications/notification-events.js';
+import { actionableRequestWhere } from '../overview/operations-policy.js';
 import {
   Injectable,
   Logger,
@@ -334,7 +337,7 @@ export class StudentRequestsService {
 
     // 4. Tạo yêu cầu cập nhật trong Database với xử lý concurrency chống trùng lặp PENDING
     try {
-      const createdRequest = await this.prisma.studentUpdateRequest.create({
+      const createdRequest = await this.prisma.$transaction(async tx => { const created = await tx.studentUpdateRequest.create({
         data: {
           studentId,
           parentId,
@@ -349,7 +352,7 @@ export class StudentRequestsService {
           parent: { select: { id: true, fullName: true } },
           school: { select: { id: true, name: true } },
         },
-      });
+      }); await notifyRequest(tx, created.id, parentId); return created; });
 
       this.logger.log(
         `Phụ huynh ${parentId} đã tạo yêu cầu ${dto.type} thành công cho học sinh ${student.code}`,
@@ -527,6 +530,7 @@ export class StudentRequestsService {
 
     const where: Prisma.StudentUpdateRequestWhereInput = {
       schoolId,
+      ...(query.actionable ? { AND: [actionableRequestWhere(Role.SCHOOL_ADMIN, schoolId)] } : {}),
     };
 
     if (query.type) where.type = query.type;
@@ -747,6 +751,8 @@ export class StudentRequestsService {
 
     const where: Prisma.StudentUpdateRequestWhereInput = {
       type: RequestType.ADDRESS_UPDATE, // BẮT BUỘC CHỈ LẤY ADDRESS_UPDATE (Section 11)
+      ...(query.schoolId ? { schoolId: query.schoolId } : {}),
+      ...(query.actionable ? { AND: [actionableRequestWhere(Role.SYSTEM_ADMIN, query.schoolId)] } : {}),
     };
 
     if (query.status) where.status = query.status;
@@ -1017,7 +1023,9 @@ export class StudentRequestsService {
                     cancellationReason: 'Hủy tự động do tuyến không còn học sinh sau khi đổi địa chỉ',
                   },
                 });
-              }
+
+              await notifyCancelledTrips(tx, [trip.id], 'student-removal:' + request.studentId + ':' + trip.id, reviewerId);
+            }
             }
           } else {
             // REOPTIMIZED: Cập nhật tọa độ điểm dừng và geometry/metrics đã preview trên các tuyến
@@ -1087,6 +1095,7 @@ export class StudentRequestsService {
         `Yêu cầu ${requestId} (${request.type}) đã được phê duyệt thành công bởi ${reviewerRole} (${reviewerId})`,
       );
 
+      await notifyRequest(tx, updatedRequest.id, reviewerId);
       return this.mapToDto(updatedRequest);
     });
   }
@@ -1154,6 +1163,7 @@ export class StudentRequestsService {
         `Yêu cầu ${requestId} (${request.type}) đã bị từ chối bởi ${reviewerRole} (${reviewerId})`,
       );
 
+      await notifyRequest(tx, updatedRequest.id, reviewerId);
       return this.mapToDto(updatedRequest);
     });
   }

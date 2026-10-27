@@ -13,6 +13,9 @@ import { StudentRequestsModule } from './student-requests/student-requests.modul
 import { RoutesModule } from './routes/routes.module.js';
 import { TripsModule } from './trips/trips.module.js';
 import { LeaveNoticesModule } from './leave-notices/leave-notices.module.js';
+import { IncidentsModule } from './incidents/incidents.module.js';
+import { OverviewModule } from './overview/overview.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
 
 @Module({
   imports: [
@@ -33,6 +36,9 @@ import { LeaveNoticesModule } from './leave-notices/leave-notices.module.js';
     RoutesModule,
     TripsModule,
     LeaveNoticesModule,
+    IncidentsModule,
+    OverviewModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}

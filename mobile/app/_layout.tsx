@@ -10,6 +10,7 @@ import { BusLogo } from '@/components/BusLogo';
 import { RoleSplash } from '@/components/RoleSplash';
 import { NetworkBanner } from '@/components/NetworkBanner';
 import { useNavigationReopen } from '@/hooks/use-navigation-reopen';
+import { NotificationsProvider, useNotifications } from '@/context/notifications-context';
 
 export {
   ErrorBoundary,
@@ -49,7 +50,8 @@ function RootNavigation() {
 
   const segments = useSegments();
   const router = useRouter();
-  useNavigationReopen(user?.id, user?.role, !isLoading && isAuthenticated && !splashRole);
+  const { navigationPending } = useNotifications();
+  useNavigationReopen(user?.id, user?.role, !isLoading && isAuthenticated && !splashRole && !navigationPending);
 
   // Xử lý điều hướng bảo vệ theo trạng thái xác thực
   useEffect(() => {
@@ -143,7 +145,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={RoadToSchoolTheme}>
       <AuthProvider>
-        <RootNavigation />
+        <NotificationsProvider><RootNavigation /></NotificationsProvider>
       </AuthProvider>
     </ThemeProvider>
   );

@@ -1,5 +1,10 @@
 'use client';
 
+import { SchoolSelectFilter } from '@/components/admin/common/school-select-filter';
+import Link from 'next/link';
+import { useRouteQuery } from '@/hooks/use-route-query';
+
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { apiClient, ApiError } from '@/lib/api-client';
@@ -46,6 +51,9 @@ export default function AdminLeaveNoticesPage() {
   const [page, setPage] = useState<number>(1);
   const [limit, setLimit] = useState<number>(10);
 
+  const [schoolFilter, setSchoolFilter] = useState('');
+  const [actionableOnly, setActionableOnly] = useState(false);
+  const [focusNotice, setFocusNotice] = useState<LeaveNoticeItem | null>(null);
   // Data
   const [notices, setNotices] = useState<LeaveNoticeItem[]>([]);
   const [total, setTotal] = useState<number>(0);
@@ -59,6 +67,17 @@ export default function AdminLeaveNoticesPage() {
   const [selectedNoticeForCancelTrip, setSelectedNoticeForCancelTrip] =
     useState<LeaveNoticeItem | null>(null);
 
+  useRouteQuery(String(user?.id), (query, isCurrent) => {
+    const kind = query.get('kind'), status = query.get('status');
+    setActiveTab(kind && ['DRIVER','BUS_ATTENDANT','STUDENT'].includes(kind) ? kind as LeaveNoticeKind : isSystemAdmin ? 'DRIVER' : 'BUS_ATTENDANT');
+    setStatusFilter(status && ['PENDING_REPLACEMENT','RECORDED','REPLACED','WITHDRAWN','TRIP_CANCELLED'].includes(status) ? status : 'ALL');
+    setSchoolFilter(isSystemAdmin ? query.get('schoolId') || '' : ''); setActionableOnly(query.get('actionable') === 'true'); setPage(1);
+    const id = query.get('noticeId'); if (id) void apiClient.getLeaveNoticeDetail(id).then(item => {
+      if (!isCurrent()) return; setActiveTab(item.kind);
+      if (item.status === 'PENDING_REPLACEMENT' && (isSystemAdmin ? item.kind === 'DRIVER' : item.kind === 'BUS_ATTENDANT')) setSelectedNoticeForReplacement(item);
+      else setFocusNotice(item);
+    }).catch(cause => { if (isCurrent()) setError(cause instanceof Error ? cause.message : 'Không thể mở báo nghỉ'); });
+  });
   const fetchNotices = useCallback(async () => {
     if (!currentUserRole) return;
     setLoading(true);
@@ -66,6 +85,8 @@ export default function AdminLeaveNoticesPage() {
 
     try {
       const res = await apiClient.listLeaveNotices({
+        schoolId: isSystemAdmin ? schoolFilter || undefined : undefined,
+        actionable: actionableOnly || undefined,
         kind: activeTab,
         status: statusFilter !== 'ALL' ? (statusFilter as LeaveNoticeStatus) : undefined,
         serviceDate: dateFilter || undefined,
@@ -86,7 +107,7 @@ export default function AdminLeaveNoticesPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentUserRole, activeTab, statusFilter, dateFilter, directionFilter, page, limit]);
+  }, [currentUserRole, activeTab, statusFilter, dateFilter, directionFilter, page, limit, schoolFilter, actionableOnly, isSystemAdmin]);
 
   useEffect(() => {
     fetchNotices();
@@ -227,6 +248,9 @@ export default function AdminLeaveNoticesPage() {
         </Button>
       </div>
 
+      {focusNotice && <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm"><div className="flex justify-between"><strong>Chi tiết báo nghỉ</strong><button type="button" onClick={() => setFocusNotice(null)}>Đóng</button></div><p className="my-2">{focusNotice.kind === 'STUDENT' ? 'Học sinh' : focusNotice.kind === 'DRIVER' ? 'Tài xế' : 'Giáo viên'} · {focusNotice.status}</p><Link className="font-semibold underline" href={'/admin/trips/' + focusNotice.tripId}>Xem chuyến xe</Link></div>}
+      {isSystemAdmin && <SchoolSelectFilter value={schoolFilter} onChange={id => { setSchoolFilter(id); setPage(1); }} />}
+      {actionableOnly && <button type="button" onClick={() => setActionableOnly(false)} className="text-xs font-semibold text-amber-800">Chỉ báo nghỉ cần bố trí ×</button>}
       {/* Filter Toolbar */}
       <FilterToolbar className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3 text-xs">

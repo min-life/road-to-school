@@ -5,6 +5,7 @@ import { MenuIcon, LogoutIcon } from '@/components/icons';
 import { User } from '@/lib/types';
 import { formatRoleLabel, getAvatarInitial } from './admin-nav.config';
 import { Button } from '@/components/ui/button';
+import { NotificationBell } from './notifications/notification-bell';
 
 interface AdminHeaderProps {
   user: User;
@@ -47,6 +48,7 @@ export function AdminHeader({
 
       {/* User Information & Quick Actions */}
       <div className="admin-header-actions">
+        <NotificationBell />
         <div className="flex items-center gap-2.5">
           {/* Avatar / Fallback Initial */}
           {user.avatarUrl ? (

@@ -1,3 +1,4 @@
+vi.mock('../notifications/notification-writer.js', () => ({ notifyCancelledTrips: vi.fn() }));
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   BadRequestException,

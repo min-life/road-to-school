@@ -21,12 +21,14 @@ export function useVisibleRefresh(
     document.addEventListener('visibilitychange', visibility);
     window.addEventListener('focus', refresh);
     window.addEventListener('online', refresh);
+    window.addEventListener('rts:mutation', refresh);
     return () => {
       loop.stop();
       if (loopRef.current === loop) loopRef.current = null;
       document.removeEventListener('visibilitychange', visibility);
       window.removeEventListener('focus', refresh);
       window.removeEventListener('online', refresh);
+      window.removeEventListener('rts:mutation', refresh);
     };
   }, [identity, intervalMs]);
   return useCallback(() => loopRef.current?.refresh(), []);

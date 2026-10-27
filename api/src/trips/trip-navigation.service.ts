@@ -1,9 +1,10 @@
-import { BadRequestException, ConflictException, ForbiddenException, HttpException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, HttpException, Injectable, NotFoundException, Optional, UnauthorizedException } from '@nestjs/common';
 import { Prisma, Role, type User } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { TripsService } from './trips.service.js';
 import { VietMapNavigationService } from './vietmap-navigation.service.js';
+import { IncidentsDetectorService } from '../incidents/incidents-detector.service.js';
 import { metresBetween, parseCheckpoint, routeFingerprint, type NavigationCheckpoint } from './utils/navigation-state.js';
 import { resolveTripRoute } from './utils/trip-snapshot-resolver.js';
 import type { LocationHistoryQueryDto, NavigationSampleDto, NavigationSegmentDto, NavigationSessionDto, PublishPositionDto } from './dto/trip-navigation.dto.js';
@@ -26,8 +27,12 @@ const INTERVAL = 5000;
 
 @Injectable()
 export class TripNavigationService {
-  constructor(private readonly prisma: PrismaService, private readonly trips: TripsService,
-    private readonly directions: VietMapNavigationService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly trips: TripsService,
+    private readonly directions: VietMapNavigationService,
+    @Optional() private readonly incidentsDetector?: IncidentsDetectorService,
+  ) {}
 
   private async read(id: string, db: Prisma.TransactionClient = this.prisma) {
     const trip = await db.trip.findUnique({ where: { id }, include });
@@ -134,8 +139,9 @@ export class TripNavigationService {
   }
 
   async publish(id: string, dto: PublishPositionDto, user: User, sid: string) {
+    let result: { sequence: number; nextSequence: number; recordedAt: Date };
     try {
-      return await this.locked(id, true, async tx => {
+      result = await this.locked(id, true, async tx => {
         const trip = await this.read(id, tx);
         await this.publisher(trip, user, sid, tx);
         const state = this.owner(trip, sid, dto.runId);
@@ -160,6 +166,20 @@ export class TripNavigationService {
       if (!point) throw new ConflictException('Sequence đã thay đổi');
       return this.retryAck(point, dto);
     }
+
+    if (this.incidentsDetector) {
+      setImmediate(() => {
+        this.incidentsDetector?.evaluateTelemetry(id, {
+          sequence: dto.sequence,
+          latitude: dto.latitude,
+          longitude: dto.longitude,
+          runId: dto.runId,
+          recordedAt: result.recordedAt,
+        }).catch(() => {});
+      });
+    }
+
+    return result;
   }
 
   private retryAck(point: { runId: string; latitude: number; longitude: number; sequence: number; recordedAt: Date }, dto: PublishPositionDto) {

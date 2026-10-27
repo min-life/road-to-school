@@ -106,6 +106,21 @@ enum LeaveNoticeStatus {
   TRIP_CANCELLED
 }
 
+enum TripIncidentType {
+  ATTENDANT_MISSING
+  DRIVER_MISSING
+  OFF_ROUTE
+  LATE_STOP
+}
+
+enum TripIncidentStatus {
+  WAITING_ASSIGNMENT
+  WAITING_CONFIRMATION
+  RESOLVED
+  CONFIRMED
+  CLOSED
+}
+
 // ==========================================
 // MODELS
 // ==========================================
@@ -131,6 +146,7 @@ model User {
 
   // Relationships
   sessions           Session[]
+  notifications      Notification[]
   otpChallenges      OtpChallenge[]
   parentStudentLinks ParentStudentLink[]
   createdRequests    StudentUpdateRequest[] @relation("CreatedRequests")
@@ -148,6 +164,8 @@ model User {
   replacementLeaveNotices LeaveNotice[]     @relation("ReplacementLeaveNotices")
   processedLeaveNotices LeaveNotice[]       @relation("ProcessedLeaveNotices")
   cancelledLeaveNotices LeaveNotice[]       @relation("CancelledLeaveNotices")
+  reportedIncidents     TripIncident[]      @relation("ReportedIncidents")
+  processedIncidents    TripIncident[]      @relation("ProcessedIncidents")
 
   @@index([schoolId])
   @@map("users")
@@ -160,6 +178,7 @@ model Session {
   refreshTokenHash String    @map("refresh_token_hash")
   tokenVersion     Int       @default(1) @map("token_version")
   deviceInfo       String?   @map("device_info")
+  pushToken        String?   @unique @map("push_token")
   ipAddress        String?   @map("ip_address")
   expiresAt        DateTime  @map("expires_at")
   revokedAt        DateTime? @map("revoked_at")
@@ -468,6 +487,7 @@ model Trip {
   attendances            TripAttendance[]
   locationPoints         TripLocationPoint[]
   leaveNotices           LeaveNotice[]
+  incidents              TripIncident[]
 
   @@unique([routeId, serviceDate])
   @@index([schoolId, serviceDate])
@@ -551,4 +571,55 @@ model LeaveNotice {
   @@index([reportedById, status])
   @@index([status, createdAt])
   @@map("leave_notices")
+}
+
+/// Bảng quản lý sự cố vận hành của chuyến xe
+model TripIncident {
+  id            String             @id @default(uuid())
+  tripId        String             @map("trip_id")
+  type          TripIncidentType   @map("type")
+  status        TripIncidentStatus @map("status")
+  reportedById  String?            @map("reported_by_id")
+  description   String?            @db.Text
+  context       Json?              @map("context")
+  dedupeKey     String             @unique @map("dedupe_key")
+  processedById String?            @map("processed_by_id")
+  processedAt   DateTime?          @map("processed_at")
+  resolution    Json?              @map("resolution")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+
+  // Quan hệ
+  trip        Trip  @relation(fields: [tripId], references: [id], onDelete: Restrict)
+  reportedBy  User? @relation("ReportedIncidents", fields: [reportedById], references: [id], onDelete: SetNull)
+  processedBy User? @relation("ProcessedIncidents", fields: [processedById], references: [id], onDelete: SetNull)
+
+  @@index([tripId, createdAt])
+  @@index([status, createdAt])
+  @@map("trip_incidents")
+}
+
+/// Per-recipient inbox and durable push delivery intent. No device/GPS history duplication.
+model Notification {
+  id            String    @id @default(uuid())
+  userId        String    @map("user_id")
+  eventKey      String    @map("event_key")
+  type          String
+  title         String
+  body          String
+  targetType    String    @map("target_type")
+  targetId      String    @map("target_id")
+  context       Json?
+  readAt        DateTime? @map("read_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  pushState     String    @default("NONE") @map("push_state")
+  pushAttempts  Int       @default(0) @map("push_attempts")
+  pushAfterAt   DateTime? @map("push_after_at")
+  pushDelivery  Json?     @map("push_delivery")
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventKey])
+  @@index([userId, readAt, createdAt])
+  @@index([pushState, pushAfterAt])
+  @@map("notifications")
 }

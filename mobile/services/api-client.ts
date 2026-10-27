@@ -1,4 +1,5 @@
 import { getApiBaseUrl } from './api';
+import { invalidateNotifications } from '../utils/notification-refresh';
 import { tokenStorage, TokenPair } from './token-storage';
 
 export type Role =
@@ -364,6 +365,7 @@ class MobileApiClient {
       return {} as T;
     }
 
+    if (options.method && !['GET','HEAD'].includes(options.method.toUpperCase()) && !endpoint.includes('/navigation/')) invalidateNotifications();
     return response.json();
   }
 
@@ -796,6 +798,148 @@ class MobileApiClient {
       method: 'POST',
     });
   }
+
+  // ==========================================
+  // Operational Incidents Methods
+  // ==========================================
+
+  async getIncidentOptions(tripId: string): Promise<IncidentOptionsResponse> {
+    return this.request<IncidentOptionsResponse>(`/trips/${tripId}/incident-options`, {
+      method: 'GET',
+    });
+  }
+
+  async createManualIncident(body: {
+    tripId: string;
+    type: TripIncidentType;
+    note?: string;
+  }): Promise<TripIncident> {
+    return this.request<TripIncident>(`/trips/${body.tripId}/incidents`, {
+      method: 'POST',
+      body: JSON.stringify({
+        type: body.type,
+        description: body.note,
+      }),
+    });
+  }
+
+  async getTripIncidents(tripId: string): Promise<TripIncident[]> {
+    const res = await this.request<{ items: TripIncident[]; total: number; pendingCount: number } | TripIncident[]>(
+      `/trips/${tripId}/incidents`,
+      { method: 'GET' },
+    );
+    if (Array.isArray(res)) return res;
+    return res?.items || [];
+  }
+
+  async getMyIncidents(params?: {
+    status?: TripIncidentStatus;
+    type?: TripIncidentType;
+    page?: number;
+    limit?: number;
+  }): Promise<TripIncidentListResponse> {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.append('status', params.status);
+    if (params?.type) qs.append('type', params.type);
+    if (params?.page) qs.append('page', params.page.toString());
+    if (params?.limit) qs.append('limit', params.limit.toString());
+    const query = qs.toString();
+    return this.request<TripIncidentListResponse>(`/incidents/mine${query ? `?${query}` : ''}`, {
+      method: 'GET',
+    });
+  }
+
+  async getIncidentDetail(id: string): Promise<TripIncident> {
+    return this.request<TripIncident>(`/incidents/${id}`, {
+      method: 'GET',
+    });
+  }
+
+  async confirmAutoIncident(id: string, reason: string): Promise<TripIncident> {
+    return this.request<TripIncident>(`/incidents/${id}/confirm`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+}
+
+// ==========================================
+// Operational Incidents Types
+// ==========================================
+
+export type TripIncidentType =
+  | 'ATTENDANT_MISSING'
+  | 'DRIVER_MISSING'
+  | 'OFF_ROUTE'
+  | 'LATE_STOP';
+
+export type TripIncidentStatus =
+  | 'WAITING_ASSIGNMENT'
+  | 'WAITING_CONFIRMATION'
+  | 'RESOLVED'
+  | 'CONFIRMED'
+  | 'CLOSED'
+  | 'PENDING_CONFIRMATION'
+  | 'CLOSED_WITHOUT_CONFIRMATION';
+
+export interface IncidentOptionsResponse {
+  canReport: boolean;
+  disabledReason?: string | null;
+  availableTypes: TripIncidentType[];
+  expectedAssignee?: {
+    id: string;
+    fullName: string;
+    role: string;
+  } | null;
+  serverNow: string;
+  reportAvailableAt?: string | null;
+  existingIncidentId?: string | null;
+}
+
+export interface TripIncident {
+  id: string;
+  tripId: string;
+  type: TripIncidentType;
+  status: TripIncidentStatus;
+  description: string;
+  context?: any;
+  contextData?: any;
+  reportedById?: string | null;
+  reportedByName?: string | null;
+  reportedByRole?: string | null;
+  processedById?: string | null;
+  processedByName?: string | null;
+  processedAt?: string | null;
+  resolution?: any;
+  resolutionType?: string | null;
+  replacementUserName?: string | null;
+  resolutionNote?: string | null;
+  createdAt: string;
+  resolvedAt?: string | null;
+  routeId?: string;
+  routeName?: string;
+  direction?: 'TO_SCHOOL' | 'TO_PARKING';
+  serviceDate?: string;
+  schoolName?: string;
+  trip?: {
+    id: string;
+    serviceDate: string;
+    direction: 'TO_SCHOOL' | 'TO_PARKING';
+    routeName: string;
+    schoolName: string;
+    vehiclePlate?: string | null;
+    driverName?: string | null;
+    busAttendantName?: string | null;
+    status: string;
+  };
+}
+
+export interface TripIncidentListResponse {
+  items: TripIncident[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 export type AttendanceStatus = 'UNMARKED' | 'PRESENT' | 'ABSENT';

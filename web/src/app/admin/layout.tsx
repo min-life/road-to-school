@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import { AuthGuard } from '@/components/auth/auth-guard';
 import { useAuth } from '@/components/auth/auth-provider';
 import { AdminHeader } from '@/components/admin/admin-header';
 import { AdminSidebar } from '@/components/admin/admin-sidebar';
 import { LogoutDialog } from '@/components/admin/logout-dialog';
+import { NotificationProvider } from '@/components/admin/notifications/notification-provider';
 
 export default function AdminLayout({
   children,
@@ -29,6 +30,7 @@ export default function AdminLayout({
 
   return (
     <AuthGuard>
+      <NotificationProvider>
       {user && (
         <div className="admin-shell">
           <AdminSidebar
@@ -46,7 +48,7 @@ export default function AdminLayout({
             />
             <main className="admin-content">
               <div className="admin-content-inner">
-                {children}
+                <Suspense fallback={<p className="text-sm text-slate-500">Đang tải…</p>}>{children}</Suspense>
               </div>
             </main>
           </div>
@@ -60,6 +62,7 @@ export default function AdminLayout({
           />
         </div>
       )}
+      </NotificationProvider>
     </AuthGuard>
   );
 }

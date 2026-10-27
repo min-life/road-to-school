@@ -294,6 +294,12 @@ export class OperationalStateResponseDto {
 
   @ApiPropertyOptional({ example: 0 })
   pendingStaffLeaveNoticeCount?: number;
+
+  @ApiPropertyOptional({ example: false })
+  hasPendingStaffIncident?: boolean;
+
+  @ApiPropertyOptional({ example: 0 })
+  pendingStaffIncidentCount?: number;
 }
 
 export class MobileHomeTripPersonnelDto {

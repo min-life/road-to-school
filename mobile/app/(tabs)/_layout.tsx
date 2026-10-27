@@ -3,6 +3,7 @@ import { Tabs } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
+import { NotificationBell } from '@/components/notification-bell';
 
 export default function TabLayout() {
   const { user, isLoading } = useAuth();
@@ -14,6 +15,7 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
+        headerRight: () => <NotificationBell style={{ marginRight: 8 }} />,
         tabBarActiveTintColor: '#D97706', // Amber-600 for high-contrast on white/yellow
         tabBarInactiveTintColor: '#94A3B8',
         tabBarStyle: {

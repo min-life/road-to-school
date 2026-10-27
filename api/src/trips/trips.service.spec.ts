@@ -1,3 +1,5 @@
+// Isolate delivery-intent helpers in business-rule suites; actual helpers are tested in notifications.spec.ts.
+vi.mock('../notifications/notification-writer.js', () => ({ notifyTrip: vi.fn().mockResolvedValue(undefined), notifyAssignment: vi.fn().mockResolvedValue(undefined), notifyCancelledTrips: vi.fn().mockResolvedValue(undefined) }));
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TripsService } from './trips.service.js';
 import { AttendanceStatus, Role, RouteDirection, RoutePlanStatus, TripStatus } from '@prisma/client';

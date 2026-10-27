@@ -1,3 +1,4 @@
+import { notifyAssignment, notifyTrip } from '../notifications/notification-writer.js';
 import {
   Injectable,
   ConflictException,
@@ -20,6 +21,8 @@ import {
   AttendanceStatus,
   LeaveNoticeKind,
   LeaveNoticeStatus,
+  TripIncidentType,
+  TripIncidentStatus,
   User,
 } from '@prisma/client';
 import {
@@ -977,6 +980,8 @@ export class TripsService {
         data: dataToUpdate,
       });
 
+      if (dto.driverId) await notifyAssignment(tx, id, trip.assignedDriverId, dto.driverId, `trip:${id}:driver:${dto.driverId}:${new Date().toISOString()}`, currentUser.id);
+      if (dto.busAttendantId) await notifyAssignment(tx, id, trip.assignedBusAttendantId, dto.busAttendantId, `trip:${id}:attendant:${dto.busAttendantId}:${new Date().toISOString()}`, currentUser.id);
       this.logger.log(`Trip ${id} assignments updated by User ${currentUser.id}`);
 
     });
@@ -1756,6 +1761,7 @@ export class TripsService {
         data: { attendantReadyAt: readyAt },
       });
 
+      await notifyTrip(tx, tripId, 'READY', currentUser.id, undefined, updated.attendantReadyAt!.toISOString());
       this.logger.log(`Trip ${tripId} Attendant Ready confirmed by User ${currentUser.id}`);
       return {
         message: 'Xác nhận sẵn sàng thành công',
@@ -1803,6 +1809,21 @@ export class TripsService {
         throw new BadRequestException('Chuyến xe đang chờ phân công lại nhân sự nghỉ, không thể bắt đầu');
       }
 
+      const pendingStaffIncident = tx.tripIncident
+        ? await tx.tripIncident.findFirst({
+            where: {
+              tripId,
+              type: { in: [TripIncidentType.ATTENDANT_MISSING, TripIncidentType.DRIVER_MISSING] },
+              status: TripIncidentStatus.WAITING_ASSIGNMENT,
+            },
+          })
+        : null;
+      if (pendingStaffIncident) {
+        throw new BadRequestException(
+          'Chuyến xe đang chờ xử lý sự cố nhân sự chưa đến, không thể bắt đầu',
+        );
+      }
+
       if (!trip.attendantReadyAt) {
         throw new BadRequestException('Giáo viên phụ xe chưa xác nhận sẵn sàng');
       }
@@ -1829,12 +1850,19 @@ export class TripsService {
         }
       }
 
-      // Rào cản thời gian ở chế độ LIVE (5 phút trước scheduledStartAt)
-      if (!this.isTestMode() && trip.scheduledStartAt) {
+      // Rào cản thời gian ở chế độ LIVE (5 phút trước scheduledStartAt và chưa quá scheduledEndAt)
+      if (!this.isTestMode()) {
         const now = new Date();
-        const startThreshold = new Date(trip.scheduledStartAt.getTime() - 5 * 60 * 1000);
-        if (now < startThreshold) {
-          throw new BadRequestException('Chưa đến giờ xuất phát (cho phép từ 5 phút trước giờ theo lịch)');
+        if (trip.scheduledStartAt) {
+          const startThreshold = new Date(trip.scheduledStartAt.getTime() - 5 * 60 * 1000);
+          if (now < startThreshold) {
+            throw new BadRequestException('Chưa đến giờ xuất phát (cho phép từ 5 phút trước giờ theo lịch)');
+          }
+        }
+        if (trip.scheduledEndAt && now > trip.scheduledEndAt) {
+          throw new BadRequestException(
+            'Chuyến xe đã vượt quá thời gian kết thúc dự kiến, không thể bắt đầu',
+          );
         }
       }
 
@@ -1846,6 +1874,7 @@ export class TripsService {
         },
       });
 
+      await notifyTrip(tx, tripId, 'STARTED', currentUser.id);
       this.logger.log(`Trip ${tripId} Started by Driver ${currentUser.id}`);
       return {
         message: 'Bắt đầu chuyến xe thành công',
@@ -1922,6 +1951,7 @@ export class TripsService {
         data: { arrivedAtSchoolAt: arrivedAt },
       });
 
+      await notifyTrip(tx, tripId, 'ARRIVED', currentUser.id);
       this.logger.log(`Trip ${tripId} Arrived at School confirmed by Driver ${currentUser.id}`);
       return {
         message: 'Xác nhận đến trường thành công',
@@ -2126,6 +2156,7 @@ export class TripsService {
         data: updateData,
       });
 
+      if (attendance.status !== updated.status) await notifyTrip(tx, tripId, updated.status === AttendanceStatus.PRESENT ? 'BOARDING' : 'ATTENDANCE_CHANGED', currentUser.id, studentId, (updated.markedAt ?? new Date()).toISOString());
       return {
         message: 'Cập nhật điểm danh thành công',
         attendance: updated,
@@ -2288,6 +2319,7 @@ export class TripsService {
         data: { alightedAt },
       });
 
+      if (Boolean(attendance.alightedAt) !== dto.isAlighted) await notifyTrip(tx, tripId, dto.isAlighted ? 'ALIGHTING' : 'ATTENDANCE_CHANGED', currentUser.id, studentId, (updated.alightedAt ?? new Date()).toISOString());
       return {
         message: dto.isAlighted
           ? 'Xác nhận học sinh đã xuống xe thành công'
@@ -2374,6 +2406,25 @@ export class TripsService {
         },
       });
 
+      // Đóng các sự cố tự động còn chờ xác nhận (CLOSED_WITHOUT_CONFIRMATION)
+      if (tx.tripIncident) {
+        await tx.tripIncident.updateMany({
+          where: {
+            tripId,
+            status: TripIncidentStatus.WAITING_CONFIRMATION,
+          },
+          data: {
+            status: TripIncidentStatus.CLOSED,
+            processedAt: new Date(),
+            resolution: {
+              action: 'CLOSED_WITHOUT_CONFIRMATION',
+              reason: 'Chuyến xe kết thúc khi chưa xác nhận',
+            },
+          },
+        });
+      }
+
+      await notifyTrip(tx, tripId, 'COMPLETED', currentUser.id);
       this.logger.log(`Trip ${tripId} Completed by Driver ${currentUser.id}`);
       return {
         message: 'Hoàn thành chuyến xe thành công',
@@ -2447,23 +2498,37 @@ export class TripsService {
           },
         })
       : [];
+    const pendingStaffIncidents = this.prisma.tripIncident
+      ? await this.prisma.tripIncident.findMany({
+          where: {
+            tripId,
+            type: { in: [TripIncidentType.ATTENDANT_MISSING, TripIncidentType.DRIVER_MISSING] },
+            status: TripIncidentStatus.WAITING_ASSIGNMENT,
+          },
+        })
+      : [];
+    const hasPendingStaffIncident = pendingStaffIncidents.length > 0;
     const hasPendingStaffLeaveNotice = pendingStaffNotices.length > 0;
-    const assignmentStatus: 'ASSIGNED' | 'WAITING_ASSIGNMENT' = hasPendingStaffLeaveNotice
-      ? 'WAITING_ASSIGNMENT'
-      : 'ASSIGNED';
+    const assignmentStatus: 'ASSIGNED' | 'WAITING_ASSIGNMENT' =
+      hasPendingStaffLeaveNotice || hasPendingStaffIncident ? 'WAITING_ASSIGNMENT' : 'ASSIGNED';
     const attendantHasPendingNotice = pendingStaffNotices.some(
       (n) => n.kind === LeaveNoticeKind.BUS_ATTENDANT,
     );
+    const attendantHasIncident = pendingStaffIncidents.some(
+      (i) => i.type === TripIncidentType.ATTENDANT_MISSING,
+    );
 
-    if (attendantHasPendingNotice) {
+    if (attendantHasPendingNotice || attendantHasIncident) {
       canAttendantReady = false;
-      readyDisabledReason = 'ATTENDANT_ON_LEAVE';
+      readyDisabledReason = attendantHasPendingNotice
+        ? 'ATTENDANT_ON_LEAVE'
+        : 'ATTENDANT_REPORTED_MISSING';
     }
 
     let canDriverStart = false;
     let startDisabledReason: string | null = null;
     if (trip.status === TripStatus.SCHEDULED) {
-      if (hasPendingStaffLeaveNotice) {
+      if (hasPendingStaffLeaveNotice || hasPendingStaffIncident) {
         startDisabledReason = 'WAITING_ASSIGNMENT';
       } else if (!isAttendantReady) {
         startDisabledReason = 'WAITING_FOR_ATTENDANT';
@@ -2472,6 +2537,10 @@ export class TripsService {
       } else if (trip.direction === RouteDirection.TO_PARKING && !isAllMarked) {
         // RET-03: TO_PARKING requires 100% boarding before Start
         startDisabledReason = 'PENDING_BOARDING';
+      } else if (!isTest && (!trip.scheduledStartAt || !trip.scheduledEndAt)) {
+        startDisabledReason = 'MISSING_SCHEDULE_TIMES';
+      } else if (!isTest && trip.scheduledEndAt && now > trip.scheduledEndAt) {
+        startDisabledReason = 'SCHEDULED_END_TIME_EXCEEDED';
       } else if (isTest || (startThreshold && now >= startThreshold)) {
         canDriverStart = true;
       } else {
@@ -2541,6 +2610,8 @@ export class TripsService {
         assignmentStatus,
         hasPendingStaffLeaveNotice,
         pendingStaffLeaveNoticeCount: pendingStaffNotices.length,
+        hasPendingStaffIncident,
+        pendingStaffIncidentCount: pendingStaffIncidents.length,
       };
     }
     canDriverStart = currentUser.role === Role.DRIVER && canDriverStart;
@@ -2587,6 +2658,8 @@ export class TripsService {
       assignmentStatus,
       hasPendingStaffLeaveNotice,
       pendingStaffLeaveNoticeCount: pendingStaffNotices.length,
+      hasPendingStaffIncident,
+      pendingStaffIncidentCount: pendingStaffIncidents.length,
       children: [],
     };
   }
