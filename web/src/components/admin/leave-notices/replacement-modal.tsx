@@ -4,6 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { apiClient, ApiError } from '@/lib/api-client';
 import { LeaveNoticeItem, ReplacementCandidateItem } from '@/lib/types';
 import { SpinnerIcon, AlertIcon, CheckIcon, UsersIcon, CloseIcon } from '@/components/icons';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 interface ReplacementModalProps {
   isOpen: boolean;
@@ -89,11 +92,11 @@ export function ReplacementModal({
       aria-labelledby="replacement-modal-title"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200"
     >
-      <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+      <Card className="ui-dialog-panel ui-dialog-panel-body relative w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-[#FFFDF6]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-background">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#FFCB56]/30 flex items-center justify-center text-[#1E293B]">
+            <div className="w-9 h-9 rounded-xl bg-primary/30 flex items-center justify-center text-foreground">
               <UsersIcon className="w-5 h-5" />
             </div>
             <div>
@@ -105,17 +108,17 @@ export function ReplacementModal({
               </p>
             </div>
           </div>
-          <button
+          <Button
             type="button"
             onClick={onClose}
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <CloseIcon className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
 
         {/* Notice Context Card */}
-        <div className="p-6 overflow-y-auto space-y-5 flex-1">
+        <div className="ui-dialog-body p-6 overflow-y-auto space-y-5 flex-1">
           <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200/80 space-y-2 text-xs text-slate-700">
             <div className="flex justify-between">
               <span className="text-slate-500">Người báo nghỉ:</span>
@@ -152,7 +155,7 @@ export function ReplacementModal({
 
             {loading ? (
               <div className="py-8 flex flex-col items-center justify-center gap-2 text-slate-400">
-                <SpinnerIcon className="w-6 h-6 animate-spin text-[#FFCB56]" />
+                <SpinnerIcon className="w-6 h-6 animate-spin text-primary" />
                 <span className="text-xs">Đang kiểm tra lịch và tính khả dụng...</span>
               </div>
             ) : candidates.length === 0 ? (
@@ -175,7 +178,7 @@ export function ReplacementModal({
                         !cand.isAvailable
                           ? 'bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed'
                           : isSelected
-                          ? 'bg-amber-50/80 border-[#FFCB56] ring-1 ring-[#FFCB56] cursor-pointer'
+                          ? 'bg-amber-50/80 border-primary ring-1 ring-primary cursor-pointer'
                           : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50 cursor-pointer'
                       }`}
                     >
@@ -183,7 +186,7 @@ export function ReplacementModal({
                         <div
                           className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
                             isSelected
-                              ? 'border-[#FFCB56] bg-[#FFCB56]'
+                              ? 'border-primary bg-primary'
                               : 'border-slate-300 bg-white'
                           }`}
                         >
@@ -199,16 +202,16 @@ export function ReplacementModal({
 
                       <div className="shrink-0 text-right ml-2">
                         {cand.isAvailable ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <Badge className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                             Khả dụng
-                          </span>
+                          </Badge>
                         ) : (
-                          <span
+                          <Badge
                             className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200 max-w-[160px] inline-block truncate"
                             title={cand.unavailableReason || 'Không đủ điều kiện'}
                           >
                             {cand.unavailableReason || 'Bận / Không đủ ĐK'}
-                          </span>
+                          </Badge>
                         )}
                       </div>
                     </div>
@@ -221,40 +224,40 @@ export function ReplacementModal({
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between gap-3">
-          <button
+          <Button variant="outline" size="sm"
             type="button"
             onClick={() => onOpenCancelTrip(notice)}
             disabled={submitting}
             className="px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-xl transition-colors cursor-pointer"
           >
             Hủy chuyến xe...
-          </button>
+          </Button>
 
           <div className="flex items-center gap-2">
-            <button
+            <Button
               type="button"
               onClick={onClose}
               disabled={submitting}
               className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
             >
               Đóng
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={handleAssign}
               disabled={!selectedUserId || submitting}
               className={`px-5 py-2 text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer ${
                 !selectedUserId || submitting
                   ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                  : 'bg-[#FFCB56] hover:bg-[#f5c042] text-[#1E293B]'
+                  : 'bg-primary hover:bg-[#f5c042] text-foreground'
               }`}
             >
               {submitting && <SpinnerIcon className="w-3.5 h-3.5 animate-spin" />}
               <span>Xác nhận phân công</span>
-            </button>
+            </Button>
           </div>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

@@ -41,3 +41,7 @@ Thumbs.db
 
 # TypeScript
 *.tsbuildinfo
+
+# Local AI review reports
+/docs/ai-review/LATEST.md
+/docs/ai-review/LATEST.diff

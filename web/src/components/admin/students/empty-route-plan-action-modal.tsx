@@ -3,6 +3,8 @@
 import React from 'react';
 import { AlertIcon, CloseIcon } from '@/components/icons';
 import type { EmptyRoutePlanInfo } from '@/lib/types';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 interface EmptyRoutePlanActionModalProps {
   isOpen: boolean;
@@ -31,7 +33,7 @@ export function EmptyRoutePlanActionModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-rose-200 overflow-hidden">
+      <Card className="ui-dialog-panel bg-white rounded-2xl shadow-xl w-full max-w-md border border-rose-200 overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-rose-100 flex items-center justify-between bg-rose-50/70">
           <div className="flex items-center gap-2.5 text-rose-700">
@@ -47,13 +49,13 @@ export function EmptyRoutePlanActionModal({
               </p>
             </div>
           </div>
-          <button
+          <Button
             type="button"
             onClick={onClose}
             className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <CloseIcon className="w-4 h-4" />
-          </button>
+          </Button>
         </div>
 
         {/* Content */}
@@ -83,24 +85,24 @@ export function EmptyRoutePlanActionModal({
 
           {/* Action buttons */}
           <div className="pt-2 flex items-center justify-end gap-2.5">
-            <button
+            <Button
               type="button"
               onClick={onClose}
               className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
             >
               Để sau
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={() => onCancelPlanNow(targetPlan)}
               className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
             >
               <AlertIcon className="w-3.5 h-3.5" />
               <span>Hủy toàn bộ phương án ngay</span>
-            </button>
+            </Button>
           </div>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

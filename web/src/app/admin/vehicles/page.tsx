@@ -13,6 +13,13 @@ import {
   CheckIcon,
   AlertIcon,
 } from '@/components/icons';
+import { Card } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
+import { Button } from '@/components/ui/button';
+import { FilterToolbar } from '@/components/ui/filter-toolbar';
+import { Input } from '@/components/ui/input';
+import { Table } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 
 export default function VehiclesPage() {
   const { user } = useAuth();
@@ -66,19 +73,19 @@ export default function VehiclesPage() {
 
   if (!user || user.role !== 'SYSTEM_ADMIN') {
     return (
-      <div className="p-8 text-center bg-white rounded-2xl border border-slate-200">
+      <Card className="p-8 text-center bg-white rounded-2xl border border-slate-200">
         <h2 className="text-base font-bold text-red-600 mb-1">Truy cập bị từ chối</h2>
         <p className="text-xs text-slate-500">Chỉ Quản trị viên hệ thống mới có quyền quản lý phương tiện.</p>
-      </div>
+      </Card>
     );
   }
 
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 pb-4">
+      <PageHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 pb-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1E293B]">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
             Phương tiện vận tải
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
@@ -86,14 +93,14 @@ export default function VehiclesPage() {
           </p>
         </div>
 
-        <button
+        <Button variant="primary" size="default"
           type="button"
           onClick={() => setIsAddModalOpen(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#FFCB56] hover:bg-amber-400 text-sm font-bold text-[#1E293B] transition-colors cursor-pointer shadow-xs self-start sm:self-auto"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary hover:bg-amber-400 text-sm font-bold text-foreground transition-colors cursor-pointer shadow-xs self-start sm:self-auto"
         >
           <span>+ Thêm phương tiện</span>
-        </button>
-      </div>
+        </Button>
+      </PageHeader>
 
       {/* Success / Error Feedback */}
       {successMessage && (
@@ -102,13 +109,13 @@ export default function VehiclesPage() {
             <CheckIcon className="w-5 h-5 text-emerald-600 shrink-0" />
             <span>{successMessage}</span>
           </div>
-          <button
+          <Button
             type="button"
             onClick={() => setSuccessMessage(null)}
             className="text-emerald-600 hover:text-emerald-800 text-xs font-semibold cursor-pointer"
           >
             Đóng
-          </button>
+          </Button>
         </div>
       )}
 
@@ -118,25 +125,25 @@ export default function VehiclesPage() {
             <AlertIcon className="w-5 h-5 text-red-600 shrink-0" />
             <span>{errorMessage}</span>
           </div>
-          <button
+          <Button
             type="button"
             onClick={() => setErrorMessage(null)}
             className="text-red-600 hover:text-red-800 text-xs font-semibold cursor-pointer"
           >
             Đóng
-          </button>
+          </Button>
         </div>
       )}
 
       {/* Search Bar & Total */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+      <FilterToolbar className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="relative w-full sm:w-80">
-          <input
+          <Input
             type="text"
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Tìm theo hãng xe, biển số..."
-            className="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#FFCB56]"
+            className="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <SearchIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
         </div>
@@ -144,12 +151,12 @@ export default function VehiclesPage() {
         <div className="text-xs text-slate-500 font-medium self-end sm:self-auto">
           Tổng số phương tiện: <strong className="text-slate-800">{totalItems}</strong>
         </div>
-      </div>
+      </FilterToolbar>
 
       {/* Vehicle Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-xs">
+      <Card className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <Table className="w-full text-left text-sm">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-xs uppercase tracking-wider">
               <tr>
                 <th className="py-3.5 px-4">Hãng xe</th>
@@ -196,9 +203,9 @@ export default function VehiclesPage() {
                       </span>
                     </td>
                     <td className="py-3.5 px-4">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                      <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
                         {v.seatCount} chỗ học sinh
-                      </span>
+                      </Badge>
                     </td>
                     <td className="py-3.5 px-4 text-slate-600">
                       {v.color}
@@ -210,7 +217,7 @@ export default function VehiclesPage() {
                 ))
               )}
             </tbody>
-          </table>
+          </Table>
         </div>
 
         {/* Pagination Footer */}
@@ -226,7 +233,7 @@ export default function VehiclesPage() {
             setPage(1);
           }}
         />
-      </div>
+      </Card>
 
       {/* Add Vehicle Modal */}
       <AddVehicleModal

@@ -4,8 +4,12 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/auth-provider';
-import { BusLogo, EyeIcon, EyeOffIcon, SpinnerIcon, AlertIcon } from '@/components/icons';
+import { EyeIcon, EyeOffIcon, SpinnerIcon, AlertIcon } from '@/components/icons';
+import { AuthPageShell } from '@/components/auth/auth-page-shell';
 import { ApiError } from '@/lib/api-client';
+import { PageHeader } from '@/components/ui/page-header';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState('');
@@ -54,24 +58,18 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#FFFDF6] px-4 py-8">
+    <AuthPageShell>
       {/* Container Thẻ đăng nhập */}
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 sm:p-10">
+      <div>
         {/* Header: Logo & Tiêu đề */}
-        <div className="flex flex-col items-center text-center mb-8">
-          <div className="flex items-center gap-3 mb-3">
-            <BusLogo className="w-10 h-10" />
-            <span className="text-2xl font-bold tracking-tight text-[#1E293B]">
-              RoadToSchool
-            </span>
-          </div>
-          <h1 className="text-xl font-bold text-[#1E293B]">
-            Đăng nhập Quản trị
+        <PageHeader className="auth-heading">
+          <h1 className="text-xl font-bold text-foreground">
+            Đăng nhập
           </h1>
           <p className="text-sm text-slate-500 mt-1">
             Cổng quản lý dịch vụ đưa đón học sinh
           </p>
-        </div>
+        </PageHeader>
 
         {/* Thông báo lỗi */}
         {error && (
@@ -90,11 +88,11 @@ export default function LoginPage() {
           <div>
             <label
               htmlFor="identifier"
-              className="block text-sm font-semibold text-[#1E293B] mb-1.5"
+              className="block text-sm font-semibold text-foreground mb-1.5"
             >
               Email hoặc Số điện thoại
             </label>
-            <input
+            <Input
               id="identifier"
               name="identifier"
               type="text"
@@ -107,7 +105,7 @@ export default function LoginPage() {
                 if (error) setError(null);
               }}
               placeholder="admin@r2s.com"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-[#1E293B] placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCB56] focus:border-transparent transition-all disabled:bg-slate-50 disabled:text-slate-500"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-foreground placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:bg-slate-50 disabled:text-slate-500"
             />
           </div>
 
@@ -116,19 +114,19 @@ export default function LoginPage() {
             <div className="flex items-center justify-between mb-1.5">
               <label
                 htmlFor="password"
-                className="block text-sm font-semibold text-[#1E293B]"
+                className="block text-sm font-semibold text-foreground"
               >
                 Mật khẩu
               </label>
               <Link
                 href="/forgot-password"
-                className="text-xs font-medium text-slate-600 hover:text-[#1E293B] hover:underline transition-colors"
+                className="text-xs font-medium text-slate-600 hover:text-foreground hover:underline transition-colors"
               >
                 Quên mật khẩu?
               </Link>
             </div>
             <div className="relative">
-              <input
+              <Input
                 id="password"
                 name="password"
                 type={showPassword ? 'text' : 'password'}
@@ -141,9 +139,9 @@ export default function LoginPage() {
                   if (error) setError(null);
                 }}
                 placeholder="••••••••"
-                className="w-full px-3.5 py-2.5 pr-11 rounded-xl border border-slate-300 bg-white text-[#1E293B] placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCB56] focus:border-transparent transition-all disabled:bg-slate-50 disabled:text-slate-500"
+                className="w-full px-3.5 py-2.5 pr-11 rounded-xl border border-slate-300 bg-white text-foreground placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:bg-slate-50 disabled:text-slate-500"
               />
-              <button
+              <Button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 tabIndex={-1}
@@ -155,32 +153,32 @@ export default function LoginPage() {
                 ) : (
                   <EyeIcon className="w-5 h-5" />
                 )}
-              </button>
+              </Button>
             </div>
           </div>
 
           {/* Nút Đăng nhập */}
-          <button
+          <Button variant="primary" size="default"
             type="submit"
             disabled={isSubmitting || !identifier.trim() || !password}
-            className="w-full mt-2 h-11 flex items-center justify-center gap-2 rounded-xl bg-[#FFCB56] hover:bg-[#FBBF24] active:bg-[#F59E0B] text-[#1E293B] font-bold text-sm tracking-wide shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FFCB56] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            className="w-full mt-2 h-11 flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-[var(--brand-primary-hover)] active:bg-[var(--brand-primary-hover)] text-foreground font-bold text-sm tracking-wide shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {isSubmitting ? (
               <>
-                <SpinnerIcon className="w-4 h-4 text-[#1E293B]" />
+                <SpinnerIcon className="w-4 h-4 text-foreground" />
                 <span>Đang đăng nhập...</span>
               </>
             ) : (
               <span>Đăng nhập</span>
             )}
-          </button>
+          </Button>
         </form>
       </div>
 
       {/* Footer bản quyền */}
-      <footer className="mt-8 text-center text-xs text-slate-400">
+      <footer className="auth-footer">
         © 2026 RoadToSchool. Nền tảng quản lý xe buýt học sinh an toàn.
       </footer>
-    </div>
+    </AuthPageShell>
   );
 }

@@ -4,6 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { apiClient, ApiError } from '@/lib/api-client';
 import { LeaveNoticeItem } from '@/lib/types';
 import { SpinnerIcon, AlertIcon, CloseIcon } from '@/components/icons';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 
 interface CancelTripModalProps {
   isOpen: boolean;
@@ -60,7 +63,7 @@ export function CancelTripModal({
       aria-labelledby="cancel-trip-modal-title"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200"
     >
-      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
+      <Card className="ui-dialog-panel relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-rose-50/50">
           <div className="flex items-center gap-2.5">
@@ -76,13 +79,13 @@ export function CancelTripModal({
               </p>
             </div>
           </div>
-          <button
+          <Button
             type="button"
             onClick={onClose}
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <CloseIcon className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
 
         {/* Content */}
@@ -121,7 +124,7 @@ export function CancelTripModal({
             <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
               Lý do hủy chuyến <span className="text-rose-500">*</span>
             </label>
-            <textarea
+            <Textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Nhập lý do cụ thể (bắt buộc, ví dụ: Không thể bố trí nhân sự thay thế trước giờ khởi hành)..."
@@ -133,15 +136,15 @@ export function CancelTripModal({
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/80 flex items-center justify-end gap-2.5">
-          <button
+          <Button
             type="button"
             onClick={onClose}
             disabled={submitting}
             className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
           >
             Đóng
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={handleConfirmCancel}
             disabled={!reason.trim() || submitting}
@@ -153,9 +156,9 @@ export function CancelTripModal({
           >
             {submitting && <SpinnerIcon className="w-3.5 h-3.5 animate-spin" />}
             <span>Xác nhận hủy chuyến</span>
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

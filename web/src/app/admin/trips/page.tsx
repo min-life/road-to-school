@@ -5,6 +5,7 @@ import { TripsTable } from '@/components/admin/trips/trips-table';
 import { ManualGenerateTripsModal } from '@/components/admin/trips/manual-generate-trips-modal';
 import { useAuth } from '@/components/auth/auth-provider';
 import { BusIcon } from '@/components/icons';
+import { PageHeader } from '@/components/ui/page-header';
 
 export default function AdminTripsPage() {
   const { user } = useAuth();
@@ -17,7 +18,7 @@ export default function AdminTripsPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <PageHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
             <BusIcon className="w-6 h-6 text-slate-700" />
@@ -27,7 +28,7 @@ export default function AdminTripsPage() {
             Lịch trình điều phối xe đưa đón theo ngày, bao gồm các chuyến đã lập lịch và lịch trình dự kiến
           </p>
         </div>
-      </div>
+      </PageHeader>
 
       {/* Trips Table */}
       <TripsTable

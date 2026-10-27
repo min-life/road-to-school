@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { SchoolListItem } from '@/lib/types';
 import { CloseIcon, SearchIcon, SchoolIcon, SpinnerIcon } from '@/components/icons';
+import { FilterToolbar } from '@/components/ui/filter-toolbar';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 interface SchoolSelectModalProps {
   isOpen: boolean;
@@ -133,31 +136,31 @@ export function SchoolSelectModal({ isOpen, onClose }: SchoolSelectModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]">
+      <FilterToolbar className="ui-dialog-panel ui-dialog-panel-body bg-white rounded-2xl shadow-xl w-full max-w-lg border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div>
             <h3 className="text-lg font-bold text-slate-800">Chọn trường học</h3>
             <p className="text-xs text-slate-500 mt-0.5">Mỗi lần tối ưu tuyến áp dụng cho một trường học đối tác</p>
           </div>
-          <button
+          <Button
             onClick={onClose}
             className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
           >
             <CloseIcon className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
 
         {/* Search */}
         <div className="p-4 border-b border-slate-100">
           <div className="relative">
             <SearchIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
+            <Input
               type="text"
               placeholder="Tìm kiếm trường học theo tên, địa chỉ..."
               value={search}
               onChange={handleSearchChange}
-              className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-[#FFCB56] focus:ring-2 focus:ring-[#FFCB56]/20 bg-slate-50/50"
+              className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 bg-slate-50/50"
             />
           </div>
         </div>
@@ -165,22 +168,22 @@ export function SchoolSelectModal({ isOpen, onClose }: SchoolSelectModalProps) {
         {/* School List */}
         <div
           onScroll={handleScroll}
-          className="flex-1 overflow-y-auto p-4 space-y-2 min-h-[240px] max-h-[420px]"
+          className="ui-dialog-body flex-1 overflow-y-auto p-4 space-y-2 min-h-[240px] max-h-[420px]"
         >
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-              <SpinnerIcon className="w-8 h-8 animate-spin text-[#FFCB56] mb-2" />
+              <SpinnerIcon className="w-8 h-8 animate-spin text-primary mb-2" />
               <p className="text-xs">Đang tải danh sách trường đối tác...</p>
             </div>
           ) : error ? (
             <div className="text-center py-12 px-4">
               <p className="text-sm text-rose-600 font-medium mb-3">{error}</p>
-              <button
+              <Button
                 onClick={() => fetchSchools(1, search, false)}
                 className="px-4 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
               >
                 Thử lại
-              </button>
+              </Button>
             </div>
           ) : schools.length === 0 ? (
             <div className="text-center py-12 text-slate-400">
@@ -198,13 +201,13 @@ export function SchoolSelectModal({ isOpen, onClose }: SchoolSelectModalProps) {
                     onClick={() => setSelectedSchoolId(school.id)}
                     className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-start gap-3 ${
                       isSelected
-                        ? 'border-[#FFCB56] bg-[#FFFDF6] shadow-xs ring-1 ring-[#FFCB56]'
+                        ? 'border-primary bg-background shadow-xs ring-1 ring-primary'
                         : 'border-slate-100 hover:border-slate-200 hover:bg-slate-50/60'
                     }`}
                   >
                     <div
                       className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
-                        isSelected ? 'bg-[#FFCB56] text-[#1E293B]' : 'bg-slate-100 text-slate-500'
+                        isSelected ? 'bg-primary text-foreground' : 'bg-slate-100 text-slate-500'
                       }`}
                     >
                       <SchoolIcon className="w-5 h-5" />
@@ -228,7 +231,7 @@ export function SchoolSelectModal({ isOpen, onClose }: SchoolSelectModalProps) {
 
               {loadingMore && (
                 <div className="flex items-center justify-center py-3 text-slate-400 gap-2">
-                  <SpinnerIcon className="w-4 h-4 animate-spin text-[#FFCB56]" />
+                  <SpinnerIcon className="w-4 h-4 animate-spin text-primary" />
                   <span className="text-xs">Đang tải thêm...</span>
                 </div>
               )}
@@ -238,21 +241,21 @@ export function SchoolSelectModal({ isOpen, onClose }: SchoolSelectModalProps) {
 
         {/* Footer */}
         <div className="px-6 py-3.5 border-t border-slate-100 bg-slate-50/50 flex items-center justify-end gap-2.5">
-          <button
+          <Button
             onClick={onClose}
             className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200/60 rounded-xl transition-colors"
           >
             Hủy
-          </button>
-          <button
+          </Button>
+          <Button variant="primary" size="default"
             disabled={!selectedSchoolId}
             onClick={handleStartPlanning}
-            className="px-5 py-2 text-sm font-bold text-[#1E293B] bg-[#FFCB56] hover:bg-[#e6b74d] disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all shadow-xs"
+            className="px-5 py-2 text-sm font-bold text-foreground bg-primary hover:bg-[#e6b74d] disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all shadow-xs"
           >
             Bắt đầu lập tuyến
-          </button>
+          </Button>
         </div>
-      </div>
+      </FilterToolbar>
     </div>
   );
 }

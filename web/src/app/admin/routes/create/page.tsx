@@ -26,6 +26,11 @@ import {
   TrashIcon,
 } from '@/components/icons';
 import { RouteMap, MapPoint } from '@/components/admin/routes/route-map';
+import { PageHeader } from '@/components/ui/page-header';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 
 function CreateRoutePlanContent() {
   const router = useRouter();
@@ -381,7 +386,7 @@ function CreateRoutePlanContent() {
   if (loadingPrep) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-slate-500">
-        <SpinnerIcon className="w-9 h-9 animate-spin text-[#FFCB56] mb-3" />
+        <SpinnerIcon className="w-9 h-9 animate-spin text-primary mb-3" />
         <p className="text-sm font-medium">Đang chuẩn bị dữ liệu trường học và học sinh...</p>
       </div>
     );
@@ -416,7 +421,7 @@ function CreateRoutePlanContent() {
     <div className="space-y-6 pb-12">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <PageHeader className="flex items-center gap-3">
           <Link
             href="/admin/routes"
             className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
@@ -431,30 +436,30 @@ function CreateRoutePlanContent() {
               {prepData.school.name} • {prepData.eligibleStudents.length} học sinh đủ điều kiện
             </p>
           </div>
-        </div>
+        </PageHeader>
 
         {previewResult && (
           <div className="flex items-center gap-2.5">
-            <button
+            <Button variant="outline" size="sm"
               onClick={() => setPreviewResult(null)}
               className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer shadow-xs"
             >
               Chỉnh sửa & Tối ưu lại
-            </button>
-            <button
+            </Button>
+            <Button variant="outline" size="sm"
               onClick={handleCancelAllAndRecreate}
               className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer shadow-xs"
             >
               Hủy toàn bộ và lập lại
-            </button>
-            <button
+            </Button>
+            <Button variant="primary" size="sm"
               disabled={isConfirming}
               onClick={handleConfirmRoutePlan}
-              className="flex items-center gap-2 px-5 py-2 text-xs font-bold text-[#1E293B] bg-[#FFCB56] hover:bg-[#e6b74d] rounded-xl transition-all shadow-xs cursor-pointer"
+              className="flex items-center gap-2 px-5 py-2 text-xs font-bold text-foreground bg-primary hover:bg-[#e6b74d] rounded-xl transition-all shadow-xs cursor-pointer"
             >
               {isConfirming && <SpinnerIcon className="w-4 h-4 animate-spin" />}
               <span>Xác nhận lưu toàn bộ phương án (DRAFT)</span>
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -467,13 +472,13 @@ function CreateRoutePlanContent() {
               {optimizeError}
             </div>
           </div>
-          <button
+          <Button
             type="button"
             onClick={loadData}
             className="shrink-0 px-3 py-1.5 text-xs font-bold rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-800 transition-colors cursor-pointer"
           >
             Tải lại dữ liệu
-          </button>
+          </Button>
         </div>
       )}
 
@@ -485,7 +490,7 @@ function CreateRoutePlanContent() {
           {/* Left Column: Map & Constraints (7 cols) */}
           <div className="lg:col-span-7 space-y-6">
             {/* Interactive Map */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
+            <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-bold text-slate-800">Bản đồ học sinh & vị trí trường</h3>
@@ -506,10 +511,10 @@ function CreateRoutePlanContent() {
                 }}
                 height="420px"
               />
-            </div>
+            </Card>
 
             {/* Editable Time Constraints Form (PO Decision: Section 8 & 9) */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+            <Card className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
                   <ClockIcon className="w-5 h-5 text-slate-500" />
@@ -536,7 +541,7 @@ function CreateRoutePlanContent() {
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                     Giới hạn thời gian tối đa 1 tuyến (phút)
                   </label>
-                  <input
+                  <Input
                     type="number"
                     min={15}
                     max={240}
@@ -547,7 +552,7 @@ function CreateRoutePlanContent() {
                       )
                     }
                     placeholder="Không bắt buộc (ví dụ: 60)"
-                    className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-[#FFCB56]"
+                    className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-primary"
                   />
                   <p className="text-[11px] text-slate-400 mt-1">
                     Bao gồm cả thời gian lái xe thực tế và thời gian dừng đón/trả
@@ -559,7 +564,7 @@ function CreateRoutePlanContent() {
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                     Thời gian dừng đón/trả mặc định (giây)
                   </label>
-                  <input
+                  <Input
                     type="number"
                     min={10}
                     max={600}
@@ -570,7 +575,7 @@ function CreateRoutePlanContent() {
                         Math.max(10, Math.min(600, parseInt(e.target.value, 10) || 60)),
                       )
                     }
-                    className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-[#FFCB56]"
+                    className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-primary"
                   />
                   <p className="text-[11px] text-slate-400 mt-1">
                     Mặc định 60 giây mỗi điểm đón/trả học sinh
@@ -580,7 +585,7 @@ function CreateRoutePlanContent() {
 
               {/* Per-Stop Service Overrides Accordion */}
               <div className="border border-slate-200 rounded-xl overflow-hidden mt-2">
-                <button
+                <Button
                   type="button"
                   onClick={() => setShowOverridesAccordion((prev) => !prev)}
                   className="w-full px-4 py-2.5 bg-slate-50 hover:bg-slate-100/80 flex items-center justify-between text-xs font-bold text-slate-700 cursor-pointer transition-colors"
@@ -588,13 +593,13 @@ function CreateRoutePlanContent() {
                   <span>
                     ⚙️ Thời gian dừng từng học sinh (Tùy chọn nâng cao)
                     {stopServiceOverrides.length > 0 && (
-                      <span className="ml-2 px-2 py-0.5 rounded-full bg-[#FFCB56] text-[#1E293B] text-[10px]">
+                      <Badge className="ml-2 px-2 py-0.5 rounded-full bg-primary text-foreground text-[10px]">
                         {stopServiceOverrides.length} điểm ghi đè
-                      </span>
+                      </Badge>
                     )}
                   </span>
                   <span>{showOverridesAccordion ? '▲ Đóng' : '▼ Mở rộng'}</span>
-                </button>
+                </Button>
 
                 {showOverridesAccordion && (
                   <div className="p-4 space-y-3 bg-white">
@@ -603,13 +608,13 @@ function CreateRoutePlanContent() {
                         Chỉnh riêng thời gian đón/trả cho học sinh đặc biệt (thay vì {defaultStopServiceSeconds}s mặc định)
                       </p>
                       {stopServiceOverrides.length > 0 && (
-                        <button
+                        <Button
                           type="button"
                           onClick={handleResetOverrides}
                           className="text-xs text-rose-600 hover:underline font-medium cursor-pointer"
                         >
                           Đặt lại tất cả về mặc định
-                        </button>
+                        </Button>
                       )}
                     </div>
 
@@ -631,7 +636,7 @@ function CreateRoutePlanContent() {
                               </div>
 
                               <div className="flex items-center gap-2 shrink-0">
-                                <input
+                                <Input
                                   type="number"
                                   min={10}
                                   max={600}
@@ -652,13 +657,13 @@ function CreateRoutePlanContent() {
                   </div>
                 )}
               </div>
-            </div>
+            </Card>
           </div>
 
           {/* Right Column: Student Picker & Vehicle Picker (5 cols) */}
           <div className="lg:col-span-5 space-y-6">
             {/* Vehicle Selection & Capacity Pre-check (BR-V01, BR-V02, BR-V03) */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+            <Card className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
                   <VehicleIcon className="w-5 h-5 text-slate-500" />
@@ -667,32 +672,32 @@ function CreateRoutePlanContent() {
                 <div className="flex items-center gap-2">
                   {vehiclePickerTab === 'AVAILABLE' && (
                     <div className="flex items-center gap-2 text-xs">
-                      <button
+                      <Button
                         type="button"
                         onClick={handleSelectAllVehicles}
                         className="text-blue-600 hover:underline cursor-pointer font-medium"
                       >
                         Chọn tất cả
-                      </button>
+                      </Button>
                       <span className="text-slate-300">•</span>
-                      <button
+                      <Button
                         type="button"
                         onClick={handleDeselectAllVehicles}
                         className="text-slate-500 hover:underline cursor-pointer font-medium"
                       >
                         Bỏ chọn
-                      </button>
+                      </Button>
                     </div>
                   )}
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
+                  <Badge className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
                     {selectedVehicleIds.size} xe đã chọn
-                  </span>
+                  </Badge>
                 </div>
               </div>
 
               {/* Segmented Control: Available vs Unavailable */}
               <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
-                <button
+                <Button
                   type="button"
                   onClick={() => setVehiclePickerTab('AVAILABLE')}
                   className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
@@ -702,8 +707,8 @@ function CreateRoutePlanContent() {
                   }`}
                 >
                   Xe khả dụng ({prepData.availableVehicles.length})
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={() => setVehiclePickerTab('UNAVAILABLE')}
                   className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
@@ -713,13 +718,13 @@ function CreateRoutePlanContent() {
                   }`}
                 >
                   Không khả dụng ({prepData.unavailableVehicles?.length || 0})
-                </button>
+                </Button>
               </div>
 
               {/* Search Vehicles */}
               <div className="relative">
                 <SearchIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
+                <Input
                   type="text"
                   placeholder={
                     vehiclePickerTab === 'AVAILABLE'
@@ -728,7 +733,7 @@ function CreateRoutePlanContent() {
                   }
                   value={vehicleSearch}
                   onChange={(e) => setVehicleSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-[#FFCB56]"
+                  className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-primary"
                 />
               </div>
 
@@ -774,16 +779,16 @@ function CreateRoutePlanContent() {
                           key={v.id}
                           className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
                             isChecked
-                              ? 'border-[#FFCB56] bg-[#FFFDF6] ring-1 ring-[#FFCB56]'
+                              ? 'border-primary bg-background ring-1 ring-primary'
                               : 'border-slate-100 hover:border-slate-200 bg-slate-50/50'
                           }`}
                         >
                           <div className="flex items-center gap-3">
-                            <input
+                            <Input
                               type="checkbox"
                               checked={isChecked}
                               onChange={() => handleToggleVehicle(v.id)}
-                              className="w-4 h-4 rounded text-[#FFCB56] focus:ring-[#FFCB56] border-slate-300"
+                              className="w-4 h-4 rounded text-primary focus:ring-primary border-slate-300"
                             />
                             <div>
                               <p className="text-xs font-mono font-bold text-slate-800">{v.licensePlate}</p>
@@ -817,7 +822,7 @@ function CreateRoutePlanContent() {
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <input
+                            <Input
                               type="checkbox"
                               disabled
                               checked={false}
@@ -840,10 +845,10 @@ function CreateRoutePlanContent() {
                   )}
                 </div>
               )}
-            </div>
+            </Card>
 
             {/* Student Picker (Tabs for Eligible vs Ineligible) */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+            <Card className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
                   <UsersIcon className="w-5 h-5 text-slate-500" />
@@ -851,26 +856,26 @@ function CreateRoutePlanContent() {
                 </div>
                 {studentPickerTab === 'ELIGIBLE' && (
                   <div className="flex items-center gap-2 text-xs">
-                    <button
+                    <Button
                       onClick={handleSelectAllStudents}
                       className="text-blue-600 hover:underline cursor-pointer font-medium"
                     >
                       Chọn tất cả
-                    </button>
+                    </Button>
                     <span className="text-slate-300">•</span>
-                    <button
+                    <Button
                       onClick={handleDeselectAllStudents}
                       className="text-slate-500 hover:underline cursor-pointer font-medium"
                     >
                       Bỏ chọn hết
-                    </button>
+                    </Button>
                   </div>
                 )}
               </div>
 
               {/* Segmented Control: Eligible vs Ineligible */}
               <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
-                <button
+                <Button
                   type="button"
                   onClick={() => setStudentPickerTab('ELIGIBLE')}
                   className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
@@ -880,8 +885,8 @@ function CreateRoutePlanContent() {
                   }`}
                 >
                   Đủ điều kiện ({prepData.eligibleStudents.length})
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={() => setStudentPickerTab('INELIGIBLE')}
                   className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
@@ -891,18 +896,18 @@ function CreateRoutePlanContent() {
                   }`}
                 >
                   Chưa đủ điều kiện ({prepData.ineligibleStudents?.length || 0})
-                </button>
+                </Button>
               </div>
 
               {/* Student Search */}
               <div className="relative">
                 <SearchIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
+                <Input
                   type="text"
                   placeholder="Tìm học sinh theo tên, mã..."
                   value={studentSearch}
                   onChange={(e) => setStudentSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-[#FFCB56]"
+                  className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-primary"
                 />
               </div>
 
@@ -928,7 +933,7 @@ function CreateRoutePlanContent() {
                               : 'border-slate-100 opacity-60 hover:opacity-100 bg-slate-50/50'
                           }`}
                         >
-                          <input
+                          <Input
                             type="checkbox"
                             checked={isChecked}
                             onClick={(e) => e.stopPropagation()}
@@ -976,13 +981,13 @@ function CreateRoutePlanContent() {
                   )}
                 </div>
               )}
-            </div>
+            </Card>
 
             {/* Run VRP Button */}
-            <button
+            <Button variant="primary" size="default"
               disabled={selectedStudentsCount === 0 || selectedVehicleIds.size === 0 || isOptimizing}
               onClick={handleRunOptimization}
-              className="w-full py-3.5 rounded-2xl bg-[#FFCB56] hover:bg-[#e6b74d] text-[#1E293B] font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-3.5 rounded-2xl bg-primary hover:bg-[#e6b74d] text-foreground font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isOptimizing ? (
                 <>
@@ -995,7 +1000,7 @@ function CreateRoutePlanContent() {
                   <span>Tối ưu hóa tuyến đường (VietMap VRP)</span>
                 </>
               )}
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -1007,7 +1012,7 @@ function CreateRoutePlanContent() {
         <div className="space-y-6">
           {/* Summary Metric Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
-            <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
+            <Card className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
               <p className="text-[11px] text-slate-500 font-medium">Độ bao phủ học sinh</p>
               <p className="text-2xl font-black text-blue-600 mt-1">
                 {Math.round(((previewResult.summary.coverageRate ?? (previewResult.summary.assignedBothWaysCount / previewResult.summary.totalSelectedStudents)) * 100))}%
@@ -1015,44 +1020,44 @@ function CreateRoutePlanContent() {
               <p className="text-[10px] text-slate-400 mt-1">
                 {previewResult.summary.assignedBothWaysCount} / {previewResult.summary.totalSelectedStudents} học sinh
               </p>
-            </div>
+            </Card>
 
-            <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
+            <Card className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
               <p className="text-[11px] text-slate-500 font-medium">Đủ 2 chiều (BR-02)</p>
               <p className="text-2xl font-black text-emerald-600 mt-1">
                 {previewResult.summary.assignedBothWaysCount} em
               </p>
               <p className="text-[10px] text-slate-400 mt-1">Có cả tuyến đi & về</p>
-            </div>
+            </Card>
 
-            <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
+            <Card className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
               <p className="text-[11px] text-slate-500 font-medium">Chưa thể phân tuyến</p>
               <p className="text-2xl font-black text-amber-600 mt-1">
                 {previewResult.summary.unassignedCount} em
               </p>
               <p className="text-[10px] text-slate-400 mt-1">Vượt ràng buộc thời gian/xe</p>
-            </div>
+            </Card>
 
-            <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
+            <Card className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
               <p className="text-[11px] text-slate-500 font-medium">Số tuyến chiều đi</p>
               <p className="text-2xl font-black text-indigo-600 mt-1">
                 {previewResult.outboundRoutes.length} tuyến
               </p>
               <p className="text-[10px] text-slate-400 mt-1">Bãi xe → Học sinh → Trường</p>
-            </div>
+            </Card>
 
-            <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
+            <Card className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
               <p className="text-[11px] text-slate-500 font-medium">Số tuyến chiều về</p>
               <p className="text-2xl font-black text-orange-600 mt-1">
                 {previewResult.returnRoutes.length} tuyến
               </p>
               <p className="text-[10px] text-slate-400 mt-1">Trường → Học sinh → Bãi xe</p>
-            </div>
+            </Card>
           </div>
 
           {/* Direction Tabs */}
           <div className="flex items-center gap-2 border-b border-slate-200">
-            <button
+            <Button
               onClick={() => {
                 setActivePreviewTab('OUTBOUND');
                 setActiveRouteIndex(0);
@@ -1064,9 +1069,9 @@ function CreateRoutePlanContent() {
               }`}
             >
               Chiều đi ({previewResult.outboundRoutes.length} tuyến)
-            </button>
+            </Button>
 
-            <button
+            <Button
               onClick={() => {
                 setActivePreviewTab('RETURN');
                 setActiveRouteIndex(0);
@@ -1078,9 +1083,9 @@ function CreateRoutePlanContent() {
               }`}
             >
               Chiều về ({previewResult.returnRoutes.length} tuyến)
-            </button>
+            </Button>
 
-            <button
+            <Button
               onClick={() => setActivePreviewTab('STUDENTS')}
               className={`pb-3 px-4 text-sm font-bold transition-all border-b-2 cursor-pointer ${
                 activePreviewTab === 'STUDENTS'
@@ -1089,7 +1094,7 @@ function CreateRoutePlanContent() {
               }`}
             >
               Chi tiết học sinh ({previewResult.summary.totalSelectedStudents} em)
-            </button>
+            </Button>
           </div>
 
           {/* Tab Content: Outbound or Return */}
@@ -1156,7 +1161,7 @@ function CreateRoutePlanContent() {
                         {/* Return Route Individual Cancellation (Section 14.3) */}
                         {activePreviewTab === 'RETURN' && (
                           <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-end">
-                            <button
+                            <Button
                               disabled={cancellingReturnIndex === idx}
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1170,7 +1175,7 @@ function CreateRoutePlanContent() {
                                 <TrashIcon className="w-3.5 h-3.5" />
                               )}
                               <span>Hủy tuyến về này</span>
-                            </button>
+                            </Button>
                           </div>
                         )}
                       </div>
@@ -1179,7 +1184,7 @@ function CreateRoutePlanContent() {
                 </div>
 
                 {/* Stops Sequence for Active Route with Normalized Elapsed Time */}
-                <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
+                <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
                   <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
                     Thứ tự điểm dừng ({activePreviewRoute.stops.length} điểm)
                   </h4>
@@ -1213,7 +1218,7 @@ function CreateRoutePlanContent() {
                               isDepot
                                 ? 'bg-blue-600 text-white'
                                 : isSchool
-                                ? 'bg-[#FFCB56] text-[#1E293B]'
+                                ? 'bg-primary text-foreground'
                                 : 'bg-emerald-600 text-white'
                             }`}
                           >
@@ -1246,11 +1251,11 @@ function CreateRoutePlanContent() {
                       );
                     })}
                   </div>
-                </div>
+                </Card>
               </div>
 
               {/* Interactive Route Map (7 cols) */}
-              <div className="lg:col-span-7 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
+              <Card className="lg:col-span-7 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-sm font-bold text-slate-800">{activePreviewRoute.name}</h3>
@@ -1258,7 +1263,7 @@ function CreateRoutePlanContent() {
                       Xe {activePreviewRoute.proposedVehiclePlate} • {activePreviewRoute.studentCount} học sinh
                     </p>
                   </div>
-                  <span
+                  <Badge
                     className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
                       activePreviewTab === 'RETURN'
                         ? 'bg-amber-100 text-amber-800'
@@ -1266,7 +1271,7 @@ function CreateRoutePlanContent() {
                     }`}
                   >
                     {activePreviewTab === 'RETURN' ? 'Chiều về' : 'Chiều đi'}
-                  </span>
+                  </Badge>
                 </div>
 
                 <RouteMap
@@ -1280,13 +1285,13 @@ function CreateRoutePlanContent() {
                   }}
                   height="500px"
                 />
-              </div>
+              </Card>
             </div>
           )}
 
           {/* Tab Content: Student Breakdown */}
           {activePreviewTab === 'STUDENTS' && (
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 space-y-6">
+            <Card className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 space-y-6">
               <div>
                 <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
@@ -1331,7 +1336,7 @@ function CreateRoutePlanContent() {
                   </div>
                 </div>
               )}
-            </div>
+            </Card>
           )}
         </div>
       )}
@@ -1344,7 +1349,7 @@ export default function CreateRoutePlanPage() {
     <Suspense
       fallback={
         <div className="flex justify-center items-center py-20 text-slate-400">
-          <SpinnerIcon className="w-8 h-8 animate-spin text-[#FFCB56]" />
+          <SpinnerIcon className="w-8 h-8 animate-spin text-primary" />
         </div>
       }
     >

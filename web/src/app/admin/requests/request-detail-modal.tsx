@@ -13,6 +13,12 @@ import {
   CloseIcon,
   RouteIcon,
 } from '@/components/icons';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Table } from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 interface RequestDetailModalProps {
   isOpen: boolean;
@@ -194,27 +200,27 @@ export function RequestDetailModal({
     switch (status) {
       case 'PENDING':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+          <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
             Chờ duyệt
-          </span>
+          </Badge>
         );
       case 'APPROVED':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
             Đã duyệt
-          </span>
+          </Badge>
         );
       case 'REJECTED':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+          <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
             Đã từ chối
-          </span>
+          </Badge>
         );
       case 'CANCELLED':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300">
+          <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300">
             Phụ huynh đã hủy
-          </span>
+          </Badge>
         );
       default:
         return null;
@@ -224,23 +230,23 @@ export function RequestDetailModal({
   const getTypeBadge = (type: string) => {
     if (type === 'ADDRESS_UPDATE') {
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+        <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
           <MapPinIcon className="w-3 h-3" />
           Cập nhật địa chỉ
-        </span>
+        </Badge>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+      <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
         <StudentIcon className="w-3 h-3" />
         Cập nhật thông tin
-      </span>
+      </Badge>
     );
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+      <Card className="ui-dialog-panel ui-dialog-panel-body bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-3">
@@ -248,17 +254,17 @@ export function RequestDetailModal({
             {detail && getStatusBadge(detail.status)}
             {detail && getTypeBadge(detail.type)}
           </div>
-          <button
+          <Button
             onClick={onClose}
             type="button"
             className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
           >
             <CloseIcon className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
 
         {/* Content Body */}
-        <div className="p-6 overflow-y-auto space-y-5 text-xs text-slate-600 flex-1">
+        <div className="ui-dialog-body p-6 overflow-y-auto space-y-5 text-xs text-slate-600 flex-1">
           {isLoading && (
             <div className="py-12 flex flex-col items-center justify-center text-slate-400">
               <SpinnerIcon className="w-6 h-6 animate-spin text-amber-500 mb-2" />
@@ -329,7 +335,7 @@ export function RequestDetailModal({
                 {detail.type === 'ADDRESS_UPDATE' && (
                   <div className="border border-slate-200 rounded-xl overflow-hidden">
                     {detail.isStale ? (
-                      <table className="w-full text-left border-collapse">
+                      <Table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                             <th className="p-3 w-1/3">Lúc gửi yêu cầu</th>
@@ -350,7 +356,7 @@ export function RequestDetailModal({
                             </td>
                           </tr>
                         </tbody>
-                      </table>
+                      </Table>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
                         <div className="p-4 space-y-1 bg-slate-50/50">
@@ -374,7 +380,7 @@ export function RequestDetailModal({
                 {detail.type === 'INFORMATION_UPDATE' && (
                   <div className="border border-slate-200 rounded-xl overflow-hidden">
                     {detail.isStale ? (
-                      <table className="w-full text-left border-collapse">
+                      <Table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                             <th className="p-2.5">Trường thông tin</th>
@@ -409,9 +415,9 @@ export function RequestDetailModal({
                             </tr>
                           )}
                         </tbody>
-                      </table>
+                      </Table>
                     ) : (
-                      <table className="w-full text-left border-collapse">
+                      <Table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                             <th className="p-3 w-1/3">Trường thông tin</th>
@@ -439,7 +445,7 @@ export function RequestDetailModal({
                             </tr>
                           )}
                         </tbody>
-                      </table>
+                      </Table>
                     )}
                   </div>
                 )}
@@ -470,7 +476,7 @@ export function RequestDetailModal({
                           Kiểm tra tác động phân tuyến
                         </span>
                       </div>
-                      <button
+                      <Button
                         type="button"
                         disabled={isLoadingRoutingPreview}
                         onClick={handleCheckRouting}
@@ -478,7 +484,7 @@ export function RequestDetailModal({
                       >
                         {isLoadingRoutingPreview && <SpinnerIcon className="w-3.5 h-3.5 animate-spin" />}
                         <span>{routingPreview ? 'Kiểm tra lại' : 'Kiểm tra tuyến'}</span>
-                      </button>
+                      </Button>
                     </div>
 
                     {/* Hai tiêu chí tối ưu đúng nghiệp vụ */}
@@ -487,7 +493,7 @@ export function RequestDetailModal({
                         <label className="block text-[11px] text-slate-700 font-semibold mb-1">
                           Thời gian tối đa tuyến (phút)
                         </label>
-                        <input
+                        <Input
                           type="number"
                           min={10}
                           max={180}
@@ -505,7 +511,7 @@ export function RequestDetailModal({
                         <label className="block text-[11px] text-slate-700 font-semibold mb-1">
                           Thời gian dừng tại điểm (giây)
                         </label>
-                        <input
+                        <Input
                           type="number"
                           min={10}
                           max={300}
@@ -529,21 +535,21 @@ export function RequestDetailModal({
 
                     {/* Routing Check Result */}
                     {routingPreview && (
-                      <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2.5 text-xs">
+                      <Card className="p-3 bg-white rounded-xl border border-slate-200 space-y-2.5 text-xs">
                         <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                           <span className="font-semibold text-slate-700">Tình trạng kiểm tra:</span>
                           {routingPreview.overallFeasibility === 'FEASIBLE' ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                               <CheckIcon className="w-3 h-3" /> Khả thi trên mọi tuyến
-                            </span>
+                            </Badge>
                           ) : routingPreview.overallFeasibility === 'INFEASIBLE' ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                            <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-rose-50 text-rose-700 border border-rose-200">
                               <AlertIcon className="w-3 h-3" /> Không khả thi trên ít nhất 1 tuyến
-                            </span>
+                            </Badge>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                            <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-amber-50 text-amber-700 border border-amber-200">
                               <AlertIcon className="w-3 h-3" /> Dịch vụ định tuyến tạm gián đoạn
-                            </span>
+                            </Badge>
                           )}
                         </div>
 
@@ -585,7 +591,7 @@ export function RequestDetailModal({
                             </div>
                           </div>
                         )}
-                      </div>
+                      </Card>
                     )}
                   </div>
                 )}
@@ -596,19 +602,19 @@ export function RequestDetailModal({
                 <div className="p-4 bg-rose-50/50 border border-rose-200 rounded-xl space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-rose-800 text-xs">Xác nhận từ chối yêu cầu</span>
-                    <button
+                    <Button
                       type="button"
                       onClick={() => setIsConfirmingReject(false)}
                       className="text-xs text-slate-500 hover:text-slate-700"
                     >
                       Hủy bỏ
-                    </button>
+                    </Button>
                   </div>
                   <div>
                     <label className="block text-[11px] font-medium text-slate-600 mb-1">
                       Lý do từ chối (Tùy chọn)
                     </label>
-                    <textarea
+                    <Textarea
                       value={rejectReason}
                       onChange={(e) => setRejectReason(e.target.value)}
                       rows={2}
@@ -617,14 +623,14 @@ export function RequestDetailModal({
                     />
                   </div>
                   <div className="flex justify-end gap-2">
-                    <button
+                    <Button
                       type="button"
                       onClick={() => setIsConfirmingReject(false)}
                       className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg"
                     >
                       Đóng
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
                       disabled={isSubmittingReject}
                       onClick={handleReject}
@@ -632,7 +638,7 @@ export function RequestDetailModal({
                     >
                       {isSubmittingReject && <SpinnerIcon className="w-3.5 h-3.5 animate-spin" />}
                       Xác nhận từ chối
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}
@@ -644,13 +650,13 @@ export function RequestDetailModal({
                     <span className="font-bold text-emerald-900 text-xs">
                       Xác nhận phê duyệt ({selectedOutcome === 'REOPTIMIZED' ? 'Cập nhật tuyến mới' : selectedOutcome === 'REMOVED_FROM_ROUTES' ? 'Loại khỏi tuyến' : 'Cập nhật trực tiếp'})
                     </span>
-                    <button
+                    <Button
                       type="button"
                       onClick={() => setIsConfirmingApprove(false)}
                       className="text-xs text-slate-500 hover:text-slate-700"
                     >
                       Hủy bỏ
-                    </button>
+                    </Button>
                   </div>
                   <p className="text-xs text-emerald-800">
                     {selectedOutcome === 'REOPTIMIZED'
@@ -660,14 +666,14 @@ export function RequestDetailModal({
                       : `Dữ liệu của học sinh ${detail.studentName} sẽ được cập nhật trực tiếp trên hệ thống.`}
                   </p>
                   <div className="flex justify-end gap-2">
-                    <button
+                    <Button
                       type="button"
                       onClick={() => setIsConfirmingApprove(false)}
                       className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg"
                     >
                       Hủy
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
                       disabled={isSubmittingApprove}
                       onClick={() => handleApprove()}
@@ -675,7 +681,7 @@ export function RequestDetailModal({
                     >
                       {isSubmittingApprove && <SpinnerIcon className="w-3.5 h-3.5 animate-spin" />}
                       Xác nhận
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}
@@ -685,28 +691,28 @@ export function RequestDetailModal({
 
         {/* Footer Actions */}
         <div className="flex items-center justify-between p-4 border-t border-slate-100 bg-slate-50/50">
-          <button
+          <Button
             type="button"
             onClick={onClose}
             className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
           >
             Đóng
-          </button>
+          </Button>
 
           {detail && detail.status === 'PENDING' && !isConfirmingApprove && !isConfirmingReject && (
             <div className="flex items-center gap-2">
-              <button
+              <Button variant="outline" size="sm"
                 type="button"
                 onClick={() => setIsConfirmingReject(true)}
                 className="px-4 py-2 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition-colors cursor-pointer"
               >
                 Từ chối
-              </button>
+              </Button>
 
               {/* Phê duyệt theo ngữ cảnh: System Admin có tuyến vs không có tuyến */}
               {role === 'SYSTEM_ADMIN' && detail.type === 'ADDRESS_UPDATE' ? (
                 !routingPreview ? (
-                  <button
+                  <Button
                     type="button"
                     disabled={isLoadingRoutingPreview}
                     onClick={handleCheckRouting}
@@ -714,9 +720,9 @@ export function RequestDetailModal({
                   >
                     {isLoadingRoutingPreview && <SpinnerIcon className="w-3.5 h-3.5 animate-spin" />}
                     <span>Kiểm tra tuyến</span>
-                  </button>
+                  </Button>
                 ) : routingPreview.overallFeasibility === 'FEASIBLE' ? (
-                  <button
+                  <Button
                     type="button"
                     disabled={detail.isStale}
                     onClick={() => {
@@ -727,9 +733,9 @@ export function RequestDetailModal({
                   >
                     <CheckIcon className="w-4 h-4" />
                     <span>Xác nhận tuyến mới</span>
-                  </button>
+                  </Button>
                 ) : routingPreview.overallFeasibility === 'INFEASIBLE' ? (
-                  <button
+                  <Button
                     type="button"
                     disabled={detail.isStale}
                     onClick={() => {
@@ -740,9 +746,9 @@ export function RequestDetailModal({
                   >
                     <AlertIcon className="w-4 h-4" />
                     <span>Duyệt & Loại khỏi tuyến</span>
-                  </button>
+                  </Button>
                 ) : routingPreview.routes.length === 0 ? (
-                  <button
+                  <Button
                     type="button"
                     disabled={detail.isStale}
                     onClick={() => {
@@ -753,10 +759,10 @@ export function RequestDetailModal({
                   >
                     <CheckIcon className="w-4 h-4" />
                     <span>Duyệt trực tiếp</span>
-                  </button>
+                  </Button>
                 ) : null
               ) : (
-                <button
+                <Button
                   type="button"
                   disabled={detail.isStale}
                   onClick={() => {
@@ -771,12 +777,12 @@ export function RequestDetailModal({
                 >
                   <CheckIcon className="w-4 h-4" />
                   Phê duyệt
-                </button>
+                </Button>
               )}
             </div>
           )}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

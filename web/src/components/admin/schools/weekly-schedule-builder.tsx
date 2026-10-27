@@ -8,6 +8,7 @@ import {
   validateWeeklySchedule,
   type DayConfig,
 } from './weekly-schedule.helper';
+import { Input } from '@/components/ui/input';
 
 export { DAYS_OF_WEEK, validateWeeklySchedule, type DayConfig };
 
@@ -77,7 +78,7 @@ export function WeeklyScheduleBuilder({
               }`}
             >
               <div className="flex items-center gap-2.5 min-w-[120px]">
-                <input
+                <Input
                   type="checkbox"
                   id={`day-${day.key}`}
                   checked={isEnabled}
@@ -103,7 +104,7 @@ export function WeeklyScheduleBuilder({
                       Giờ bắt đầu học:
                     </label>
                     <div className="relative">
-                      <input
+                      <Input
                         type="time"
                         id={`${day.key}-start`}
                         value={dayData?.start || '07:00'}
@@ -126,7 +127,7 @@ export function WeeklyScheduleBuilder({
                       Giờ kết thúc học:
                     </label>
                     <div className="relative">
-                      <input
+                      <Input
                         type="time"
                         id={`${day.key}-end`}
                         value={dayData?.end || '17:00'}

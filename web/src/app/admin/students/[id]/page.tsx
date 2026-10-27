@@ -33,6 +33,13 @@ import { vietmapService, VietmapSuggestion } from '@/lib/vietmap';
 import { RequestDetailModal } from '@/app/admin/requests/request-detail-modal';
 import { StudentRoutingSection } from '@/components/admin/students/student-routing-section';
 import type { EmptyRoutePlanInfo } from '@/lib/types';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Table } from '@/components/ui/table';
 
 function StudentDetailPageContent() {
   const params = useParams();
@@ -312,7 +319,7 @@ function StudentDetailPageContent() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button
+            <Button
               type="button"
               onClick={() => {
                 setCancellingPlan({
@@ -324,20 +331,20 @@ function StudentDetailPageContent() {
               className="px-3 py-1.5 rounded-lg bg-rose-600 text-white font-medium hover:bg-rose-700 transition-colors cursor-pointer text-xs"
             >
               Hủy toàn bộ phương án
-            </button>
-            <Link
+            </Button>
+            <Link data-variant="outline" data-size="sm"
               href={`/admin/routes/plans/${emptyPlanNotice.planId}`}
-              className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition-colors cursor-pointer text-xs"
+              className="ui-button px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition-colors cursor-pointer text-xs"
             >
               Xem phương án
             </Link>
-            <button
+            <Button
               type="button"
               onClick={() => setEmptyPlanNotice(null)}
               className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
             >
               ✕
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -354,7 +361,7 @@ function StudentDetailPageContent() {
       </div>
 
       {/* Top Header Card */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+      <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col md:flex-row md:items-center md:justify-between gap-6">
         <div className="flex items-center gap-4">
           {student.avatarUrl ? (
             <img
@@ -368,28 +375,28 @@ function StudentDetailPageContent() {
             </div>
           )}
 
-          <div>
+          <PageHeader>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-slate-900">{student.fullName}</h1>
               {isAvailable ? (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                   Khả dụng
-                </span>
+                </Badge>
               ) : (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-300">
+                <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-300">
                   Đã vô hiệu hóa
-                </span>
+                </Badge>
               )}
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
               Mã học sinh: <span className="font-mono font-bold text-slate-800">{student.code}</span>
             </p>
-          </div>
+          </PageHeader>
         </div>
 
         {/* Action button */}
         <div>
-          <button
+          <Button
             type="button"
             onClick={handleOpenStatusModal}
             className={`px-4 py-2 text-xs font-semibold rounded-xl transition-colors cursor-pointer border ${
@@ -399,16 +406,16 @@ function StudentDetailPageContent() {
             }`}
           >
             {isAvailable ? 'Vô hiệu hóa học sinh' : 'Kích hoạt lại học sinh'}
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
 
       {/* Main Grid: Info + QR Code */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Info Column (2 spans) */}
         <div className="md:col-span-2 space-y-6">
           {/* Card: Thông tin chi tiết */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
+          <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
             <h2 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-3 flex items-center gap-2">
               <StudentIcon className="w-4 h-4 text-amber-500" />
               Thông tin học sinh
@@ -445,15 +452,15 @@ function StudentDetailPageContent() {
                 <dt className="text-slate-400 font-medium">Tình trạng địa chỉ</dt>
                 <dd className="mt-1">
                   {student.hasAddress ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                       Đã có địa chỉ
-                    </span>
+                    </Badge>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                    <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                       Chưa có địa chỉ
-                    </span>
+                    </Badge>
                   )}
                 </dd>
               </div>
@@ -462,13 +469,13 @@ function StudentDetailPageContent() {
                 <dt className="text-slate-400 font-medium">Trạng thái tài khoản</dt>
                 <dd className="mt-1">
                   {isAvailable ? (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                       Khả dụng
-                    </span>
+                    </Badge>
                   ) : (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-300">
+                    <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-300">
                       Đã vô hiệu hóa
-                    </span>
+                    </Badge>
                   )}
                 </dd>
               </div>
@@ -479,13 +486,13 @@ function StudentDetailPageContent() {
               <div className="flex items-center justify-between mb-1">
                 <dt className="text-slate-400 font-medium text-xs">Địa chỉ đón trả</dt>
                 {isAvailable && !isEditingAddress && (
-                  <button
+                  <Button
                     type="button"
                     onClick={handleStartEditAddress}
                     className="text-xs font-semibold text-amber-600 hover:text-amber-700 hover:underline cursor-pointer"
                   >
                     Chỉnh sửa địa chỉ
-                  </button>
+                  </Button>
                 )}
                 {!isAvailable && (
                   <span className="text-[11px] text-slate-400 italic">
@@ -516,7 +523,7 @@ function StudentDetailPageContent() {
 
                   {/* Autocomplete Input */}
                   <div className="relative">
-                    <input
+                    <Input
                       type="text"
                       value={newAddressText}
                       onChange={(e) => handleAddressInputChange(e.target.value)}
@@ -528,9 +535,9 @@ function StudentDetailPageContent() {
                     )}
 
                     {showAddressSuggestions && addressSuggestions.length > 0 && (
-                      <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                      <Card className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
                         {addressSuggestions.map((sug) => (
-                          <button
+                          <Button
                             key={sug.refId}
                             type="button"
                             onClick={() => handleSelectAddressSuggestion(sug)}
@@ -538,9 +545,9 @@ function StudentDetailPageContent() {
                           >
                             <span className="font-semibold text-slate-900 block">{sug.name}</span>
                             <span className="text-slate-500 text-[11px] block">{sug.address || sug.display}</span>
-                          </button>
+                          </Button>
                         ))}
-                      </div>
+                      </Card>
                     )}
                   </div>
 
@@ -560,15 +567,15 @@ function StudentDetailPageContent() {
                   </div>
 
                   <div className="flex justify-end gap-2 pt-1">
-                    <button
+                    <Button
                       type="button"
                       disabled={isSavingAddress}
                       onClick={() => setIsEditingAddress(false)}
                       className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg"
                     >
                       Hủy bỏ
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
                       disabled={isSavingAddress || !newAddressText.trim() || !newLatitude || !newLongitude}
                       onClick={handleSaveAddress}
@@ -576,12 +583,12 @@ function StudentDetailPageContent() {
                     >
                       {isSavingAddress && <SpinnerIcon className="w-3.5 h-3.5 animate-spin" />}
                       Lưu địa chỉ
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}
             </div>
-          </div>
+          </Card>
         </div>
 
         {/* QR Code Column (1 span) */}
@@ -597,7 +604,7 @@ function StudentDetailPageContent() {
       <StudentRoutingSection studentId={student.id} studentName={student.fullName} />
 
       {/* Request History Section */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
+      <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
           <div>
             <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -611,7 +618,7 @@ function StudentDetailPageContent() {
 
           {/* Filters */}
           <div className="flex items-center gap-2">
-            <select
+            <Select
               value={historyTypeFilter}
               onChange={(e) => {
                 setHistoryTypeFilter(e.target.value as RequestType | '');
@@ -622,9 +629,9 @@ function StudentDetailPageContent() {
               <option value="">Tất cả loại yêu cầu</option>
               <option value="INFORMATION_UPDATE">Cập nhật thông tin</option>
               <option value="ADDRESS_UPDATE">Cập nhật địa chỉ</option>
-            </select>
+            </Select>
 
-            <select
+            <Select
               value={historyStatusFilter}
               onChange={(e) => {
                 setHistoryStatusFilter(e.target.value as RequestStatus | '');
@@ -636,13 +643,13 @@ function StudentDetailPageContent() {
               <option value="PENDING">Chờ duyệt</option>
               <option value="APPROVED">Đã duyệt</option>
               <option value="REJECTED">Đã từ chối</option>
-            </select>
+            </Select>
           </div>
         </div>
 
         {/* Request History Table */}
         <div className="overflow-x-auto border border-slate-100 rounded-xl">
-          <table className="w-full text-left border-collapse text-xs">
+          <Table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
                 <th className="p-3 pl-4">Loại yêu cầu</th>
@@ -688,19 +695,19 @@ function StudentDetailPageContent() {
                     </td>
                     <td className="p-3">
                       {req.status === 'PENDING' && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                        <Badge className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
                           Chờ duyệt
-                        </span>
+                        </Badge>
                       )}
                       {req.status === 'APPROVED' && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <Badge className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                           Đã duyệt
-                        </span>
+                        </Badge>
                       )}
                       {req.status === 'REJECTED' && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                        <Badge className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
                           Đã từ chối
-                        </span>
+                        </Badge>
                       )}
                     </td>
                     <td className="p-3 text-slate-600">
@@ -724,7 +731,7 @@ function StudentDetailPageContent() {
                         : '—'}
                     </td>
                     <td className="p-3 pr-4 text-right">
-                      <button
+                      <Button
                         type="button"
                         onClick={() => {
                           setSelectedHistoryRequestId(req.id);
@@ -733,12 +740,12 @@ function StudentDetailPageContent() {
                         className="px-2.5 py-1 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
                       >
                         Xem chi tiết
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))}
             </tbody>
-          </table>
+          </Table>
         </div>
 
         {/* History Pagination */}
@@ -748,27 +755,27 @@ function StudentDetailPageContent() {
               Tổng số {historyTotal} yêu cầu
             </span>
             <div className="flex items-center gap-1.5">
-              <button
+              <Button variant="outline" size="default"
                 type="button"
                 disabled={historyPage <= 1}
                 onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
                 className="px-2.5 py-1 rounded-md border border-slate-200 bg-white disabled:opacity-50"
               >
                 Trước
-              </button>
+              </Button>
               <span>{historyPage} / {historyTotalPages}</span>
-              <button
+              <Button variant="outline" size="default"
                 type="button"
                 disabled={historyPage >= historyTotalPages}
                 onClick={() => setHistoryPage((p) => Math.min(historyTotalPages, p + 1))}
                 className="px-2.5 py-1 rounded-md border border-slate-200 bg-white disabled:opacity-50"
               >
                 Sau
-              </button>
+              </Button>
             </div>
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Shared Request Detail Modal */}
       {schoolId && (

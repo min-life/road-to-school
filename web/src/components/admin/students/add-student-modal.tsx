@@ -17,6 +17,9 @@ import {
 } from '@/components/icons';
 import { VietMapPicker } from '@/components/admin/schools/vietmap-picker';
 import { Tooltip } from '@/components/admin/schools/tooltip';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 interface AddStudentModalProps {
   isOpen: boolean;
@@ -251,8 +254,8 @@ export function AddStudentModal({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div
-        className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-200"
+      <Card
+        className="ui-dialog-panel bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-200"
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-student-title"
@@ -267,7 +270,7 @@ export function AddStudentModal({
               Mã học sinh và trạng thái Khả dụng sẽ được tự động tạo bởi hệ thống.
             </p>
           </div>
-          <button
+          <Button
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
@@ -275,7 +278,7 @@ export function AddStudentModal({
             aria-label="Đóng"
           >
             <CloseIcon className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
 
         {/* Modal Body */}
@@ -294,7 +297,7 @@ export function AddStudentModal({
               <label className="block text-xs font-semibold text-slate-700 mb-1">
                 Họ và tên học sinh <span className="text-red-500">*</span>
               </label>
-              <input
+              <Input
                 type="text"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
@@ -312,7 +315,7 @@ export function AddStudentModal({
                 </label>
                 <Tooltip content="Số điện thoại nhận mã OTP khi phụ huynh liên kết học sinh trên ứng dụng di động." />
               </div>
-              <input
+              <Input
                 type="tel"
                 value={guardianPhone}
                 onChange={(e) => setGuardianPhone(e.target.value)}
@@ -341,7 +344,7 @@ export function AddStudentModal({
                     alt="Xem trước ảnh học sinh"
                     className="w-full h-full object-cover"
                   />
-                  <button
+                  <Button
                     type="button"
                     onClick={handleRemoveImage}
                     disabled={isSubmitting}
@@ -349,7 +352,7 @@ export function AddStudentModal({
                     title="Xóa ảnh"
                   >
                     <TrashIcon className="w-4 h-4" />
-                  </button>
+                  </Button>
                 </div>
               ) : (
                 <div className="w-16 h-16 rounded-full bg-slate-100 border border-dashed border-slate-300 flex items-center justify-center text-slate-400 flex-shrink-0">
@@ -358,7 +361,7 @@ export function AddStudentModal({
               )}
 
               <div className="space-y-1">
-                <input
+                <Input
                   ref={fileInputRef}
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
@@ -392,21 +395,21 @@ export function AddStudentModal({
               </div>
 
               {addressText && (
-                <button
+                <Button
                   type="button"
                   onClick={handleClearAddress}
                   disabled={isSubmitting}
                   className="text-xs text-red-600 hover:underline cursor-pointer"
                 >
                   Xóa địa chỉ
-                </button>
+                </Button>
               )}
             </div>
 
             {/* Address input with Vietmap autocomplete */}
             <div className="relative">
               <div className="relative">
-                <input
+                <Input
                   type="text"
                   value={addressText}
                   onChange={handleAddressInputChange}
@@ -422,9 +425,9 @@ export function AddStudentModal({
 
               {/* Suggestions dropdown */}
               {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto divide-y divide-slate-100">
+                <Card className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto divide-y divide-slate-100">
                   {suggestions.map((item) => (
-                    <button
+                    <Button
                       key={item.refId}
                       type="button"
                       onClick={() => handleSelectSuggestion(item)}
@@ -437,9 +440,9 @@ export function AddStudentModal({
                           <p className="text-[11px] text-slate-400 line-clamp-1">{item.address}</p>
                         )}
                       </div>
-                    </button>
+                    </Button>
                   ))}
-                </div>
+                </Card>
               )}
             </div>
 
@@ -463,25 +466,25 @@ export function AddStudentModal({
 
           {/* Form Actions */}
           <div className="border-t border-slate-200 pt-4 flex items-center justify-end gap-3">
-            <button
+            <Button
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
               className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
             >
               Hủy
-            </button>
-            <button
+            </Button>
+            <Button variant="primary" size="sm"
               type="submit"
               disabled={isSubmitting}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-slate-900 bg-[#FFCB56] hover:bg-amber-400 rounded-lg transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-slate-900 bg-primary hover:bg-amber-400 rounded-lg transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
             >
               {isSubmitting && <SpinnerIcon className="w-4 h-4 animate-spin text-slate-900" />}
               <span>{isSubmitting ? 'Đang tạo...' : 'Tạo học sinh'}</span>
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
+      </Card>
     </div>
   );
 }

@@ -16,6 +16,10 @@ import {
 import { RouteMap, MapPoint } from '@/components/admin/routes/route-map';
 import { CancelRoutePlanModal } from '@/components/admin/routes/cancel-route-plan-modal';
 import { authStorage } from '@/lib/auth-storage';
+import { PageHeader } from '@/components/ui/page-header';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 
 export default function RouteDetailPage() {
   const params = useParams();
@@ -104,7 +108,7 @@ export default function RouteDetailPage() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-slate-500">
-        <SpinnerIcon className="w-8 h-8 animate-spin text-[#FFCB56] mb-3" />
+        <SpinnerIcon className="w-8 h-8 animate-spin text-primary mb-3" />
         <p className="text-sm font-medium">Đang tải chi tiết tuyến đường...</p>
       </div>
     );
@@ -180,10 +184,10 @@ export default function RouteDetailPage() {
           >
             <ArrowLeftIcon className="w-5 h-5" />
           </Link>
-          <div>
+          <PageHeader>
             <div className="flex items-center gap-2.5">
               <h1 className="text-2xl font-bold text-slate-800">{route.name}</h1>
-              <span
+              <Badge
                 className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
                   isToSchool
                     ? 'bg-blue-100 text-blue-800 border border-blue-200'
@@ -191,7 +195,7 @@ export default function RouteDetailPage() {
                 }`}
               >
                 {isToSchool ? 'Chiều đi: Bãi xe → Trường' : 'Chiều về: Trường → Bãi xe'}
-              </span>
+              </Badge>
               <span
                 className={`text-xs font-semibold px-2 py-0.5 rounded-md ${
                   isActive
@@ -211,23 +215,23 @@ export default function RouteDetailPage() {
               </Link>{' '}
               • Trường: <span className="font-semibold text-slate-700">{route.schoolName}</span>
             </p>
-          </div>
+          </PageHeader>
         </div>
 
         {isSystemAdmin && isDraft && (
-          <button
+          <Button variant="outline" size="sm"
             onClick={() => setIsCancelModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 transition-colors cursor-pointer shadow-xs"
           >
             <TrashIcon className="w-4 h-4 text-rose-600" />
             <span>Hủy toàn bộ phương án tuyến</span>
-          </button>
+          </Button>
         )}
       </div>
 
       {/* Metrics Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
           <p className="text-xs text-slate-500 font-medium">Xe đề xuất (Proposed)</p>
           <p className="text-lg font-mono font-bold text-slate-800 mt-1">
             {route.proposedVehiclePlate || 'Chưa gán'}
@@ -235,33 +239,33 @@ export default function RouteDetailPage() {
           <p className="text-[11px] text-slate-400 mt-0.5">
             {route.proposedVehicleBrand || 'Xe dự kiến'}
           </p>
-        </div>
+        </Card>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
           <p className="text-xs text-slate-500 font-medium">Số học sinh trên tuyến</p>
           <p className="text-2xl font-black text-slate-800 mt-1">{route.studentCount} em</p>
           <p className="text-[11px] text-slate-400 mt-0.5">Đã phân tuyến 2 chiều</p>
-        </div>
+        </Card>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
           <p className="text-xs text-slate-500 font-medium">Quãng đường dự kiến</p>
           <p className="text-2xl font-black text-blue-600 mt-1">{distanceKm} km</p>
           <p className="text-[11px] text-slate-400 mt-0.5">Theo lộ trình VietMap</p>
-        </div>
+        </Card>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
           <p className="text-xs text-slate-500 font-medium">Thời gian di chuyển</p>
           <p className="text-2xl font-black text-amber-600 mt-1">~{durationMins} phút</p>
           <p className="text-[11px] text-slate-400 mt-0.5">
             {route.departureTime} → {route.arrivalTime}
           </p>
-        </div>
+        </Card>
       </div>
 
       {/* Main Grid: Interactive Map & Stops List */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Interactive Map (7 cols) */}
-        <div className="lg:col-span-7 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
+        <Card className="lg:col-span-7 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
               <RouteIcon className="w-4 h-4 text-slate-500" />
@@ -280,10 +284,10 @@ export default function RouteDetailPage() {
             focusPoint={focusPoint}
             height="520px"
           />
-        </div>
+        </Card>
 
         {/* Sequential Stops Timeline (5 cols) */}
-        <div className="lg:col-span-5 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+        <Card className="lg:col-span-5 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <h3 className="text-sm font-bold text-slate-800">Lộ trình & Thứ tự đón/trả</h3>
             <span className="text-xs font-semibold text-slate-500">
@@ -309,7 +313,7 @@ export default function RouteDetailPage() {
                         isDepot
                           ? 'bg-blue-600 text-white'
                           : isSchool
-                          ? 'bg-[#FFCB56] text-[#1E293B]'
+                          ? 'bg-primary text-foreground'
                           : 'bg-emerald-600 text-white'
                       }`}
                     >
@@ -343,7 +347,7 @@ export default function RouteDetailPage() {
               <p className="text-xs text-slate-400 text-center py-6">Chưa có danh sách điểm dừng</p>
             )}
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* Cancel Entire RoutePlan Modal */}

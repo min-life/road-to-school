@@ -3,6 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { CloseIcon, SpinnerIcon, AlertIcon } from '@/components/icons';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 interface CreateSchoolAdminModalProps {
   isOpen: boolean;
@@ -102,7 +105,7 @@ export function CreateSchoolAdminModal({
       />
 
       {/* Modal Container */}
-      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl z-10 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-200">
+      <Card className="ui-dialog-panel relative w-full max-w-lg bg-white rounded-2xl shadow-2xl z-10 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-200">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <div>
@@ -116,14 +119,14 @@ export function CreateSchoolAdminModal({
               Trường: {schoolName}
             </p>
           </div>
-          <button
+          <Button
             type="button"
             onClick={onClose}
             disabled={isLoading}
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50 cursor-pointer"
           >
             <CloseIcon className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
 
         {/* Form Body */}
@@ -142,7 +145,7 @@ export function CreateSchoolAdminModal({
             >
               Họ và tên <span className="text-red-500">*</span>
             </label>
-            <input
+            <Input
               type="text"
               id="admin-fullname"
               value={fullName}
@@ -161,7 +164,7 @@ export function CreateSchoolAdminModal({
             >
               Email <span className="text-xs font-normal text-slate-400">(Tùy chọn nếu đã có SĐT)</span>
             </label>
-            <input
+            <Input
               type="email"
               id="admin-email"
               value={email}
@@ -179,7 +182,7 @@ export function CreateSchoolAdminModal({
             >
               Số điện thoại <span className="text-xs font-normal text-slate-400">(Tùy chọn nếu đã có Email)</span>
             </label>
-            <input
+            <Input
               type="tel"
               id="admin-phone"
               value={phone}
@@ -196,31 +199,31 @@ export function CreateSchoolAdminModal({
 
           {/* Footer Actions */}
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-            <button
+            <Button variant="outline" size="sm"
               type="button"
               onClick={onClose}
               disabled={isLoading}
               className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
             >
               Hủy bỏ
-            </button>
-            <button
+            </Button>
+            <Button variant="primary" size="sm"
               type="submit"
               disabled={isLoading}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#FFCB56] hover:bg-[#e6b74d] text-[#1E293B] text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary hover:bg-[#e6b74d] text-foreground text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
             >
               {isLoading ? (
                 <>
-                  <SpinnerIcon className="w-4 h-4 animate-spin text-[#1E293B]" />
+                  <SpinnerIcon className="w-4 h-4 animate-spin text-foreground" />
                   <span>Đang tạo tài khoản...</span>
                 </>
               ) : (
                 <span>Tạo tài khoản</span>
               )}
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
+      </Card>
     </div>
   );
 }

@@ -7,6 +7,8 @@ import { StudentTable } from '@/components/admin/students/student-table';
 import { AddStudentModal } from '@/components/admin/students/add-student-modal';
 import { PlusIcon, AlertIcon, CheckIcon, StudentIcon } from '@/components/icons';
 import type { StudentListItem } from '@/lib/types';
+import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
 
 function StudentsPageContent() {
   const { user } = useAuth();
@@ -58,18 +60,18 @@ function StudentsPageContent() {
               </span>
             </div>
           </div>
-          <button
+          <Button
             type="button"
             onClick={() => setCreatedStudentToast(null)}
             className="text-xs text-emerald-700 hover:underline cursor-pointer"
           >
             Đóng
-          </button>
+          </Button>
         </div>
       )}
 
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <PageHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <StudentIcon className="w-7 h-7 text-amber-500" />
@@ -80,15 +82,15 @@ function StudentsPageContent() {
           </p>
         </div>
 
-        <button
+        <Button variant="primary" size="default"
           type="button"
           onClick={() => setIsAddModalOpen(true)}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-900 bg-[#FFCB56] hover:bg-amber-400 rounded-xl transition-colors shadow-xs cursor-pointer"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-900 bg-primary hover:bg-amber-400 rounded-xl transition-colors shadow-xs cursor-pointer"
         >
           <PlusIcon className="w-4 h-4" />
           <span>Thêm học sinh</span>
-        </button>
-      </div>
+        </Button>
+      </PageHeader>
 
       {/* Main Student Table */}
       <StudentTable

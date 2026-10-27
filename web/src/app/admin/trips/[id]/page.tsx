@@ -20,6 +20,10 @@ import {
 import { RouteMap, MapPoint } from '@/components/admin/routes/route-map';
 import { TripAssignmentModal } from '@/components/admin/trips/trip-assignment-modal';
 import { getRecordedHistory, getTripLocation, splitRecordedHistory, type RecordedPoint, type TripLocationState } from '@/lib/trip-location';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
+import { Badge } from '@/components/ui/badge';
 
 export default function AdminTripDetailPage({
   params,
@@ -157,7 +161,7 @@ export default function AdminTripDetailPage({
   if (loading) {
     return (
       <div className="py-24 text-center">
-        <SpinnerIcon className="w-8 h-8 animate-spin mx-auto text-[#FFCB56] mb-3" />
+        <SpinnerIcon className="w-8 h-8 animate-spin mx-auto text-primary mb-3" />
         <p className="text-sm text-slate-500">Đang tải chi tiết chuyến xe...</p>
       </div>
     );
@@ -173,19 +177,19 @@ export default function AdminTripDetailPage({
           <ChevronLeftIcon className="w-4 h-4" />
           <span>Quay lại danh sách chuyến xe</span>
         </Link>
-        <div className="p-8 rounded-2xl bg-white border border-rose-200 text-center">
+        <Card className="p-8 rounded-2xl bg-white border border-rose-200 text-center">
           <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3">
             <AlertIcon className="w-6 h-6" />
           </div>
           <h2 className="text-base font-bold text-slate-800">Không tìm thấy chuyến xe</h2>
           <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">{error || 'Chuyến xe không tồn tại hoặc bạn không có quyền xem.'}</p>
-          <button
+          <Button
             onClick={() => router.push('/admin/trips')}
             className="mt-4 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
           >
             Về trang danh sách
-          </button>
-        </div>
+          </Button>
+        </Card>
       </div>
     );
   }
@@ -209,8 +213,8 @@ export default function AdminTripDetailPage({
       </div>
 
       {/* Header Card */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="space-y-1.5">
+      <Card className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <PageHeader className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-2.5">
             <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
               <BusIcon className="w-6 h-6 text-slate-700" />
@@ -218,18 +222,18 @@ export default function AdminTripDetailPage({
             </h1>
 
             {isToSchool ? (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                 Chiều đi (Đến trường)
-              </span>
+              </Badge>
             ) : (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-50 text-sky-700 border border-sky-200">
+              <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-50 text-sky-700 border border-sky-200">
                 Chiều về (Về bãi xe)
-              </span>
+              </Badge>
             )}
 
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+            <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
               {trip.status}
-            </span>
+            </Badge>
           </div>
 
           <p className="text-xs text-slate-500">
@@ -239,23 +243,23 @@ export default function AdminTripDetailPage({
             {' • '}
             Phương án: <span className="text-slate-600">{trip.routePlanName}</span>
           </p>
-        </div>
+        </PageHeader>
 
         {/* Action: Edit Assignment */}
         {canEditAssignment && (
-          <button
+          <Button
             onClick={() => setIsEditModalOpen(true)}
             className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0"
           >
             <span>Đổi phân công chuyến</span>
-          </button>
+          </Button>
         )}
-      </div>
+      </Card>
 
       {/* 4 Cards: Thời gian, Xe, Tài xế, Giáo viên */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Giờ vận hành */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
+        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
             Khung giờ vận hành
           </span>
@@ -265,10 +269,10 @@ export default function AdminTripDetailPage({
           <span className="text-[11px] text-slate-500 block">
             Khởi hành từ {isToSchool ? 'Bãi xe' : 'Trường học'}
           </span>
-        </div>
+        </Card>
 
         {/* Card 2: Xe đưa đón */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
+        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
             Phương tiện (Xe)
           </span>
@@ -278,10 +282,10 @@ export default function AdminTripDetailPage({
           <span className="text-xs text-slate-500 block">
             {trip.vehicleSeats} chỗ • {trip.vehicleBrand}
           </span>
-        </div>
+        </Card>
 
         {/* Card 3: Tài xế */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
+        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
             Tài xế phụ trách
           </span>
@@ -291,10 +295,10 @@ export default function AdminTripDetailPage({
           <span className="text-xs text-slate-500 block font-mono">
             {trip.driverPhone || '—'}
           </span>
-        </div>
+        </Card>
 
         {/* Card 4: Giáo viên */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
+        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
             Giáo viên phụ xe
           </span>
@@ -304,13 +308,13 @@ export default function AdminTripDetailPage({
           <span className="text-xs text-slate-500 block font-mono">
             {trip.busAttendantPhone || '—'}
           </span>
-        </div>
+        </Card>
       </div>
 
       {/* Main Content: Map & Stops Timeline */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: RouteMap (7 cols) */}
-        <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+        <Card className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
           <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
             <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
               <RouteIcon className="w-4 h-4 text-slate-500" />
@@ -329,8 +333,8 @@ export default function AdminTripDetailPage({
               {!showPlanned && historyParts.length > 1 ? ' · Có đoạn chưa ghi nhận' : ''}
             </p>
             {!!history?.length && <div className="flex gap-2 mb-2 text-xs">
-              <button className={`px-3 py-2 rounded-lg ${!showPlanned ? 'bg-amber-200' : 'bg-slate-100'}`} onClick={() => setShowPlanned(false)}>Hành trình ghi nhận</button>
-              <button className={`px-3 py-2 rounded-lg ${showPlanned ? 'bg-amber-200' : 'bg-slate-100'}`} onClick={() => setShowPlanned(true)}>Tuyến dự kiến</button>
+              <Button className={`px-3 py-2 rounded-lg ${!showPlanned ? 'bg-amber-200' : 'bg-slate-100'}`} onClick={() => setShowPlanned(false)}>Hành trình ghi nhận</Button>
+              <Button className={`px-3 py-2 rounded-lg ${showPlanned ? 'bg-amber-200' : 'bg-slate-100'}`} onClick={() => setShowPlanned(true)}>Tuyến dự kiến</Button>
             </div>}
             <RouteMap
               schoolLocation={schoolLocation}
@@ -344,10 +348,10 @@ export default function AdminTripDetailPage({
               className="rounded-xl overflow-hidden"
             />
           </div>
-        </div>
+        </Card>
 
         {/* Right Column: Stops Timeline (5 cols) */}
-        <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+        <Card className="lg:col-span-5 bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
           <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
             <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
               <ClockIcon className="w-4 h-4 text-slate-500" />
@@ -367,7 +371,7 @@ export default function AdminTripDetailPage({
                     onClick={() => {
                       setFocusPoint({ latitude: stop.latitude, longitude: stop.longitude, zoom: 16 });
                     }}
-                    className="p-3 rounded-xl border border-slate-100 hover:border-[#FFCB56] hover:bg-amber-50/20 transition-all cursor-pointer space-y-1"
+                    className="p-3 rounded-xl border border-slate-100 hover:border-primary hover:bg-amber-50/20 transition-all cursor-pointer space-y-1"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -403,7 +407,7 @@ export default function AdminTripDetailPage({
               </div>
             )}
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* Assignment Modal */}

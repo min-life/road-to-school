@@ -4,6 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { CloseIcon, SpinnerIcon, AlertIcon } from '@/components/icons';
 import { Tooltip } from '@/components/admin/schools/tooltip';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 interface AddTeacherModalProps {
   isOpen: boolean;
@@ -86,8 +89,8 @@ export function AddTeacherModal({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div
-        className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-200"
+      <Card
+        className="ui-dialog-panel bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-200"
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-teacher-title"
@@ -101,7 +104,7 @@ export function AddTeacherModal({
               Tạo tài khoản giáo viên quản lý học sinh và xe buýt trường học.
             </p>
           </div>
-          <button
+          <Button
             type="button"
             onClick={onClose}
             disabled={isLoading}
@@ -109,7 +112,7 @@ export function AddTeacherModal({
             aria-label="Đóng"
           >
             <CloseIcon className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -124,7 +127,7 @@ export function AddTeacherModal({
             <label className="block text-xs font-semibold text-slate-700 mb-1">
               Họ và tên <span className="text-red-500">*</span>
             </label>
-            <input
+            <Input
               type="text"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
@@ -140,7 +143,7 @@ export function AddTeacherModal({
               <label className="text-xs font-semibold text-slate-700">Email</label>
               <Tooltip content="Địa chỉ email dùng để đăng nhập hoặc nhận thông báo. Cần ít nhất Email hoặc Số điện thoại." />
             </div>
-            <input
+            <Input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -155,7 +158,7 @@ export function AddTeacherModal({
               <label className="text-xs font-semibold text-slate-700">Số điện thoại</label>
               <Tooltip content="Số điện thoại di động dùng để đăng nhập. Cần ít nhất Email hoặc Số điện thoại." />
             </div>
-            <input
+            <Input
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
@@ -170,25 +173,25 @@ export function AddTeacherModal({
           </p>
 
           <div className="border-t border-slate-200 pt-4 flex items-center justify-end gap-3">
-            <button
+            <Button
               type="button"
               onClick={onClose}
               disabled={isLoading}
               className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
             >
               Hủy
-            </button>
-            <button
+            </Button>
+            <Button variant="primary" size="sm"
               type="submit"
               disabled={isLoading}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-slate-900 bg-[#FFCB56] hover:bg-amber-400 rounded-lg transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-slate-900 bg-primary hover:bg-amber-400 rounded-lg transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
             >
               {isLoading && <SpinnerIcon className="w-4 h-4 animate-spin text-slate-900" />}
               <span>{isLoading ? 'Đang tạo...' : 'Tạo giáo viên'}</span>
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
+      </Card>
     </div>
   );
 }

@@ -2,6 +2,8 @@
 
 import React, { useEffect, useRef } from 'react';
 import { LogoutIcon, SpinnerIcon } from '@/components/icons';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 interface LogoutDialogProps {
   isOpen: boolean;
@@ -46,9 +48,9 @@ export function LogoutDialog({
         }
       }}
     >
-      <div
+      <Card
         ref={dialogRef}
-        className="w-full max-w-sm bg-white rounded-2xl shadow-xl border border-slate-200/80 p-6 flex flex-col text-left animate-in zoom-in-95 duration-150"
+        className="ui-dialog-panel w-full max-w-sm bg-white rounded-2xl shadow-xl border border-slate-200/80 p-6 flex flex-col text-left animate-in zoom-in-95 duration-150"
       >
         <div className="flex items-center gap-3 mb-3">
           <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100 shrink-0">
@@ -57,7 +59,7 @@ export function LogoutDialog({
           <div>
             <h3
               id="logout-dialog-title"
-              className="text-base font-bold text-[#1E293B]"
+              className="text-base font-bold text-foreground"
             >
               Xác nhận đăng xuất
             </h3>
@@ -72,15 +74,15 @@ export function LogoutDialog({
         </p>
 
         <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
-          <button
+          <Button variant="outline" size="default"
             type="button"
             onClick={onClose}
             disabled={isLoading}
             className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50"
           >
             Hủy
-          </button>
-          <button
+          </Button>
+          <Button variant="danger" size="default"
             type="button"
             onClick={onConfirm}
             disabled={isLoading}
@@ -94,9 +96,9 @@ export function LogoutDialog({
             ) : (
               <span>Đăng xuất</span>
             )}
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { SpinnerIcon, AlertIcon } from '@/components/icons';
 import { apiClient } from '@/lib/api-client';
 import type { StudentListItem, StudentStatus, StudentDisableImpactResponse } from '@/lib/types';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 interface StatusConfirmModalProps {
   isOpen: boolean;
@@ -46,7 +48,7 @@ export function StatusConfirmModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200/80 animate-in fade-in zoom-in-95 duration-150">
+      <Card className="ui-dialog-panel bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200/80 animate-in fade-in zoom-in-95 duration-150">
         <div className="flex items-start gap-4">
           <div
             className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
@@ -59,7 +61,7 @@ export function StatusConfirmModal({
           </div>
 
           <div className="flex-1 min-w-0">
-            <h3 className="text-base font-semibold text-[#1E293B]">
+            <h3 className="text-base font-semibold text-foreground">
               {isDisabling
                 ? 'Xác nhận vô hiệu hóa học sinh?'
                 : 'Kích hoạt lại học sinh?'}
@@ -146,15 +148,15 @@ export function StatusConfirmModal({
         </div>
 
         <div className="mt-6 flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-          <button
+          <Button
             type="button"
             onClick={onClose}
             disabled={isLoading}
             className="px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
           >
             Hủy
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={onConfirm}
             disabled={isLoading || loadingImpact}
@@ -168,9 +170,9 @@ export function StatusConfirmModal({
             <span>
               {isDisabling ? 'Xác nhận vô hiệu hóa' : 'Kích hoạt lại'}
             </span>
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

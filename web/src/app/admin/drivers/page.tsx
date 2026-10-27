@@ -16,6 +16,14 @@ import {
 } from '@/components/icons';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
 import { AddDriverModal } from '@/components/admin/drivers/add-driver-modal';
+import { PageHeader } from '@/components/ui/page-header';
+import { Button } from '@/components/ui/button';
+import { FilterToolbar } from '@/components/ui/filter-toolbar';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Card } from '@/components/ui/card';
+import { Table } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 
 function DriversPageContent() {
   const [drivers, setDrivers] = useState<DriverItem[]>([]);
@@ -101,7 +109,7 @@ function DriversPageContent() {
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <PageHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <DriverIcon className="w-7 h-7 text-amber-500" />
@@ -112,20 +120,20 @@ function DriversPageContent() {
           </p>
         </div>
 
-        <button
+        <Button variant="primary" size="default"
           type="button"
           onClick={() => setIsAddModalOpen(true)}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-900 bg-[#FFCB56] hover:bg-amber-400 rounded-xl transition-colors shadow-xs cursor-pointer"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-900 bg-primary hover:bg-amber-400 rounded-xl transition-colors shadow-xs cursor-pointer"
         >
           <PlusIcon className="w-4 h-4" />
           <span>Thêm tài xế</span>
-        </button>
-      </div>
+        </Button>
+      </PageHeader>
 
       {/* Filters */}
-      <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+      <FilterToolbar className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
         <div className="relative flex-1">
-          <input
+          <Input
             type="text"
             value={search}
             onChange={handleSearchChange}
@@ -139,7 +147,7 @@ function DriversPageContent() {
           <label className="text-xs font-semibold text-slate-600 whitespace-nowrap">
             Trạng thái:
           </label>
-          <select
+          <Select
             value={statusFilter}
             onChange={handleStatusChange}
             className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 text-slate-700 cursor-pointer"
@@ -147,29 +155,29 @@ function DriversPageContent() {
             <option value="ALL">Tất cả trạng thái</option>
             <option value="ACTIVE">Đang hoạt động</option>
             <option value="INACTIVE">Ngừng hoạt động</option>
-          </select>
+          </Select>
         </div>
-      </div>
+      </FilterToolbar>
 
       {/* Error state */}
       {errorMessage && (
         <div className="flex items-center gap-2 p-4 text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl">
           <AlertIcon className="w-5 h-5 text-red-600 flex-shrink-0" />
           <div className="flex-1">{errorMessage}</div>
-          <button
+          <Button
             type="button"
             onClick={fetchDrivers}
             className="text-xs font-semibold text-red-700 hover:text-red-900 underline ml-2"
           >
             Thử lại
-          </button>
+          </Button>
         </div>
       )}
 
       {/* Drivers Table */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+      <Card className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-700">
+          <Table className="w-full text-left text-sm text-slate-700">
             <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
               <tr>
                 <th className="px-4 py-3">Họ và tên</th>
@@ -237,20 +245,20 @@ function DriversPageContent() {
                     </td>
 
                     <td className="px-4 py-3 text-center">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                      <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
                         Tài xế
-                      </span>
+                      </Badge>
                     </td>
 
                     <td className="px-4 py-3 text-center">
                       {driver.isActive ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
                           Đang hoạt động
-                        </span>
+                        </Badge>
                       ) : (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-300">
+                        <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-300">
                           Ngừng hoạt động
-                        </span>
+                        </Badge>
                       )}
                     </td>
 
@@ -266,7 +274,7 @@ function DriversPageContent() {
                 ))
               )}
             </tbody>
-          </table>
+          </Table>
         </div>
 
         {/* Pagination */}
@@ -282,7 +290,7 @@ function DriversPageContent() {
             setPage(1);
           }}
         />
-      </div>
+      </Card>
 
       {/* Add Driver Modal */}
       <AddDriverModal

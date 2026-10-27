@@ -13,6 +13,13 @@ import {
 } from '@/components/icons';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
 import { CreateSchoolAdminModal } from './create-school-admin-modal';
+import { FilterToolbar } from '@/components/ui/filter-toolbar';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Table } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 
 interface SchoolEmployeesTabProps {
   schoolId: string;
@@ -128,11 +135,11 @@ export function SchoolEmployeesTab({
       )}
 
       {/* Toolbar: Tìm kiếm, Bộ lọc & Nút Tạo Quản trị trường */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs">
+      <FilterToolbar className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs">
         <div className="flex flex-wrap items-center gap-2.5 flex-1">
           {/* Search Input */}
           <div className="relative min-w-[200px] sm:w-64">
-            <input
+            <Input
               type="text"
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
@@ -143,7 +150,7 @@ export function SchoolEmployeesTab({
           </div>
 
           {/* Role Filter */}
-          <select
+          <Select
             value={roleFilter}
             onChange={(e) => handleRoleChange(e.target.value)}
             className="px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
@@ -151,10 +158,10 @@ export function SchoolEmployeesTab({
             <option value="">Tất cả vai trò</option>
             <option value="SCHOOL_ADMIN">Quản trị trường</option>
             <option value="BUS_ATTENDANT">Giám sát xe</option>
-          </select>
+          </Select>
 
           {/* Status Filter */}
-          <select
+          <Select
             value={statusFilter}
             onChange={(e) => handleStatusChange(e.target.value)}
             className="px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
@@ -162,12 +169,12 @@ export function SchoolEmployeesTab({
             <option value="">Tất cả trạng thái</option>
             <option value="ACTIVE">Đang hoạt động</option>
             <option value="INACTIVE">Ngừng hoạt động</option>
-          </select>
+          </Select>
         </div>
 
         {/* Nút Tạo quản trị trường */}
         <div>
-          <button
+          <Button
             type="button"
             onClick={() => setIsCreateModalOpen(true)}
             disabled={!isSchoolActive}
@@ -178,15 +185,15 @@ export function SchoolEmployeesTab({
             }
             className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-2xs ${
               isSchoolActive
-                ? 'bg-[#FFCB56] hover:bg-[#e6b74d] text-[#1E293B]'
+                ? 'bg-primary hover:bg-[#e6b74d] text-foreground'
                 : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
             }`}
           >
             <PlusIcon className="w-4 h-4" />
             <span>Tạo quản trị trường</span>
-          </button>
+          </Button>
         </div>
-      </div>
+      </FilterToolbar>
 
       {!isSchoolActive && (
         <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
@@ -201,20 +208,20 @@ export function SchoolEmployeesTab({
             <AlertIcon className="w-4 h-4 text-red-600 shrink-0" />
             <span>{errorMessage}</span>
           </div>
-          <button
+          <Button
             type="button"
             onClick={() => fetchEmployees()}
             className="px-3 py-1 rounded-lg bg-red-100 hover:bg-red-200 text-red-800 text-xs font-semibold cursor-pointer"
           >
             Thử lại
-          </button>
+          </Button>
         </div>
       )}
 
       {/* Employees Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-2xs">
+      <Card className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-2xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <Table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 <th className="py-3 px-4">Họ và tên</th>
@@ -261,12 +268,12 @@ export function SchoolEmployeesTab({
                       {emp.phone || <span className="text-slate-300 italic">—</span>}
                     </td>
                     <td className="py-3 px-4">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-800 border border-slate-200">
+                      <Badge className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-800 border border-slate-200">
                         {formatRoleLabel(emp.role)}
-                      </span>
+                      </Badge>
                     </td>
                     <td className="py-3 px-4">
-                      <span
+                      <Badge
                         className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
                           emp.isActive
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
@@ -279,13 +286,13 @@ export function SchoolEmployeesTab({
                           }`}
                         />
                         {emp.isActive ? 'Đang hoạt động' : 'Ngừng hoạt động'}
-                      </span>
+                      </Badge>
                     </td>
                   </tr>
                 ))
               )}
             </tbody>
-          </table>
+          </Table>
         </div>
 
         {/* Phân trang */}
@@ -301,7 +308,7 @@ export function SchoolEmployeesTab({
             setPage(1);
           }}
         />
-      </div>
+      </Card>
 
       {/* Modal tạo School Admin */}
       <CreateSchoolAdminModal

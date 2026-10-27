@@ -11,6 +11,9 @@ import {
   CandidateBusAttendantItem,
 } from '@/lib/types';
 import { AlertIcon, InfoIcon, SpinnerIcon, BusIcon } from '@/components/icons';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 
 interface RoutePlanAssignmentsProps {
   plan: RoutePlanItem;
@@ -164,7 +167,7 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated }: Route
       )}
 
       {/* Vehicle Groups Cards */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+      <Card className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div className="flex items-center gap-2">
             <BusIcon className="w-4 h-4 text-slate-500" />
@@ -188,12 +191,12 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated }: Route
                       Phương tiện (Xe)
                     </span>
                     {isSystemAdmin && (
-                      <button
+                      <Button
                         onClick={() => openModal('VEHICLE', group)}
                         className="text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
                       >
                         [Đổi xe]
-                      </button>
+                      </Button>
                     )}
                   </div>
                   {group.vehiclePlate ? (
@@ -215,12 +218,12 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated }: Route
                       Tài xế phụ trách
                     </span>
                     {isSystemAdmin && group.vehicleId && (
-                      <button
+                      <Button
                         onClick={() => openModal('DRIVER', group)}
                         className="text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
                       >
                         [{group.driverId ? 'Đổi tài xế' : 'Phân công'}]
-                      </button>
+                      </Button>
                     )}
                   </div>
                   {group.driverName ? (
@@ -242,12 +245,12 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated }: Route
                       Giáo viên / Phụ xe
                     </span>
                     {isSchoolAdmin && group.vehicleId && (
-                      <button
+                      <Button
                         onClick={() => openModal('ATTENDANT', group)}
                         className="text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
                       >
                         [{group.busAttendantId ? 'Đổi giáo viên' : 'Phân công'}]
-                      </button>
+                      </Button>
                     )}
                   </div>
                   {group.busAttendantName ? (
@@ -284,12 +287,12 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated }: Route
             </div>
           ))}
         </div>
-      </div>
+      </Card>
 
       {/* Assignment Modal */}
       {modalType && selectedGroup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100 space-y-4">
+          <Card className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100 space-y-4">
             <h3 className="text-base font-bold text-slate-800">
               {modalType === 'VEHICLE' && 'Thay đổi xe cho nhóm tuyến'}
               {modalType === 'DRIVER' && 'Phân công tài xế cho nhóm xe'}
@@ -303,7 +306,7 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated }: Route
 
             {loadingOptions ? (
               <div className="py-8 text-center">
-                <SpinnerIcon className="w-6 h-6 animate-spin text-[#FFCB56] mx-auto mb-2" />
+                <SpinnerIcon className="w-6 h-6 animate-spin text-primary mx-auto mb-2" />
                 <span className="text-xs text-slate-500">Đang tải danh sách lựa chọn...</span>
               </div>
             ) : (
@@ -315,10 +318,10 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated }: Route
                 </label>
 
                 {modalType === 'VEHICLE' && (
-                  <select
+                  <Select
                     value={selectedResourceId}
                     onChange={(e) => setSelectedResourceId(e.target.value)}
-                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#FFCB56]"
+                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary"
                   >
                     <option value="">-- Chọn xe --</option>
                     {candidateVehicles.map((v) => (
@@ -327,14 +330,14 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated }: Route
                         {!v.isEligible ? ` [✕ ${v.reason}]` : ` [✓ ${v.reason}]`}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 )}
 
                 {modalType === 'DRIVER' && (
-                  <select
+                  <Select
                     value={selectedResourceId}
                     onChange={(e) => setSelectedResourceId(e.target.value)}
-                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#FFCB56]"
+                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary"
                   >
                     <option value="">-- Chọn tài xế --</option>
                     {candidateDrivers.map((d) => (
@@ -343,14 +346,14 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated }: Route
                         {!d.isEligible ? ` [✕ ${d.reason}]` : ` [✓ ${d.reason}]`}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 )}
 
                 {modalType === 'ATTENDANT' && (
-                  <select
+                  <Select
                     value={selectedResourceId}
                     onChange={(e) => setSelectedResourceId(e.target.value)}
-                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#FFCB56]"
+                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary"
                   >
                     <option value="">-- Chọn giáo viên phụ xe --</option>
                     {candidateAttendants.map((a) => (
@@ -359,7 +362,7 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated }: Route
                         {!a.isEligible ? ` [✕ ${a.reason}]` : ` [✓ ${a.reason}]`}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 )}
               </div>
             )}
@@ -371,15 +374,15 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated }: Route
             )}
 
             <div className="flex items-center justify-end gap-3 pt-2">
-              <button
+              <Button
                 type="button"
                 onClick={closeModal}
                 disabled={submitting}
                 className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
               >
                 Hủy bỏ
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 onClick={handleSubmit}
                 disabled={submitting || !selectedResourceId}
@@ -391,9 +394,9 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated }: Route
               >
                 {submitting && <SpinnerIcon className="w-4 h-4 animate-spin text-white" />}
                 <span>Lưu thay đổi</span>
-              </button>
+              </Button>
             </div>
-          </div>
+          </Card>
         </div>
       )}
     </div>

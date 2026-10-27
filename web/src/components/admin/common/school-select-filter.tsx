@@ -4,6 +4,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { SchoolListItem } from '@/lib/types';
 import { SpinnerIcon, ChevronLeftIcon } from '@/components/icons';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 
 interface SchoolSelectFilterProps {
   value: string;
@@ -116,35 +119,35 @@ export function SchoolSelectFilter({
   return (
     <div ref={containerRef} className={`relative ${className}`}>
       {/* Trigger Button */}
-      <button
+      <Button variant="outline" size="sm"
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full text-left px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white hover:bg-slate-50 focus:outline-none focus:ring-1 focus:ring-[#FFCB56] text-slate-700 flex items-center justify-between gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+        className="w-full text-left px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white hover:bg-slate-50 focus:outline-none focus:ring-1 focus:ring-primary text-slate-700 flex items-center justify-between gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
       >
         <span className="truncate font-medium">{displayText}</span>
         <span className="text-slate-400 text-[10px]">▼</span>
-      </button>
+      </Button>
 
       {/* Dropdown Popover */}
       {isOpen && (
-        <div className="absolute left-0 mt-1.5 w-64 max-w-[90vw] z-50 bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden text-xs animate-in fade-in zoom-in-95">
+        <Card className="absolute left-0 mt-1.5 w-64 max-w-[90vw] z-50 bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden text-xs animate-in fade-in zoom-in-95">
           {/* Search Input */}
           <div className="p-2 border-b border-slate-100 bg-slate-50/50">
-            <input
+            <Input
               type="text"
               autoFocus
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Tìm theo tên trường..."
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-[#FFCB56]"
+              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-primary"
             />
           </div>
 
           {/* Options List */}
           <div className="max-h-52 overflow-y-auto divide-y divide-slate-50">
             {allowAll && (
-              <button
+              <Button
                 type="button"
                 onClick={() => handleSelect('', undefined)}
                 className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors flex items-center justify-between cursor-pointer ${
@@ -153,12 +156,12 @@ export function SchoolSelectFilter({
               >
                 <span>{allLabel}</span>
                 {!value && <span className="text-amber-600">✓</span>}
-              </button>
+              </Button>
             )}
 
             {loading ? (
               <div className="p-4 text-center text-slate-400 flex items-center justify-center gap-2">
-                <SpinnerIcon className="w-4 h-4 animate-spin text-[#FFCB56]" />
+                <SpinnerIcon className="w-4 h-4 animate-spin text-primary" />
                 <span>Đang tìm trường...</span>
               </div>
             ) : schools.length === 0 ? (
@@ -167,7 +170,7 @@ export function SchoolSelectFilter({
               schools.map((item) => {
                 const isSelected = item.id === value;
                 return (
-                  <button
+                  <Button
                     key={item.id}
                     type="button"
                     onClick={() => handleSelect(item.id, item)}
@@ -182,12 +185,12 @@ export function SchoolSelectFilter({
                       )}
                     </div>
                     {isSelected && <span className="text-amber-600 shrink-0">✓</span>}
-                  </button>
+                  </Button>
                 );
               })
             )}
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );

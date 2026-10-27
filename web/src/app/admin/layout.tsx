@@ -30,25 +30,22 @@ export default function AdminLayout({
   return (
     <AuthGuard>
       {user && (
-        <div className="min-h-screen bg-[#FFFDF6] flex flex-col text-[#1E293B]">
-          {/* Header dùng chung */}
-          <AdminHeader
-            user={user}
-            onToggleMobileMenu={() => setIsMobileMenuOpen((prev) => !prev)}
+        <div className="admin-shell">
+          <AdminSidebar
+            role={user.role}
+            isMobileOpen={isMobileMenuOpen}
+            onCloseMobile={() => setIsMobileMenuOpen(false)}
             onRequestLogout={() => setIsLogoutDialogOpen(true)}
           />
 
-          {/* Thân giao diện: Sidebar + Main Content */}
-          <div className="flex-1 flex min-h-0">
-            <AdminSidebar
-              role={user.role}
-              isMobileOpen={isMobileMenuOpen}
-              onCloseMobile={() => setIsMobileMenuOpen(false)}
+          <div className="admin-workspace">
+            <AdminHeader
+              user={user}
+              onToggleMobileMenu={() => setIsMobileMenuOpen((prev) => !prev)}
               onRequestLogout={() => setIsLogoutDialogOpen(true)}
             />
-
-            <main className="flex-1 min-w-0 p-4 sm:p-6 md:p-8 overflow-y-auto">
-              <div className="max-w-6xl mx-auto w-full">
+            <main className="admin-content">
+              <div className="admin-content-inner">
                 {children}
               </div>
             </main>

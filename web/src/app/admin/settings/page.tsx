@@ -18,6 +18,11 @@ import {
 import { LogoutDialog } from '@/components/admin/logout-dialog';
 import { formatRoleLabel, getAvatarInitial } from '@/components/admin/admin-nav.config';
 import { VietMapPicker } from '@/components/admin/schools/vietmap-picker';
+import { PageHeader } from '@/components/ui/page-header';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 type SettingsTab = 'ACCOUNT' | 'PARKING_LOT';
 
@@ -359,9 +364,9 @@ export default function AdminSettingsPage() {
   return (
     <div className="space-y-6">
       {/* Tiêu đề & Điều hướng Tabs */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 pb-4">
+      <PageHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 pb-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1E293B]">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
             Cài đặt hệ thống
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
@@ -372,31 +377,31 @@ export default function AdminSettingsPage() {
         {/* Tabs switcher nếu là SYSTEM_ADMIN */}
         {user.role === 'SYSTEM_ADMIN' && (
           <div className="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200/80 self-start sm:self-auto">
-            <button
+            <Button
               type="button"
               onClick={() => setActiveTab('ACCOUNT')}
               className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
                 activeTab === 'ACCOUNT'
-                  ? 'bg-white text-[#1E293B] shadow-xs'
+                  ? 'bg-white text-foreground shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Tài khoản
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={() => setActiveTab('PARKING_LOT')}
               className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
                 activeTab === 'PARKING_LOT'
-                  ? 'bg-white text-[#1E293B] shadow-xs'
+                  ? 'bg-white text-foreground shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Vị trí bãi xe
-            </button>
+            </Button>
           </div>
         )}
-      </div>
+      </PageHeader>
 
       {/* ============================================================= */}
       {/* TAB 1: CÀI ĐẶT TÀI KHOẢN (Cho cả SYSTEM_ADMIN & SCHOOL_ADMIN)  */}
@@ -404,8 +409,8 @@ export default function AdminSettingsPage() {
       {activeTab === 'ACCOUNT' && (
         <div className="space-y-6">
           {/* Card 1: Thông tin & Đổi Avatar */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs">
-            <h2 className="text-base font-bold text-[#1E293B] mb-5 pb-3 border-b border-slate-100">
+          <Card className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs">
+            <h2 className="text-base font-bold text-foreground mb-5 pb-3 border-b border-slate-100">
               Ảnh đại diện & Thông tin cá nhân
             </h2>
 
@@ -431,10 +436,10 @@ export default function AdminSettingsPage() {
                   <img
                     src={avatarPreviewUrl || user.avatarUrl!}
                     alt={user.fullName}
-                    className="w-20 h-20 rounded-full object-cover border-2 border-[#FFCB56] shadow-xs"
+                    className="w-20 h-20 rounded-full object-cover border-2 border-primary shadow-xs"
                   />
                 ) : (
-                  <div className="w-20 h-20 rounded-full bg-[#FFCB56] text-[#1E293B] font-bold text-3xl flex items-center justify-center border-2 border-amber-300 shadow-xs">
+                  <div className="w-20 h-20 rounded-full bg-primary text-foreground font-bold text-3xl flex items-center justify-center border-2 border-amber-300 shadow-xs">
                     {initial}
                   </div>
                 )}
@@ -443,32 +448,32 @@ export default function AdminSettingsPage() {
               {/* Thao tác chọn ảnh */}
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-3">
-                  <input
+                  <Input
                     type="file"
                     ref={fileInputRef}
                     accept="image/jpeg,image/png,image/webp"
                     className="hidden"
                     onChange={handleAvatarFileChange}
                   />
-                  <button
+                  <Button variant="outline" size="default"
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isUploadingAvatar}
                     className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold text-slate-700 transition-colors cursor-pointer"
                   >
                     Chọn ảnh mới
-                  </button>
+                  </Button>
 
                   {selectedAvatarFile && (
-                    <button
+                    <Button variant="primary" size="default"
                       type="button"
                       onClick={handleUploadAvatar}
                       disabled={isUploadingAvatar}
-                      className="px-4 py-2 rounded-xl bg-[#FFCB56] hover:bg-amber-400 text-sm font-bold text-[#1E293B] transition-colors cursor-pointer flex items-center gap-2"
+                      className="px-4 py-2 rounded-xl bg-primary hover:bg-amber-400 text-sm font-bold text-foreground transition-colors cursor-pointer flex items-center gap-2"
                     >
                       {isUploadingAvatar && <SpinnerIcon className="w-4 h-4 animate-spin" />}
                       <span>Lưu ảnh</span>
-                    </button>
+                    </Button>
                   )}
                 </div>
                 <p className="text-xs text-slate-500">
@@ -481,26 +486,26 @@ export default function AdminSettingsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm pt-2">
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
                 <span className="text-xs text-slate-500 block mb-1">Họ và tên</span>
-                <span className="font-semibold text-[#1E293B]">{user.fullName}</span>
+                <span className="font-semibold text-foreground">{user.fullName}</span>
               </div>
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
                 <span className="text-xs text-slate-500 block mb-1">Vai trò quản trị</span>
-                <span className="font-semibold text-[#1E293B]">{roleLabel}</span>
+                <span className="font-semibold text-foreground">{roleLabel}</span>
               </div>
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
                 <span className="text-xs text-slate-500 block mb-1">Địa chỉ Email</span>
-                <span className="font-semibold text-[#1E293B] break-all">{user.email || '—'}</span>
+                <span className="font-semibold text-foreground break-all">{user.email || '—'}</span>
               </div>
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
                 <span className="text-xs text-slate-500 block mb-1">Số điện thoại</span>
-                <span className="font-semibold text-[#1E293B]">{user.phone || '—'}</span>
+                <span className="font-semibold text-foreground">{user.phone || '—'}</span>
               </div>
             </div>
-          </div>
+          </Card>
 
           {/* Card 2: Đổi Mật Khẩu */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs">
-            <h2 className="text-base font-bold text-[#1E293B] mb-2 pb-3 border-b border-slate-100">
+          <Card className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs">
+            <h2 className="text-base font-bold text-foreground mb-2 pb-3 border-b border-slate-100">
               Đổi mật khẩu
             </h2>
             <p className="text-xs text-slate-500 mb-5">
@@ -528,21 +533,21 @@ export default function AdminSettingsPage() {
                   Mật khẩu hiện tại *
                 </label>
                 <div className="relative">
-                  <input
+                  <Input
                     type={showCurrentPass ? 'text' : 'password'}
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
                     required
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#FFCB56] text-sm pr-10"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-sm pr-10"
                     placeholder="Nhập mật khẩu hiện tại"
                   />
-                  <button
+                  <Button
                     type="button"
                     onClick={() => setShowCurrentPass(!showCurrentPass)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                   >
                     {showCurrentPass ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
-                  </button>
+                  </Button>
                 </div>
               </div>
 
@@ -552,21 +557,21 @@ export default function AdminSettingsPage() {
                   Mật khẩu mới (tối thiểu 8 ký tự) *
                 </label>
                 <div className="relative">
-                  <input
+                  <Input
                     type={showNewPass ? 'text' : 'password'}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     required
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#FFCB56] text-sm pr-10"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-sm pr-10"
                     placeholder="Nhập mật khẩu mới"
                   />
-                  <button
+                  <Button
                     type="button"
                     onClick={() => setShowNewPass(!showNewPass)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                   >
                     {showNewPass ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
-                  </button>
+                  </Button>
                 </div>
               </div>
 
@@ -576,54 +581,54 @@ export default function AdminSettingsPage() {
                   Xác nhận mật khẩu mới *
                 </label>
                 <div className="relative">
-                  <input
+                  <Input
                     type={showConfirmPass ? 'text' : 'password'}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#FFCB56] text-sm pr-10"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-sm pr-10"
                     placeholder="Nhập lại mật khẩu mới"
                   />
-                  <button
+                  <Button
                     type="button"
                     onClick={() => setShowConfirmPass(!showConfirmPass)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                   >
                     {showConfirmPass ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
-                  </button>
+                  </Button>
                 </div>
               </div>
 
               <div className="pt-2">
-                <button
+                <Button variant="primary" size="default"
                   type="submit"
                   disabled={isChangingPass}
-                  className="px-5 py-2.5 rounded-xl bg-[#FFCB56] hover:bg-amber-400 text-sm font-bold text-[#1E293B] transition-colors cursor-pointer flex items-center gap-2 shadow-xs"
+                  className="px-5 py-2.5 rounded-xl bg-primary hover:bg-amber-400 text-sm font-bold text-foreground transition-colors cursor-pointer flex items-center gap-2 shadow-xs"
                 >
                   {isChangingPass && <SpinnerIcon className="w-4 h-4 animate-spin" />}
                   <span>Cập nhật mật khẩu</span>
-                </button>
+                </Button>
               </div>
             </form>
-          </div>
+          </Card>
 
           {/* Card 3: Đăng xuất */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <Card className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h2 className="text-base font-bold text-[#1E293B]">Phiên đăng nhập</h2>
+              <h2 className="text-base font-bold text-foreground">Phiên đăng nhập</h2>
               <p className="text-sm text-slate-500 mt-0.5">
                 Đăng xuất tài khoản khỏi thiết bị hiện tại
               </p>
             </div>
-            <button
+            <Button variant="outline" size="default"
               type="button"
               onClick={() => setIsLogoutDialogOpen(true)}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 text-sm font-semibold transition-colors cursor-pointer shrink-0"
             >
               <LogoutIcon className="w-4 h-4" />
               <span>Đăng xuất</span>
-            </button>
-          </div>
+            </Button>
+          </Card>
         </div>
       )}
 
@@ -631,9 +636,9 @@ export default function AdminSettingsPage() {
       {/* TAB 2: VỊ TRÍ BÃI XE TRUNG TÂM (Chỉ hiển thị cho SYSTEM_ADMIN) */}
       {/* ============================================================= */}
       {activeTab === 'PARKING_LOT' && user.role === 'SYSTEM_ADMIN' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-6">
+        <Card className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-6">
           <div>
-            <h2 className="text-base font-bold text-[#1E293B]">
+            <h2 className="text-base font-bold text-foreground">
               Vị trí bãi đỗ xe trung tâm
             </h2>
             <p className="text-xs text-slate-500 mt-1">
@@ -662,13 +667,13 @@ export default function AdminSettingsPage() {
                 Địa chỉ bãi xe *
               </label>
               <div className="relative">
-                <input
+                <Input
                   type="text"
                   value={parkingAddress}
                   onChange={(e) => handleParkingAddressInput(e.target.value)}
                   placeholder="Nhập địa chỉ bãi xe để tìm kiếm..."
                   required
-                  className="w-full px-3.5 py-2.5 pl-10 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#FFCB56] text-sm"
+                  className="w-full px-3.5 py-2.5 pl-10 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                 />
                 <MapPinIcon className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 {isSearchingParking && (
@@ -678,9 +683,9 @@ export default function AdminSettingsPage() {
 
               {/* Danh sách gợi ý từ VietMap */}
               {showParkingSuggestions && parkingSuggestions.length > 0 && (
-                <div className="absolute z-20 w-full mt-1.5 bg-white rounded-xl border border-slate-200 shadow-xl max-h-56 overflow-y-auto">
+                <Card className="absolute z-20 w-full mt-1.5 bg-white rounded-xl border border-slate-200 shadow-xl max-h-56 overflow-y-auto">
                   {parkingSuggestions.map((sugg) => (
-                    <button
+                    <Button
                       key={sugg.refId}
                       type="button"
                       onClick={() => handleSelectParkingSuggestion(sugg)}
@@ -691,9 +696,9 @@ export default function AdminSettingsPage() {
                         <span className="font-semibold text-slate-800 block">{sugg.name}</span>
                         <span className="text-slate-500 block text-[11px]">{sugg.address || sugg.display}</span>
                       </div>
-                    </button>
+                    </Button>
                   ))}
-                </div>
+                </Card>
               )}
             </div>
 
@@ -728,23 +733,23 @@ export default function AdminSettingsPage() {
                   : 'Chưa có thông tin cập nhật'}
               </span>
 
-              <button
+              <Button variant="primary" size="default"
                 type="submit"
                 disabled={isSavingParkingLot}
-                className="px-6 py-2.5 rounded-xl bg-[#FFCB56] hover:bg-amber-400 text-sm font-bold text-[#1E293B] transition-colors cursor-pointer flex items-center gap-2 shadow-xs"
+                className="px-6 py-2.5 rounded-xl bg-primary hover:bg-amber-400 text-sm font-bold text-foreground transition-colors cursor-pointer flex items-center gap-2 shadow-xs"
               >
                 {isSavingParkingLot && <SpinnerIcon className="w-4 h-4 animate-spin" />}
                 <span>Lưu vị trí bãi xe</span>
-              </button>
+              </Button>
             </div>
           </form>
-        </div>
+        </Card>
       )}
 
       {/* Modal xác nhận đổi vị trí bãi đỗ xe trung tâm (Toàn hệ thống) */}
       {isParkingImpactModalOpen && parkingImpact && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg p-6 space-y-5">
+          <Card className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg p-6 space-y-5">
             <div className="flex items-start gap-3">
               <div className="p-3 bg-rose-50 text-rose-600 rounded-xl shrink-0">
                 <AlertIcon className="w-6 h-6" />
@@ -788,7 +793,7 @@ export default function AdminSettingsPage() {
               <label className="text-sm font-semibold text-slate-700">
                 Lý do thay đổi vị trí <span className="text-rose-500">*</span>
               </label>
-              <textarea
+              <Textarea
                 value={parkingRelocateReason}
                 onChange={(e) => {
                   setParkingRelocateReason(e.target.value);
@@ -805,15 +810,15 @@ export default function AdminSettingsPage() {
 
             {/* Hành động */}
             <div className="flex items-center justify-end gap-3 pt-2">
-              <button
+              <Button
                 type="button"
                 disabled={isConfirmingRelocation}
                 onClick={() => setIsParkingImpactModalOpen(false)}
                 className="px-4 py-2 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 Hủy bỏ
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 disabled={isConfirmingRelocation}
                 onClick={handleConfirmParkingRelocation}
@@ -821,9 +826,9 @@ export default function AdminSettingsPage() {
               >
                 {isConfirmingRelocation && <SpinnerIcon className="w-4 h-4 animate-spin" />}
                 <span>Xác nhận & Hủy phương án</span>
-              </button>
+              </Button>
             </div>
-          </div>
+          </Card>
         </div>
       )}
 

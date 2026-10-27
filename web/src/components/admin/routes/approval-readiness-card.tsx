@@ -4,6 +4,9 @@ import React, { useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { ApprovalReadinessResponse, Role } from '@/lib/types';
 import { AlertIcon, InfoIcon, SpinnerIcon } from '@/components/icons';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
 interface ApprovalReadinessCardProps {
   planId: string;
@@ -45,17 +48,17 @@ export function ApprovalReadinessCard({
 
   if (loading && !readiness) {
     return (
-      <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-center gap-3">
-        <SpinnerIcon className="w-5 h-5 animate-spin text-[#FFCB56]" />
+      <Card className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-center gap-3">
+        <SpinnerIcon className="w-5 h-5 animate-spin text-primary" />
         <span className="text-xs text-slate-500 font-medium">Đang kiểm tra điều kiện sẵn sàng phê duyệt...</span>
-      </div>
+      </Card>
     );
   }
 
   if (!readiness) return null;
 
   return (
-    <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+    <Card className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3">
         <div>
           <div className="flex items-center gap-2">
@@ -63,13 +66,13 @@ export function ApprovalReadinessCard({
               Điều kiện phê duyệt phương án
             </span>
             {isReady ? (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <Badge className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                 Đủ điều kiện kích hoạt
-              </span>
+              </Badge>
             ) : (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+              <Badge className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
                 Chưa đủ điều kiện
-              </span>
+              </Badge>
             )}
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -79,7 +82,7 @@ export function ApprovalReadinessCard({
 
         {/* Action Button: School Admin Only */}
         {isSchoolAdmin && (
-          <button
+          <Button
             onClick={() => setShowConfirmModal(true)}
             disabled={!isReady || approving}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-2 shrink-0 ${
@@ -90,7 +93,7 @@ export function ApprovalReadinessCard({
           >
             {approving && <SpinnerIcon className="w-4 h-4 animate-spin text-white" />}
             <span>Xác nhận phương án (Kích hoạt)</span>
-          </button>
+          </Button>
         )}
 
         {!isSchoolAdmin && (
@@ -180,7 +183,7 @@ export function ApprovalReadinessCard({
       {/* Confirmation Modal */}
       {showConfirmModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100 space-y-4">
+          <Card className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100 space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
                 <InfoIcon className="w-5 h-5" />
@@ -209,15 +212,15 @@ export function ApprovalReadinessCard({
             )}
 
             <div className="flex items-center justify-end gap-3 pt-2">
-              <button
+              <Button
                 type="button"
                 onClick={() => setShowConfirmModal(false)}
                 disabled={approving}
                 className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
               >
                 Hủy bỏ
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 onClick={handleApprove}
                 disabled={approving}
@@ -225,11 +228,11 @@ export function ApprovalReadinessCard({
               >
                 {approving && <SpinnerIcon className="w-4 h-4 animate-spin text-white" />}
                 <span>Đồng ý phê duyệt</span>
-              </button>
+              </Button>
             </div>
-          </div>
+          </Card>
         </div>
       )}
-    </div>
+    </Card>
   );
 }

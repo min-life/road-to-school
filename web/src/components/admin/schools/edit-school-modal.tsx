@@ -20,6 +20,10 @@ import {
   validateWeeklySchedule,
 } from './weekly-schedule-builder';
 import { VietMapPicker } from './vietmap-picker';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 interface EditSchoolModalProps {
   isOpen: boolean;
@@ -342,7 +346,7 @@ export function EditSchoolModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+      <Card className="ui-dialog-panel ui-dialog-panel-body bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div className="space-y-0.5">
@@ -353,18 +357,18 @@ export function EditSchoolModal({
               Cập nhật thông tin, vị trí địa lý và lịch học của trường
             </p>
           </div>
-          <button
+          <Button
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
             className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
           >
             <CloseIcon className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="ui-dialog-body flex-1 overflow-y-auto p-6 space-y-6">
           {errorMessage && (
             <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-start gap-2">
               <AlertIcon className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
@@ -379,7 +383,7 @@ export function EditSchoolModal({
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Tên trường học <span className="text-rose-500">*</span>
                 </label>
-                <input
+                <Input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -395,7 +399,7 @@ export function EditSchoolModal({
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
                       Bắt đầu hợp đồng
                     </label>
-                    <input
+                    <Input
                       type="date"
                       value={contractStartDate}
                       onChange={(e) => setContractStartDate(e.target.value)}
@@ -406,7 +410,7 @@ export function EditSchoolModal({
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
                       Kết thúc hợp đồng
                     </label>
-                    <input
+                    <Input
                       type="date"
                       value={contractEndDate}
                       onChange={(e) => setContractEndDate(e.target.value)}
@@ -427,42 +431,42 @@ export function EditSchoolModal({
               </label>
               <div className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50 text-center relative group">
                 {imagePreviewUrl || school.imageUrl ? (
-                  <div className="relative w-full h-28 rounded-lg overflow-hidden bg-white border border-slate-200">
+                  <Card className="relative w-full h-28 rounded-lg overflow-hidden bg-white border border-slate-200">
                     <img
                       src={imagePreviewUrl || school.imageUrl || ''}
                       alt="Xem trước"
                       className="w-full h-full object-cover"
                     />
                     {imagePreviewUrl && (
-                      <button
+                      <Button
                         type="button"
                         onClick={handleRemoveImage}
                         className="absolute top-1.5 right-1.5 p-1 bg-white/90 text-rose-600 rounded-md hover:bg-white shadow-xs"
                       >
                         <TrashIcon className="w-3.5 h-3.5" />
-                      </button>
+                      </Button>
                     )}
-                  </div>
+                  </Card>
                 ) : (
                   <div className="py-4 space-y-1">
                     <ImageIcon className="w-8 h-8 text-slate-400 mx-auto" />
                     <p className="text-[11px] text-slate-500">Chưa có ảnh</p>
                   </div>
                 )}
-                <input
+                <Input
                   ref={fileInputRef}
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
                   onChange={handleFileChange}
                   className="hidden"
                 />
-                <button
+                <Button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   className="mt-2 text-xs font-semibold text-amber-700 hover:text-amber-800"
                 >
                   {selectedFile || school.imageUrl ? 'Thay ảnh' : 'Chọn ảnh'}
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -474,7 +478,7 @@ export function EditSchoolModal({
                 Địa chỉ chi tiết <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
-                <input
+                <Input
                   type="text"
                   value={addressText}
                   onChange={(e) => handleAddressInputChange(e.target.value)}
@@ -489,9 +493,9 @@ export function EditSchoolModal({
 
               {/* Dropdown gợi ý VietMap */}
               {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 max-h-48 overflow-y-auto">
+                <Card className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 max-h-48 overflow-y-auto">
                   {suggestions.map((sugg, idx) => (
-                    <button
+                    <Button
                       key={idx}
                       type="button"
                       onClick={() => handleSelectSuggestion(sugg)}
@@ -501,9 +505,9 @@ export function EditSchoolModal({
                       {sugg.address && (
                         <div className="text-[11px] text-slate-500">{sugg.address}</div>
                       )}
-                    </button>
+                    </Button>
                   ))}
-                </div>
+                </Card>
               )}
             </div>
 
@@ -544,30 +548,30 @@ export function EditSchoolModal({
 
           {/* Footer buttons */}
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-            <button
+            <Button
               type="button"
               disabled={isSubmitting}
               onClick={onClose}
               className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
             >
               Hủy
-            </button>
-            <button
+            </Button>
+            <Button variant="primary" size="sm"
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2 text-xs font-bold text-slate-900 bg-[#FFCB56] hover:bg-amber-400 rounded-xl transition-colors cursor-pointer flex items-center gap-2 shadow-xs"
+              className="px-5 py-2 text-xs font-bold text-slate-900 bg-primary hover:bg-amber-400 rounded-xl transition-colors cursor-pointer flex items-center gap-2 shadow-xs"
             >
               {isSubmitting && <SpinnerIcon className="w-4 h-4 animate-spin" />}
               <span>Lưu thay đổi</span>
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
+      </Card>
 
       {/* Modal xác nhận tác động đổi vị trí trường học */}
       {isImpactModalOpen && locationImpact && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg p-6 space-y-5">
+          <Card className="ui-dialog-panel bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg p-6 space-y-5">
             <div className="flex items-start gap-3">
               <div className="p-3 bg-rose-50 text-rose-600 rounded-xl shrink-0">
                 <AlertIcon className="w-6 h-6" />
@@ -609,7 +613,7 @@ export function EditSchoolModal({
               <label className="text-xs font-semibold text-slate-700">
                 Lý do thay đổi vị trí trường <span className="text-rose-500">*</span>
               </label>
-              <textarea
+              <Textarea
                 value={relocateReason}
                 onChange={(e) => {
                   setRelocateReason(e.target.value);
@@ -626,15 +630,15 @@ export function EditSchoolModal({
 
             {/* Actions */}
             <div className="flex items-center justify-end gap-3 pt-2">
-              <button
+              <Button
                 type="button"
                 disabled={isSubmitting}
                 onClick={() => setIsImpactModalOpen(false)}
                 className="px-4 py-2 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 Hủy bỏ
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 disabled={isSubmitting}
                 onClick={handleConfirmRelocate}
@@ -642,9 +646,9 @@ export function EditSchoolModal({
               >
                 {isSubmitting && <SpinnerIcon className="w-4 h-4 animate-spin" />}
                 <span>Xác nhận & Hủy phương án</span>
-              </button>
+              </Button>
             </div>
-          </div>
+          </Card>
         </div>
       )}
     </div>

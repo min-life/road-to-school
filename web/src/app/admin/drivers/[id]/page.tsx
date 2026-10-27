@@ -13,6 +13,9 @@ import {
   SpinnerIcon,
   AlertIcon,
 } from '@/components/icons';
+import { Card } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
+import { Badge } from '@/components/ui/badge';
 
 function DriverDetailPageContent() {
   const params = useParams();
@@ -87,39 +90,39 @@ function DriverDetailPageContent() {
       </div>
 
       {/* Header Card */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex items-center justify-between">
+      <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-full bg-amber-100 text-amber-800 font-bold text-xl flex items-center justify-center border-2 border-amber-300">
             {driver.fullName.charAt(0).toUpperCase()}
           </div>
-          <div>
+          <PageHeader>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-slate-900">{driver.fullName}</h1>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+              <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
                 Tài xế
-              </span>
+              </Badge>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
               Đội xe hệ thống RoadToSchool
             </p>
-          </div>
+          </PageHeader>
         </div>
 
         <div>
           {isActive ? (
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <Badge className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
               Đang hoạt động
-            </span>
+            </Badge>
           ) : (
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-300">
+            <Badge className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-300">
               Ngừng hoạt động
-            </span>
+            </Badge>
           )}
         </div>
-      </div>
+      </Card>
 
       {/* Information Card */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
+      <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
         <h2 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-3 flex items-center gap-2">
           <DriverIcon className="w-4 h-4 text-amber-500" />
           Thông tin chi tiết tài xế
@@ -179,7 +182,7 @@ function DriverDetailPageContent() {
             </dd>
           </div>
         </dl>
-      </div>
+      </Card>
     </div>
   );
 }

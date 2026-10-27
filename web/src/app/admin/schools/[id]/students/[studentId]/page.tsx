@@ -17,6 +17,9 @@ import {
 } from '@/components/icons';
 import { QRCodeDisplay } from '@/components/common/qr-code';
 import { StudentRoutingSection } from '@/components/admin/students/student-routing-section';
+import { Card } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
+import { Badge } from '@/components/ui/badge';
 
 function SystemAdminStudentDetailPageContent() {
   const params = useParams();
@@ -92,7 +95,7 @@ function SystemAdminStudentDetailPageContent() {
       </div>
 
       {/* Top Header Card */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+      <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col md:flex-row md:items-center md:justify-between gap-6">
         <div className="flex items-center gap-4">
           {student.avatarUrl ? (
             <img
@@ -106,37 +109,37 @@ function SystemAdminStudentDetailPageContent() {
             </div>
           )}
 
-          <div>
+          <PageHeader>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-slate-900">{student.fullName}</h1>
               {isAvailable ? (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                   Khả dụng
-                </span>
+                </Badge>
               ) : (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-300">
+                <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-300">
                   Đã vô hiệu hóa
-                </span>
+                </Badge>
               )}
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
               Mã học sinh: <span className="font-mono font-bold text-slate-800">{student.code}</span>
             </p>
-          </div>
+          </PageHeader>
         </div>
 
         {/* Read-only notice */}
         <div className="text-right">
-          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+          <Badge className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
             Chế độ chỉ xem (System Admin)
-          </span>
+          </Badge>
         </div>
-      </div>
+      </Card>
 
       {/* Main Grid: Info + QR Code */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 space-y-6">
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
+          <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
             <h2 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-3 flex items-center gap-2">
               <StudentIcon className="w-4 h-4 text-amber-500" />
               Thông tin học sinh
@@ -173,15 +176,15 @@ function SystemAdminStudentDetailPageContent() {
                 <dt className="text-slate-400 font-medium">Tình trạng địa chỉ</dt>
                 <dd className="mt-1">
                   {student.hasAddress ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                       Đã có địa chỉ
-                    </span>
+                    </Badge>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                    <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                       Chưa có địa chỉ
-                    </span>
+                    </Badge>
                   )}
                 </dd>
               </div>
@@ -190,13 +193,13 @@ function SystemAdminStudentDetailPageContent() {
                 <dt className="text-slate-400 font-medium">Trạng thái tài khoản</dt>
                 <dd className="mt-1">
                   {isAvailable ? (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                       Khả dụng
-                    </span>
+                    </Badge>
                   ) : (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-300">
+                    <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-300">
                       Đã vô hiệu hóa
-                    </span>
+                    </Badge>
                   )}
                 </dd>
               </div>
@@ -213,7 +216,7 @@ function SystemAdminStudentDetailPageContent() {
                 <p className="text-xs text-slate-400 italic">Chưa cập nhật địa chỉ nhà cho học sinh này.</p>
               )}
             </div>
-          </div>
+          </Card>
         </div>
 
         <div className="space-y-6">

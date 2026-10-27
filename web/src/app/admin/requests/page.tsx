@@ -15,6 +15,14 @@ import {
 } from '@/components/icons';
 import { RequestDetailModal } from './request-detail-modal';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
+import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/ui/page-header';
+import { FilterToolbar } from '@/components/ui/filter-toolbar';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Card } from '@/components/ui/card';
+import { Table } from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
 
 export default function AdminRequestsPage() {
   const { user } = useAuth();
@@ -97,21 +105,21 @@ export default function AdminRequestsPage() {
     switch (status) {
       case 'PENDING':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+          <Badge className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
             Chờ duyệt
-          </span>
+          </Badge>
         );
       case 'APPROVED':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <Badge className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
             Đã duyệt
-          </span>
+          </Badge>
         );
       case 'REJECTED':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+          <Badge className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
             Đã từ chối
-          </span>
+          </Badge>
         );
       default:
         return null;
@@ -121,24 +129,24 @@ export default function AdminRequestsPage() {
   const getTypeBadge = (type: RequestType) => {
     if (type === 'ADDRESS_UPDATE') {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+        <Badge className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
           <MapPinIcon className="w-3 h-3" />
           Cập nhật địa chỉ
-        </span>
+        </Badge>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+      <Badge className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
         <StudentIcon className="w-3 h-3" />
         Cập nhật thông tin
-      </span>
+      </Badge>
     );
   };
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Page Title & Scope Notice */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <PageHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Quản lý yêu cầu cập nhật</h1>
           <p className="text-xs text-slate-500 mt-1">
@@ -147,14 +155,14 @@ export default function AdminRequestsPage() {
               : 'Xử lý yêu cầu thay đổi thông tin và địa chỉ đón trả của học sinh thuộc trường'}
           </p>
         </div>
-      </div>
+      </PageHeader>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row gap-3">
+      <FilterToolbar className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row gap-3">
         {/* Search */}
         <div className="relative flex-1">
           <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
+          <Input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -165,7 +173,7 @@ export default function AdminRequestsPage() {
 
         {/* Status Filter */}
         <div className="w-full md:w-44">
-          <select
+          <Select
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value as RequestStatus | '');
@@ -177,13 +185,13 @@ export default function AdminRequestsPage() {
             <option value="PENDING">Chờ duyệt</option>
             <option value="APPROVED">Đã duyệt</option>
             <option value="REJECTED">Đã từ chối</option>
-          </select>
+          </Select>
         </div>
 
         {/* Type Filter (School Admin only) */}
         {!isSystemAdmin && (
           <div className="w-full md:w-44">
-            <select
+            <Select
               value={typeFilter}
               onChange={(e) => {
                 setTypeFilter(e.target.value as RequestType | '');
@@ -194,10 +202,10 @@ export default function AdminRequestsPage() {
               <option value="">Tất cả loại yêu cầu</option>
               <option value="INFORMATION_UPDATE">Cập nhật thông tin</option>
               <option value="ADDRESS_UPDATE">Cập nhật địa chỉ</option>
-            </select>
+            </Select>
           </div>
         )}
-      </div>
+      </FilterToolbar>
 
       {/* Error alert */}
       {error && (
@@ -208,9 +216,9 @@ export default function AdminRequestsPage() {
       )}
 
       {/* Requests Table */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+      <Card className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+          <Table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                 <th className="p-3.5 pl-5">Học sinh</th>
@@ -281,7 +289,7 @@ export default function AdminRequestsPage() {
                         : '—'}
                     </td>
                     <td className="p-3.5 pr-5 text-right">
-                      <button
+                      <Button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -291,12 +299,12 @@ export default function AdminRequestsPage() {
                       >
                         <EyeIcon className="w-3.5 h-3.5" />
                         <span>Xem chi tiết</span>
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))}
             </tbody>
-          </table>
+          </Table>
         </div>
 
         {/* Pagination Footer */}
@@ -312,7 +320,7 @@ export default function AdminRequestsPage() {
             setPage(1);
           }}
         />
-      </div>
+      </Card>
 
       {/* Shared Detail Modal */}
       {user && (

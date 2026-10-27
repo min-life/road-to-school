@@ -15,6 +15,14 @@ import {
 import { PaginationControl } from '@/components/admin/common/pagination-control';
 import { AddSchoolModal } from '@/components/admin/schools/add-school-modal';
 import { SchoolStatusDialog } from '@/components/admin/schools/school-status-dialog';
+import { PageHeader } from '@/components/ui/page-header';
+import { Button } from '@/components/ui/button';
+import { FilterToolbar } from '@/components/ui/filter-toolbar';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Card } from '@/components/ui/card';
+import { Table } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 
 function formatDate(dateStr: string): string {
   if (!dateStr) return '';
@@ -125,9 +133,9 @@ export default function AdminSchoolsPage() {
       )}
 
       {/* 6.1 Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <PageHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1E293B]">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
             Trường học
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
@@ -136,23 +144,23 @@ export default function AdminSchoolsPage() {
         </div>
 
         <div>
-          <button
+          <Button variant="primary" size="sm"
             type="button"
             onClick={() => setIsAddModalOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#FFCB56] hover:bg-[#e6b74d] text-[#1E293B] text-xs sm:text-sm font-bold transition-colors cursor-pointer shadow-xs"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary hover:bg-[#e6b74d] text-foreground text-xs sm:text-sm font-bold transition-colors cursor-pointer shadow-xs"
           >
             <PlusIcon className="w-4 h-4" />
             <span>Thêm trường</span>
-          </button>
+          </Button>
         </div>
-      </div>
+      </PageHeader>
 
       {/* 6.2 Search & Filter Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs">
+      <FilterToolbar className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs">
         <div className="flex flex-wrap items-center gap-3 flex-1">
           {/* Search Box */}
           <div className="relative min-w-[220px] sm:w-80">
-            <input
+            <Input
               type="text"
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
@@ -163,7 +171,7 @@ export default function AdminSchoolsPage() {
           </div>
 
           {/* Status Filter Dropdown */}
-          <select
+          <Select
             value={statusFilter}
             onChange={(e) => handleStatusFilterChange(e.target.value)}
             className="px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
@@ -171,9 +179,9 @@ export default function AdminSchoolsPage() {
             <option value="">Tất cả trạng thái</option>
             <option value="ACTIVE">Đang hoạt động</option>
             <option value="INACTIVE">Ngừng hoạt động</option>
-          </select>
+          </Select>
         </div>
-      </div>
+      </FilterToolbar>
 
       {/* Error State */}
       {errorMessage && (
@@ -182,20 +190,20 @@ export default function AdminSchoolsPage() {
             <AlertIcon className="w-4 h-4 text-red-600 shrink-0" />
             <span>{errorMessage}</span>
           </div>
-          <button
+          <Button
             type="button"
             onClick={() => fetchSchools()}
             className="px-3 py-1 rounded-lg bg-red-100 hover:bg-red-200 text-red-800 text-xs font-semibold cursor-pointer"
           >
             Thử lại
-          </button>
+          </Button>
         </div>
       )}
 
       {/* 6.3 School Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-2xs">
+      <Card className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-2xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <Table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 <th className="py-3.5 px-4">Tên trường</th>
@@ -277,7 +285,7 @@ export default function AdminSchoolsPage() {
 
                     {/* Trạng thái */}
                     <td className="py-3.5 px-4 whitespace-nowrap">
-                      <span
+                      <Badge
                         className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
                           school.isActive
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
@@ -290,19 +298,19 @@ export default function AdminSchoolsPage() {
                           }`}
                         />
                         {school.isActive ? 'Đang hoạt động' : 'Ngừng hoạt động'}
-                      </span>
+                      </Badge>
                     </td>
 
                     {/* Thao tác */}
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
                       <div className="inline-flex items-center gap-2">
-                        <Link
+                        <Link data-variant="outline" data-size="sm"
                           href={`/admin/schools/${school.id}`}
-                          className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 font-semibold text-xs transition-colors cursor-pointer"
+                          className="ui-button px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 font-semibold text-xs transition-colors cursor-pointer"
                         >
                           Xem chi tiết
                         </Link>
-                        <button
+                        <Button
                           type="button"
                           onClick={() => setStatusModalSchool(school)}
                           className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer border ${
@@ -312,14 +320,14 @@ export default function AdminSchoolsPage() {
                           }`}
                         >
                           {school.isActive ? 'Ngừng hoạt động' : 'Kích hoạt lại'}
-                        </button>
+                        </Button>
                       </div>
                     </td>
                   </tr>
                 ))
               )}
             </tbody>
-          </table>
+          </Table>
         </div>
 
         {/* 6.4 Pagination */}
@@ -335,7 +343,7 @@ export default function AdminSchoolsPage() {
             setPage(1);
           }}
         />
-      </div>
+      </Card>
 
       {/* Add School Modal */}
       <AddSchoolModal

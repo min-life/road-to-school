@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { InfoIcon } from '@/components/icons';
+import { Button } from '@/components/ui/button';
 
 interface TooltipProps {
   content: string;
@@ -46,7 +47,7 @@ export function Tooltip({ content, children, className = '' }: TooltipProps) {
 
   return (
     <div className={`relative inline-flex items-center ${className}`}>
-      <button
+      <Button
         ref={triggerRef}
         type="button"
         aria-label="Thông tin hướng dẫn"
@@ -59,7 +60,7 @@ export function Tooltip({ content, children, className = '' }: TooltipProps) {
         className="p-0.5 rounded-full text-slate-400 hover:text-amber-600 hover:bg-amber-50 focus:outline-none focus:ring-1 focus:ring-amber-400 transition-colors cursor-pointer"
       >
         {children || <InfoIcon className="w-3.5 h-3.5" />}
-      </button>
+      </Button>
 
       {isVisible && (
         <div

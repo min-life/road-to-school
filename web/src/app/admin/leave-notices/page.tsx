@@ -20,6 +20,14 @@ import {
 import { PaginationControl } from '@/components/admin/common/pagination-control';
 import { ReplacementModal } from '@/components/admin/leave-notices/replacement-modal';
 import { CancelTripModal } from '@/components/admin/leave-notices/cancel-trip-modal';
+import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/ui/page-header';
+import { Button } from '@/components/ui/button';
+import { FilterToolbar } from '@/components/ui/filter-toolbar';
+import { Select } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Card } from '@/components/ui/card';
+import { Table } from '@/components/ui/table';
 
 export default function AdminLeaveNoticesPage() {
   const { user } = useAuth();
@@ -95,16 +103,16 @@ export default function AdminLeaveNoticesPage() {
     if (notice.kind === 'STUDENT') {
       if (notice.status === 'RECORDED') {
         return (
-          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <Badge className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
             Đã nhận
-          </span>
+          </Badge>
         );
       }
       if (notice.status === 'WITHDRAWN') {
         return (
-          <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+          <Badge className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
             Đã hủy
-          </span>
+          </Badge>
         );
       }
     }
@@ -112,40 +120,40 @@ export default function AdminLeaveNoticesPage() {
     switch (notice.status) {
       case 'PENDING_REPLACEMENT':
         return (
-          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1.5">
+          <Badge className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
             Chờ phân công
-          </span>
+          </Badge>
         );
       case 'RECORDED':
         return (
-          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <Badge className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
             Đã ghi nhận
-          </span>
+          </Badge>
         );
       case 'REPLACED':
         return (
-          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+          <Badge className="px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
             Đã bố trí
-          </span>
+          </Badge>
         );
       case 'WITHDRAWN':
         return (
-          <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+          <Badge className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
             Đã hủy
-          </span>
+          </Badge>
         );
       case 'TRIP_CANCELLED':
         return (
-          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+          <Badge className="px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
             Chuyến đã hủy
-          </span>
+          </Badge>
         );
       default:
         return (
-          <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+          <Badge className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
             {notice.status}
-          </span>
+          </Badge>
         );
     }
   };
@@ -166,72 +174,72 @@ export default function AdminLeaveNoticesPage() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <PageHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
             <CalendarIcon className="w-6 h-6 text-slate-700" />
             <span>Báo nghỉ</span>
           </h1>
         </div>
-      </div>
+      </PageHeader>
 
       {/* Role Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200">
         {isSystemAdmin && (
-          <button
+          <Button
             type="button"
             onClick={() => handleTabChange('DRIVER')}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
               activeTab === 'DRIVER'
-                ? 'border-[#FFCB56] text-[#1E293B]'
+                ? 'border-primary text-foreground'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
             <DriverIcon className="w-4 h-4" />
             <span>Tài xế</span>
-          </button>
+          </Button>
         )}
 
-        <button
+        <Button
           type="button"
           onClick={() => handleTabChange('STUDENT')}
           className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
             activeTab === 'STUDENT'
-              ? 'border-[#FFCB56] text-[#1E293B]'
+              ? 'border-primary text-foreground'
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <StudentIcon className="w-4 h-4" />
           <span>Học sinh</span>
-        </button>
+        </Button>
 
-        <button
+        <Button
           type="button"
           onClick={() => handleTabChange('BUS_ATTENDANT')}
           className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
             activeTab === 'BUS_ATTENDANT'
-              ? 'border-[#FFCB56] text-[#1E293B]'
+              ? 'border-primary text-foreground'
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <TeacherIcon className="w-4 h-4" />
           <span>Giáo viên</span>
-        </button>
+        </Button>
       </div>
 
       {/* Filter Toolbar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-3">
+      <FilterToolbar className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3 text-xs">
           {/* Status Dropdown */}
           <div className="flex items-center gap-1.5">
             <span className="text-slate-500 font-semibold">Trạng thái:</span>
-            <select
+            <Select
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value);
                 setPage(1);
               }}
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#FFCB56] cursor-pointer font-medium"
+              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer font-medium"
             >
               {isStudentTab ? (
                 <>
@@ -249,43 +257,43 @@ export default function AdminLeaveNoticesPage() {
                   <option value="TRIP_CANCELLED">Chuyến đã hủy</option>
                 </>
               )}
-            </select>
+            </Select>
           </div>
 
           {/* Datepicker */}
           <div className="flex items-center gap-1.5">
             <span className="text-slate-500 font-semibold">Ngày:</span>
-            <input
+            <Input
               type="date"
               value={dateFilter}
               onChange={(e) => {
                 setDateFilter(e.target.value);
                 setPage(1);
               }}
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#FFCB56]"
+              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
 
           {/* Direction Dropdown */}
           <div className="flex items-center gap-1.5">
             <span className="text-slate-500 font-semibold">Chiều:</span>
-            <select
+            <Select
               value={directionFilter}
               onChange={(e) => {
                 setDirectionFilter(e.target.value);
                 setPage(1);
               }}
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#FFCB56] cursor-pointer font-medium"
+              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer font-medium"
             >
               <option value="ALL">Tất cả chiều</option>
               <option value="TO_SCHOOL">Chiều đi (đến trường)</option>
               <option value="TO_PARKING">Chiều về (về nhà)</option>
-            </select>
+            </Select>
           </div>
 
           {/* Reset Filters Button */}
           {hasActiveFilters && (
-            <button
+            <Button variant="outline" size="sm"
               type="button"
               onClick={() => {
                 setStatusFilter('ALL');
@@ -296,13 +304,13 @@ export default function AdminLeaveNoticesPage() {
               className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors font-semibold text-xs cursor-pointer"
             >
               Đặt lại
-            </button>
+            </Button>
           )}
         </div>
-      </div>
+      </FilterToolbar>
 
       {/* Main Table Card */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+      <Card className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
         {error && (
           <div className="m-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
             <AlertIcon className="w-4 h-4 shrink-0 text-rose-500" />
@@ -311,8 +319,8 @@ export default function AdminLeaveNoticesPage() {
         )}
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-[#FFFDF6] border-b border-slate-200/80 text-slate-600 uppercase font-semibold text-[11px] tracking-wider">
+          <Table className="w-full text-left text-xs">
+            <thead className="bg-background border-b border-slate-200/80 text-slate-600 uppercase font-semibold text-[11px] tracking-wider">
               <tr>
                 <th scope="col" className="px-5 py-3.5">
                   {isStudentTab ? 'Học sinh / Người báo' : 'Đối tượng / Người báo'}
@@ -343,7 +351,7 @@ export default function AdminLeaveNoticesPage() {
                 <tr>
                   <td colSpan={isStudentTab ? 4 : 6} className="px-5 py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
-                      <SpinnerIcon className="w-6 h-6 animate-spin text-[#FFCB56]" />
+                      <SpinnerIcon className="w-6 h-6 animate-spin text-primary" />
                       <span>Đang tải danh sách báo nghỉ...</span>
                     </div>
                   </td>
@@ -442,13 +450,13 @@ export default function AdminLeaveNoticesPage() {
 
                           <td className="px-5 py-3.5 text-right whitespace-nowrap">
                             {canProcess ? (
-                              <button
+                              <Button variant="primary" size="sm"
                                 type="button"
                                 onClick={() => setSelectedNoticeForReplacement(notice)}
-                                className="px-3 py-1.5 text-xs font-bold bg-[#FFCB56] hover:bg-[#f5c042] text-[#1E293B] rounded-xl shadow-xs transition-all cursor-pointer"
+                                className="px-3 py-1.5 text-xs font-bold bg-primary hover:bg-[#f5c042] text-foreground rounded-xl shadow-xs transition-all cursor-pointer"
                               >
                                 Xử lý thay thế
-                              </button>
+                              </Button>
                             ) : (
                               <span className="text-slate-400 text-[11px]">—</span>
                             )}
@@ -460,7 +468,7 @@ export default function AdminLeaveNoticesPage() {
                 })
               )}
             </tbody>
-          </table>
+          </Table>
         </div>
 
         {/* Pagination */}
@@ -476,7 +484,7 @@ export default function AdminLeaveNoticesPage() {
             setPage(1);
           }}
         />
-      </div>
+      </Card>
 
       {/* Replacement Modal */}
       <ReplacementModal

@@ -21,6 +21,9 @@ import {
 } from './weekly-schedule-builder';
 import { VietMapPicker } from './vietmap-picker';
 import { Tooltip } from './tooltip';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 interface AddSchoolModalProps {
   isOpen: boolean;
@@ -281,7 +284,7 @@ export function AddSchoolModal({
       />
 
       {/* Modal Dialog Container */}
-      <div className="relative w-full max-w-2xl max-h-[92vh] flex flex-col bg-white rounded-2xl shadow-2xl z-10 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-200">
+      <Card className="ui-dialog-panel ui-dialog-panel-body relative w-full max-w-2xl max-h-[92vh] flex flex-col bg-white rounded-2xl shadow-2xl z-10 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-200">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0">
           <div>
@@ -295,7 +298,7 @@ export function AddSchoolModal({
               Nhập thông tin cơ bản, vị trí địa lý và cấu hình lịch học
             </p>
           </div>
-          <button
+          <Button
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
@@ -303,11 +306,11 @@ export function AddSchoolModal({
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50 cursor-pointer"
           >
             <CloseIcon className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
 
         {/* Scrollable Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="ui-dialog-body flex-1 overflow-y-auto p-6 space-y-6">
           {errorMessage && (
             <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-2.5">
               <AlertIcon className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
@@ -328,7 +331,7 @@ export function AddSchoolModal({
               >
                 Tên trường học <span className="text-red-500">*</span>
               </label>
-              <input
+              <Input
                 type="text"
                 id="school-name"
                 value={name}
@@ -365,7 +368,7 @@ export function AddSchoolModal({
                     <p className="text-[11px] text-slate-500 mt-0.5">
                       {selectedFile && (selectedFile.size / 1024 / 1024).toFixed(2)} MB
                     </p>
-                    <button
+                    <Button
                       type="button"
                       onClick={handleRemoveImage}
                       disabled={isSubmitting}
@@ -373,12 +376,12 @@ export function AddSchoolModal({
                     >
                       <TrashIcon className="w-3.5 h-3.5" />
                       <span>Xóa ảnh</span>
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ) : (
                 <div className="flex items-center gap-3">
-                  <input
+                  <Input
                     ref={fileInputRef}
                     type="file"
                     id="school-image"
@@ -387,7 +390,7 @@ export function AddSchoolModal({
                     onChange={handleFileChange}
                     className="hidden"
                   />
-                  <button
+                  <Button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isSubmitting}
@@ -395,7 +398,7 @@ export function AddSchoolModal({
                   >
                     <ImageIcon className="w-4 h-4 text-slate-500" />
                     <span>Chọn ảnh đại diện...</span>
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -428,7 +431,7 @@ export function AddSchoolModal({
               </div>
 
               <div className="relative">
-                <input
+                <Input
                   type="text"
                   id="school-address-input"
                   value={addressText}
@@ -449,9 +452,9 @@ export function AddSchoolModal({
 
               {/* Suggestions Dropdown */}
               {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-30 max-h-56 overflow-y-auto divide-y divide-slate-100 animate-in fade-in-0 duration-150">
+                <Card className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-30 max-h-56 overflow-y-auto divide-y divide-slate-100 animate-in fade-in-0 duration-150">
                   {suggestions.map((sug) => (
-                    <button
+                    <Button
                       key={sug.refId}
                       type="button"
                       onClick={() => handleSelectSuggestion(sug)}
@@ -465,9 +468,9 @@ export function AddSchoolModal({
                           {sug.address}
                         </p>
                       )}
-                    </button>
+                    </Button>
                   ))}
-                </div>
+                </Card>
               )}
             </div>
 
@@ -503,7 +506,7 @@ export function AddSchoolModal({
                 >
                   Ngày bắt đầu hợp đồng <span className="text-red-500">*</span>
                 </label>
-                <input
+                <Input
                   type="date"
                   id="contract-start"
                   value={contractStartDate}
@@ -521,7 +524,7 @@ export function AddSchoolModal({
                 >
                   Ngày kết thúc hợp đồng <span className="text-red-500">*</span>
                 </label>
-                <input
+                <Input
                   type="date"
                   id="contract-end"
                   value={contractEndDate}
@@ -546,31 +549,31 @@ export function AddSchoolModal({
 
         {/* Footer Actions */}
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50 shrink-0">
-          <button
+          <Button variant="outline" size="sm"
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
             className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
           >
             Hủy bỏ
-          </button>
-          <button
+          </Button>
+          <Button variant="primary" size="sm"
             type="button"
             onClick={handleSubmit}
             disabled={isSubmitting}
-            className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-[#FFCB56] hover:bg-[#e6b74d] text-[#1E293B] text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+            className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-primary hover:bg-[#e6b74d] text-foreground text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
           >
             {isSubmitting ? (
               <>
-                <SpinnerIcon className="w-4 h-4 animate-spin text-[#1E293B]" />
+                <SpinnerIcon className="w-4 h-4 animate-spin text-foreground" />
                 <span>Đang tạo trường học...</span>
               </>
             ) : (
               <span>Tạo trường học</span>
             )}
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

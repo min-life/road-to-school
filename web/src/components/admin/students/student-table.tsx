@@ -19,6 +19,10 @@ import { InsertStudentModal } from './insert-student-modal';
 import { EmptyRoutePlanActionModal } from './empty-route-plan-action-modal';
 import { CancelRoutePlanModal } from '@/components/admin/routes/cancel-route-plan-modal';
 import { authStorage } from '@/lib/auth-storage';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Table } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 
 interface StudentTableProps {
   schoolId: string;
@@ -216,7 +220,7 @@ export function StudentTable({
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button
+            <Button
               type="button"
               onClick={() => {
                 setCancellingPlan({
@@ -228,20 +232,20 @@ export function StudentTable({
               className="px-3 py-1.5 rounded-lg bg-rose-600 text-white font-medium hover:bg-rose-700 transition-colors cursor-pointer text-xs"
             >
               Hủy toàn bộ phương án
-            </button>
-            <Link
+            </Button>
+            <Link data-variant="outline" data-size="sm"
               href={`/admin/routes/plans/${emptyPlanNotice.planId}`}
-              className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition-colors cursor-pointer text-xs"
+              className="ui-button px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition-colors cursor-pointer text-xs"
             >
               Xem phương án
             </Link>
-            <button
+            <Button
               type="button"
               onClick={() => setEmptyPlanNotice(null)}
               className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
             >
               ✕
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -285,20 +289,20 @@ export function StudentTable({
         <div className="flex items-center gap-2 p-4 text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl">
           <AlertIcon className="w-5 h-5 text-red-600 flex-shrink-0" />
           <div className="flex-1">{errorMessage}</div>
-          <button
+          <Button
             type="button"
             onClick={fetchStudents}
             className="text-xs font-semibold text-red-700 hover:text-red-900 underline ml-2 cursor-pointer"
           >
             Thử lại
-          </button>
+          </Button>
         </div>
       )}
 
       {/* Table Container */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+      <Card className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-700">
+          <Table className="w-full text-left text-sm text-slate-700">
             <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
               <tr>
                 <th className="px-4 py-3">Học sinh</th>
@@ -333,13 +337,13 @@ export function StudentTable({
                           : 'Bắt đầu thêm học sinh vào trường của bạn.'}
                       </p>
                       {!readOnly && onAddClick && !search && statusFilter === 'ALL' && addressFilter === 'ALL' && (
-                        <button
+                        <Button variant="primary" size="sm"
                           type="button"
                           onClick={onAddClick}
-                          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-900 bg-[#FFCB56] hover:bg-amber-400 rounded-lg transition-colors cursor-pointer"
+                          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-900 bg-primary hover:bg-amber-400 rounded-lg transition-colors cursor-pointer"
                         >
                           + Thêm học sinh
-                        </button>
+                        </Button>
                       )}
                     </div>
                   </td>
@@ -397,28 +401,28 @@ export function StudentTable({
                       {/* Address Availability */}
                       <td className="px-4 py-3 text-center">
                         {student.hasAddress ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                             Đã có địa chỉ
-                          </span>
+                          </Badge>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                          <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                             Chưa có địa chỉ
-                          </span>
+                          </Badge>
                         )}
                       </td>
 
                       {/* Student Status */}
                       <td className="px-4 py-3 text-center">
                         {isAvailable ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
                             Khả dụng
-                          </span>
+                          </Badge>
                         ) : (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-300">
+                          <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-300">
                             Đã vô hiệu hóa
-                          </span>
+                          </Badge>
                         )}
                       </td>
 
@@ -433,7 +437,7 @@ export function StudentTable({
                           </Link>
 
                           {currentUserRole === 'SYSTEM_ADMIN' && isAvailable && student.hasAddress && (
-                            <button
+                            <Button
                               type="button"
                               onClick={() => {
                                 setInsertingStudent(student);
@@ -442,11 +446,11 @@ export function StudentTable({
                               className="text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
                             >
                               Thêm vào tuyến
-                            </button>
+                            </Button>
                           )}
 
                           {!readOnly && (
-                            <button
+                            <Button
                               type="button"
                               onClick={() => handleOpenStatusModal(student)}
                               className={`text-xs font-medium px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
@@ -456,7 +460,7 @@ export function StudentTable({
                               }`}
                             >
                               {isAvailable ? 'Vô hiệu hóa' : 'Kích hoạt'}
-                            </button>
+                            </Button>
                           )}
                         </div>
                       </td>
@@ -465,7 +469,7 @@ export function StudentTable({
                 })
               )}
             </tbody>
-          </table>
+          </Table>
         </div>
 
         {/* Pagination bar */}
@@ -481,7 +485,7 @@ export function StudentTable({
             setPage(1);
           }}
         />
-      </div>
+      </Card>
 
       {/* Status Confirm Modal */}
       {selectedStudent && targetStatus && (

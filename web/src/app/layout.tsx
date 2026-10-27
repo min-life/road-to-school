@@ -1,21 +1,23 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
 import { AuthProvider } from '@/components/auth/auth-provider';
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-});
-
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
+const beVietnamPro = localFont({
+  variable: '--font-be-vietnam-pro',
+  src: [
+    { path: '../../public/fonts/be-vietnam-pro/BeVietnamPro-Regular.ttf', weight: '400', style: 'normal' },
+    { path: '../../public/fonts/be-vietnam-pro/BeVietnamPro-Medium.ttf', weight: '500', style: 'normal' },
+    { path: '../../public/fonts/be-vietnam-pro/BeVietnamPro-SemiBold.ttf', weight: '600', style: 'normal' },
+    { path: '../../public/fonts/be-vietnam-pro/BeVietnamPro-Bold.ttf', weight: '700', style: 'normal' },
+  ],
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
   title: 'RoadToSchool — Quản lý xe buýt học sinh',
   description: 'Cổng thông tin và quản trị hệ thống xe buýt trường học RoadToSchool',
+  icons: { icon: '/road-to-school-icon.svg' },
 };
 
 export default function RootLayout({
@@ -26,9 +28,9 @@ export default function RootLayout({
   return (
     <html
       lang="vi"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${beVietnamPro.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[#FFFDF6] text-[#1E293B]">
+      <body className="min-h-full flex flex-col bg-background text-foreground">
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

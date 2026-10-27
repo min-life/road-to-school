@@ -15,6 +15,9 @@ import {
   SpinnerIcon,
   AlertIcon,
 } from '@/components/icons';
+import { Card } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
+import { Badge } from '@/components/ui/badge';
 
 function TeacherDetailPageContent() {
   const params = useParams();
@@ -91,39 +94,39 @@ function TeacherDetailPageContent() {
       </div>
 
       {/* Header Card */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex items-center justify-between">
+      <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-full bg-blue-100 text-blue-800 font-bold text-xl flex items-center justify-center border-2 border-blue-200">
             {teacher.fullName.charAt(0).toUpperCase()}
           </div>
-          <div>
+          <PageHeader>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-slate-900">{teacher.fullName}</h1>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+              <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
                 Giáo viên
-              </span>
+              </Badge>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
               Vai trò kỹ thuật: <span className="font-mono text-slate-600">BUS_ATTENDANT</span>
             </p>
-          </div>
+          </PageHeader>
         </div>
 
         <div>
           {isActive ? (
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <Badge className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
               Đang hoạt động
-            </span>
+            </Badge>
           ) : (
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-300">
+            <Badge className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-300">
               Ngừng hoạt động
-            </span>
+            </Badge>
           )}
         </div>
-      </div>
+      </Card>
 
       {/* Information Card */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
+      <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
         <h2 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-3 flex items-center gap-2">
           <TeacherIcon className="w-4 h-4 text-amber-500" />
           Thông tin chi tiết giáo viên
@@ -184,7 +187,7 @@ function TeacherDetailPageContent() {
             </dd>
           </div>
         </dl>
-      </div>
+      </Card>
     </div>
   );
 }

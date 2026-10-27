@@ -26,6 +26,10 @@ import { SchoolEmployeesTab } from '@/components/admin/schools/school-employees-
 import { StudentTable } from '@/components/admin/students/student-table';
 import { SchoolRoutesTab } from '@/components/admin/schools/school-routes-tab';
 import { SchoolTripsTab } from '@/components/admin/schools/school-trips-tab';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
+import { Badge } from '@/components/ui/badge';
 
 function formatDate(dateStr: string): string {
   if (!dateStr) return '';
@@ -128,7 +132,7 @@ export default function AdminSchoolDetailPage() {
           <span>Quay lại danh sách trường</span>
         </Link>
 
-        <div className="bg-white rounded-2xl border border-red-200 p-8 text-center max-w-lg mx-auto shadow-xs">
+        <Card className="bg-white rounded-2xl border border-red-200 p-8 text-center max-w-lg mx-auto shadow-xs">
           <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 mx-auto flex items-center justify-center mb-4">
             <AlertIcon className="w-6 h-6" />
           </div>
@@ -138,14 +142,14 @@ export default function AdminSchoolDetailPage() {
           <p className="text-xs text-slate-600 mb-6 leading-relaxed">
             {errorMessage || 'Trường học không tồn tại hoặc đã bị xóa.'}
           </p>
-          <button
+          <Button
             type="button"
             onClick={() => router.push('/admin/schools')}
             className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition-colors cursor-pointer"
           >
             Quay lại danh sách trường
-          </button>
-        </div>
+          </Button>
+        </Card>
       </div>
     );
   }
@@ -169,7 +173,7 @@ export default function AdminSchoolDetailPage() {
       <div>
         <Link
           href="/admin/schools"
-          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-[#1E293B] transition-colors"
+          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-foreground transition-colors"
         >
           <ArrowLeftIcon className="w-4 h-4" />
           <span>Danh sách trường học</span>
@@ -177,7 +181,7 @@ export default function AdminSchoolDetailPage() {
       </div>
 
       {/* Header Trường học (Wireframe W5) */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs">
+      <Card className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6">
           <div className="flex items-start gap-4">
             {/* Ảnh trường học hoặc Placeholder */}
@@ -194,12 +198,12 @@ export default function AdminSchoolDetailPage() {
             </div>
 
             {/* Tên & Trạng thái */}
-            <div className="space-y-1.5">
+            <PageHeader className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-xl sm:text-2xl font-bold text-[#1E293B] tracking-tight">
+                <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">
                   {school.name}
                 </h1>
-                <span
+                <Badge
                   className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
                     school.isActive
                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
@@ -212,7 +216,7 @@ export default function AdminSchoolDetailPage() {
                     }`}
                   />
                   {school.isActive ? 'Đang hoạt động' : 'Ngừng hoạt động'}
-                </span>
+                </Badge>
               </div>
 
               <p className="text-xs sm:text-sm text-slate-600 flex items-center gap-1.5 pt-0.5">
@@ -223,21 +227,21 @@ export default function AdminSchoolDetailPage() {
               <p className="text-xs text-slate-500">
                 Tọa độ: {school.latitude.toFixed(6)}, {school.longitude.toFixed(6)}
               </p>
-            </div>
+            </PageHeader>
           </div>
 
           {/* Action Buttons */}
           <div className="shrink-0 flex items-center gap-2">
             {user?.role === 'SYSTEM_ADMIN' && (
-              <button
+              <Button variant="outline" size="sm"
                 type="button"
                 onClick={() => setIsEditModalOpen(true)}
                 className="px-3.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 shadow-2xs"
               >
                 Chỉnh sửa trường & vị trí
-              </button>
+              </Button>
             )}
-            <button
+            <Button
               type="button"
               onClick={() => setIsStatusDialogOpen(true)}
               className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer border shadow-2xs ${
@@ -247,7 +251,7 @@ export default function AdminSchoolDetailPage() {
               }`}
             >
               {school.isActive ? 'Ngừng hoạt động' : 'Kích hoạt lại'}
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -298,62 +302,62 @@ export default function AdminSchoolDetailPage() {
             )}
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* 14. Horizontal Tabs (Section 14 & Wireframe W6) */}
       <div className="space-y-4">
         <div className="flex border-b border-slate-200 gap-6">
-          <button
+          <Button
             type="button"
             onClick={() => setActiveTab('employees')}
             className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
               activeTab === 'employees'
-                ? 'border-[#FFCB56] text-[#1E293B]'
+                ? 'border-primary text-foreground'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
             <UsersIcon className="w-4 h-4" />
             <span>Nhân viên trường</span>
-          </button>
+          </Button>
 
-          <button
+          <Button
             type="button"
             onClick={() => setActiveTab('students')}
             className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
               activeTab === 'students'
-                ? 'border-[#FFCB56] text-[#1E293B]'
+                ? 'border-primary text-foreground'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
             <StudentIcon className="w-4 h-4" />
             <span>Học sinh</span>
-          </button>
+          </Button>
 
-          <button
+          <Button
             type="button"
             onClick={() => setActiveTab('routes')}
             className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
               activeTab === 'routes'
-                ? 'border-[#FFCB56] text-[#1E293B]'
+                ? 'border-primary text-foreground'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
             <RouteIcon className="w-4 h-4" />
             <span>Phương án tuyến</span>
-          </button>
+          </Button>
 
-          <button
+          <Button
             type="button"
             onClick={() => setActiveTab('trips')}
             className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
               activeTab === 'trips'
-                ? 'border-[#FFCB56] text-[#1E293B]'
+                ? 'border-primary text-foreground'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
             <BusIcon className="w-4 h-4" />
             <span>Chuyến xe</span>
-          </button>
+          </Button>
         </div>
 
         {/* Tab Content */}

@@ -17,6 +17,13 @@ import { SchoolSelectModal } from '@/components/admin/routes/school-select-modal
 import { PaginationControl } from '@/components/admin/common/pagination-control';
 import { SchoolSelectFilter } from '@/components/admin/common/school-select-filter';
 import { authStorage } from '@/lib/auth-storage';
+import { PageHeader } from '@/components/ui/page-header';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Table } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 
 export default function RoutePlansPage() {
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
@@ -131,7 +138,7 @@ export default function RoutePlansPage() {
       </div>
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <PageHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Phương án tuyến</h1>
           <p className="text-sm text-slate-500 mt-1">
@@ -140,28 +147,28 @@ export default function RoutePlansPage() {
         </div>
 
         {isSystemAdmin && (
-          <button
+          <Button variant="primary" size="default"
             onClick={() => setIsSelectSchoolOpen(true)}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#FFCB56] hover:bg-[#e6b74d] text-[#1E293B] font-bold text-sm shadow-xs transition-all cursor-pointer"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary hover:bg-[#e6b74d] text-foreground font-bold text-sm shadow-xs transition-all cursor-pointer"
           >
             <PlusIcon className="w-4 h-4" />
             <span>Thêm phương án</span>
-          </button>
+          </Button>
         )}
-      </div>
+      </PageHeader>
 
       {/* Filters Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
+      <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {/* Search */}
           <div className="relative">
             <SearchIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
+            <Input
               type="text"
               placeholder="Tìm theo tên phương án hoặc trường..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-3.5 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-[#FFCB56] focus:ring-2 focus:ring-[#FFCB56]/20 bg-slate-50/50"
+              className="w-full pl-10 pr-3.5 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 bg-slate-50/50"
             />
           </div>
 
@@ -182,52 +189,52 @@ export default function RoutePlansPage() {
 
           {/* Status filter */}
           <div>
-            <select
+            <Select
               value={selectedStatus}
               onChange={(e) => {
                 setSelectedStatus(e.target.value);
                 setPage(1);
               }}
-              className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-[#FFCB56] bg-slate-50/50 text-slate-700"
+              className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-primary bg-slate-50/50 text-slate-700"
             >
               <option value="">Tất cả trạng thái</option>
               <option value="ACTIVE">Đang hoạt động (ACTIVE)</option>
               <option value="DRAFT">Bản nháp (DRAFT)</option>
               <option value="CANCELLED">Đã hủy (CANCELLED)</option>
               <option value="EXPIRED">Hết hạn hợp đồng (EXPIRED)</option>
-            </select>
+            </Select>
           </div>
 
           {/* Refresh action */}
           <div className="flex items-center justify-end">
-            <button
+            <Button
               onClick={() => fetchRoutePlans()}
               className="px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer w-full sm:w-auto"
             >
               Làm mới
-            </button>
+            </Button>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* RoutePlans Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+      <Card className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
         {error ? (
           <div className="p-8 text-center">
             <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3">
               <InfoIcon className="w-6 h-6" />
             </div>
             <p className="text-sm font-medium text-slate-800">{error}</p>
-            <button
+            <Button
               onClick={() => fetchRoutePlans()}
               className="mt-3 px-4 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
             >
               Thử lại
-            </button>
+            </Button>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <Table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/75 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                   <th className="py-3 px-4">Tên phương án</th>
@@ -244,7 +251,7 @@ export default function RoutePlansPage() {
                 {loading ? (
                   <tr>
                     <td colSpan={8} className="py-12 text-center text-slate-400">
-                      <SpinnerIcon className="w-7 h-7 animate-spin mx-auto text-[#FFCB56] mb-2" />
+                      <SpinnerIcon className="w-7 h-7 animate-spin mx-auto text-primary mb-2" />
                       <p className="text-xs">Đang tải danh sách phương án tuyến...</p>
                     </td>
                   </tr>
@@ -305,28 +312,28 @@ export default function RoutePlansPage() {
 
                         <td className="py-3.5 px-4">
                           {plan.status === 'ACTIVE' ? (
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                               ACTIVE
-                            </span>
+                            </Badge>
                           ) : plan.status === 'DRAFT' ? (
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                            <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
                               DRAFT
-                            </span>
+                            </Badge>
                           ) : plan.status === 'EXPIRED' ? (
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300">
+                            <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300">
                               EXPIRED
-                            </span>
+                            </Badge>
                           ) : (
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                            <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
                               CANCELLED
-                            </span>
+                            </Badge>
                           )}
                         </td>
 
                         <td className="py-3.5 px-4 text-right">
-                          <Link
+                          <Link  data-size="sm"
                             href={`/admin/routes/plans/${plan.id}`}
-                            className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-[#FFCB56] hover:text-slate-900 transition-colors"
+                            className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-primary hover:text-slate-900 transition-colors"
                           >
                             Chi tiết
                           </Link>
@@ -336,7 +343,7 @@ export default function RoutePlansPage() {
                   })
                 )}
               </tbody>
-            </table>
+            </Table>
           </div>
         )}
 
@@ -353,7 +360,7 @@ export default function RoutePlansPage() {
           }}
           loading={loading}
         />
-      </div>
+      </Card>
 
       {/* Select School Modal */}
       <SchoolSelectModal

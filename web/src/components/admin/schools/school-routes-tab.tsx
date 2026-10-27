@@ -6,6 +6,8 @@ import { apiClient } from '@/lib/api-client';
 import { RoutePlanItem } from '@/lib/types';
 import { RouteIcon, SpinnerIcon, PlusIcon } from '@/components/icons';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
+import { Card } from '@/components/ui/card';
+import { Table } from '@/components/ui/table';
 
 interface SchoolRoutesTabProps {
   schoolId: string;
@@ -71,9 +73,9 @@ export function SchoolRoutesTab({
         </div>
 
         {isSchoolActive && (
-          <Link
+          <Link data-variant="primary" data-size="sm"
             href={`/admin/routes/create?schoolId=${schoolId}`}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#FFCB56] hover:bg-[#e6b74d] text-[#1E293B] font-bold text-xs shadow-xs transition-colors"
+            className="ui-button flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary hover:bg-[#e6b74d] text-foreground font-bold text-xs shadow-xs transition-colors"
           >
             <PlusIcon className="w-3.5 h-3.5" />
             <span>Lập phương án tuyến mới</span>
@@ -81,9 +83,9 @@ export function SchoolRoutesTab({
         )}
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+      <Card className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+          <Table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/75 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                 <th className="py-3 px-4">Tên phương án</th>
@@ -99,7 +101,7 @@ export function SchoolRoutesTab({
               {loading ? (
                 <tr>
                   <td colSpan={7} className="py-10 text-center text-slate-400">
-                    <SpinnerIcon className="w-6 h-6 animate-spin mx-auto text-[#FFCB56] mb-2" />
+                    <SpinnerIcon className="w-6 h-6 animate-spin mx-auto text-primary mb-2" />
                     <span>Đang tải phương án tuyến...</span>
                   </td>
                 </tr>
@@ -167,9 +169,9 @@ export function SchoolRoutesTab({
                       </td>
 
                       <td className="py-3 px-4 text-right">
-                        <Link
+                        <Link  data-size="default"
                           href={`/admin/routes/plans/${plan.id}`}
-                          className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-[#FFCB56] hover:text-slate-900 rounded-lg transition-colors inline-block"
+                          className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-primary hover:text-slate-900 rounded-lg transition-colors inline-block"
                         >
                           Chi tiết
                         </Link>
@@ -179,7 +181,7 @@ export function SchoolRoutesTab({
                 })
               )}
             </tbody>
-          </table>
+          </Table>
         </div>
 
         {/* Phân trang */}
@@ -195,7 +197,7 @@ export function SchoolRoutesTab({
             setPage(1);
           }}
         />
-      </div>
+      </Card>
     </div>
   );
 }

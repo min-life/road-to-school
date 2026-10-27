@@ -10,6 +10,12 @@ import { TripItem, Role } from '@/lib/types';
 import { RouteIcon, SpinnerIcon, AlertIcon, BusIcon } from '@/components/icons';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
 import { SchoolSelectFilter } from '@/components/admin/common/school-select-filter';
+import { FilterToolbar } from '@/components/ui/filter-toolbar';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Table } from '@/components/ui/table';
 
 interface TripsTableProps {
   fixedSchoolId?: string;
@@ -206,12 +212,12 @@ export function TripsTable({
   return (
     <div className="space-y-4">
       {/* Filter Toolbar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-3">
+      <FilterToolbar className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3 text-xs">
           {/* Date range */}
           <div className="flex items-center gap-1.5">
             <span className="text-slate-500 font-semibold">Từ:</span>
-            <input
+            <Input
               type="date"
               value={fromDate}
               min={contractBounds.start}
@@ -220,13 +226,13 @@ export function TripsTable({
                 setFromDate(e.target.value);
                 handleFilterChange();
               }}
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#FFCB56]"
+              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
 
           <div className="flex items-center gap-1.5">
             <span className="text-slate-500 font-semibold">Đến:</span>
-            <input
+            <Input
               type="date"
               value={toDate}
               min={contractBounds.start}
@@ -235,7 +241,7 @@ export function TripsTable({
                 setToDate(e.target.value);
                 handleFilterChange();
               }}
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#FFCB56]"
+              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
 
@@ -259,13 +265,13 @@ export function TripsTable({
           {/* Status filter */}
           <div className="flex items-center gap-1.5">
             <span className="text-slate-500 font-semibold">Trạng thái:</span>
-            <select
+            <Select
               value={selectedStatus}
               onChange={(e) => {
                 setSelectedStatus(e.target.value);
                 handleFilterChange();
               }}
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#FFCB56] cursor-pointer"
+              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
             >
               <option value="">Tất cả trạng thái</option>
               <option value="SCHEDULED">Lập lịch</option>
@@ -273,7 +279,7 @@ export function TripsTable({
               <option value="COMPLETED">Hoàn thành</option>
               <option value="CANCELLED">Hủy</option>
               <option value="NOT_CREATED">Chưa tạo (Dự kiến)</option>
-            </select>
+            </Select>
           </div>
 
           {contractBounds.start && contractBounds.end && (
@@ -285,20 +291,20 @@ export function TripsTable({
 
         {/* Action: Manual Generation (System Admin only) */}
         {isSystemAdmin && onOpenManualGenerate && (
-          <button
+          <Button variant="primary" size="sm"
             onClick={onOpenManualGenerate}
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-900 bg-[#FFCB56] hover:bg-[#f5c042] transition-colors cursor-pointer shadow-xs shrink-0"
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-900 bg-primary hover:bg-[#f5c042] transition-colors cursor-pointer shadow-xs shrink-0"
           >
             <BusIcon className="w-4 h-4 text-slate-900" />
             <span>Sinh chuyến thủ công</span>
-          </button>
+          </Button>
         )}
-      </div>
+      </FilterToolbar>
 
       {/* Main Trips Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+      <Card className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+          <Table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="border-b border-slate-200/80 bg-slate-50/70 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
                 <th className="py-3 px-4 w-32">Thứ / Ngày</th>
@@ -319,7 +325,7 @@ export function TripsTable({
               {loading ? (
                 <tr>
                   <td colSpan={11} className="py-16 text-center text-slate-400">
-                    <SpinnerIcon className="w-6 h-6 animate-spin text-[#FFCB56] mx-auto mb-2" />
+                    <SpinnerIcon className="w-6 h-6 animate-spin text-primary mx-auto mb-2" />
                     <span>Đang tải danh sách chuyến xe...</span>
                   </td>
                 </tr>
@@ -429,9 +435,9 @@ export function TripsTable({
 
                       <td className="py-3 px-4 text-right whitespace-nowrap">
                         {!trip.isVirtual ? (
-                          <Link
+                          <Link  data-size="sm"
                             href={`/admin/trips/${trip.id}`}
-                            className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-[#FFCB56] hover:text-slate-900 transition-colors"
+                            className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-primary hover:text-slate-900 transition-colors"
                           >
                             Chi tiết
                           </Link>
@@ -449,7 +455,7 @@ export function TripsTable({
                 })
               )}
             </tbody>
-          </table>
+          </Table>
         </div>
 
         {/* Pagination Footer */}
@@ -465,7 +471,7 @@ export function TripsTable({
           }}
           loading={loading}
         />
-      </div>
+      </Card>
     </div>
   );
 }

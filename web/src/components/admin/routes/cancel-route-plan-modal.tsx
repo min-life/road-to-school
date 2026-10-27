@@ -4,6 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
 import type { RoutePlanCancellationImpactResponse } from '@/lib/types';
 import { AlertIcon, CloseIcon, SpinnerIcon } from '@/components/icons';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 
 interface CancelRoutePlanModalProps {
   isOpen: boolean;
@@ -66,7 +69,7 @@ export function CancelRoutePlanModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-slate-200 overflow-hidden">
+      <Card className="ui-dialog-panel bg-white rounded-2xl shadow-xl w-full max-w-md border border-slate-200 overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-rose-100 flex items-center justify-between bg-rose-50/50">
           <div className="flex items-center gap-2.5 text-rose-700">
@@ -78,12 +81,12 @@ export function CancelRoutePlanModal({
               <p className="text-xs text-rose-600 font-medium">Cascade hủy các chuyến xe đã lập lịch</p>
             </div>
           </div>
-          <button
+          <Button
             onClick={onClose}
             className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <CloseIcon className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
 
         {/* Form Body */}
@@ -122,7 +125,7 @@ export function CancelRoutePlanModal({
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
               Lý do hủy phương án <span className="text-rose-500">*</span>
             </label>
-            <textarea
+            <Textarea
               rows={3}
               required
               value={reason}
@@ -140,25 +143,25 @@ export function CancelRoutePlanModal({
 
           {/* Footer */}
           <div className="flex items-center justify-end gap-2.5 pt-2">
-            <button
+            <Button
               type="button"
               disabled={loading}
               onClick={onClose}
               className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
             >
               Quay lại
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={loading || loadingImpact}
               className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
             >
               {loading && <SpinnerIcon className="w-3.5 h-3.5 animate-spin" />}
               <span>Xác nhận hủy</span>
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
+      </Card>
     </div>
   );
 }

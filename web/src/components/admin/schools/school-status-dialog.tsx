@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { AlertIcon, SpinnerIcon, CloseIcon } from '@/components/icons';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 interface SchoolStatusDialogProps {
   isOpen: boolean;
@@ -62,7 +64,7 @@ export function SchoolStatusDialog({
       />
 
       {/* Modal Dialog */}
-      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl z-10 p-6 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-200">
+      <Card className="ui-dialog-panel relative w-full max-w-md bg-white rounded-2xl shadow-2xl z-10 p-6 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-200">
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2.5">
             <div
@@ -81,14 +83,14 @@ export function SchoolStatusDialog({
               Xác nhận {actionText}
             </h2>
           </div>
-          <button
+          <Button
             type="button"
             onClick={onClose}
             disabled={isLoading}
             className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
           >
             <CloseIcon className="w-4 h-4" />
-          </button>
+          </Button>
         </div>
 
         <div className="py-4 space-y-3">
@@ -117,15 +119,15 @@ export function SchoolStatusDialog({
         </div>
 
         <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-          <button
+          <Button variant="outline" size="sm"
             type="button"
             onClick={onClose}
             disabled={isLoading}
             className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
           >
             Hủy bỏ
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={handleConfirm}
             disabled={isLoading}
@@ -143,9 +145,9 @@ export function SchoolStatusDialog({
             ) : (
               <span>Xác nhận</span>
             )}
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
