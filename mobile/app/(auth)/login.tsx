@@ -180,7 +180,7 @@ export default function LoginScreen() {
             >
               <Text style={styles.registerLinkText}>
                 Chưa có tài khoản?{' '}
-                <Text style={styles.registerLinkBold}>Đăng ký Phụ huynh</Text>
+                <Text style={styles.registerLinkBold}>Đăng ký</Text>
               </Text>
             </TouchableOpacity>
           </View>
