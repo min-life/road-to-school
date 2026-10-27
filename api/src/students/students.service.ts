@@ -1,3 +1,4 @@
+import { notifyCancelledTrips } from '../notifications/notification-writer.js';
 import {
   Injectable,
   Logger,
@@ -125,6 +126,7 @@ export class StudentsService {
       schoolId,
     };
 
+    if (query.routingStatus === 'UNASSIGNED') where.routeStops = { none: { route: { routePlan: { status: { in: ['DRAFT', 'ACTIVE'] } } } } };
     // Bộ lọc 1: Trạng thái học sinh (AVAILABLE hoặc DISABLED)
     if (query.status) {
       where.status = query.status;
@@ -785,6 +787,8 @@ export class StudentsService {
                   cancelledById: currentUser?.id,
                 },
               });
+
+              await notifyCancelledTrips(tx, [trip.id], 'student-removal:' + studentId + ':' + trip.id, currentUser?.id);
             }
           }
         }

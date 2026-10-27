@@ -1,9 +1,13 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsEnum, IsString, IsInt, Min } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsOptional, IsEnum, IsString, IsInt, IsBoolean, IsUUID, Min } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
 import { RequestType, RequestStatus } from '@prisma/client';
 
 export class ListRequestsQueryDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'Lọc trường cho System Admin; School Admin vẫn bị giới hạn trường theo session.' })
+  @IsOptional() @IsUUID() schoolId?: string;
+  @ApiPropertyOptional({ type: Boolean, description: 'Chỉ hồ sơ PENDING thuộc quyền xử lý hiện tại.' })
+  @IsOptional() @Transform(({ value }) => value === 'true' ? true : value === 'false' ? false : value) @IsBoolean() actionable?: boolean;
   @ApiPropertyOptional({
     enum: RequestType,
     description: 'Lọc theo loại yêu cầu',

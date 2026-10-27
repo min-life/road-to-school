@@ -1,3 +1,4 @@
+import { NotificationBell } from '@/components/notification-bell';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
@@ -9,7 +10,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useActiveRefresh } from '@/hooks/use-active-refresh';
 import type { RefreshContext } from '@/utils/refresh-loop';
@@ -30,6 +31,7 @@ export default function ScheduleScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { serviceDate } = useLocalSearchParams<{ serviceDate?: string }>();
   const { triggerQuickLeaveNotice, isRequesting } = useQuickLeaveNotice();
 
   const isDriver = user?.role === 'DRIVER';
@@ -43,6 +45,14 @@ export default function ScheduleScreen() {
   const [currentWeekMondayStr, setCurrentWeekMondayStr] = useState<string>(() => {
     return getMondayOfDateStr(getVietnamToday());
   });
+
+  useEffect(() => {
+    if (typeof serviceDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(serviceDate)) return;
+    const parsed = new Date(`${serviceDate}T00:00:00Z`);
+    if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== serviceDate) return;
+    setSelectedDate(serviceDate);
+    setCurrentWeekMondayStr(getMondayOfDateStr(serviceDate));
+  }, [serviceDate]);
 
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -119,14 +129,17 @@ export default function ScheduleScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <View>
+        <View style={styles.headerTitleWrap}>
           <Text style={styles.title}>Lịch vận hành</Text>
           <Text style={styles.subtitle}>Phân công tuyến xe dành cho {roleTitle}</Text>
         </View>
 
-        <TouchableOpacity onPress={goToToday} style={styles.todayButton} activeOpacity={0.7}>
-          <Text style={styles.todayText}>Hôm nay</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity onPress={goToToday} style={styles.todayButton} activeOpacity={0.7}>
+            <Text style={styles.todayText}>Hôm nay</Text>
+          </TouchableOpacity>
+          <NotificationBell />
+        </View>
       </View>
 
       {/* Week Selector Bar */}
@@ -327,6 +340,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
+  },
+  headerTitleWrap: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   title: {
     fontSize: 22,

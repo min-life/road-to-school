@@ -144,6 +144,19 @@ export default function HomeScreen() {
             </View>
             <Text style={styles.utilityActionText}>Báo nghỉ</Text>
           </TouchableOpacity>
+
+          {(user?.role === 'DRIVER' || user?.role === 'BUS_ATTENDANT') && (
+            <TouchableOpacity
+              style={styles.utilityActionBtn}
+              onPress={() => router.push('/incidents' as any)}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.utilityIconWrap, { backgroundColor: '#FEE2E2' }]}>
+                <Ionicons name="warning-outline" size={24} color="#DC2626" />
+              </View>
+              <Text style={styles.utilityActionText}>Sự cố</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -920,8 +933,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   utilityCenter: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 32,
     paddingVertical: 8,
   },
   utilityActionBtn: {

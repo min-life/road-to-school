@@ -63,6 +63,11 @@ import {
   StudentInsertionPreviewResponse,
   SystemRequestRoutingPreviewResponse,
   WeeklySchedule,
+  TripIncident,
+  TripIncidentType,
+  TripIncidentStatus,
+  TripIncidentListResponse,
+  IncidentCandidatesResponse,
 } from './types';
 
 const API_BASE_URL =
@@ -225,6 +230,9 @@ class ApiClient {
       });
     }
 
+    if (typeof window !== 'undefined' && options.method && !['GET', 'HEAD'].includes(options.method.toUpperCase())) {
+      window.dispatchEvent(new Event('rts:mutation'));
+    }
     // Xử lý status 204 hoặc rỗng
     if (response.status === 204) {
       return {} as T;
@@ -489,6 +497,7 @@ class ApiClient {
   async getStudents(
     schoolId: string,
     params?: {
+    routingStatus?: string;
       page?: number;
       limit?: number;
       search?: string;
@@ -497,6 +506,7 @@ class ApiClient {
     },
   ): Promise<StudentListResponse> {
     const searchParams = new URLSearchParams();
+    if (params?.routingStatus !== undefined) searchParams.set('routingStatus', String(params.routingStatus));
     if (params?.page) searchParams.set('page', String(params.page));
     if (params?.limit) searchParams.set('limit', String(params.limit));
     if (params?.search && params.search.trim()) {
@@ -711,6 +721,7 @@ class ApiClient {
   async listSchoolRequests(
     schoolId: string,
     params?: {
+    actionable?: boolean;
       page?: number;
       limit?: number;
       type?: string;
@@ -719,6 +730,7 @@ class ApiClient {
     },
   ): Promise<StudentUpdateRequestListResponse> {
     const searchParams = new URLSearchParams();
+    if (params?.actionable !== undefined) searchParams.set('actionable', String(params.actionable));
     if (params?.page) searchParams.set('page', String(params.page));
     if (params?.limit) searchParams.set('limit', String(params.limit));
     if (params?.type) searchParams.set('type', params.type);
@@ -812,12 +824,16 @@ class ApiClient {
   // ==========================================
 
   async listSystemAdminRequests(params?: {
+    actionable?: boolean;
+    schoolId?: string;
     page?: number;
     limit?: number;
     status?: string;
     search?: string;
   }): Promise<StudentUpdateRequestListResponse> {
     const searchParams = new URLSearchParams();
+    if (params?.actionable !== undefined) searchParams.set('actionable', String(params.actionable));
+    if (params?.schoolId !== undefined) searchParams.set('schoolId', String(params.schoolId));
     if (params?.page) searchParams.set('page', String(params.page));
     if (params?.limit) searchParams.set('limit', String(params.limit));
     if (params?.status) searchParams.set('status', params.status);
@@ -1142,6 +1158,8 @@ class ApiClient {
   }
 
   async listLeaveNotices(params?: {
+    actionable?: boolean;
+    schoolId?: string;
     page?: number;
     limit?: number;
     kind?: string;
@@ -1151,6 +1169,8 @@ class ApiClient {
     search?: string;
   }): Promise<LeaveNoticeListResponse> {
     const sp = new URLSearchParams();
+    if (params?.actionable !== undefined) sp.set('actionable', String(params.actionable));
+    if (params?.schoolId !== undefined) sp.set('schoolId', String(params.schoolId));
     if (params?.page) sp.set('page', String(params.page));
     if (params?.limit) sp.set('limit', String(params.limit));
     if (params?.kind) sp.set('kind', params.kind);
@@ -1187,6 +1207,57 @@ class ApiClient {
     return this.request<LeaveNoticeItem>(`/leave-notices/${noticeId}/cancel-trip`, {
       method: 'POST',
       body: JSON.stringify(dto),
+    });
+  }
+
+  async getIncidents(params?: {
+    actionable?: boolean;
+    schoolId?: string;
+    type?: TripIncidentType;
+    status?: TripIncidentStatus;
+    date?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<TripIncidentListResponse> {
+    const sp = new URLSearchParams();
+    if (params?.actionable !== undefined) sp.set('actionable', String(params.actionable));
+    if (params?.schoolId) sp.set('schoolId', params.schoolId);
+    if (params?.type) sp.set('type', params.type);
+    if (params?.status) sp.set('status', params.status);
+    if (params?.date) sp.set('date', params.date);
+    if (params?.page) sp.set('page', String(params.page));
+    if (params?.limit) sp.set('limit', String(params.limit));
+    const qs = sp.toString() ? `?${sp.toString()}` : '';
+    return this.request<TripIncidentListResponse>(`/incidents${qs}`);
+  }
+
+  async getIncidentDetail(id: string): Promise<TripIncident> {
+    return this.request<TripIncident>(`/incidents/${id}`);
+  }
+
+  async getIncidentReplacementCandidates(id: string): Promise<IncidentCandidatesResponse> {
+    return this.request<IncidentCandidatesResponse>(`/incidents/${id}/replacement-candidates`);
+  }
+
+  async resolveIncident(
+    id: string,
+    data: {
+      action: 'ARRIVED' | 'REPLACED';
+      replacementUserId?: string;
+      reason?: string;
+      expectedStatus?: string;
+    },
+  ): Promise<TripIncident> {
+    return this.request<TripIncident>(`/incidents/${id}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async cancelTripFromIncident(id: string, reason: string): Promise<TripIncident> {
+    return this.request<TripIncident>(`/incidents/${id}/cancel-trip`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
     });
   }
 }

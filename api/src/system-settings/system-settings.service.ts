@@ -1,3 +1,5 @@
+import { notifyPlan } from '../notifications/notification-events.js';
+import { notifyCancelledTrips } from '../notifications/notification-writer.js';
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { RoutePlanStatus, TripStatus, LeaveNoticeStatus } from '@prisma/client';
@@ -210,6 +212,7 @@ export class SystemSettingsService {
             },
           });
 
+          await notifyCancelledTrips(tx, tripIds, 'location:' + planIds.slice().sort().join(':'), userId);
           await tx.leaveNotice.updateMany({
             where: {
               tripId: { in: tripIds },
@@ -237,6 +240,7 @@ export class SystemSettingsService {
         });
       }
 
+      for (const planId of planIds) await notifyPlan(tx, planId, userId);
       // 4. Cập nhật vị trí bãi xe
       const setting = await tx.systemSetting.upsert({
         where: { key: SystemSettingsService.PARKING_LOT_KEY },

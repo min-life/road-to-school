@@ -4,6 +4,7 @@ import React from 'react';
 import { BusLogo, MenuIcon, LogoutIcon } from '@/components/icons';
 import { User } from '@/lib/types';
 import { formatRoleLabel, getAvatarInitial } from './admin-nav.config';
+import { NotificationBell } from './notifications/notification-bell';
 
 interface AdminHeaderProps {
   user: User;
@@ -47,6 +48,7 @@ export function AdminHeader({
 
       {/* User Information & Quick Actions */}
       <div className="flex items-center gap-3 sm:gap-4">
+        <NotificationBell />
         <div className="flex items-center gap-2.5">
           {/* Avatar / Fallback Initial */}
           {user.avatarUrl ? (

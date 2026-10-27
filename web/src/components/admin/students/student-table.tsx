@@ -1,5 +1,8 @@
 'use client';
 
+import { useRouteQuery } from '@/hooks/use-route-query';
+
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { apiClient } from '@/lib/api-client';
@@ -40,6 +43,11 @@ export function StudentTable({
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
 
+  const [routingFilter, setRoutingFilter] = useState('');
+  useRouteQuery(schoolId, query => {
+    const status = query.get('status'); setStatusFilter(status === 'AVAILABLE' || status === 'DISABLED' ? status : 'ALL');
+    setRoutingFilter(query.get('routingStatus') === 'UNASSIGNED' ? 'UNASSIGNED' : ''); setPage(1);
+  });
   // Data state
   const [students, setStudents] = useState<StudentListItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -82,6 +90,7 @@ export function StudentTable({
         limit,
       };
 
+      if (routingFilter) params.routingStatus = routingFilter;
       if (search.trim()) {
         params.search = search.trim();
       }
@@ -113,7 +122,7 @@ export function StudentTable({
         setIsLoading(false);
       }
     }
-  }, [schoolId, page, limit, search, statusFilter, addressFilter]);
+  }, [schoolId, page, limit, search, statusFilter, addressFilter, routingFilter]);
 
   useEffect(() => {
     fetchStudents();
@@ -246,6 +255,7 @@ export function StudentTable({
         </div>
       )}
 
+      <select aria-label="Phân tuyến" value={routingFilter} onChange={event => { setRoutingFilter(event.target.value); setPage(1); }} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"><option value="">Tất cả phân tuyến</option><option value="UNASSIGNED">Chưa có tuyến</option></select>
       {/* Filter bar */}
       <StudentFilters
         search={search}
@@ -274,10 +284,10 @@ export function StudentTable({
         onReset={() => {
           setSearch('');
           setStatusFilter('ALL');
-          setAddressFilter('ALL');
+          setAddressFilter('ALL'); setRoutingFilter('');
           setPage(1);
         }}
-        hasActiveFilters={Boolean(search || statusFilter !== 'ALL' || addressFilter !== 'ALL')}
+        hasActiveFilters={Boolean(search || statusFilter !== 'ALL' || addressFilter !== 'ALL' || routingFilter !== '')}
       />
 
       {/* Error state */}
@@ -328,7 +338,7 @@ export function StudentTable({
                       </div>
                       <p className="font-medium text-slate-800 text-sm">Chưa có học sinh nào</p>
                       <p className="text-xs text-slate-500">
-                        {search || statusFilter !== 'ALL' || addressFilter !== 'ALL'
+                        {search || statusFilter !== 'ALL' || addressFilter !== 'ALL' || routingFilter !== ''
                           ? 'Không tìm thấy học sinh phù hợp với bộ lọc hiện tại.'
                           : 'Bắt đầu thêm học sinh vào trường của bạn.'}
                       </p>

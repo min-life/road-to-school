@@ -1,3 +1,4 @@
+import { NotificationBell } from '@/components/notification-bell';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
@@ -78,7 +79,7 @@ export default function ParentTrackingScreen() {
     <View style={styles.container}>
       {/* Header Bar */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <View>
+        <View style={styles.headerTitleWrap}>
           <Text style={styles.headerTitle}>Học sinh theo dõi</Text>
           <Text style={styles.headerSubtitle}>
             {students.length > 0
@@ -86,6 +87,7 @@ export default function ParentTrackingScreen() {
               : 'Quản lý thông tin đưa đón học sinh'}
           </Text>
         </View>
+        <NotificationBell />
       </View>
 
       {/* Main Content */}
@@ -181,6 +183,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerTitleWrap: {
+    flex: 1,
+    paddingRight: 12,
   },
   headerTitle: {
     fontSize: 22,

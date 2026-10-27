@@ -433,6 +433,7 @@ export class AuthService {
         },
         data: {
           revokedAt: new Date(),
+            pushToken: null,
         },
       });
     });
@@ -537,6 +538,7 @@ export class AuthService {
         },
         data: {
           revokedAt: new Date(),
+            pushToken: null,
         },
       });
     }
@@ -621,6 +623,7 @@ export class AuthService {
         },
         data: {
           revokedAt: new Date(),
+            pushToken: null,
         },
       });
     });

@@ -1,3 +1,5 @@
+import { notifyPlan } from '../notifications/notification-events.js';
+import { notifyCancelledTrips } from '../notifications/notification-writer.js';
 import {
   Injectable,
   Logger,
@@ -919,6 +921,7 @@ export class SchoolsService {
             },
           });
 
+          await notifyCancelledTrips(tx, tripIds, 'location:' + planIds.slice().sort().join(':'), currentUser.id);
           await tx.leaveNotice.updateMany({
             where: {
               tripId: { in: tripIds },
@@ -945,6 +948,7 @@ export class SchoolsService {
         });
       }
 
+      for (const planId of planIds) await notifyPlan(tx, planId, currentUser.id);
       const updatedSchool = await tx.school.update({
         where: { id: schoolId },
         data: {
@@ -1086,6 +1090,7 @@ export class SchoolsService {
       });
 
       let cancelledTripsCount = 0;
+      const notificationTripIds: string[] = [];
       let updatedTripsCount = 0;
 
       for (const trip of scheduledTrips) {
@@ -1117,7 +1122,7 @@ export class SchoolsService {
             },
           });
 
-          cancelledTripsCount++;
+          cancelledTripsCount++; notificationTripIds.push(trip.id);
         } else {
           // Ngày này vẫn có trong lịch học -> CẬP NHẬT LẠI KHUNG GIỜ
           let depTimeStr: string;
@@ -1170,6 +1175,7 @@ export class SchoolsService {
         }
       }
 
+      await notifyCancelledTrips(tx, notificationTripIds, 'school-schedule:' + schoolId + ':' + new Date().toISOString(), currentUser.id);
       const updatedSchool = await tx.school.update({
         where: { id: schoolId },
         data: {

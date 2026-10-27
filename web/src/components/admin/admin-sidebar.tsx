@@ -18,6 +18,7 @@ import {
   RouteIcon,
   BusIcon,
   CalendarIcon,
+  AlertTriangleIcon,
 } from '@/components/icons';
 import { Role } from '@/lib/types';
 import { getVisibleNavItems, AdminNavItem } from './admin-nav.config';
@@ -58,6 +59,8 @@ export function AdminSidebar({
         return <BusIcon className={iconClass} />;
       case 'leave-notices':
         return <CalendarIcon className={iconClass} />;
+      case 'incidents':
+        return <AlertTriangleIcon className={iconClass} />;
       case 'students':
         return <StudentIcon className={iconClass} />;
       case 'teachers':

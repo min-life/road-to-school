@@ -1,5 +1,8 @@
 'use client';
 
+import { useRouteQuery } from '@/hooks/use-route-query';
+
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { apiClient } from '@/lib/api-client';
@@ -29,6 +32,8 @@ export default function AdminRequestsPage() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
 
+  const [actionableOnly, setActionableOnly] = useState(false);
+  const [filterSchool, setFilterSchool] = useState('');
   // Data state
   const [requests, setRequests] = useState<StudentUpdateRequest[]>([]);
   const [total, setTotal] = useState(0);
@@ -40,6 +45,11 @@ export default function AdminRequestsPage() {
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  useRouteQuery(String(user?.id), query => {
+    const status = query.get('status'); setStatusFilter(status && ['PENDING','APPROVED','REJECTED','CANCELLED'].includes(status) ? status as RequestStatus : '');
+    setActionableOnly(query.get('actionable') === 'true'); setFilterSchool(isSystemAdmin ? query.get('schoolId') || '' : ''); setPage(1);
+    const id = query.get('requestId'); if (id) { setSelectedRequestId(id); setIsModalOpen(true); }
+  });
   // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -57,6 +67,7 @@ export default function AdminRequestsPage() {
 
       if (isSystemAdmin) {
         const res = await apiClient.listSystemAdminRequests({
+          actionable: actionableOnly || undefined, schoolId: filterSchool || undefined,
           page,
           limit,
           status: statusFilter || undefined,
@@ -67,6 +78,7 @@ export default function AdminRequestsPage() {
         setTotalPages(res.totalPages);
       } else if (schoolId) {
         const res = await apiClient.listSchoolRequests(schoolId, {
+          actionable: actionableOnly || undefined,
           page,
           limit,
           status: statusFilter || undefined,
@@ -82,7 +94,7 @@ export default function AdminRequestsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user, isSystemAdmin, schoolId, page, limit, statusFilter, typeFilter, debouncedSearch]);
+  }, [user, isSystemAdmin, schoolId, page, limit, statusFilter, typeFilter, debouncedSearch, actionableOnly, filterSchool]);
 
   useEffect(() => {
     fetchRequests();
@@ -137,6 +149,8 @@ export default function AdminRequestsPage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
+      {actionableOnly && <button type="button" onClick={() => setActionableOnly(false)} className="text-xs font-semibold text-amber-800">Chỉ yêu cầu cần xử lý ×</button>}
+      {filterSchool && <button type="button" onClick={() => setFilterSchool('')} className="text-xs font-semibold text-slate-500">Đang lọc theo trường từ Tổng quan ×</button>}
       {/* Page Title & Scope Notice */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

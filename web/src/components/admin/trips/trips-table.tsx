@@ -1,5 +1,8 @@
 'use client';
 
+import { useRouteQuery } from '@/hooks/use-route-query';
+
+
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useVisibleRefresh } from '@/hooks/use-visible-refresh';
@@ -50,6 +53,13 @@ export function TripsTable({
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  useRouteQuery(String(user?.id) + ':' + String(fixedSchoolId), query => {
+    const from = query.get('fromDate'), to = query.get('toDate'), status = query.get('status');
+    if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) setFromDate(from);
+    if (to && /^\d{4}-\d{2}-\d{2}$/.test(to)) setToDate(to);
+    setSelectedStatus(status && ['SCHEDULED','IN_PROGRESS','COMPLETED','CANCELLED','NOT_CREATED'].includes(status) ? status : '');
+    if (!fixedSchoolId) setSelectedSchoolId(query.get('schoolId') || ''); setPage(1);
+  });
   const activeSchoolId = fixedSchoolId || selectedSchoolId;
 
   // When activeSchoolId changes, fetch school contract dates
@@ -65,6 +75,7 @@ export function TripsTable({
             const end = school.contractEndDate.split('T')[0];
             setContractBounds({ start, end });
 
+            if (new URLSearchParams(window.location.search).has('fromDate')) return;
             // Clamp current dates within contract
             setFromDate((curr) => {
               if (curr < start) return start;

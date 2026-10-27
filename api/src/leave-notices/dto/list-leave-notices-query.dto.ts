@@ -1,9 +1,11 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsDateString, IsEnum, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
+import { IsBoolean, IsDateString, IsEnum, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 import { LeaveNoticeKind, LeaveNoticeStatus, RouteDirection } from '@prisma/client';
 
 export class ListLeaveNoticesQueryDto {
+  @ApiPropertyOptional({ format: 'uuid' }) @IsOptional() @IsUUID() schoolId?: string;
+  @ApiPropertyOptional({ type: Boolean }) @IsOptional() @Transform(({ value }) => value === 'true' ? true : value === 'false' ? false : value) @IsBoolean() actionable?: boolean;
   @ApiPropertyOptional({ description: 'Lọc theo ID học sinh' })
   @IsOptional()
   @IsUUID('4', { message: 'studentId phải là UUID hợp lệ' })

@@ -1,5 +1,8 @@
 'use client';
 
+import { useRouteQuery } from '@/hooks/use-route-query';
+
+
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { apiClient } from '@/lib/api-client';
@@ -37,6 +40,10 @@ export default function RoutePlansPage() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
 
+  useRouteQuery(String(currentUserRole), query => {
+    setSelectedSchoolId(query.get('schoolId') || '');
+    const status = query.get('status'); setSelectedStatus(status && ['DRAFT','ACTIVE','CANCELLED','EXPIRED'].includes(status) ? status : ''); setPage(1);
+  });
   // Modals
   const [isSelectSchoolOpen, setIsSelectSchoolOpen] = useState(false);
 

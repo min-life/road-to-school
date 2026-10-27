@@ -13,6 +13,9 @@ import {
   TextInput,
   Modal,
   Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Pressable,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,6 +32,10 @@ import {
   TripAttendanceStudentItem,
   VerifyQrResponse,
   AttendanceStatus,
+  TripIncident,
+  TripIncidentType,
+  TripIncidentStatus,
+  IncidentOptionsResponse,
 } from '@/services/api-client';
 import { useActiveRefresh } from '@/hooks/use-active-refresh';
 import type { RefreshContext } from '@/utils/refresh-loop';
@@ -48,7 +55,7 @@ const FIXED_BOTTOM_ACTION_HEIGHT = 74;
 export default function MobileTripDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string; incidentId?: string }>();
   const tripId = params.id;
   const { user } = useAuth();
 
@@ -96,10 +103,22 @@ export default function MobileTripDetailScreen() {
   const isDriver = user?.role === 'DRIVER';
   const isParent = user?.role === 'PARENT';
 
-  const [activeTab, setActiveTab] = useState<'INFO' | 'STOPS' | 'ATTENDANCE'>(
+  const [activeTab, setActiveTab] = useState<'INFO' | 'STOPS' | 'ATTENDANCE' | 'INCIDENTS'>(
     isBusAttendant ? 'ATTENDANCE' : 'INFO'
   );
   const [attendanceSubTab, setAttendanceSubTab] = useState<'boarding' | 'alighting'>('boarding');
+
+  // Operational Incidents state
+  const [incidentOptions, setIncidentOptions] = useState<IncidentOptionsResponse | null>(null);
+  const [tripIncidents, setTripIncidents] = useState<TripIncident[]>([]);
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [reportingIncident, setReportingIncident] = useState(false);
+  const [incidentNote, setIncidentNote] = useState('');
+  const [dismissedPendingIncidentIds, setDismissedPendingIncidentIds] = useState<Set<string>>(new Set());
+  const [activeConfirmIncident, setActiveConfirmIncident] = useState<TripIncident | null>(null);
+  const [confirmReason, setConfirmReason] = useState('');
+  const [confirmingIncident, setConfirmingIncident] = useState(false);
+  const hasAutoPromptedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     isExpandedRef.current = isExpanded;
@@ -214,7 +233,7 @@ export default function MobileTripDetailScreen() {
     if (!tripId || !user) return;
     try {
       const refreshMetadata = immediate || !trip || Date.now() - metadataAt.current >= 20000;
-      const [state, roster, detail, location] = await Promise.all([
+      const [state, roster, detail, location, incidents, options] = await Promise.all([
         mobileApiClient.getOperationalState(tripId),
         isDriverOrAttendant ? mobileApiClient.getTripAttendance(tripId) : Promise.resolve(null),
         refreshMetadata ? mobileApiClient.getMobileTripDetail(tripId) : Promise.resolve(null),
@@ -222,11 +241,15 @@ export default function MobileTripDetailScreen() {
           if ([401, 403, 404].includes(err?.statusCode)) throw err;
           return null; // Telemetry failures must not break Trip Operations.
         }),
+        mobileApiClient.getTripIncidents(tripId).catch(() => []),
+        isDriverOrAttendant ? mobileApiClient.getIncidentOptions(tripId).catch(() => null) : Promise.resolve(null),
       ]);
       if (!isCurrent()) return;
       setOperationalState(state);
       if (roster) setAttendanceRoster(roster.students || []);
       if (detail) { setTrip(detail); metadataAt.current = Date.now(); }
+      if (incidents) setTripIncidents(incidents);
+      if (options) setIncidentOptions(options);
       if (location) { setNavigation(location); void engine.observe(location); }
       else setNavigation(previous => previous ? { ...previous, freshness: 'STALE' } : null);
       if ((state.status === 'COMPLETED' || state.status === 'CANCELLED') && !historyLoaded.current) {
@@ -263,6 +286,88 @@ export default function MobileTripDetailScreen() {
     }
   }, [operationalState?.status, operationalState?.isSchoolArrived, operationalState?.isAttendantReady,
     operationalState?.canStartTrip, operationalState?.canArriveAtSchool, operationalState?.canCompleteTrip]);
+
+  // Bus Attendant pending unconfirmed auto-incident
+  const handledNotificationIncident = useRef<string | null>(null);
+  useEffect(() => {
+    if (!params.incidentId || handledNotificationIncident.current === params.incidentId) return;
+    const incident = tripIncidents.find(item => item.id === params.incidentId);
+    if (!incident) return;
+    handledNotificationIncident.current = params.incidentId;
+    setActiveTab('INCIDENTS');
+    if (!isExpandedRef.current) toggleSheet();
+    if (isBusAttendant && incident.status === 'WAITING_CONFIRMATION' && operationalState?.status === 'IN_PROGRESS') {
+      hasAutoPromptedRef.current.add(incident.id); setActiveConfirmIncident(incident);
+    }
+  }, [params.incidentId, tripIncidents, isBusAttendant, operationalState?.status, toggleSheet]);
+  const unconfirmedPendingIncident = useMemo(() => {
+    if (!isBusAttendant) return null;
+    return (
+      tripIncidents.find(
+        (inc) =>
+          (inc.status === 'WAITING_CONFIRMATION' ||
+            inc.status === ('PENDING_CONFIRMATION' as any)) &&
+          (inc.type === 'OFF_ROUTE' || inc.type === 'LATE_STOP')
+      ) || null
+    );
+  }, [isBusAttendant, tripIncidents]);
+
+  // Auto prompt popup queue when pending incident appears
+  useEffect(() => {
+    if (
+      unconfirmedPendingIncident &&
+      !dismissedPendingIncidentIds.has(unconfirmedPendingIncident.id) &&
+      !hasAutoPromptedRef.current.has(unconfirmedPendingIncident.id) &&
+      !activeConfirmIncident
+    ) {
+      hasAutoPromptedRef.current.add(unconfirmedPendingIncident.id);
+      setActiveConfirmIncident(unconfirmedPendingIncident);
+    }
+  }, [unconfirmedPendingIncident, dismissedPendingIncidentIds, activeConfirmIncident]);
+
+  const handleReportIncident = async () => {
+    const reportType =
+      incidentOptions?.availableTypes?.[0] ||
+      (isDriver ? 'ATTENDANT_MISSING' : 'DRIVER_MISSING');
+    if (!tripId || !reportType) return;
+    try {
+      setReportingIncident(true);
+      await mobileApiClient.createManualIncident({
+        tripId,
+        type: reportType,
+        note: incidentNote.trim() || undefined,
+      });
+      Alert.alert('Thành công', 'Đã ghi nhận báo cáo sự cố vận hành.');
+      setReportModalVisible(false);
+      setIncidentNote('');
+      loadTripDetail();
+    } catch (err: any) {
+      Alert.alert('Lỗi', err?.message || 'Không thể báo sự cố. Vui lòng thử lại.');
+    } finally {
+      setReportingIncident(false);
+    }
+  };
+
+  const handleConfirmAutoIncident = async () => {
+    if (!activeConfirmIncident) return;
+    const trimmed = confirmReason.trim();
+    if (!trimmed || trimmed.length < 3) {
+      Alert.alert('Lưu ý', 'Vui lòng nhập lý do giải trình cụ thể (tối thiểu 3 ký tự).');
+      return;
+    }
+    try {
+      setConfirmingIncident(true);
+      await mobileApiClient.confirmAutoIncident(activeConfirmIncident.id, trimmed);
+      Alert.alert('Thành công', 'Đã gửi xác nhận và giải trình sự cố.');
+      setActiveConfirmIncident(null);
+      setConfirmReason('');
+      loadTripDetail();
+    } catch (err: any) {
+      Alert.alert('Lỗi', err?.message || 'Không thể xác nhận sự cố. Vui lòng thử lại.');
+    } finally {
+      setConfirmingIncident(false);
+    }
+  };
 
   const tilemapKey =
     process.env.EXPO_PUBLIC_VIETMAP_TILEMAP_KEY ||
@@ -852,8 +957,18 @@ export default function MobileTripDetailScreen() {
         </View>
       )}
 
-      {/* Floating Back Button */}
-      <View style={[styles.floatingHeader, { top: insets.top + 10 }]}>
+      {/* Floating Header (Back Button & Báo sự cố Button) */}
+      <View
+        pointerEvents="box-none"
+        style={[
+          styles.floatingHeader,
+          {
+            top: insets.top + 10,
+            left: 16,
+            right: 16,
+          },
+        ]}
+      >
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.floatingBackButton}
@@ -861,7 +976,79 @@ export default function MobileTripDetailScreen() {
         >
           <Ionicons name="arrow-back" size={22} color="#0F172A" />
         </TouchableOpacity>
+
+        {/* Báo sự cố Button (Only for assigned staff on SCHEDULED trips) */}
+        {isDriverOrAttendant && (trip?.status === 'SCHEDULED' || incidentOptions?.canReport) && (
+          <TouchableOpacity
+            style={[
+              styles.reportIncidentFloatingBtn,
+              incidentOptions && !incidentOptions.canReport && styles.reportIncidentFloatingBtnDisabled,
+            ]}
+            onPress={() => {
+              if (incidentOptions && !incidentOptions.canReport) {
+                const reasonMap: Record<string, string> = {
+                  ATTENDANT_ALREADY_READY: 'Giáo viên phụ xe đã xác nhận sẵn sàng khởi hành.',
+                  INCIDENT_ALREADY_OPEN: 'Đang có báo cáo sự cố chưa được xử lý.',
+                  TRIP_NOT_SCHEDULED: 'Chuyến xe đã bắt đầu hoặc không ở trạng thái chờ khởi hành.',
+                  TOO_EARLY: `Chưa đến khung giờ báo sự cố (bắt đầu từ ${
+                    incidentOptions.reportAvailableAt
+                      ? new Date(incidentOptions.reportAvailableAt).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : '15 phút trước giờ chạy'
+                  }).`,
+                  SCHEDULED_END_TIME_EXCEEDED: 'Chuyến xe đã quá giờ kết thúc dự kiến.',
+                  NOT_ASSIGNED_DRIVER: 'Bạn không phải tài xế được phân công cho chuyến này.',
+                  NOT_ASSIGNED_ATTENDANT: 'Bạn không phải phụ xe được phân công cho chuyến này.',
+                  MISSING_SCHEDULE_TIMES: 'Chuyến xe chưa có thông tin giờ bắt đầu/kết thúc lịch trình.',
+                };
+                Alert.alert(
+                  'Không thể báo sự cố',
+                  reasonMap[incidentOptions.disabledReason || ''] ||
+                    'Hiện tại chuyến xe chưa đủ điều kiện để báo sự cố.',
+                );
+                return;
+              }
+              setReportModalVisible(true);
+            }}
+            activeOpacity={0.85}
+          >
+            <Ionicons
+              name="warning"
+              size={15}
+              color={incidentOptions && !incidentOptions.canReport ? '#94A3B8' : '#DC2626'}
+            />
+            <Text
+              style={[
+                styles.reportIncidentFloatingBtnText,
+                incidentOptions && !incidentOptions.canReport && { color: '#94A3B8' },
+              ]}
+            >
+              Báo sự cố
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
+
+      {/* Bus Attendant Unconfirmed Incident Warning Banner */}
+      {unconfirmedPendingIncident && (
+        <View style={[styles.floatingWarningBanner, { top: insets.top + 60 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+            <Ionicons name="warning" size={16} color="#B45309" />
+            <Text style={styles.floatingWarningBannerText} numberOfLines={1}>
+              Cần xác nhận: {unconfirmedPendingIncident.type === 'OFF_ROUTE' ? 'Lệch tuyến' : 'Trễ đón/trả'}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.floatingWarningBannerBtn}
+            onPress={() => setActiveConfirmIncident(unconfirmedPendingIncident)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.floatingWarningBannerBtnText}>Giải trình</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* 2. Persistent 2-State Draggable Bottom Sheet */}
       <Animated.View
@@ -905,6 +1092,43 @@ export default function MobileTripDetailScreen() {
                     {isToSchool ? 'Chiều đi' : 'Chiều về'}
                   </Text>
                 </View>
+
+                {unconfirmedPendingIncident ? (
+                  <TouchableOpacity
+                    style={[
+                      styles.incidentHeaderBadge,
+                      { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5', borderWidth: 1 },
+                    ]}
+                    onPress={() => setActiveConfirmIncident(unconfirmedPendingIncident)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="alert-circle" size={12} color="#DC2626" />
+                    <Text
+                      style={[
+                        styles.incidentHeaderBadgeText,
+                        { color: '#DC2626', fontWeight: '700' },
+                      ]}
+                    >
+                      Cần giải trình
+                    </Text>
+                  </TouchableOpacity>
+                ) : tripIncidents.length > 0 ? (
+                  <TouchableOpacity
+                    style={styles.incidentHeaderBadge}
+                    onPress={() => {
+                      if (!isExpandedRef.current) {
+                        animateTo(EXPANDED_HEIGHT);
+                      }
+                      setActiveTab('INCIDENTS');
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="warning" size={12} color="#DC2626" />
+                    <Text style={styles.incidentHeaderBadgeText}>
+                      {tripIncidents.length} sự cố
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
 
               <Text style={styles.sheetTimeText}>
@@ -934,65 +1158,193 @@ export default function MobileTripDetailScreen() {
         {/* Expanded Content with Tabs */}
         {isExpanded && (
           <View style={styles.expandedContent}>
-            {/* Tab Switcher */}
-            <View style={styles.tabBar}>
-              <TouchableOpacity
-                onPress={() => setActiveTab('INFO')}
-                style={[styles.tabButton, activeTab === 'INFO' && styles.tabButtonActive]}
-              >
-                <Ionicons
-                  name="information-circle-outline"
-                  size={16}
-                  color={activeTab === 'INFO' ? '#D97706' : '#64748B'}
-                />
-                <Text
-                  style={[
-                    styles.tabButtonText,
-                    activeTab === 'INFO' && styles.tabButtonTextActive,
-                  ]}
-                >
-                  Thông tin
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => setActiveTab('STOPS')}
-                style={[styles.tabButton, activeTab === 'STOPS' && styles.tabButtonActive]}
-              >
-                <Ionicons
-                  name="location-outline"
-                  size={16}
-                  color={activeTab === 'STOPS' ? '#D97706' : '#64748B'}
-                />
-                <Text
-                  style={[
-                    styles.tabButtonText,
-                    activeTab === 'STOPS' && styles.tabButtonTextActive,
-                  ]}
-                >
-                  Điểm đón ({trip.stops?.length || 0})
-                </Text>
-              </TouchableOpacity>
-
-              {isDriverOrAttendant && (
+            {/* Bus Attendant In-Sheet Warning Banner */}
+            {unconfirmedPendingIncident && (
+              <View style={styles.sheetWarningBanner}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                  <Ionicons name="warning" size={16} color="#B45309" />
+                  <Text style={styles.sheetWarningBannerText} numberOfLines={1}>
+                    Cần xác nhận: {unconfirmedPendingIncident.type === 'OFF_ROUTE' ? 'Lệch tuyến' : 'Trễ đón/trả'}
+                  </Text>
+                </View>
                 <TouchableOpacity
-                  onPress={() => setActiveTab('ATTENDANCE')}
-                  style={[styles.tabButton, activeTab === 'ATTENDANCE' && styles.tabButtonActive]}
+                  style={styles.sheetWarningBannerBtn}
+                  onPress={() => setActiveConfirmIncident(unconfirmedPendingIncident)}
+                  activeOpacity={0.8}
                 >
-                  <Ionicons
-                    name="checkbox-outline"
-                    size={16}
-                    color={activeTab === 'ATTENDANCE' ? '#D97706' : '#64748B'}
-                  />
-                  <Text
+                  <Text style={styles.sheetWarningBannerBtnText}>Giải trình ngay</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Tab Switcher */}
+            <View style={styles.tabBarWrapper}>
+              {!isDriverOrAttendant ? (
+                /* PARENT: Exactly 3 tabs, fixed width flex: 1, 100% visible on any screen without scrolling */
+                <View style={styles.tabBarParent}>
+                  <TouchableOpacity
+                    onPress={() => setActiveTab('INFO')}
                     style={[
-                      styles.tabButtonText,
-                      activeTab === 'ATTENDANCE' && styles.tabButtonTextActive,
+                      styles.tabButton,
+                      styles.tabButtonParent,
+                      activeTab === 'INFO' && styles.tabButtonActive,
                     ]}
                   >
-                    Điểm danh ({operationalState?.markedCount || 0}/{operationalState?.totalStudents || 0})
-                  </Text>
-                </TouchableOpacity>
+                    <Ionicons
+                      name="information-circle-outline"
+                      size={15}
+                      color={activeTab === 'INFO' ? '#D97706' : '#64748B'}
+                    />
+                    <Text
+                      style={[
+                        styles.tabButtonText,
+                        styles.tabButtonTextParent,
+                        activeTab === 'INFO' && styles.tabButtonTextActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      Thông tin
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => setActiveTab('STOPS')}
+                    style={[
+                      styles.tabButton,
+                      styles.tabButtonParent,
+                      activeTab === 'STOPS' && styles.tabButtonActive,
+                    ]}
+                  >
+                    <Ionicons
+                      name="location-outline"
+                      size={15}
+                      color={activeTab === 'STOPS' ? '#D97706' : '#64748B'}
+                    />
+                    <Text
+                      style={[
+                        styles.tabButtonText,
+                        styles.tabButtonTextParent,
+                        activeTab === 'STOPS' && styles.tabButtonTextActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      Điểm đón ({trip.stops?.length || 0})
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => setActiveTab('INCIDENTS')}
+                    style={[
+                      styles.tabButton,
+                      styles.tabButtonParent,
+                      activeTab === 'INCIDENTS' && styles.tabButtonActiveIncident,
+                    ]}
+                  >
+                    <Ionicons
+                      name="warning-outline"
+                      size={15}
+                      color={activeTab === 'INCIDENTS' ? '#DC2626' : '#64748B'}
+                    />
+                    <Text
+                      style={[
+                        styles.tabButtonText,
+                        styles.tabButtonTextParent,
+                        activeTab === 'INCIDENTS' && styles.tabButtonTextActive,
+                        activeTab === 'INCIDENTS' && { color: '#DC2626' },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      Sự cố ({tripIncidents.length})
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                /* DRIVER / ATTENDANT: Horizontally scrollable 4 tabs */
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.tabBar}
+                >
+                  <TouchableOpacity
+                    onPress={() => setActiveTab('INFO')}
+                    style={[styles.tabButton, activeTab === 'INFO' && styles.tabButtonActive]}
+                  >
+                    <Ionicons
+                      name="information-circle-outline"
+                      size={15}
+                      color={activeTab === 'INFO' ? '#D97706' : '#64748B'}
+                    />
+                    <Text
+                      style={[
+                        styles.tabButtonText,
+                        activeTab === 'INFO' && styles.tabButtonTextActive,
+                      ]}
+                    >
+                      Thông tin
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => setActiveTab('STOPS')}
+                    style={[styles.tabButton, activeTab === 'STOPS' && styles.tabButtonActive]}
+                  >
+                    <Ionicons
+                      name="location-outline"
+                      size={15}
+                      color={activeTab === 'STOPS' ? '#D97706' : '#64748B'}
+                    />
+                    <Text
+                      style={[
+                        styles.tabButtonText,
+                        activeTab === 'STOPS' && styles.tabButtonTextActive,
+                      ]}
+                    >
+                      Điểm đón ({trip.stops?.length || 0})
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => setActiveTab('ATTENDANCE')}
+                    style={[styles.tabButton, activeTab === 'ATTENDANCE' && styles.tabButtonActive]}
+                  >
+                    <Ionicons
+                      name="checkbox-outline"
+                      size={15}
+                      color={activeTab === 'ATTENDANCE' ? '#D97706' : '#64748B'}
+                    />
+                    <Text
+                      style={[
+                        styles.tabButtonText,
+                        activeTab === 'ATTENDANCE' && styles.tabButtonTextActive,
+                      ]}
+                    >
+                      Điểm danh ({operationalState?.markedCount || 0}/{operationalState?.totalStudents || 0})
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => setActiveTab('INCIDENTS')}
+                    style={[
+                      styles.tabButton,
+                      activeTab === 'INCIDENTS' && styles.tabButtonActiveIncident,
+                    ]}
+                  >
+                    <Ionicons
+                      name="warning-outline"
+                      size={15}
+                      color={activeTab === 'INCIDENTS' ? '#DC2626' : '#64748B'}
+                    />
+                    <Text
+                      style={[
+                        styles.tabButtonText,
+                        activeTab === 'INCIDENTS' && styles.tabButtonTextActive,
+                        activeTab === 'INCIDENTS' && { color: '#DC2626' },
+                      ]}
+                    >
+                      Sự cố ({tripIncidents.length})
+                    </Text>
+                  </TouchableOpacity>
+                </ScrollView>
               )}
             </View>
 
@@ -1516,6 +1868,159 @@ export default function MobileTripDetailScreen() {
                 )}
               </View>
             )}
+
+            {/* TAB 4: SỰ CỐ VẬN HÀNH */}
+            {activeTab === 'INCIDENTS' && (
+              <ScrollView style={styles.tabContentScroll} showsVerticalScrollIndicator={false}>
+                {tripIncidents.length === 0 ? (
+                  <View style={styles.emptyIncidentsBox}>
+                    <Ionicons name="checkmark-circle-outline" size={40} color="#10B981" />
+                    <Text style={styles.emptyIncidentsTitle}>Không có sự cố</Text>
+                    <Text style={styles.emptyIncidentsSubtitle}>
+                      Chuyến xe này không ghi nhận sự cố vận hành nào.
+                    </Text>
+                  </View>
+                ) : (
+                  tripIncidents.map((incident) => {
+                    const isAttendantMissing = incident.type === 'ATTENDANT_MISSING';
+                    const isDriverMissing = incident.type === 'DRIVER_MISSING';
+                    const isOffRoute = incident.type === 'OFF_ROUTE';
+                    const isLateStop = incident.type === 'LATE_STOP';
+
+                    const typeBadgeText = isAttendantMissing
+                      ? 'Vắng phụ xe'
+                      : isDriverMissing
+                      ? 'Vắng tài xế'
+                      : isOffRoute
+                      ? 'Lệch tuyến'
+                      : isLateStop
+                      ? 'Trễ đón/trả'
+                      : incident.type;
+
+                    const typeBadgeBg = isOffRoute ? '#FEE2E2' : isLateStop ? '#FFEDD5' : '#FEF3C7';
+                    const typeBadgeColor = isOffRoute ? '#DC2626' : isLateStop ? '#C2410C' : '#B45309';
+
+                    const isPendingConfirmation =
+                      incident.status === 'WAITING_CONFIRMATION' ||
+                      incident.status === ('PENDING_CONFIRMATION' as any);
+                    const isClosed =
+                      incident.status === 'CLOSED' ||
+                      incident.status === ('CLOSED_WITHOUT_CONFIRMATION' as any);
+
+                    const statusBadgeText =
+                      incident.status === 'WAITING_ASSIGNMENT'
+                        ? 'Chờ phân công'
+                        : isPendingConfirmation
+                        ? 'Chờ xác nhận'
+                        : incident.status === 'RESOLVED'
+                        ? 'Đã giải quyết'
+                        : incident.status === 'CONFIRMED'
+                        ? 'Đã xác nhận'
+                        : isClosed
+                        ? 'Đóng tự động'
+                        : incident.status;
+
+                    const statusBadgeBg =
+                      incident.status === 'WAITING_ASSIGNMENT'
+                        ? '#FEF3C7'
+                        : isPendingConfirmation
+                        ? '#EFF6FF'
+                        : incident.status === 'RESOLVED' || incident.status === 'CONFIRMED'
+                        ? '#DCFCE7'
+                        : '#F1F5F9';
+
+                    const statusBadgeColor =
+                      incident.status === 'WAITING_ASSIGNMENT'
+                        ? '#B45309'
+                        : isPendingConfirmation
+                        ? '#1D4ED8'
+                        : incident.status === 'RESOLVED' || incident.status === 'CONFIRMED'
+                        ? '#15803D'
+                        : '#64748B';
+
+                    return (
+                      <View key={incident.id} style={styles.incidentTripCard}>
+                        <View style={styles.incidentCardHeader}>
+                          <View style={[styles.badgePill, { backgroundColor: typeBadgeBg }]}>
+                            <Ionicons name="warning-outline" size={13} color={typeBadgeColor} />
+                            <Text style={[styles.badgePillText, { color: typeBadgeColor }]}>
+                              {typeBadgeText}
+                            </Text>
+                          </View>
+
+                          <View style={[styles.badgePill, { backgroundColor: statusBadgeBg }]}>
+                            <Text style={[styles.badgePillText, { color: statusBadgeColor }]}>
+                              {statusBadgeText}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {!isParent && incident.description ? (
+                          <Text style={styles.incidentDesc}>{incident.description}</Text>
+                        ) : null}
+
+                        {!isParent && incident.contextData && (
+                          <View style={styles.incidentContextBox}>
+                            {incident.contextData.recordedDistanceMeters !== undefined && (
+                              <Text style={styles.incidentContextItem}>
+                                • Khoảng cách lệch: {Math.round(incident.contextData.recordedDistanceMeters)}m
+                              </Text>
+                            )}
+                            {incident.contextData.recordedDelayMinutes !== undefined && (
+                              <Text style={styles.incidentContextItem}>
+                                • Dự kiến trễ: {Math.round(incident.contextData.recordedDelayMinutes)} phút
+                              </Text>
+                            )}
+                          </View>
+                        )}
+
+                        {!isParent && incident.resolutionType && (
+                          <View style={styles.incidentResBox}>
+                            <Text style={styles.incidentResLabel}>
+                              Xử lý: {
+                                incident.resolutionType === 'ARRIVED'
+                                  ? 'Nhân sự đã có mặt'
+                                  : incident.resolutionType === 'REPLACED'
+                                  ? `Thay thế: ${incident.replacementUserName || 'Người khác'}`
+                                  : incident.resolutionType === 'CANCELLED_TRIP'
+                                  ? 'Đã hủy chuyến'
+                                  : incident.resolutionType === 'CONFIRMED'
+                                  ? 'Phụ xe đã giải trình'
+                                  : incident.resolutionType
+                              }
+                            </Text>
+                            {incident.resolutionNote ? (
+                              <Text style={styles.incidentResNote}>
+                                Ghi chú: {incident.resolutionNote}
+                              </Text>
+                            ) : null}
+                          </View>
+                        )}
+
+                        <View style={styles.incidentCardFooter}>
+                          <Text style={styles.incidentTimeText}>
+                            {new Date(incident.createdAt).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })} • {new Date(incident.createdAt).toLocaleDateString('vi-VN')}
+                          </Text>
+
+                          {isBusAttendant && isPendingConfirmation && (
+                            <TouchableOpacity
+                              style={styles.incidentConfirmSmallBtn}
+                              onPress={() => setActiveConfirmIncident(incident)}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={styles.incidentConfirmSmallBtnText}>Giải trình ngay</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      </View>
+                    );
+                  })
+                )}
+              </ScrollView>
+            )}
           </View>
         )}
       </Animated.View>
@@ -1754,6 +2259,226 @@ export default function MobileTripDetailScreen() {
           )}
         </View>
       </Modal>
+
+      {/* Report Incident Modal */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={reportModalVisible}
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setReportModalVisible(false);
+          setIncidentNote('');
+        }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeaderRow}>
+              <View style={[styles.badgePill, { backgroundColor: '#FEE2E2' }]}>
+                <Ionicons name="warning" size={14} color="#DC2626" />
+                <Text style={[styles.badgePillText, { color: '#DC2626' }]}>
+                  Báo sự cố vận hành
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setReportModalVisible(false);
+                  setIncidentNote('');
+                }}
+                disabled={reportingIncident}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Pinned Trip Info */}
+            <View style={styles.pinnedTripBox}>
+              <Text style={styles.pinnedTripTitle}>{trip?.routeName}</Text>
+              <Text style={styles.pinnedTripSub}>
+                {trip?.serviceDate} • {trip?.vehiclePlate || '—'} • {isToSchool ? 'Chiều đi' : 'Chiều về'}
+              </Text>
+            </View>
+
+            {/* Incident Type display */}
+            <View style={styles.incidentTargetBox}>
+              <Text style={styles.incidentTargetLabel}>Loại sự cố báo cáo:</Text>
+              <Text style={styles.incidentTargetValue}>
+                {isDriver ? 'Vắng phụ xe (Giáo viên)' : 'Vắng tài xế'}
+              </Text>
+              {(incidentOptions?.expectedAssignee || (isDriver ? trip?.busAttendantName : trip?.driverName)) && (
+                <Text style={styles.incidentTargetSub}>
+                  Nhân sự dự kiến: {incidentOptions?.expectedAssignee?.fullName || (isDriver ? trip?.busAttendantName : trip?.driverName)}
+                </Text>
+              )}
+            </View>
+
+            {/* Note input Header with Dismiss Button */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={styles.incidentTargetLabel}>Ghi chú thêm:</Text>
+              <TouchableOpacity
+                onPress={Keyboard.dismiss}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={styles.keyboardDismissBtn}
+              >
+                <Ionicons name="chevron-down-outline" size={13} color="#64748B" />
+                <Text style={styles.keyboardDismissBtnText}>Ẩn phím</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Note input */}
+            <TextInput
+              style={styles.incidentNoteInput}
+              placeholder="Nhập ghi chú chi tiết về tình huống (không bắt buộc)..."
+              placeholderTextColor="#94A3B8"
+              multiline
+              numberOfLines={3}
+              value={incidentNote}
+              onChangeText={setIncidentNote}
+            />
+
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setReportModalVisible(false);
+                  setIncidentNote('');
+                }}
+                disabled={reportingIncident}
+              >
+                <Text style={styles.modalCancelBtnText}>Hủy bỏ</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalConfirmBtn, { backgroundColor: '#DC2626' }]}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  handleReportIncident();
+                }}
+                disabled={reportingIncident}
+              >
+                {reportingIncident ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalConfirmBtnText}>Gửi báo cáo</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Bus Attendant Auto Incident Confirmation Popup */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={Boolean(activeConfirmIncident)}
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setActiveConfirmIncident(null);
+          setConfirmReason('');
+        }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeaderRow}>
+              <View style={[styles.badgePill, { backgroundColor: '#FFEDD5' }]}>
+                <Ionicons name="alert-circle" size={14} color="#C2410C" />
+                <Text style={[styles.badgePillText, { color: '#C2410C' }]}>
+                  {activeConfirmIncident?.type === 'OFF_ROUTE'
+                    ? 'Xác nhận lệch tuyến'
+                    : 'Xác nhận trễ đón/trả'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setActiveConfirmIncident(null);
+                  setConfirmReason('');
+                }}
+                disabled={confirmingIncident}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.confirmModalTitle}>Giải trình sự cố tự động</Text>
+            <Text style={styles.confirmModalDesc}>
+              {activeConfirmIncident?.description ||
+                'Hệ thống phát hiện dấu hiệu bất thường trong quá trình di chuyển.'}
+            </Text>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={styles.confirmReasonLabel}>Lý do / Giải trình (bắt buộc):</Text>
+              <TouchableOpacity
+                onPress={Keyboard.dismiss}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={styles.keyboardDismissBtn}
+              >
+                <Ionicons name="chevron-down-outline" size={13} color="#64748B" />
+                <Text style={styles.keyboardDismissBtnText}>Ẩn phím</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              style={styles.confirmReasonInput}
+              placeholder="VD: Tuyến đường thi công phải đi vòng, tắc đường đột xuất..."
+              placeholderTextColor="#94A3B8"
+              multiline
+              numberOfLines={3}
+              value={confirmReason}
+              onChangeText={setConfirmReason}
+            />
+
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity
+                style={styles.modalLaterBtn}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  if (activeConfirmIncident) {
+                    setDismissedPendingIncidentIds((prev) => new Set(prev).add(activeConfirmIncident.id));
+                  }
+                  setActiveConfirmIncident(null);
+                  setConfirmReason('');
+                }}
+                disabled={confirmingIncident}
+              >
+                <Text style={styles.modalLaterBtnText}>Để sau</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.modalConfirmBtn,
+                  { backgroundColor: '#059669' },
+                  (!confirmReason.trim() || confirmReason.trim().length < 3) && styles.btnDisabled,
+                ]}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  handleConfirmAutoIncident();
+                }}
+                disabled={confirmingIncident || !confirmReason.trim() || confirmReason.trim().length < 3}
+              >
+                {confirmingIncident ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalConfirmBtnText}>Xác nhận & Gửi</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -1821,6 +2546,10 @@ const styles = StyleSheet.create({
   floatingHeader: {
     position: 'absolute',
     left: 16,
+    right: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     zIndex: 10,
   },
   floatingBackButton: {
@@ -1835,6 +2564,300 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 4,
+  },
+  reportIncidentFloatingBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  reportIncidentFloatingBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  reportIncidentFloatingBtnDisabled: {
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+  },
+  floatingWarningBanner: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    zIndex: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  floatingWarningBannerText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#B45309',
+  },
+  floatingWarningBannerBtn: {
+    backgroundColor: '#D97706',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  floatingWarningBannerBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  sheetWarningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginHorizontal: 16,
+    marginBottom: 8,
+  },
+  sheetWarningBannerText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#B45309',
+  },
+  sheetWarningBannerBtn: {
+    backgroundColor: '#D97706',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  sheetWarningBannerBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  emptyIncidentsBox: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  emptyIncidentsTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  emptyIncidentsSubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+  },
+  incidentTripCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 12,
+    marginBottom: 10,
+    gap: 8,
+  },
+  incidentCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  badgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  badgePillText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  incidentDesc: {
+    fontSize: 13,
+    color: '#334155',
+    lineHeight: 18,
+  },
+  incidentContextBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    padding: 8,
+    gap: 4,
+  },
+  incidentContextItem: {
+    fontSize: 12,
+    color: '#475569',
+  },
+  incidentResBox: {
+    backgroundColor: '#F0FDF4',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#DCFCE7',
+    padding: 8,
+    gap: 2,
+  },
+  incidentResLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#15803D',
+  },
+  incidentResNote: {
+    fontSize: 12,
+    color: '#166534',
+  },
+  incidentCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 8,
+  },
+  incidentTimeText: {
+    fontSize: 11,
+    color: '#94A3B8',
+  },
+  incidentConfirmSmallBtn: {
+    backgroundColor: '#059669',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  incidentConfirmSmallBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  pinnedTripBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 10,
+    gap: 2,
+  },
+  pinnedTripTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  pinnedTripSub: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  incidentTargetBox: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#FEF3C7',
+    padding: 10,
+    gap: 2,
+  },
+  incidentTargetLabel: {
+    fontSize: 12,
+    color: '#B45309',
+  },
+  incidentTargetValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#B45309',
+  },
+  incidentTargetSub: {
+    fontSize: 12,
+    color: '#92400E',
+  },
+  incidentNoteInput: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    padding: 10,
+    fontSize: 13,
+    color: '#1E293B',
+    textAlignVertical: 'top',
+    minHeight: 70,
+  },
+  confirmModalTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  confirmModalDesc: {
+    fontSize: 13,
+    color: '#475569',
+    lineHeight: 18,
+  },
+  confirmReasonLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  keyboardDismissBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  keyboardDismissBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  confirmReasonInput: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    padding: 10,
+    fontSize: 13,
+    color: '#1E293B',
+    textAlignVertical: 'top',
+    minHeight: 70,
+  },
+  modalLaterBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalLaterBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#475569',
   },
   bottomSheet: {
     position: 'absolute',
@@ -1910,11 +2933,22 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
   },
-  tabBar: {
-    flexDirection: 'row',
+  tabBarWrapper: {
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
     marginBottom: 12,
+  },
+  tabBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingRight: 16,
+  },
+  tabBarParent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    justifyContent: 'space-between',
   },
   tabButton: {
     flexDirection: 'row',
@@ -1925,17 +2959,46 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
+  tabButtonParent: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    gap: 4,
+  },
   tabButtonActive: {
     borderBottomColor: '#D97706',
+  },
+  tabButtonActiveIncident: {
+    borderBottomColor: '#DC2626',
   },
   tabButtonText: {
     fontSize: 13,
     color: '#64748B',
     fontWeight: '500',
   },
+  tabButtonTextParent: {
+    fontSize: 12,
+  },
   tabButtonTextActive: {
     color: '#D97706',
     fontWeight: '700',
+  },
+  incidentHeaderBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FECACA',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginLeft: 6,
+  },
+  incidentHeaderBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#DC2626',
   },
   tabContentScroll: {
     flex: 1,

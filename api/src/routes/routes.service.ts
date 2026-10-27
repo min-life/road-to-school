@@ -1,3 +1,5 @@
+import { notifyPlan } from '../notifications/notification-events.js';
+import { notifyCancelledTrips } from '../notifications/notification-writer.js';
 import {
   BadRequestException,
   ConflictException,
@@ -1243,6 +1245,7 @@ export class RoutesService {
         }
       }
 
+      await notifyPlan(tx, plan.id, currentUser.id);
       return plan;
     });
 
@@ -1682,6 +1685,7 @@ export class RoutesService {
 
     const routeIds = (plan.routes || []).map((r) => r.id);
     let cancelledTripsCount = 0;
+    let notifiedTripIds: string[] = [];
 
     await this.prisma.$transaction(async (tx) => {
       // 1. Cascade hủy các chuyến xe SCHEDULED liên quan
@@ -1696,6 +1700,7 @@ export class RoutesService {
 
         cancelledTripsCount = scheduledTrips.length;
         const scheduledTripIds = scheduledTrips.map((t) => t.id);
+        notifiedTripIds = scheduledTripIds;
 
         if (scheduledTripIds.length > 0) {
           await tx.trip.updateMany({
@@ -1722,6 +1727,7 @@ export class RoutesService {
         }
       }
 
+      await notifyCancelledTrips(tx, notifiedTripIds, 'plan:' + id, currentUser.id);
       // 2. Chuyển trạng thái RoutePlan sang CANCELLED
       await tx.routePlan.update({
         where: { id },
@@ -1732,6 +1738,7 @@ export class RoutesService {
           cancellationReason: reason,
         },
       });
+      await notifyPlan(tx, id, currentUser.id);
     });
 
     this.logger.log(`RoutePlan cancelled: ${id} by user ${currentUser.id}. Reason: ${reason}. Cancelled ${cancelledTripsCount} scheduled trips.`);
@@ -1775,6 +1782,7 @@ export class RoutesService {
     const planIds = plansToExpire.map((p) => p.id);
     const routeIds = plansToExpire.flatMap((p) => p.routes.map((r) => r.id));
     let cancelledTripsCount = 0;
+    let notificationTripIds: string[] = [];
 
     await this.prisma.$transaction(async (tx) => {
       if (routeIds.length > 0) {
@@ -1788,6 +1796,7 @@ export class RoutesService {
 
         cancelledTripsCount = scheduledTrips.length;
         const tripIds = scheduledTrips.map((t) => t.id);
+        notificationTripIds = tripIds;
 
         if (tripIds.length > 0) {
           await tx.trip.updateMany({
@@ -1812,6 +1821,7 @@ export class RoutesService {
         }
       }
 
+      await notifyCancelledTrips(tx, notificationTripIds, 'expiry:' + planIds.slice().sort().join(':'));
       await tx.routePlan.updateMany({
         where: { id: { in: planIds } },
         data: {
@@ -1819,6 +1829,7 @@ export class RoutesService {
           updatedAt: new Date(),
         },
       });
+      for (const planId of planIds) await notifyPlan(tx, planId);
     });
 
     this.logger.log(`Reconciled expired contracts: ${planIds.length} plans expired, ${cancelledTripsCount} scheduled trips cancelled.`);
@@ -2816,7 +2827,6 @@ export class RoutesService {
           polylineGeometry: outboundRoute.polylineGeometry,
           departureTime: outboundRoute.departureTime,
           arrivalTime: outboundRoute.arrivalTime,
-          derivedWeeklySchedule: outboundRoute.derivedWeeklySchedule || undefined,
           routingConstraints: outboundRoute.routingConstraints,
         },
       });
@@ -2857,7 +2867,6 @@ export class RoutesService {
           polylineGeometry: returnRoute.polylineGeometry,
           departureTime: returnRoute.departureTime,
           arrivalTime: returnRoute.arrivalTime,
-          derivedWeeklySchedule: returnRoute.derivedWeeklySchedule || undefined,
           routingConstraints: returnRoute.routingConstraints,
         },
       });
@@ -2950,6 +2959,7 @@ export class RoutesService {
           approvedById: currentUser.id,
         },
       });
+      await notifyPlan(tx, planId, currentUser.id);
     });
 
     this.logger.log(`RoutePlan ${planId} activated by SchoolAdmin ${currentUser.id} for school ${plan.schoolId}`);

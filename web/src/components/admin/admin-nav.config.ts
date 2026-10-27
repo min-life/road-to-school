@@ -53,6 +53,12 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     allowedRoles: ['SYSTEM_ADMIN', 'SCHOOL_ADMIN'],
   },
   {
+    id: 'incidents',
+    label: 'Sự cố',
+    href: '/admin/incidents',
+    allowedRoles: ['SYSTEM_ADMIN', 'SCHOOL_ADMIN'],
+  },
+  {
     id: 'students',
     label: 'Học sinh',
     href: '/admin/students',

@@ -112,7 +112,7 @@ describe('AuthService - Account Settings & Security', () => {
           revokedAt: null,
         },
         data: {
-          revokedAt: expect.any(Date),
+          revokedAt: expect.any(Date), pushToken: null,
         },
       });
     });

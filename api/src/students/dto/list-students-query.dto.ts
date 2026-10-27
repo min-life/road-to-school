@@ -8,10 +8,13 @@ import {
   IsString,
   IsEnum,
   IsBoolean,
+  IsIn,
 } from 'class-validator';
 import { StudentStatus } from '@prisma/client';
 
 export class ListStudentsQueryDto {
+  @ApiPropertyOptional({ enum: ['UNASSIGNED'], description: 'Học sinh chưa thuộc tuyến của phương án DRAFT/ACTIVE.' })
+  @IsOptional() @IsIn(['UNASSIGNED']) routingStatus?: 'UNASSIGNED';
   @ApiPropertyOptional({
     description: 'Số thứ tự trang hiện tại (bắt đầu từ 1)',
     default: 1,
