@@ -1,3 +1,4 @@
+import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState } from 'react';
 import {
   View,
@@ -6,9 +7,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -57,11 +55,10 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
+    <View
       style={styles.keyboardContainer}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView
+      <KeyboardScrollView
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
@@ -140,8 +137,8 @@ export default function ForgotPasswordScreen() {
             <Text style={styles.backLinkText}>Quay lại đăng nhập</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardScrollView>
+    </View>
   );
 }
 

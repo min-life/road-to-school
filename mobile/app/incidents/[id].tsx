@@ -1,3 +1,4 @@
+import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
@@ -10,9 +11,7 @@ import {
   Modal,
   TextInput,
   Keyboard,
-  KeyboardAvoidingView,
   Pressable,
-  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -384,9 +383,9 @@ export default function IncidentDetailScreen() {
           setConfirmReason('');
         }}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.modalOverlay}
+        <KeyboardScrollView
+          style={[styles.modalOverlay, { alignItems: undefined, justifyContent: undefined }]}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
         >
           <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.modalCard}>
@@ -470,7 +469,7 @@ export default function IncidentDetailScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardScrollView>
       </Modal>
     </View>
   );

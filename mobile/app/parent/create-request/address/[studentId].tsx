@@ -1,9 +1,9 @@
+import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
   View,
-  ScrollView,
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
@@ -182,7 +182,7 @@ export default function CreateAddressRequestScreen() {
           <Text style={styles.loadingText}>Đang tải thông tin...</Text>
         </View>
       ) : (
-        <ScrollView
+        <KeyboardScrollView
           contentContainerStyle={[
             styles.content,
             { paddingBottom: insets.bottom + 24 },
@@ -301,7 +301,7 @@ export default function CreateAddressRequestScreen() {
               </View>
             )}
           </TouchableOpacity>
-        </ScrollView>
+        </KeyboardScrollView>
       )}
     </View>
   );

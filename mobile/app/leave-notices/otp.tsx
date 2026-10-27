@@ -1,3 +1,4 @@
+import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
@@ -7,8 +8,6 @@ import {
   ActivityIndicator,
   TextInput,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -127,9 +126,8 @@ export default function LeaveNoticeOtpScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
+    <View
       style={[styles.container, { paddingTop: insets.top }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* Header */}
       <View style={styles.header}>
@@ -140,7 +138,7 @@ export default function LeaveNoticeOtpScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      <View style={styles.content}>
+      <KeyboardScrollView contentContainerStyle={styles.content}>
         {/* Context Card */}
         <View style={styles.infoCard}>
           <View style={styles.iconCircle}>
@@ -231,8 +229,8 @@ export default function LeaveNoticeOtpScreen() {
             <Text style={styles.submitBtnText}>Xác nhận báo nghỉ</Text>
           )}
         </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardScrollView>
+    </View>
   );
 }
 

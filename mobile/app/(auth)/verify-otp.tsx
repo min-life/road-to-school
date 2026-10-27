@@ -1,3 +1,4 @@
+import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -6,9 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
-  ScrollView,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -105,11 +104,10 @@ export default function VerifyOtpScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
+    <View
       style={styles.keyboardContainer}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView
+      <KeyboardScrollView
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
@@ -162,23 +160,22 @@ export default function VerifyOtpScreen() {
                 </View>
               );
             })}
+            {/* Hidden full-width numeric TextInput */}
+            <TextInput
+              ref={inputRef}
+              style={styles.hiddenInput}
+              keyboardType="number-pad"
+              maxLength={6}
+              value={otp}
+              onChangeText={(text) => {
+                const numeric = text.replace(/[^0-9]/g, '');
+                setOtp(numeric);
+                if (error) setError(null);
+              }}
+              autoFocus
+              editable={!isSubmitting}
+            />
           </TouchableOpacity>
-
-          {/* Hidden full-width numeric TextInput */}
-          <TextInput
-            ref={inputRef}
-            style={styles.hiddenInput}
-            keyboardType="number-pad"
-            maxLength={6}
-            value={otp}
-            onChangeText={(text) => {
-              const numeric = text.replace(/[^0-9]/g, '');
-              setOtp(numeric);
-              if (error) setError(null);
-            }}
-            autoFocus
-            editable={!isSubmitting}
-          />
 
           {/* Countdown & Resend */}
           <View style={styles.countdownRow}>
@@ -221,8 +218,8 @@ export default function VerifyOtpScreen() {
             )}
           </TouchableOpacity>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardScrollView>
+    </View>
   );
 }
 
@@ -295,6 +292,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   otpBoxesRow: {
+    position: 'relative',
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 16,
@@ -328,8 +326,10 @@ const styles = StyleSheet.create({
   hiddenInput: {
     position: 'absolute',
     opacity: 0,
-    width: 1,
-    height: 1,
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
   },
   countdownRow: {
     alignItems: 'center',

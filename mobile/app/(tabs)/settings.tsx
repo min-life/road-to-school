@@ -1,3 +1,4 @@
+import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState } from 'react';
 import {
   StyleSheet,
@@ -430,7 +431,10 @@ export default function SettingsScreen() {
         transparent={true}
         onRequestClose={() => setIsPasswordModalOpen(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardScrollView
+          style={[styles.modalOverlay, { alignItems: undefined, justifyContent: undefined }]}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+        >
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Đổi mật khẩu</Text>
@@ -533,7 +537,7 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardScrollView>
       </Modal>
 
       {/* Modal: Change Name (PARENT only) */}
@@ -543,7 +547,10 @@ export default function SettingsScreen() {
         transparent={true}
         onRequestClose={() => setIsNameModalOpen(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardScrollView
+          style={[styles.modalOverlay, { alignItems: undefined, justifyContent: undefined }]}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+        >
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Đổi tên tài khoản phụ huynh</Text>
@@ -589,7 +596,7 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardScrollView>
       </Modal>
     </ScrollView>
   );

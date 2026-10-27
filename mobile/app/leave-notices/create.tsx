@@ -1,3 +1,4 @@
+import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
@@ -240,7 +241,7 @@ export default function CreateLeaveNoticeScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView
+      <KeyboardScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
       >
@@ -511,7 +512,7 @@ export default function CreateLeaveNoticeScreen() {
             </>
           )}
         </TouchableOpacity>
-      </ScrollView>
+      </KeyboardScrollView>
 
       {/* Student Selection Modal */}
       <Modal

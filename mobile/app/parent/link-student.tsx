@@ -1,3 +1,4 @@
+import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState, useRef, useCallback } from 'react';
 import {
   StyleSheet,
@@ -6,8 +7,6 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  ScrollView,
-  KeyboardAvoidingView,
   Platform,
   Alert,
 } from 'react-native';
@@ -108,9 +107,8 @@ export default function LinkStudentScreen() {
   );
 
   return (
-    <KeyboardAvoidingView
+    <View
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* Top Header */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
@@ -181,7 +179,7 @@ export default function LinkStudentScreen() {
 
       {/* Content based on mode */}
       {mode === 'MANUAL' ? (
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <KeyboardScrollView contentContainerStyle={styles.scrollContent}>
           {errorMessage && (
             <View style={styles.errorBox}>
               <Ionicons name="alert-circle" size={18} color="#DC2626" />
@@ -249,7 +247,7 @@ export default function LinkStudentScreen() {
               Sau khi xác nhận mã, một tin nhắn chứa mã OTP 6 chữ số sẽ được gửi tới số điện thoại người giám hộ đã đăng ký với nhà trường.
             </Text>
           </View>
-        </ScrollView>
+        </KeyboardScrollView>
       ) : (
         <View style={styles.cameraWrapper}>
           {!permission?.granted ? (
@@ -299,7 +297,7 @@ export default function LinkStudentScreen() {
           )}
         </View>
       )}
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

@@ -1,3 +1,4 @@
+import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState } from 'react';
 import {
   StyleSheet,
@@ -7,8 +8,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -95,9 +94,8 @@ export default function VerifyOtpRequestScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
+    <View
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
@@ -108,7 +106,7 @@ export default function VerifyOtpRequestScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <View style={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
+      <KeyboardScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
         {/* OTP Shield Icon */}
         <View style={styles.iconCircle}>
           <Ionicons name="shield-checkmark" size={36} color="#D97706" />
@@ -162,8 +160,8 @@ export default function VerifyOtpRequestScreen() {
             <Text style={styles.verifyButtonText}>Xác nhận & Gửi yêu cầu</Text>
           )}
         </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardScrollView>
+    </View>
   );
 }
 
@@ -195,7 +193,7 @@ const styles = StyleSheet.create({
     color: colors.foreground,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     padding: 24,
     alignItems: 'center',
   },

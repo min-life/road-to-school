@@ -1,463 +1,1541 @@
-diff --git a/mobile/app/(auth)/_layout.tsx b/mobile/app/(auth)/_layout.tsx
-index 54a5f80..953b2d3 100644
---- a/mobile/app/(auth)/_layout.tsx
-+++ b/mobile/app/(auth)/_layout.tsx
-@@ -8,6 +8,7 @@ export default function AuthLayout() {
-         animation: 'slide_from_right',
-       }}
-     >
-+      <Stack.Screen name="onboarding" options={{ animation: 'none', gestureEnabled: false }} />
-       <Stack.Screen name="login" />
-       <Stack.Screen name="register" />
-       <Stack.Screen name="verify-otp" />
-diff --git a/mobile/app/(auth)/onboarding.tsx b/mobile/app/(auth)/onboarding.tsx
-new file mode 100644
-index 0000000..ad0ce5e
---- /dev/null
-+++ b/mobile/app/(auth)/onboarding.tsx
-@@ -0,0 +1,7 @@
-+import { OnboardingCarousel } from '@/components/onboarding/OnboardingCarousel';
-+import { useOnboarding } from '@/context/onboarding-context';
+diff --git a/docs/WORKING_RULES.md b/docs/WORKING_RULES.md
+index 60c1b77..d4baee5 100644
+--- a/docs/WORKING_RULES.md
++++ b/docs/WORKING_RULES.md
+@@ -154,6 +154,13 @@ Toàn bộ Web và Mobile sử dụng thống nhất bộ token màu thương hi
+
+ ---
+
++### 3.5. Mobile Keyboard & Focus Visibility
++- Mọi input/textarea trong trang, modal hoặc drawer phải có vùng cuộn để ô đang nhập nằm trong phần nhìn thấy, phía trên bàn phím với khoảng cách nhỏ vừa đủ.
++- Chỉ cuộn khi ô bị che; dựa trên viewport và bàn phím thực tế, không dùng chiều cao bàn phím hay khoảng đẩy cố định cho mọi thiết bị.
++- Cho phép cuộn biểu mẫu dài và chuyển giữa các ô khi bàn phím còn mở. Khi đóng bàn phím, bỏ phần bù và giữ nội dung đã nhập.
++- Với Mobile Expo, dùng `KeyboardScrollView`; mỗi modal/drawer có vùng nhập cần một vùng cuộn riêng. Không bù bàn phím hai lần bằng cách lồng trong `KeyboardAvoidingView`.
++- Kiểm chứng trên thiết bị và Safari iOS/Chrome Android khi có điều kiện; báo rõ môi trường đã chạy và phần `NOT_VERIFIED`. Chi tiết: [mobile-keyboard-behavior.md](architecture/mobile-keyboard-behavior.md).
 +
-+export default function OnboardingScreen() {
-+  const { saving, error, complete, continueWithoutSaving } = useOnboarding();
-+  return <OnboardingCarousel saving={saving} error={error} onComplete={complete} onContinueWithoutSaving={continueWithoutSaving} />;
-+}
-diff --git a/mobile/app/_layout.tsx b/mobile/app/_layout.tsx
-index 0b04141..f84b4c4 100644
---- a/mobile/app/_layout.tsx
-+++ b/mobile/app/_layout.tsx
-@@ -11,6 +11,8 @@ import { RoleSplash } from '@/components/RoleSplash';
- import { NetworkBanner } from '@/components/NetworkBanner';
- import { useNavigationReopen } from '@/hooks/use-navigation-reopen';
- import { NotificationsProvider, useNotifications } from '@/context/notifications-context';
-+import { OnboardingProvider, useOnboarding } from '@/context/onboarding-context';
-+import { getOnboardingDestination } from '@/utils/onboarding-route';
+ ## 4. General Code & Maintainability Rules
 
- export {
-   ErrorBoundary,
-@@ -51,13 +53,25 @@ function RootNavigation() {
-   const segments = useSegments();
-   const router = useRouter();
-   const { navigationPending } = useNotifications();
-+  const onboarding = useOnboarding();
-   useNavigationReopen(user?.id, user?.role, !isLoading && isAuthenticated && !splashRole && !navigationPending);
+ ### 4.1. Đơn giản, Dễ bảo trì (Student Project First)
+diff --git a/docs/architecture/mobile-keyboard-behavior.md b/docs/architecture/mobile-keyboard-behavior.md
+new file mode 100644
+index 0000000..e899235
+--- /dev/null
++++ b/docs/architecture/mobile-keyboard-behavior.md
+@@ -0,0 +1,39 @@
++# Mobile keyboard and focused fields
++
++Scope: Expo Mobile V2, including its React Native Web output. This does not change the independent Web Admin project.
++
++## Implementation
++
++Use `KeyboardScrollView` from `@/components/keyboard-scroll-view` for a vertical area containing inputs, including multiline TextInput (textarea on Web). Preserve existing controlled values, validation, actions and routes. Put layout/padding in `contentContainerStyle` and keep the viewport bounded by its parent. A modal or drawer must own its scroll region; do not rely on the page behind a portal.
++
++- Native: React Native ScrollView adjusts keyboard insets on iOS; Android's existing resize behavior provides the smaller viewport (the installed RN Modal implementation also uses adjustResize). Keyboard frame events, focus, layout and content-size events remeasure the current input and scroll region. Scroll only by the measured overflow. Do not wrap it in another KeyboardAvoidingView.
++- Web: the `.web.tsx` implementation measures DOM input/textarea bounds against the intersection of its scroll region and `window.visualViewport` (offsetTop + height), falling back to innerHeight when unavailable. Listen for viewport resize/scroll, focus and content-size changes. Add scrollable space equal to actual bottom occlusion, then remove it when the viewport expands or focus leaves.
++- A 12px clearance is a small reading margin, not an assumed keyboard height; it is reduced for very small viewports. Tall multiline editors keep their top visible and use the editor's own caret scrolling.
++- Coalesce measurements with requestAnimationFrame, skip movements of at most one pixel, do not continuously force focus during manual scroll, and remove listeners/pending work on unmount. Native measurements use a generation guard against stale focus/layout callbacks.
++- The existing six-box registration OTP uses an invisible TextInput. It now fills its visible OTP row, so geometry refers to the actual editing location rather than a one-pixel field at the top of the form.
++- The attendance search is inside the roster scroll region, within the existing trip drawer; the QR manual input is inside the modal's own scroll region. Camera/API callbacks are unchanged.
++
++No new package, native configuration, backend, API or data changes.
++
++## Coverage
++
++All 29 TextInputs across 15 current Mobile screen files have a KeyboardScrollView ancestor: five authentication screens; parent linking/OTP and address/information/update OTP forms; leave creation/OTP; settings password/name modals; trip attendance search, absence, QR manual entry, report and explanation modals; incident explanation modal. Read-only selection lists do not need keyboard handling. Future forms/drawers must use the same bounded scroll owner.
++
++## Manual acceptance checklist
++
++Run separately on iPhone Expo, Android Expo/native, Mobile Web Safari iOS and Mobile Web Chrome Android. Bundle/type checks alone are not these checks.
++
++1. Login: focus a visible field; it should stay still unless covered. Open password near the bottom; typed text and visibility toggle remain usable.
++2. Long registration/reset forms: open keyboard, move forwards/backwards among fields, manually scroll to the last field and submit area. Verify values survive scrolling and keyboard dismissal.
++3. Settings password modal: focus current/new/confirmation in both directions; scroll to action buttons with keyboard open. Dismiss without submitting; no credentials need to be changed for this check.
++4. Trip absence/report/explanation and incident explanation: check multiline input and bottom actions; close without sending. Check attendance search in drawer and manual QR field without scanning/submitting.
++5. OTP: verify visible boxes and active input stay together. Do not request/send/verify an OTP merely for UI testing without appropriate authorization.
++6. Change keyboard language/suggestion-bar height, rotate where the app permits it, test larger system text and repeatedly open/close the keyboard. No leftover compensation or unintended value resets.
++7. Mobile Web: repeat near the bottom and inside modal, including browser toolbar expansion/collapse. Record device, OS/browser version and actual result.
++
++Current session: Windows development machine, Node v24.19.0; typecheck, geometry unit tests and iOS/Android/Web exports can run. No connected iPhone/Android emulator or Safari/Chrome browser surface is exposed to CUA; physical keyboard behavior remains NOT_VERIFIED. Existing data/authorized accounts are needed to reach protected forms; do not create business records or submit mutations to manufacture a passing result.
++
++## References
++
++- [React Native ScrollView](https://reactnative.dev/docs/scrollview): automaticallyAdjustKeyboardInsets and keyboardShouldPersistTaps.
++- [MDN VisualViewport](https://developer.mozilla.org/en-US/docs/Web/API/VisualViewport): distinction between visual and layout viewport, offset and resize/scroll events.
+diff --git a/mobile/app/(auth)/forgot-password.tsx b/mobile/app/(auth)/forgot-password.tsx
+index 7c8c578..256080f 100644
+--- a/mobile/app/(auth)/forgot-password.tsx
++++ b/mobile/app/(auth)/forgot-password.tsx
+@@ -1,3 +1,4 @@
++import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+ import React, { useState } from 'react';
+ import {
+   View,
+@@ -6,9 +7,6 @@ import {
+   TouchableOpacity,
+   StyleSheet,
+   ActivityIndicator,
+-  KeyboardAvoidingView,
+-  Platform,
+-  ScrollView,
+ } from 'react-native';
+ import { useRouter } from 'expo-router';
+ import { Ionicons } from '@expo/vector-icons';
+@@ -57,11 +55,10 @@ export default function ForgotPasswordScreen() {
+   };
 
-   // Xử lý điều hướng bảo vệ theo trạng thái xác thực
-   useEffect(() => {
--    if (isLoading || splashRole) return;
-+    if (isLoading || splashRole || !onboarding.ready) return;
-
-     const inAuthGroup = segments[0] === '(auth)';
-+    const onboardingDestination = getOnboardingDestination({
-+      ready: onboarding.ready,
-+      completed: onboarding.completed,
-+      authenticated: isAuthenticated,
-+      inAuthGroup,
-+      authScreen: inAuthGroup ? segments[1] : undefined,
-+    });
-+    if (onboardingDestination) {
-+      router.replace(onboardingDestination === 'onboarding' ? '/(auth)/onboarding' : '/(auth)/login');
-+      return;
-+    }
-
-     if (!isAuthenticated && !inAuthGroup) {
-       router.replace('/(auth)/login');
-@@ -69,7 +83,7 @@ function RootNavigation() {
-         router.replace('/(tabs)');
-       }
-     }
--  }, [isLoading, isAuthenticated, segments, splashRole, user, router]);
-+  }, [isLoading, isAuthenticated, segments, splashRole, user, router, onboarding.ready, onboarding.completed]);
-
-   // Hiển thị thông báo khi phiên đăng nhập bị thu hồi hoặc hết hạn
-   useEffect(() => {
-@@ -84,7 +98,7 @@ function RootNavigation() {
-   }, [sessionExpiredMessage, clearSessionExpired]);
-
-   // Screen M1: Application Splash (chỉ hiển thị khi đang nạp font hoặc khôi phục phiên)
--  if (isLoading) {
-+  if (isLoading || !onboarding.ready) {
-     return (
-       <View style={styles.appSplashContainer}>
-         <BusLogo size={76} />
-@@ -145,7 +159,9 @@ export default function RootLayout() {
    return (
-     <ThemeProvider value={RoadToSchoolTheme}>
-       <AuthProvider>
--        <NotificationsProvider><RootNavigation /></NotificationsProvider>
-+        <OnboardingProvider>
-+          <NotificationsProvider><RootNavigation /></NotificationsProvider>
-+        </OnboardingProvider>
-       </AuthProvider>
-     </ThemeProvider>
+-    <KeyboardAvoidingView
++    <View
+       style={styles.keyboardContainer}
+-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+     >
+-      <ScrollView
++      <KeyboardScrollView
+         contentContainerStyle={styles.scrollContainer}
+         keyboardShouldPersistTaps="handled"
+       >
+@@ -140,8 +137,8 @@ export default function ForgotPasswordScreen() {
+             <Text style={styles.backLinkText}>Quay lại đăng nhập</Text>
+           </TouchableOpacity>
+         </View>
+-      </ScrollView>
+-    </KeyboardAvoidingView>
++      </KeyboardScrollView>
++    </View>
    );
-diff --git a/mobile/assets/images/onboarding/slide1.jpg b/mobile/assets/images/onboarding/slide1.jpg
-new file mode 100644
-index 0000000..462e134
-Binary files /dev/null and b/mobile/assets/images/onboarding/slide1.jpg differ
-diff --git a/mobile/assets/images/onboarding/slide2.jpg b/mobile/assets/images/onboarding/slide2.jpg
-new file mode 100644
-index 0000000..d6f94f2
-Binary files /dev/null and b/mobile/assets/images/onboarding/slide2.jpg differ
-diff --git a/mobile/assets/images/onboarding/slide3.jpg b/mobile/assets/images/onboarding/slide3.jpg
-new file mode 100644
-index 0000000..30cf81a
-Binary files /dev/null and b/mobile/assets/images/onboarding/slide3.jpg differ
-diff --git a/mobile/assets/images/onboarding/slide4.jpg b/mobile/assets/images/onboarding/slide4.jpg
-new file mode 100644
-index 0000000..387d01e
-Binary files /dev/null and b/mobile/assets/images/onboarding/slide4.jpg differ
-diff --git a/mobile/components/onboarding/OnboardingCarousel.tsx b/mobile/components/onboarding/OnboardingCarousel.tsx
-new file mode 100644
-index 0000000..17c2d55
---- /dev/null
-+++ b/mobile/components/onboarding/OnboardingCarousel.tsx
-@@ -0,0 +1,148 @@
-+import React, { useEffect, useRef, useState } from 'react';
-+import {
-+  AccessibilityInfo, ActivityIndicator, FlatList, Image, Pressable,
-+  ScrollView, StyleSheet, Text, useWindowDimensions, View,
-+  type NativeScrollEvent, type NativeSyntheticEvent,
-+} from 'react-native';
-+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-+import { StatusBar } from 'expo-status-bar';
-+import Ionicons from '@expo/vector-icons/Ionicons';
-+import { colors } from '@/constants/theme';
-+import { onboardingSlides } from '@/constants/onboarding';
-+
-+interface Props {
-+  saving: boolean;
-+  error: string | null;
-+  onComplete: () => Promise<void>;
-+  onContinueWithoutSaving: () => void;
-+}
-+
-+export function OnboardingCarousel({ saving, error, onComplete, onContinueWithoutSaving }: Props) {
-+  const { width, height } = useWindowDimensions();
-+  const insets = useSafeAreaInsets();
-+  const pageWidth = Math.max(1, Math.min(width - insets.left - insets.right, 600));
-+  const imageHeight = Math.min(280, Math.max(120, (height - insets.top - insets.bottom - 180) / 2));
-+  const list = useRef<FlatList<(typeof onboardingSlides)[number]>>(null);
-+  const [active, setActive] = useState(0);
-+  const [reduceMotion, setReduceMotion] = useState(true);
-+  const last = active === onboardingSlides.length - 1;
-+
-+  useEffect(() => {
-+    let cancelled = false;
-+    void AccessibilityInfo.isReduceMotionEnabled().then(value => {
-+      if (!cancelled) setReduceMotion(value);
-+    }).catch(() => { /* Default to no motion when the preference is unavailable. */ });
-+    const listener = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
-+    return () => { cancelled = true; listener.remove(); };
-+  }, []);
-+
-+  function select(index: number) {
-+    const next = Math.max(0, Math.min(index, onboardingSlides.length - 1));
-+    setActive(next);
-+    list.current?.scrollToOffset({ offset: next * pageWidth, animated: !reduceMotion });
-+  }
-+
-+  function onScrollEnd(event: NativeSyntheticEvent<NativeScrollEvent>) {
-+    setActive(Math.max(0, Math.min(
-+      Math.round(event.nativeEvent.contentOffset.x / pageWidth), onboardingSlides.length - 1,
-+    )));
-+  }
-+
-+  return (
+ }
+
+diff --git a/mobile/app/(auth)/login.tsx b/mobile/app/(auth)/login.tsx
+index b962fe0..820dabc 100644
+--- a/mobile/app/(auth)/login.tsx
++++ b/mobile/app/(auth)/login.tsx
+@@ -1,3 +1,4 @@
++import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+ import React, { useState } from 'react';
+ import {
+   View,
+@@ -6,15 +7,13 @@ import {
+   TouchableOpacity,
+   StyleSheet,
+   ActivityIndicator,
+-  KeyboardAvoidingView,
+-  Platform,
+-  ScrollView,
++  Image,
+ } from 'react-native';
++import { SafeAreaView } from 'react-native-safe-area-context';
+ import { useRouter } from 'expo-router';
+ import { Ionicons } from '@expo/vector-icons';
+ import { useAuth } from '@/context/auth-context';
+ import { colors } from '@/constants/theme';
+-import { BusLogo } from '@/components/BusLogo';
+ import { ApiError } from '@/services/api-client';
+
+ export default function LoginScreen() {
+@@ -57,291 +56,177 @@ export default function LoginScreen() {
+   };
+
+   return (
+-    <KeyboardAvoidingView
+-      style={styles.keyboardContainer}
+-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+-    >
+-      <ScrollView
+-        contentContainerStyle={styles.scrollContainer}
+-        keyboardShouldPersistTaps="handled"
 +    <SafeAreaView style={styles.screen} edges={['top', 'bottom', 'left', 'right']}>
-+      <StatusBar style="dark" />
-+      <View style={[styles.frame, { width: pageWidth }]}>
-+        <View style={styles.header}>
-+          <Pressable
-+            accessibilityRole="button" disabled={saving} onPress={() => { void onComplete(); }}
-+            style={({ pressed }) => [styles.skip, pressed && styles.pressed, saving && styles.disabled]}
-+          >
-+            <Text style={styles.skipLabel}>Bỏ qua</Text>
-+          </Pressable>
-+        </View>
-+
-+        <FlatList
-+          key={pageWidth} ref={list} data={onboardingSlides} horizontal pagingEnabled
-+          initialNumToRender={4} initialScrollIndex={active} keyExtractor={item => item.id}
-+          getItemLayout={(_, index) => ({ length: pageWidth, offset: pageWidth * index, index })}
-+          showsHorizontalScrollIndicator={false} onMomentumScrollEnd={onScrollEnd}
-+          extraData={active} style={styles.pages}
-+          renderItem={({ item, index }) => (
-+            <ScrollView
-+              style={{ width: pageWidth }} contentContainerStyle={styles.slide}
-+              showsVerticalScrollIndicator={false} directionalLockEnabled
-+              accessibilityElementsHidden={index !== active}
-+              importantForAccessibility={index === active ? 'auto' : 'no-hide-descendants'}
-+            >
-+              <Image source={item.image} style={[styles.image, { height: imageHeight }]} resizeMode="contain" accessible={false} />
-+              <View style={styles.copy}>
-+                <Text accessibilityRole="header" style={styles.title}>{item.title}</Text>
-+                <Text style={styles.description}>{item.description}</Text>
++      <View
++        style={styles.keyboardContainer}
+       >
+-        <View style={styles.card}>
+-          {/* Header Branding */}
+-          <View style={styles.header}>
+-            <BusLogo size={64} />
+-            <Text style={styles.brandTitle}>RoadToSchool</Text>
+-            <Text style={styles.loginTitle}>Đăng nhập</Text>
+-            <Text style={styles.subtitle}>
+-              Dành cho Tài xế, Phụ xe và Phụ huynh
+-            </Text>
+-          </View>
+-
+-          {/* Error Banner */}
+-          {error && (
+-            <View style={styles.errorBanner} accessibilityRole="alert">
+-              <Ionicons name="alert-circle" size={18} color={colors.error} />
+-              <Text style={styles.errorText}>{error}</Text>
++        <KeyboardScrollView
++          contentContainerStyle={styles.scrollContainer}
++          keyboardShouldPersistTaps="handled"
++          showsVerticalScrollIndicator={false}
++        >
++          <View style={styles.card}>
++            <View style={styles.header}>
++              <Image
++                source={require('@/assets/images/auth/login.jpg')}
++                style={styles.heroImage}
++                resizeMode="contain"
++                accessible={false}
++              />
++              <Text style={styles.loginTitle} accessibilityRole="header">Đăng nhập</Text>
+             </View>
+-          )}
+
+-          {/* Form Fields */}
+-          <View style={styles.formGroup}>
+-            <Text style={styles.label}>Email hoặc Số điện thoại</Text>
+-            <TextInput
+-              style={styles.input}
+-              placeholder="0912345678 hoặc user@r2s.com"
+-              placeholderTextColor="#94A3B8"
+-              autoCapitalize="none"
+-              autoCorrect={false}
+-              keyboardType="email-address"
+-              value={identifier}
+-              onChangeText={(text) => {
+-                setIdentifier(text);
+-                if (error) setError(null);
+-              }}
+-              editable={!isSubmitting}
+-            />
+-          </View>
++            {/* Error Banner */}
++            {error && (
++              <View style={styles.errorBanner} accessibilityRole="alert">
++                <Ionicons name="alert-circle" size={18} color={colors.error} />
++                <Text style={styles.errorText}>{error}</Text>
 +              </View>
-+            </ScrollView>
-+          )}
-+        />
-+
-+        <View style={styles.footer}>
-+          <View style={styles.pagination} accessibilityRole="tablist" accessibilityLabel="Trang giới thiệu">
-+            {onboardingSlides.map((slide, index) => (
-+              <Pressable
-+                key={slide.id} accessibilityRole="tab" accessibilityLabel={`Trang ${index + 1}: ${slide.title}`}
-+                accessibilityState={{ selected: index === active }} onPress={() => select(index)}
-+                style={styles.dotTarget}
-+              >
-+                <View style={[styles.dot, index === active && styles.activeDot]} />
-+              </Pressable>
-+            ))}
-+          </View>
-+          {error && (
-+            <View style={styles.error} accessibilityRole="alert">
-+              <Text style={styles.errorText}>{error}</Text>
-+              <Pressable accessibilityRole="button" onPress={onContinueWithoutSaving} style={styles.fallback}>
-+                <Text style={styles.fallbackLabel}>Tiếp tục không lưu</Text>
-+              </Pressable>
-+            </View>
-+          )}
-+          <Pressable
-+            accessibilityRole="button" accessibilityState={{ busy: saving, disabled: saving }} disabled={saving}
-+            onPress={() => { if (last || error) void onComplete(); else select(active + 1); }}
-+            style={({ pressed }) => [styles.primary, pressed && styles.pressed, saving && styles.disabled]}
-+          >
-+            {saving ? <ActivityIndicator color={colors.foreground} accessibilityLabel="Đang lưu" /> : (
-+              <>
-+                <Text style={styles.primaryLabel}>{error ? 'Thử lại' : last ? 'Bắt đầu' : 'Tiếp theo'}</Text>
-+                <Ionicons name="arrow-forward" size={20} color={colors.foreground} accessible={false} />
-+              </>
 +            )}
-+          </Pressable>
-+        </View>
+
+-          <View style={styles.formGroup}>
+-            <View style={styles.passwordLabelRow}>
+-              <Text style={styles.label}>Mật khẩu</Text>
+-              <TouchableOpacity
+-                onPress={() => router.push('/(auth)/forgot-password')}
+-                activeOpacity={0.7}
+-              >
+-                <Text style={styles.forgotPasswordText}>Quên mật khẩu?</Text>
+-              </TouchableOpacity>
++            {/* Form Fields */}
++            <View style={styles.formGroup}>
++              <View style={styles.inputShell}>
++                <Ionicons name="person-outline" size={20} color={colors.mutedText} accessible={false} />
++                <TextInput
++                  style={styles.input}
++                  autoFocus={false}
++                  accessibilityLabel="Email hoặc Số điện thoại"
++                  placeholder="Email hoặc số điện thoại"
++                  placeholderTextColor={colors.mutedText}
++                  autoCapitalize="none"
++                  autoCorrect={false}
++                  keyboardType="email-address"
++                  value={identifier}
++                  onChangeText={(text) => {
++                    setIdentifier(text);
++                    if (error) setError(null);
++                  }}
++                  editable={!isSubmitting}
++                />
++              </View>
+             </View>
+
+-            <View style={styles.passwordInputContainer}>
+-              <TextInput
+-                style={styles.passwordInput}
+-                placeholder="••••••••"
+-                placeholderTextColor="#94A3B8"
+-                secureTextEntry={!showPassword}
+-                value={password}
+-                onChangeText={(text) => {
+-                  setPassword(text);
+-                  if (error) setError(null);
+-                }}
+-                editable={!isSubmitting}
+-              />
+-              <TouchableOpacity
+-                style={styles.eyeButton}
+-                onPress={() => setShowPassword(!showPassword)}
+-                accessibilityLabel={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+-              >
+-                <Ionicons
+-                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+-                  size={20}
+-                  color="#64748B"
++            <View style={styles.formGroup}>
++
++              <View style={styles.passwordInputContainer}>
++                <Ionicons name="lock-closed-outline" size={20} color={colors.mutedText} accessible={false} />
++                <TextInput
++                  style={styles.passwordInput}
++                  autoFocus={false}
++                  accessibilityLabel="Mật khẩu"
++                  placeholder="Mật khẩu"
++                  placeholderTextColor={colors.mutedText}
++                  secureTextEntry={!showPassword}
++                  value={password}
++                  onChangeText={(text) => {
++                    setPassword(text);
++                    if (error) setError(null);
++                  }}
++                  editable={!isSubmitting}
+                 />
+-              </TouchableOpacity>
++                <TouchableOpacity
++                  style={styles.eyeButton}
++                  onPress={() => setShowPassword(!showPassword)}
++                  accessibilityRole="button"
++                  accessibilityLabel={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
++                >
++                  <Ionicons
++                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
++                    size={20}
++                    color={colors.mutedText}
++                  />
++                </TouchableOpacity>
++              </View>
+             </View>
+-          </View>
++            <TouchableOpacity
++              style={styles.forgotButton}
++              onPress={() => router.push('/(auth)/forgot-password')}
++              activeOpacity={0.7}
++              accessibilityRole="button"
++            >
++              <Text style={styles.forgotPasswordText}>Quên mật khẩu?</Text>
++            </TouchableOpacity>
+
+-          {/* Submit Button */}
+-          <TouchableOpacity
+-            style={[
+-              styles.submitButton,
+-              (isSubmitting || !identifier.trim() || !password) &&
+-                styles.submitButtonDisabled,
+-            ]}
+-            onPress={handleLogin}
+-            disabled={isSubmitting || !identifier.trim() || !password}
+-            activeOpacity={0.8}
+-          >
+-            {isSubmitting ? (
+-              <View style={styles.buttonLoadingRow}>
+-                <ActivityIndicator size="small" color={colors.foreground} />
+-                <Text style={styles.submitButtonText}>Đang đăng nhập...</Text>
+-              </View>
+-            ) : (
+-              <Text style={styles.submitButtonText}>Đăng nhập</Text>
+-            )}
+-          </TouchableOpacity>
++            {/* Submit Button */}
++            <TouchableOpacity
++              style={[
++                styles.submitButton,
++                (isSubmitting || !identifier.trim() || !password) &&
++                  styles.submitButtonDisabled,
++              ]}
++              onPress={handleLogin}
++              accessibilityRole="button"
++              accessibilityState={{ busy: isSubmitting, disabled: isSubmitting || !identifier.trim() || !password }}
++              disabled={isSubmitting || !identifier.trim() || !password}
++              activeOpacity={0.8}
++            >
++              {isSubmitting ? (
++                <View style={styles.buttonLoadingRow}>
++                  <ActivityIndicator size="small" color={colors.foreground} />
++                  <Text style={styles.submitButtonText}>Đang đăng nhập...</Text>
++                </View>
++              ) : (
++                <Text style={styles.submitButtonText}>Đăng nhập</Text>
++              )}
++            </TouchableOpacity>
+
+-          {/* Parent Registration Link */}
+-          <TouchableOpacity
+-            style={styles.registerLink}
+-            onPress={() => router.push('/(auth)/register')}
+-            activeOpacity={0.7}
+-          >
+-            <Text style={styles.registerLinkText}>
+-              Chưa có tài khoản?{' '}
+-              <Text style={styles.registerLinkBold}>Đăng ký Phụ huynh</Text>
+-            </Text>
+-          </TouchableOpacity>
+-        </View>
++            {/* Parent Registration Link */}
++            <TouchableOpacity
++              style={styles.registerLink}
++              accessibilityRole="button"
++              onPress={() => router.push('/(auth)/register')}
++              activeOpacity={0.7}
++            >
++              <Text style={styles.registerLinkText}>
++                Chưa có tài khoản?{' '}
++                <Text style={styles.registerLinkBold}>Đăng ký Phụ huynh</Text>
++              </Text>
++            </TouchableOpacity>
++          </View>
+
+-        <Text style={styles.footerText}>
+-          © 2026 RoadToSchool. An toàn cho học sinh.
+-        </Text>
+-      </ScrollView>
+-    </KeyboardAvoidingView>
++        </KeyboardScrollView>
 +      </View>
 +    </SafeAreaView>
-+  );
-+}
-+
-+const styles = StyleSheet.create({
-+  screen: { flex: 1, backgroundColor: colors.surface },
-+  frame: { flex: 1, alignSelf: 'center' },
-+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingHorizontal: 24, paddingTop: 4 },
-+  skip: { minHeight: 48, minWidth: 80, alignItems: 'flex-end', justifyContent: 'center' },
-+  skipLabel: { color: colors.mutedText, fontSize: 14, fontWeight: '600' },
-+  pages: { flex: 1 },
-+  slide: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 16 },
-+  image: { width: '100%' },
-+  copy: { marginTop: 24, alignItems: 'center' },
-+  title: { color: colors.foreground, fontSize: 26, fontWeight: '700', lineHeight: 36, textAlign: 'center' },
-+  description: { color: colors.mutedText, fontSize: 16, lineHeight: 25, textAlign: 'center', marginTop: 16, maxWidth: 400 },
-+  footer: { paddingHorizontal: 24, paddingBottom: 12 },
-+  pagination: { flexDirection: 'row', justifyContent: 'center', marginBottom: 12 },
-+  dotTarget: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-+  dot: { width: 9, height: 9, borderRadius: 9, backgroundColor: colors.border },
-+  activeDot: { width: 24, backgroundColor: colors.primary },
-+  primary: { minHeight: 52, borderRadius: 26, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 14 },
-+  primaryLabel: { color: colors.foreground, fontSize: 16, fontWeight: '700' },
-+  pressed: { opacity: 0.8 }, disabled: { opacity: 0.6 },
-+  error: { padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 12 },
-+  errorText: { color: colors.error, fontSize: 13, lineHeight: 20 },
-+  fallback: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-+  fallbackLabel: { color: colors.foreground, fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' },
-+});
-diff --git a/mobile/constants/onboarding.ts b/mobile/constants/onboarding.ts
+   );
+ }
+
+ const styles = StyleSheet.create({
+-  keyboardContainer: {
+-    flex: 1,
+-    backgroundColor: colors.background,
+-  },
+-  scrollContainer: {
+-    flexGrow: 1,
+-    justifyContent: 'center',
+-    paddingHorizontal: 20,
+-    paddingVertical: 32,
+-  },
+-  card: {
+-    backgroundColor: colors.surface,
+-    borderRadius: 20,
+-    paddingHorizontal: 24,
+-    paddingVertical: 28,
+-    shadowColor: '#000',
+-    shadowOffset: { width: 0, height: 4 },
+-    shadowOpacity: 0.08,
+-    shadowRadius: 10,
+-    elevation: 3,
+-    borderWidth: 1,
+-    borderColor: '#F1F5F9',
+-  },
+-  header: {
+-    alignItems: 'center',
+-    marginBottom: 24,
+-  },
+-  brandTitle: {
+-    fontSize: 22,
+-    fontWeight: '800',
+-    color: colors.foreground,
+-    marginTop: 12,
+-    letterSpacing: -0.5,
+-  },
+-  loginTitle: {
+-    fontSize: 18,
+-    fontWeight: '700',
+-    color: colors.foreground,
+-    marginTop: 4,
+-  },
+-  subtitle: {
+-    fontSize: 13,
+-    color: colors.mutedText,
+-    marginTop: 4,
+-    textAlign: 'center',
+-  },
++  screen: { flex: 1, backgroundColor: colors.background },
++  keyboardContainer: { flex: 1 },
++  scrollContainer: { flexGrow: 1, alignItems: 'center', paddingVertical: 16 },
++  card: { width: '100%', maxWidth: 430, paddingHorizontal: 24, paddingBottom: 24 },
++  header: { marginBottom: 24 },
++  heroImage: { width: '100%', aspectRatio: 1.12, maxHeight: 285, alignSelf: 'center', marginBottom: 16 },
++  loginTitle: { fontSize: 28, fontWeight: '700', lineHeight: 38, color: colors.foreground },
+   errorBanner: {
+-    backgroundColor: '#FEF2F2',
+-    borderWidth: 1,
+-    borderColor: '#FECACA',
+-    borderRadius: 12,
+-    paddingHorizontal: 14,
+-    paddingVertical: 10,
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    gap: 8,
+-    marginBottom: 18,
+-  },
+-  errorText: {
+-    fontSize: 13,
+-    color: colors.error,
+-    flex: 1,
+-    lineHeight: 18,
+-  },
+-  formGroup: {
+-    marginBottom: 16,
++    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.error,
++    borderRadius: 12, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 20,
+   },
+-  label: {
+-    fontSize: 13,
+-    fontWeight: '600',
+-    color: colors.foreground,
+-    marginBottom: 6,
+-  },
+-  passwordLabelRow: {
+-    flexDirection: 'row',
+-    justifyContent: 'space-between',
+-    alignItems: 'center',
+-    marginBottom: 6,
+-  },
+-  forgotPasswordText: {
+-    fontSize: 12,
+-    fontWeight: '600',
+-    color: '#D97706',
+-  },
+-  input: {
+-    height: 48,
+-    borderWidth: 1,
+-    borderColor: colors.border,
+-    borderRadius: 12,
+-    paddingHorizontal: 14,
+-    fontSize: 14,
+-    color: colors.foreground,
+-    backgroundColor: '#FAFAFA',
++  errorText: { fontSize: 14, color: colors.error, flex: 1, lineHeight: 20 },
++  formGroup: { marginBottom: 16 },
++  label: { fontSize: 14, fontWeight: '600', color: colors.foreground, marginBottom: 8 },
++  inputShell: {
++    minHeight: 52, borderWidth: 1, borderColor: colors.border, borderRadius: 13,
++    paddingLeft: 14, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center',
+   },
++  input: { flex: 1, minWidth: 0, minHeight: 52, paddingHorizontal: 12, paddingVertical: 14, fontSize: 15, color: colors.foreground },
+   passwordInputContainer: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    borderWidth: 1,
+-    borderColor: colors.border,
+-    borderRadius: 12,
+-    backgroundColor: '#FAFAFA',
+-    height: 48,
+-  },
+-  passwordInput: {
+-    flex: 1,
+-    height: '100%',
+-    paddingHorizontal: 14,
+-    fontSize: 14,
+-    color: colors.foreground,
+-  },
+-  eyeButton: {
+-    paddingHorizontal: 14,
+-    height: '100%',
+-    justifyContent: 'center',
++    flexDirection: 'row', alignItems: 'center', minHeight: 52, borderWidth: 1,
++    borderColor: colors.border, borderRadius: 13, paddingLeft: 14, backgroundColor: colors.surface,
+   },
++  passwordInput: { flex: 1, minWidth: 0, minHeight: 52, paddingHorizontal: 12, paddingVertical: 14, fontSize: 15, color: colors.foreground },
++  eyeButton: { minWidth: 48, minHeight: 52, alignItems: 'center', justifyContent: 'center' },
++  forgotButton: { alignSelf: 'flex-end', minHeight: 48, justifyContent: 'center', paddingHorizontal: 8, marginTop: -8 },
++  forgotPasswordText: { fontSize: 14, fontWeight: '600', color: colors.foreground },
+   submitButton: {
+-    backgroundColor: colors.primary,
+-    height: 48,
+-    borderRadius: 12,
+-    alignItems: 'center',
+-    justifyContent: 'center',
+-    marginTop: 8,
+-    shadowColor: colors.primary,
+-    shadowOffset: { width: 0, height: 2 },
+-    shadowOpacity: 0.3,
+-    shadowRadius: 4,
+-    elevation: 2,
+-  },
+-  submitButtonDisabled: {
+-    opacity: 0.5,
+-  },
+-  buttonLoadingRow: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    gap: 8,
+-  },
+-  submitButtonText: {
+-    fontSize: 15,
+-    fontWeight: '700',
+-    color: colors.foreground,
+-  },
+-  registerLink: {
+-    marginTop: 20,
+-    alignItems: 'center',
+-    paddingVertical: 4,
+-  },
+-  registerLinkText: {
+-    fontSize: 13,
+-    color: colors.mutedText,
+-  },
+-  registerLinkBold: {
+-    fontWeight: '700',
+-    color: colors.foreground,
+-  },
+-  footerText: {
+-    textAlign: 'center',
+-    fontSize: 12,
+-    color: '#94A3B8',
+-    marginTop: 24,
+-  },
++    backgroundColor: colors.primary, minHeight: 52, borderRadius: 26,
++    paddingHorizontal: 20, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', marginTop: 16,
++  },
++  submitButtonDisabled: { opacity: 0.5 },
++  buttonLoadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 8 },
++  submitButtonText: { fontSize: 16, fontWeight: '700', color: colors.foreground, textAlign: 'center' },
++  registerLink: { marginTop: 24, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
++  registerLinkText: { fontSize: 14, lineHeight: 22, color: colors.mutedText, textAlign: 'center' },
++  registerLinkBold: { fontWeight: '700', color: colors.foreground },
+ });
+diff --git a/mobile/app/(auth)/register.tsx b/mobile/app/(auth)/register.tsx
+index bcdc2b0..84e111a 100644
+--- a/mobile/app/(auth)/register.tsx
++++ b/mobile/app/(auth)/register.tsx
+@@ -1,3 +1,4 @@
++import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+ import React, { useState } from 'react';
+ import {
+   View,
+@@ -6,9 +7,6 @@ import {
+   TouchableOpacity,
+   StyleSheet,
+   ActivityIndicator,
+-  KeyboardAvoidingView,
+-  Platform,
+-  ScrollView,
+ } from 'react-native';
+ import { useRouter } from 'expo-router';
+ import { Ionicons } from '@expo/vector-icons';
+@@ -87,11 +85,10 @@ export default function RegisterScreen() {
+   };
+
+   return (
+-    <KeyboardAvoidingView
++    <View
+       style={styles.keyboardContainer}
+-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+     >
+-      <ScrollView
++      <KeyboardScrollView
+         contentContainerStyle={styles.scrollContainer}
+         keyboardShouldPersistTaps="handled"
+       >
+@@ -291,8 +288,8 @@ export default function RegisterScreen() {
+             </Text>
+           </TouchableOpacity>
+         </View>
+-      </ScrollView>
+-    </KeyboardAvoidingView>
++      </KeyboardScrollView>
++    </View>
+   );
+ }
+
+diff --git a/mobile/app/(auth)/reset-password.tsx b/mobile/app/(auth)/reset-password.tsx
+index 4b8c8c4..506e3fe 100644
+--- a/mobile/app/(auth)/reset-password.tsx
++++ b/mobile/app/(auth)/reset-password.tsx
+@@ -1,3 +1,4 @@
++import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+ import React, { useState, useEffect } from 'react';
+ import {
+   View,
+@@ -6,9 +7,7 @@ import {
+   TouchableOpacity,
+   StyleSheet,
+   ActivityIndicator,
+-  KeyboardAvoidingView,
+   Platform,
+-  ScrollView,
+ } from 'react-native';
+ import { useRouter, useLocalSearchParams } from 'expo-router';
+ import { Ionicons } from '@expo/vector-icons';
+@@ -116,11 +115,10 @@ export default function ResetPasswordScreen() {
+   };
+
+   return (
+-    <KeyboardAvoidingView
++    <View
+       style={styles.keyboardContainer}
+-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+     >
+-      <ScrollView
++      <KeyboardScrollView
+         contentContainerStyle={styles.scrollContainer}
+         keyboardShouldPersistTaps="handled"
+       >
+@@ -288,8 +286,8 @@ export default function ResetPasswordScreen() {
+             </>
+           )}
+         </View>
+-      </ScrollView>
+-    </KeyboardAvoidingView>
++      </KeyboardScrollView>
++    </View>
+   );
+ }
+
+diff --git a/mobile/app/(auth)/verify-otp.tsx b/mobile/app/(auth)/verify-otp.tsx
+index 8067fea..766f40c 100644
+--- a/mobile/app/(auth)/verify-otp.tsx
++++ b/mobile/app/(auth)/verify-otp.tsx
+@@ -1,3 +1,4 @@
++import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+ import React, { useState, useEffect, useRef } from 'react';
+ import {
+   View,
+@@ -6,9 +7,7 @@ import {
+   TouchableOpacity,
+   StyleSheet,
+   ActivityIndicator,
+-  KeyboardAvoidingView,
+   Platform,
+-  ScrollView,
+ } from 'react-native';
+ import { useRouter, useLocalSearchParams } from 'expo-router';
+ import { Ionicons } from '@expo/vector-icons';
+@@ -105,11 +104,10 @@ export default function VerifyOtpScreen() {
+   };
+
+   return (
+-    <KeyboardAvoidingView
++    <View
+       style={styles.keyboardContainer}
+-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+     >
+-      <ScrollView
++      <KeyboardScrollView
+         contentContainerStyle={styles.scrollContainer}
+         keyboardShouldPersistTaps="handled"
+       >
+@@ -162,24 +160,23 @@ export default function VerifyOtpScreen() {
+                 </View>
+               );
+             })}
++            {/* Hidden full-width numeric TextInput */}
++            <TextInput
++              ref={inputRef}
++              style={styles.hiddenInput}
++              keyboardType="number-pad"
++              maxLength={6}
++              value={otp}
++              onChangeText={(text) => {
++                const numeric = text.replace(/[^0-9]/g, '');
++                setOtp(numeric);
++                if (error) setError(null);
++              }}
++              autoFocus
++              editable={!isSubmitting}
++            />
+           </TouchableOpacity>
+
+-          {/* Hidden full-width numeric TextInput */}
+-          <TextInput
+-            ref={inputRef}
+-            style={styles.hiddenInput}
+-            keyboardType="number-pad"
+-            maxLength={6}
+-            value={otp}
+-            onChangeText={(text) => {
+-              const numeric = text.replace(/[^0-9]/g, '');
+-              setOtp(numeric);
+-              if (error) setError(null);
+-            }}
+-            autoFocus
+-            editable={!isSubmitting}
+-          />
+-
+           {/* Countdown & Resend */}
+           <View style={styles.countdownRow}>
+             {countdown > 0 ? (
+@@ -221,8 +218,8 @@ export default function VerifyOtpScreen() {
+             )}
+           </TouchableOpacity>
+         </View>
+-      </ScrollView>
+-    </KeyboardAvoidingView>
++      </KeyboardScrollView>
++    </View>
+   );
+ }
+
+@@ -295,6 +292,7 @@ const styles = StyleSheet.create({
+     lineHeight: 18,
+   },
+   otpBoxesRow: {
++    position: 'relative',
+     flexDirection: 'row',
+     justifyContent: 'space-between',
+     marginBottom: 16,
+@@ -328,8 +326,10 @@ const styles = StyleSheet.create({
+   hiddenInput: {
+     position: 'absolute',
+     opacity: 0,
+-    width: 1,
+-    height: 1,
++    top: 0,
++    left: 0,
++    width: '100%',
++    height: '100%',
+   },
+   countdownRow: {
+     alignItems: 'center',
+diff --git a/mobile/app/(tabs)/settings.tsx b/mobile/app/(tabs)/settings.tsx
+index 8982750..f07e8f8 100644
+--- a/mobile/app/(tabs)/settings.tsx
++++ b/mobile/app/(tabs)/settings.tsx
+@@ -1,3 +1,4 @@
++import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+ import React, { useState } from 'react';
+ import {
+   StyleSheet,
+@@ -430,7 +431,10 @@ export default function SettingsScreen() {
+         transparent={true}
+         onRequestClose={() => setIsPasswordModalOpen(false)}
+       >
+-        <View style={styles.modalOverlay}>
++        <KeyboardScrollView
++          style={[styles.modalOverlay, { alignItems: undefined, justifyContent: undefined }]}
++          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
++        >
+           <View style={styles.modalContainer}>
+             <View style={styles.modalHeader}>
+               <Text style={styles.modalTitle}>Đổi mật khẩu</Text>
+@@ -533,7 +537,7 @@ export default function SettingsScreen() {
+               </TouchableOpacity>
+             </View>
+           </View>
+-        </View>
++        </KeyboardScrollView>
+       </Modal>
+
+       {/* Modal: Change Name (PARENT only) */}
+@@ -543,7 +547,10 @@ export default function SettingsScreen() {
+         transparent={true}
+         onRequestClose={() => setIsNameModalOpen(false)}
+       >
+-        <View style={styles.modalOverlay}>
++        <KeyboardScrollView
++          style={[styles.modalOverlay, { alignItems: undefined, justifyContent: undefined }]}
++          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
++        >
+           <View style={styles.modalContainer}>
+             <View style={styles.modalHeader}>
+               <Text style={styles.modalTitle}>Đổi tên tài khoản phụ huynh</Text>
+@@ -589,7 +596,7 @@ export default function SettingsScreen() {
+               </TouchableOpacity>
+             </View>
+           </View>
+-        </View>
++        </KeyboardScrollView>
+       </Modal>
+     </ScrollView>
+   );
+diff --git a/mobile/app/incidents/[id].tsx b/mobile/app/incidents/[id].tsx
+index 4381a8a..f775e05 100644
+--- a/mobile/app/incidents/[id].tsx
++++ b/mobile/app/incidents/[id].tsx
+@@ -1,3 +1,4 @@
++import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+ import React, { useState, useEffect, useCallback } from 'react';
+ import {
+   StyleSheet,
+@@ -10,9 +11,7 @@ import {
+   Modal,
+   TextInput,
+   Keyboard,
+-  KeyboardAvoidingView,
+   Pressable,
+-  Platform,
+ } from 'react-native';
+ import { useRouter, useLocalSearchParams } from 'expo-router';
+ import { useSafeAreaInsets } from 'react-native-safe-area-context';
+@@ -384,9 +383,9 @@ export default function IncidentDetailScreen() {
+           setConfirmReason('');
+         }}
+       >
+-        <KeyboardAvoidingView
+-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+-          style={styles.modalOverlay}
++        <KeyboardScrollView
++          style={[styles.modalOverlay, { alignItems: undefined, justifyContent: undefined }]}
++          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+         >
+           <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
+           <View style={styles.modalCard}>
+@@ -470,7 +469,7 @@ export default function IncidentDetailScreen() {
+               </TouchableOpacity>
+             </View>
+           </View>
+-        </KeyboardAvoidingView>
++        </KeyboardScrollView>
+       </Modal>
+     </View>
+   );
+diff --git a/mobile/app/leave-notices/create.tsx b/mobile/app/leave-notices/create.tsx
+index 3c0e5d3..50d5d7c 100644
+--- a/mobile/app/leave-notices/create.tsx
++++ b/mobile/app/leave-notices/create.tsx
+@@ -1,3 +1,4 @@
++import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+ import React, { useState, useEffect, useMemo } from 'react';
+ import {
+   StyleSheet,
+@@ -240,7 +241,7 @@ export default function CreateLeaveNoticeScreen() {
+         <View style={{ width: 36 }} />
+       </View>
+
+-      <ScrollView
++      <KeyboardScrollView
+         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+         showsVerticalScrollIndicator={false}
+       >
+@@ -511,7 +512,7 @@ export default function CreateLeaveNoticeScreen() {
+             </>
+           )}
+         </TouchableOpacity>
+-      </ScrollView>
++      </KeyboardScrollView>
+
+       {/* Student Selection Modal */}
+       <Modal
+diff --git a/mobile/app/leave-notices/otp.tsx b/mobile/app/leave-notices/otp.tsx
+index 224267f..71cebee 100644
+--- a/mobile/app/leave-notices/otp.tsx
++++ b/mobile/app/leave-notices/otp.tsx
+@@ -1,3 +1,4 @@
++import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+ import React, { useState, useEffect } from 'react';
+ import {
+   StyleSheet,
+@@ -7,8 +8,6 @@ import {
+   ActivityIndicator,
+   TextInput,
+   Alert,
+-  KeyboardAvoidingView,
+-  Platform,
+ } from 'react-native';
+ import { useRouter, useLocalSearchParams } from 'expo-router';
+ import { useSafeAreaInsets } from 'react-native-safe-area-context';
+@@ -127,9 +126,8 @@ export default function LeaveNoticeOtpScreen() {
+   };
+
+   return (
+-    <KeyboardAvoidingView
++    <View
+       style={[styles.container, { paddingTop: insets.top }]}
+-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+     >
+       {/* Header */}
+       <View style={styles.header}>
+@@ -140,7 +138,7 @@ export default function LeaveNoticeOtpScreen() {
+         <View style={{ width: 36 }} />
+       </View>
+
+-      <View style={styles.content}>
++      <KeyboardScrollView contentContainerStyle={styles.content}>
+         {/* Context Card */}
+         <View style={styles.infoCard}>
+           <View style={styles.iconCircle}>
+@@ -231,8 +229,8 @@ export default function LeaveNoticeOtpScreen() {
+             <Text style={styles.submitBtnText}>Xác nhận báo nghỉ</Text>
+           )}
+         </TouchableOpacity>
+-      </View>
+-    </KeyboardAvoidingView>
++      </KeyboardScrollView>
++    </View>
+   );
+ }
+
+diff --git a/mobile/app/parent/create-request/address/[studentId].tsx b/mobile/app/parent/create-request/address/[studentId].tsx
+index e9e5de6..e51a8ba 100644
+--- a/mobile/app/parent/create-request/address/[studentId].tsx
++++ b/mobile/app/parent/create-request/address/[studentId].tsx
+@@ -1,9 +1,9 @@
++import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+ import React, { useState, useEffect, useRef } from 'react';
+ import {
+   StyleSheet,
+   Text,
+   View,
+-  ScrollView,
+   TextInput,
+   TouchableOpacity,
+   ActivityIndicator,
+@@ -182,7 +182,7 @@ export default function CreateAddressRequestScreen() {
+           <Text style={styles.loadingText}>Đang tải thông tin...</Text>
+         </View>
+       ) : (
+-        <ScrollView
++        <KeyboardScrollView
+           contentContainerStyle={[
+             styles.content,
+             { paddingBottom: insets.bottom + 24 },
+@@ -301,7 +301,7 @@ export default function CreateAddressRequestScreen() {
+               </View>
+             )}
+           </TouchableOpacity>
+-        </ScrollView>
++        </KeyboardScrollView>
+       )}
+     </View>
+   );
+diff --git a/mobile/app/parent/create-request/information/[studentId].tsx b/mobile/app/parent/create-request/information/[studentId].tsx
+index 298f26f..dba1e3e 100644
+--- a/mobile/app/parent/create-request/information/[studentId].tsx
++++ b/mobile/app/parent/create-request/information/[studentId].tsx
+@@ -1,9 +1,9 @@
++import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+ import React, { useState, useEffect } from 'react';
+ import {
+   StyleSheet,
+   Text,
+   View,
+-  ScrollView,
+   TextInput,
+   TouchableOpacity,
+   ActivityIndicator,
+@@ -127,7 +127,7 @@ export default function CreateInformationRequestScreen() {
+           <Text style={styles.loadingText}>Đang tải thông tin...</Text>
+         </View>
+       ) : (
+-        <ScrollView
++        <KeyboardScrollView
+           contentContainerStyle={[
+             styles.content,
+             { paddingBottom: insets.bottom + 24 },
+@@ -209,7 +209,7 @@ export default function CreateInformationRequestScreen() {
+               </View>
+             )}
+           </TouchableOpacity>
+-        </ScrollView>
++        </KeyboardScrollView>
+       )}
+     </View>
+   );
+diff --git a/mobile/app/parent/create-request/verify-otp.tsx b/mobile/app/parent/create-request/verify-otp.tsx
+index 2b47c7a..2ead6e9 100644
+--- a/mobile/app/parent/create-request/verify-otp.tsx
++++ b/mobile/app/parent/create-request/verify-otp.tsx
+@@ -1,3 +1,4 @@
++import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+ import React, { useState } from 'react';
+ import {
+   StyleSheet,
+@@ -7,8 +8,6 @@ import {
+   TouchableOpacity,
+   ActivityIndicator,
+   Alert,
+-  KeyboardAvoidingView,
+-  Platform,
+ } from 'react-native';
+ import { useRouter, useLocalSearchParams } from 'expo-router';
+ import { useSafeAreaInsets } from 'react-native-safe-area-context';
+@@ -95,9 +94,8 @@ export default function VerifyOtpRequestScreen() {
+   };
+
+   return (
+-    <KeyboardAvoidingView
++    <View
+       style={styles.container}
+-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+     >
+       {/* Header */}
+       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+@@ -108,7 +106,7 @@ export default function VerifyOtpRequestScreen() {
+         <View style={{ width: 40 }} />
+       </View>
+
+-      <View style={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
++      <KeyboardScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
+         {/* OTP Shield Icon */}
+         <View style={styles.iconCircle}>
+           <Ionicons name="shield-checkmark" size={36} color="#D97706" />
+@@ -162,8 +160,8 @@ export default function VerifyOtpRequestScreen() {
+             <Text style={styles.verifyButtonText}>Xác nhận & Gửi yêu cầu</Text>
+           )}
+         </TouchableOpacity>
+-      </View>
+-    </KeyboardAvoidingView>
++      </KeyboardScrollView>
++    </View>
+   );
+ }
+
+@@ -195,7 +193,7 @@ const styles = StyleSheet.create({
+     color: colors.foreground,
+   },
+   content: {
+-    flex: 1,
++    flexGrow: 1,
+     padding: 24,
+     alignItems: 'center',
+   },
+diff --git a/mobile/app/parent/link-student.tsx b/mobile/app/parent/link-student.tsx
+index 672b18a..b7f4a4e 100644
+--- a/mobile/app/parent/link-student.tsx
++++ b/mobile/app/parent/link-student.tsx
+@@ -1,3 +1,4 @@
++import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+ import React, { useState, useRef, useCallback } from 'react';
+ import {
+   StyleSheet,
+@@ -6,8 +7,6 @@ import {
+   TextInput,
+   TouchableOpacity,
+   ActivityIndicator,
+-  ScrollView,
+-  KeyboardAvoidingView,
+   Platform,
+   Alert,
+ } from 'react-native';
+@@ -108,9 +107,8 @@ export default function LinkStudentScreen() {
+   );
+
+   return (
+-    <KeyboardAvoidingView
++    <View
+       style={styles.container}
+-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+     >
+       {/* Top Header */}
+       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+@@ -181,7 +179,7 @@ export default function LinkStudentScreen() {
+
+       {/* Content based on mode */}
+       {mode === 'MANUAL' ? (
+-        <ScrollView contentContainerStyle={styles.scrollContent}>
++        <KeyboardScrollView contentContainerStyle={styles.scrollContent}>
+           {errorMessage && (
+             <View style={styles.errorBox}>
+               <Ionicons name="alert-circle" size={18} color="#DC2626" />
+@@ -249,7 +247,7 @@ export default function LinkStudentScreen() {
+               Sau khi xác nhận mã, một tin nhắn chứa mã OTP 6 chữ số sẽ được gửi tới số điện thoại người giám hộ đã đăng ký với nhà trường.
+             </Text>
+           </View>
+-        </ScrollView>
++        </KeyboardScrollView>
+       ) : (
+         <View style={styles.cameraWrapper}>
+           {!permission?.granted ? (
+@@ -299,7 +297,7 @@ export default function LinkStudentScreen() {
+           )}
+         </View>
+       )}
+-    </KeyboardAvoidingView>
++    </View>
+   );
+ }
+
+diff --git a/mobile/app/parent/verify-otp.tsx b/mobile/app/parent/verify-otp.tsx
+index 49112b2..bd99efd 100644
+--- a/mobile/app/parent/verify-otp.tsx
++++ b/mobile/app/parent/verify-otp.tsx
+@@ -1,3 +1,4 @@
++import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+ import React, { useState, useEffect, useRef } from 'react';
+ import {
+   StyleSheet,
+@@ -6,8 +7,6 @@ import {
+   TextInput,
+   TouchableOpacity,
+   ActivityIndicator,
+-  ScrollView,
+-  KeyboardAvoidingView,
+   Platform,
+   Alert,
+ } from 'react-native';
+@@ -117,9 +116,8 @@ export default function VerifyOtpScreen() {
+   };
+
+   return (
+-    <KeyboardAvoidingView
++    <View
+       style={styles.container}
+-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+     >
+       {/* Header */}
+       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+@@ -134,7 +132,7 @@ export default function VerifyOtpScreen() {
+         <View style={{ width: 40 }} />
+       </View>
+
+-      <ScrollView contentContainerStyle={styles.content}>
++      <KeyboardScrollView contentContainerStyle={styles.content}>
+         {/* Verification Card */}
+         <View style={styles.card}>
+           <View style={styles.iconCircle}>
+@@ -226,8 +224,8 @@ export default function VerifyOtpScreen() {
+             </TouchableOpacity>
+           </View>
+         </View>
+-      </ScrollView>
+-    </KeyboardAvoidingView>
++      </KeyboardScrollView>
++    </View>
+   );
+ }
+
+diff --git a/mobile/app/trip/[id].tsx b/mobile/app/trip/[id].tsx
+index f98fd24..4da7667 100644
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -1,3 +1,4 @@
++import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+ import {
+   StyleSheet,
+@@ -8,13 +9,11 @@ import {
+   ActivityIndicator,
+   Animated,
+   Dimensions,
+-  Platform,
+   PanResponder,
+   TextInput,
+   Modal,
+   Alert,
+   Keyboard,
+-  KeyboardAvoidingView,
+   Pressable,
+ } from 'react-native';
+ import { useRouter, useLocalSearchParams } from 'expo-router';
+@@ -1574,25 +1573,24 @@ export default function MobileTripDetailScreen() {
+                       )}
+                     </View>
+
+-                    {/* Search Box */}
+-                    <View style={styles.searchBox}>
+-                      <Ionicons name="search" size={16} color="#94A3B8" />
+-                      <TextInput
+-                        style={styles.searchInput}
+-                        placeholder="Tìm theo tên hoặc mã học sinh..."
+-                        placeholderTextColor="#94A3B8"
+-                        value={searchQuery}
+-                        onChangeText={setSearchQuery}
+-                      />
+-                      {searchQuery ? (
+-                        <TouchableOpacity onPress={() => setSearchQuery('')}>
+-                          <Ionicons name="close-circle" size={16} color="#94A3B8" />
+-                        </TouchableOpacity>
+-                      ) : null}
+-                    </View>
+-
+                     {/* Roster Scroll List */}
+-                    <ScrollView style={styles.tabContentScroll} showsVerticalScrollIndicator={false}>
++                    <KeyboardScrollView style={styles.tabContentScroll} showsVerticalScrollIndicator={false}>
++                      {/* Search Box */}
++                      <View style={styles.searchBox}>
++                        <Ionicons name="search" size={16} color="#94A3B8" />
++                        <TextInput
++                          style={styles.searchInput}
++                          placeholder="Tìm theo tên hoặc mã học sinh..."
++                          placeholderTextColor="#94A3B8"
++                          value={searchQuery}
++                          onChangeText={setSearchQuery}
++                        />
++                        {searchQuery ? (
++                          <TouchableOpacity onPress={() => setSearchQuery('')}>
++                            <Ionicons name="close-circle" size={16} color="#94A3B8" />
++                          </TouchableOpacity>
++                        ) : null}
++                      </View>
+                       {filteredRoster.length > 0 ? (
+                         filteredRoster.map((student) => {
+                           const isUnmarked = student.status === 'UNMARKED';
+@@ -1744,7 +1742,7 @@ export default function MobileTripDetailScreen() {
+                       ) : (
+                         <Text style={styles.emptyStopsText}>Không tìm thấy học sinh</Text>
+                       )}
+-                    </ScrollView>
++                    </KeyboardScrollView>
+                   </View>
+                 )}
+
+@@ -2142,7 +2140,10 @@ export default function MobileTripDetailScreen() {
+       {/* Absence Reason Modal */}
+       {absenceModalStudent && (
+         <Modal transparent animationType="fade" visible={Boolean(absenceModalStudent)}>
+-          <View style={styles.modalOverlay}>
++          <KeyboardScrollView
++            style={[styles.modalOverlay, { alignItems: undefined, justifyContent: undefined }]}
++            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
++          >
+             <View style={styles.modalCard}>
+               <Text style={styles.modalTitle}>Lý do vắng mặt</Text>
+               <Text style={styles.modalSubtitle}>
+@@ -2175,13 +2176,13 @@ export default function MobileTripDetailScreen() {
+                 </TouchableOpacity>
+               </View>
+             </View>
+-          </View>
++          </KeyboardScrollView>
+         </Modal>
+       )}
+
+       {/* QR Scanner Modal (D08: Student.code QR scanner) */}
+       <Modal transparent animationType="slide" visible={qrModalVisible}>
+-        <View style={styles.qrModalContainer}>
++        <KeyboardScrollView style={styles.qrModalContainer} contentContainerStyle={{ flexGrow: 1 }}>
+           <View style={[styles.qrModalHeader, { paddingTop: insets.top + 10 }]}>
+             <Text style={styles.qrModalTitle}>Quét thẻ học sinh</Text>
+             <TouchableOpacity
+@@ -2257,7 +2258,7 @@ export default function MobileTripDetailScreen() {
+               </View>
+             </View>
+           )}
+-        </View>
++        </KeyboardScrollView>
+       </Modal>
+
+       {/* Report Incident Modal */}
+@@ -2271,9 +2272,9 @@ export default function MobileTripDetailScreen() {
+           setIncidentNote('');
+         }}
+       >
+-        <KeyboardAvoidingView
+-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+-          style={styles.modalOverlay}
++        <KeyboardScrollView
++          style={[styles.modalOverlay, { alignItems: undefined, justifyContent: undefined }]}
++          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+         >
+           <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
+           <View style={styles.modalCard}>
+@@ -2371,7 +2372,7 @@ export default function MobileTripDetailScreen() {
+               </TouchableOpacity>
+             </View>
+           </View>
+-        </KeyboardAvoidingView>
++        </KeyboardScrollView>
+       </Modal>
+
+       {/* Bus Attendant Auto Incident Confirmation Popup */}
+@@ -2385,9 +2386,9 @@ export default function MobileTripDetailScreen() {
+           setConfirmReason('');
+         }}
+       >
+-        <KeyboardAvoidingView
+-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+-          style={styles.modalOverlay}
++        <KeyboardScrollView
++          style={[styles.modalOverlay, { alignItems: undefined, justifyContent: undefined }]}
++          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+         >
+           <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
+           <View style={styles.modalCard}>
+@@ -2477,7 +2478,7 @@ export default function MobileTripDetailScreen() {
+               </TouchableOpacity>
+             </View>
+           </View>
+-        </KeyboardAvoidingView>
++        </KeyboardScrollView>
+       </Modal>
+     </View>
+   );
+diff --git a/mobile/assets/images/auth/login.jpg b/mobile/assets/images/auth/login.jpg
 new file mode 100644
-index 0000000..a91d583
---- /dev/null
-+++ b/mobile/constants/onboarding.ts
-@@ -0,0 +1,26 @@
-+export const onboardingSlides = [
-+  {
-+    id: 'school-bus',
-+    image: require('../assets/images/onboarding/slide1.jpg'),
-+    title: 'RoadToSchool',
-+    description: 'Đồng hành cùng con trên hành trình đến trường.',
-+  },
-+  {
-+    id: 'safety',
-+    image: require('../assets/images/onboarding/slide2.jpg'),
-+    title: 'An tâm mỗi hành trình',
-+    description: 'Theo dõi chuyến xe và trạng thái lên, xuống xe của con.',
-+  },
-+  {
-+    id: 'team',
-+    image: require('../assets/images/onboarding/slide3.jpg'),
-+    title: 'Cùng chăm sóc học sinh',
-+    description: 'Tài xế và giáo viên phụ xe phối hợp trên từng chuyến.',
-+  },
-+  {
-+    id: 'connected',
-+    image: require('../assets/images/onboarding/slide4.jpg'),
-+    title: 'Luôn kết nối',
-+    description: 'Xem lịch đưa đón và cập nhật thông báo trong ứng dụng.',
-+  },
-+] as const;
-diff --git a/mobile/context/onboarding-context.tsx b/mobile/context/onboarding-context.tsx
+index 0000000..4184cc5
+Binary files /dev/null and b/mobile/assets/images/auth/login.jpg differ
+diff --git a/mobile/components/keyboard-scroll-view.tsx b/mobile/components/keyboard-scroll-view.tsx
 new file mode 100644
-index 0000000..7e19cec
+index 0000000..b505574
 --- /dev/null
-+++ b/mobile/context/onboarding-context.tsx
-@@ -0,0 +1,61 @@
-+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-+import { onboardingStorage } from '@/services/onboarding-storage';
++++ b/mobile/components/keyboard-scroll-view.tsx
+@@ -0,0 +1,75 @@
++import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
++import { Dimensions, Keyboard, ScrollView, StyleSheet, TextInput, type KeyboardEvent, type ScrollViewProps } from 'react-native';
++import { getFocusScrollDelta } from '@/utils/keyboard-visibility';
 +
-+interface OnboardingState {
-+  ready: boolean;
-+  completed: boolean;
-+  saving: boolean;
-+  error: string | null;
-+  complete: () => Promise<void>;
-+  continueWithoutSaving: () => void;
-+}
++/** Owns keyboard insets; do not nest inside a KeyboardAvoidingView. */
++export const KeyboardScrollView = forwardRef<React.ComponentRef<typeof ScrollView>, ScrollViewProps>(function KeyboardScrollView(
++  { contentContainerStyle, onFocus, onBlur, onLayout, onScroll, onContentSizeChange, ...props }, forwardedRef,
++) {
++  const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
++  const offset = useRef(0);
++  const focused = useRef(false);
++  const frame = useRef<number | null>(null);
++  const generation = useRef(0);
++  const keyboardTop = useRef<number | undefined>(Keyboard.metrics()?.screenY);
++  const [keyboardVisible, setKeyboardVisible] = useState(Keyboard.isVisible());
++  useImperativeHandle(forwardedRef, () => scroll.current!, []);
 +
-+const OnboardingContext = createContext<OnboardingState | undefined>(undefined);
-+
-+export function OnboardingProvider({ children }: { children: React.ReactNode }) {
-+  const [ready, setReady] = useState(false);
-+  const [completed, setCompleted] = useState(false);
-+  const [saving, setSaving] = useState(false);
-+  const [error, setError] = useState<string | null>(null);
-+  const pending = useRef(false);
++  const reveal = useCallback(() => {
++    if (frame.current !== null) cancelAnimationFrame(frame.current);
++    const version = ++generation.current;
++    frame.current = requestAnimationFrame(() => {
++      frame.current = null;
++      const input = TextInput.State.currentlyFocusedInput();
++      const viewport = scroll.current;
++      if (!focused.current || !input || !viewport) return;
++      viewport.measureInWindow((_x, top, _width, height) => {
++        input.measureInWindow((_inputX, fieldTop, _inputWidth, fieldHeight) => {
++          if (version !== generation.current || !focused.current || TextInput.State.currentlyFocusedInput() !== input) return;
++          const bottom = Math.min(top + height, keyboardTop.current ?? top + height);
++          const delta = getFocusScrollDelta(fieldTop, fieldHeight, top, bottom);
++          if (Math.abs(delta) > 1) viewport.scrollTo({ y: Math.max(0, offset.current + delta), animated: false });
++        });
++      });
++    });
++  }, []);
 +
 +  useEffect(() => {
-+    let cancelled = false;
-+    void onboardingStorage.isCompleted().then(value => {
-+      if (!cancelled) { setCompleted(value); setReady(true); }
-+    });
-+    return () => { cancelled = true; };
-+  }, []);
++    const show = (event: KeyboardEvent) => {
++      const visible = event.endCoordinates.height > 0 && event.endCoordinates.screenY < Dimensions.get('window').height;
++      keyboardTop.current = visible ? event.endCoordinates.screenY : undefined;
++      setKeyboardVisible(visible);
++      if (visible) reveal();
++    };
++    const hide = () => { ++generation.current; keyboardTop.current = undefined; setKeyboardVisible(false); };
++    const subscriptions = [
++      Keyboard.addListener('keyboardDidShow', show),
++      Keyboard.addListener('keyboardWillChangeFrame', show),
++      Keyboard.addListener('keyboardDidChangeFrame', show),
++      Keyboard.addListener('keyboardDidHide', hide),
++    ];
++    return () => {
++      ++generation.current;
++      subscriptions.forEach(subscription => subscription.remove());
++      if (frame.current !== null) cancelAnimationFrame(frame.current);
++    };
++  }, [reveal]);
 +
-+  const complete = useCallback(async () => {
-+    if (pending.current) return;
-+    pending.current = true;
-+    setSaving(true);
-+    setError(null);
-+    try {
-+      await onboardingStorage.complete();
-+      setCompleted(true);
-+    } catch {
-+      setError('Chưa lưu được lựa chọn trên thiết bị. Bạn có thể thử lại hoặc tiếp tục.');
-+    } finally {
-+      pending.current = false;
-+      setSaving(false);
-+    }
-+  }, []);
-+
-+  const continueWithoutSaving = useCallback(() => {
-+    if (!pending.current) setCompleted(true);
-+  }, []);
-+
++  const content = StyleSheet.flatten(contentContainerStyle);
++  const bottom = content?.paddingBottom ?? content?.paddingVertical ?? content?.padding ?? 0;
 +  return (
-+    <OnboardingContext.Provider value={{ ready, completed, saving, error, complete, continueWithoutSaving }}>
-+      {children}
-+    </OnboardingContext.Provider>
++    <ScrollView
++      keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets
++      scrollEventThrottle={16} {...props} ref={scroll}
++      contentContainerStyle={[
++        contentContainerStyle,
++        keyboardVisible && { paddingBottom: (typeof bottom === 'number' ? bottom : 0) + 12 },
++      ]}
++      onFocus={event => { event.stopPropagation(); focused.current = true; onFocus?.(event); reveal(); }}
++      onBlur={event => { event.stopPropagation(); focused.current = false; ++generation.current; onBlur?.(event); }}
++      onLayout={event => { onLayout?.(event); reveal(); }}
++      onScroll={event => { offset.current = event.nativeEvent.contentOffset.y; onScroll?.(event); }}
++      onContentSizeChange={(width, height) => { onContentSizeChange?.(width, height); reveal(); }}
++    />
 +  );
-+}
-+
-+export function useOnboarding() {
-+  const value = useContext(OnboardingContext);
-+  if (!value) throw new Error('useOnboarding must be used within OnboardingProvider');
-+  return value;
-+}
-diff --git a/mobile/scripts/onboarding-route.test.ts b/mobile/scripts/onboarding-route.test.ts
++});
+diff --git a/mobile/components/keyboard-scroll-view.web.tsx b/mobile/components/keyboard-scroll-view.web.tsx
 new file mode 100644
-index 0000000..83fb68e
+index 0000000..11907f3
 --- /dev/null
-+++ b/mobile/scripts/onboarding-route.test.ts
-@@ -0,0 +1,35 @@
++++ b/mobile/components/keyboard-scroll-view.web.tsx
+@@ -0,0 +1,67 @@
++import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
++import { ScrollView, StyleSheet, type ScrollViewProps } from 'react-native';
++import { getFocusScrollDelta } from '@/utils/keyboard-visibility';
++
++/** Safari/Chrome may resize the visual viewport without resizing the layout viewport. */
++export const KeyboardScrollView = forwardRef<React.ComponentRef<typeof ScrollView>, ScrollViewProps>(function KeyboardScrollView(
++  { contentContainerStyle, onFocus, onBlur, onLayout, onContentSizeChange, ...props }, forwardedRef,
++) {
++  const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
++  const frame = useRef<number | null>(null);
++  const [overlap, setOverlap] = useState(0);
++  useImperativeHandle(forwardedRef, () => scroll.current!, []);
++
++  const reveal = useCallback(() => {
++    if (frame.current !== null) cancelAnimationFrame(frame.current);
++    frame.current = requestAnimationFrame(() => {
++      frame.current = null;
++      const node: unknown = scroll.current?.getScrollableNode();
++      if (!(node instanceof HTMLElement)) return;
++      const input = document.activeElement;
++      if (!(input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) || !node.contains(input)) {
++        setOverlap(0);
++        return;
++      }
++      const visual = window.visualViewport;
++      const viewportTop = visual?.offsetTop ?? 0;
++      const viewportBottom = viewportTop + (visual?.height ?? window.innerHeight);
++      const rect = node.getBoundingClientRect();
++      const nextOverlap = Math.max(0, rect.bottom - viewportBottom);
++      setOverlap(previous => Math.abs(previous - nextOverlap) > 1 ? nextOverlap : previous);
++      const field = input.getBoundingClientRect();
++      const delta = getFocusScrollDelta(field.top, field.height, Math.max(rect.top, viewportTop), Math.min(rect.bottom, viewportBottom));
++      if (Math.abs(delta) > 1) node.scrollTop += delta;
++    });
++  }, []);
++
++  useEffect(() => {
++    const visual = window.visualViewport;
++    visual?.addEventListener('resize', reveal);
++    visual?.addEventListener('scroll', reveal);
++    window.addEventListener('resize', reveal);
++    return () => {
++      visual?.removeEventListener('resize', reveal);
++      visual?.removeEventListener('scroll', reveal);
++      window.removeEventListener('resize', reveal);
++      if (frame.current !== null) cancelAnimationFrame(frame.current);
++    };
++  }, [reveal]);
++  // Padding must be committed before a last field can scroll into view.
++  useEffect(reveal, [overlap, reveal]);
++
++  const content = StyleSheet.flatten(contentContainerStyle);
++  const bottom = content?.paddingBottom ?? content?.paddingVertical ?? content?.padding ?? 0;
++  return (
++    <ScrollView
++      keyboardShouldPersistTaps="handled" {...props} ref={scroll}
++      contentContainerStyle={[
++        contentContainerStyle,
++        overlap > 0 && { paddingBottom: (typeof bottom === 'number' ? bottom : 0) + overlap + 12 },
++      ]}
++      onFocus={event => { event.stopPropagation(); onFocus?.(event); reveal(); }}
++      onBlur={event => { event.stopPropagation(); onBlur?.(event); reveal(); }}
++      onLayout={event => { onLayout?.(event); reveal(); }}
++      onContentSizeChange={(width, height) => { onContentSizeChange?.(width, height); reveal(); }}
++    />
++  );
++});
+diff --git a/mobile/scripts/keyboard-visibility.test.ts b/mobile/scripts/keyboard-visibility.test.ts
+new file mode 100644
+index 0000000..fed1330
+--- /dev/null
++++ b/mobile/scripts/keyboard-visibility.test.ts
+@@ -0,0 +1,33 @@
 +import { describe, it } from 'node:test';
 +import assert from 'node:assert/strict';
-+import { getOnboardingDestination } from '../utils/onboarding-route.ts';
++import { getFocusScrollDelta } from '../utils/keyboard-visibility.ts';
 +
-+const firstLaunch = { ready: true, completed: false, authenticated: false, inAuthGroup: false };
-+
-+describe('onboarding entry routing without auth/API changes', () => {
-+  it('waits for local preference loading', () => {
-+    assert.equal(getOnboardingDestination({ ...firstLaunch, ready: false }), null);
++describe('focused field visibility in measured viewports', () => {
++  it('keeps a visible field still when the keyboard opens', () => {
++    assert.equal(getFocusScrollDelta(120, 52, 80, 450), 0);
 +  });
-+  it('introduces a first-time signed-out user before login', () => {
-+    assert.equal(getOnboardingDestination(firstLaunch), 'onboarding');
-+    assert.equal(getOnboardingDestination({ ...firstLaunch, inAuthGroup: true, authScreen: 'login' }), 'onboarding');
++  it('scrolls a bottom field by exactly the obstruction plus clearance', () => {
++    assert.equal(getFocusScrollDelta(420, 52, 80, 450), 34);
 +  });
-+  it('does not redirect repeatedly while viewing onboarding', () => {
-+    assert.equal(getOnboardingDestination({ ...firstLaunch, inAuthGroup: true, authScreen: 'onboarding' }), null);
++  it('reveals a previous field above the viewport when focus moves backwards', () => {
++    assert.equal(getFocusScrollDelta(50, 52, 80, 450), -42);
 +  });
-+  it('returns completed/skipped onboarding to the existing login', () => {
-+    assert.equal(getOnboardingDestination({ ...firstLaunch, completed: true, inAuthGroup: true, authScreen: 'onboarding' }), 'login');
-+    assert.equal(getOnboardingDestination({ ...firstLaunch, completed: true, inAuthGroup: true, authScreen: 'login' }), null);
++  it('uses modal bounds rather than assuming the whole screen is available', () => {
++    assert.equal(getFocusScrollDelta(410, 80, 300, 470), 32);
 +  });
-+  it('never interrupts an authenticated session', () => {
-+    for (const authScreen of [undefined, 'login', 'onboarding']) {
-+      assert.equal(getOnboardingDestination({ ...firstLaunch, authenticated: true, inAuthGroup: !!authScreen, authScreen }), null);
-+    }
++  it('handles a panned Safari visual viewport in the same coordinate space', () => {
++    assert.equal(getFocusScrollDelta(550, 52, 180, 580), 34);
 +  });
-+  it('preserves direct registration, OTP and password-reset routes', () => {
-+    for (const authScreen of ['register', 'verify-otp', 'forgot-password', 'reset-password']) {
-+      assert.equal(getOnboardingDestination({ ...firstLaunch, inAuthGroup: true, authScreen }), null);
-+    }
++  it('stops compensating when the visible viewport expands after keyboard dismissal', () => {
++    assert.equal(getFocusScrollDelta(550, 52, 0, 400), 214);
++    assert.equal(getFocusScrollDelta(550, 52, 0, 800), 0);
 +  });
-+  it('leaves existing signed-out protected-route guarding in place after completion', () => {
-+    assert.equal(getOnboardingDestination({ ...firstLaunch, completed: true }), null);
++  it('fits the clearance to small viewports and allows a tall editor to scroll internally', () => {
++    assert.equal(getFocusScrollDelta(120, 100, 100, 140), 10);
++    assert.equal(getFocusScrollDelta(112, 100, 100, 300), 0);
++  });
++  it('ignores collapsed fields and unavailable viewports', () => {
++    assert.equal(getFocusScrollDelta(500, 0, 0, 400), 0);
++    assert.equal(getFocusScrollDelta(500, 52, 400, 400), 0);
 +  });
 +});
-diff --git a/mobile/services/onboarding-storage.ts b/mobile/services/onboarding-storage.ts
+diff --git a/mobile/utils/keyboard-visibility.ts b/mobile/utils/keyboard-visibility.ts
 new file mode 100644
-index 0000000..9533f2d
+index 0000000..9adf839
 --- /dev/null
-+++ b/mobile/services/onboarding-storage.ts
-@@ -0,0 +1,28 @@
-+import * as SecureStore from 'expo-secure-store';
-+import { Platform } from 'react-native';
-+
-+// This device preference is separate from authentication and survives logout.
-+const ONBOARDING_KEY = 'r2s_onboarding_v1_completed';
-+
-+export const onboardingStorage = {
-+  async isCompleted(): Promise<boolean> {
-+    try {
-+      const value = Platform.OS === 'web'
-+        ? (typeof window !== 'undefined' ? window.localStorage.getItem(ONBOARDING_KEY) : null)
-+        : await SecureStore.getItemAsync(ONBOARDING_KEY);
-+      return value === 'true';
-+    } catch {
-+      // An unavailable preference must never be mistaken for an auth failure.
-+      return false;
-+    }
-+  },
-+
-+  async complete(): Promise<void> {
-+    if (Platform.OS === 'web') {
-+      if (typeof window === 'undefined') throw new Error('Storage unavailable');
-+      window.localStorage.setItem(ONBOARDING_KEY, 'true');
-+    } else {
-+      await SecureStore.setItemAsync(ONBOARDING_KEY, 'true');
-+    }
-+  },
-+};
-diff --git a/mobile/utils/onboarding-route.ts b/mobile/utils/onboarding-route.ts
-new file mode 100644
-index 0000000..e1b06cb
---- /dev/null
-+++ b/mobile/utils/onboarding-route.ts
-@@ -0,0 +1,19 @@
-+interface OnboardingRouteState {
-+  ready: boolean;
-+  completed: boolean;
-+  authenticated: boolean;
-+  inAuthGroup: boolean;
-+  authScreen?: string;
-+}
-+
-+/** Only intercept the unauthenticated entry point, never an OTP/deep-link flow. */
-+export function getOnboardingDestination(state: OnboardingRouteState): 'onboarding' | 'login' | null {
-+  if (!state.ready || state.authenticated) return null;
-+  if (state.authScreen === 'onboarding' && state.inAuthGroup) {
-+    return state.completed ? 'login' : null;
-+  }
-+  if (!state.completed && (!state.inAuthGroup || state.authScreen === 'login')) {
-+    return 'onboarding';
-+  }
-+  return null;
++++ b/mobile/utils/keyboard-visibility.ts
+@@ -0,0 +1,14 @@
++/** Return only the distance needed to reveal a field, in viewport coordinates. */
++export function getFocusScrollDelta(
++  fieldTop: number, fieldHeight: number, viewportTop: number, viewportBottom: number, gap = 12,
++): number {
++  const available = viewportBottom - viewportTop;
++  if (available <= 0 || fieldHeight <= 0) return 0;
++  const clearance = Math.min(gap, available / 4);
++  const top = viewportTop + clearance;
++  const bottom = viewportBottom - clearance;
++  // Tall multiline editors keep their top visible; the native editor scrolls its caret internally.
++  if (fieldHeight > bottom - top) return fieldTop - top;
++  if (fieldTop < top) return fieldTop - top;
++  return Math.max(0, fieldTop + fieldHeight - bottom);
 +}

@@ -1,3 +1,4 @@
+import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
@@ -6,8 +7,6 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  ScrollView,
-  KeyboardAvoidingView,
   Platform,
   Alert,
 } from 'react-native';
@@ -117,9 +116,8 @@ export default function VerifyOtpScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
+    <View
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
@@ -134,7 +132,7 @@ export default function VerifyOtpScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <KeyboardScrollView contentContainerStyle={styles.content}>
         {/* Verification Card */}
         <View style={styles.card}>
           <View style={styles.iconCircle}>
@@ -226,8 +224,8 @@ export default function VerifyOtpScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardScrollView>
+    </View>
   );
 }
 

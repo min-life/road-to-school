@@ -1,3 +1,4 @@
+import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   StyleSheet,
@@ -8,13 +9,11 @@ import {
   ActivityIndicator,
   Animated,
   Dimensions,
-  Platform,
   PanResponder,
   TextInput,
   Modal,
   Alert,
   Keyboard,
-  KeyboardAvoidingView,
   Pressable,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -1574,25 +1573,24 @@ export default function MobileTripDetailScreen() {
                       )}
                     </View>
 
-                    {/* Search Box */}
-                    <View style={styles.searchBox}>
-                      <Ionicons name="search" size={16} color="#94A3B8" />
-                      <TextInput
-                        style={styles.searchInput}
-                        placeholder="Tìm theo tên hoặc mã học sinh..."
-                        placeholderTextColor="#94A3B8"
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                      />
-                      {searchQuery ? (
-                        <TouchableOpacity onPress={() => setSearchQuery('')}>
-                          <Ionicons name="close-circle" size={16} color="#94A3B8" />
-                        </TouchableOpacity>
-                      ) : null}
-                    </View>
-
                     {/* Roster Scroll List */}
-                    <ScrollView style={styles.tabContentScroll} showsVerticalScrollIndicator={false}>
+                    <KeyboardScrollView style={styles.tabContentScroll} showsVerticalScrollIndicator={false}>
+                      {/* Search Box */}
+                      <View style={styles.searchBox}>
+                        <Ionicons name="search" size={16} color="#94A3B8" />
+                        <TextInput
+                          style={styles.searchInput}
+                          placeholder="Tìm theo tên hoặc mã học sinh..."
+                          placeholderTextColor="#94A3B8"
+                          value={searchQuery}
+                          onChangeText={setSearchQuery}
+                        />
+                        {searchQuery ? (
+                          <TouchableOpacity onPress={() => setSearchQuery('')}>
+                            <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
                       {filteredRoster.length > 0 ? (
                         filteredRoster.map((student) => {
                           const isUnmarked = student.status === 'UNMARKED';
@@ -1744,7 +1742,7 @@ export default function MobileTripDetailScreen() {
                       ) : (
                         <Text style={styles.emptyStopsText}>Không tìm thấy học sinh</Text>
                       )}
-                    </ScrollView>
+                    </KeyboardScrollView>
                   </View>
                 )}
 
@@ -2142,7 +2140,10 @@ export default function MobileTripDetailScreen() {
       {/* Absence Reason Modal */}
       {absenceModalStudent && (
         <Modal transparent animationType="fade" visible={Boolean(absenceModalStudent)}>
-          <View style={styles.modalOverlay}>
+          <KeyboardScrollView
+            style={[styles.modalOverlay, { alignItems: undefined, justifyContent: undefined }]}
+            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+          >
             <View style={styles.modalCard}>
               <Text style={styles.modalTitle}>Lý do vắng mặt</Text>
               <Text style={styles.modalSubtitle}>
@@ -2175,13 +2176,13 @@ export default function MobileTripDetailScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
+          </KeyboardScrollView>
         </Modal>
       )}
 
       {/* QR Scanner Modal (D08: Student.code QR scanner) */}
       <Modal transparent animationType="slide" visible={qrModalVisible}>
-        <View style={styles.qrModalContainer}>
+        <KeyboardScrollView style={styles.qrModalContainer} contentContainerStyle={{ flexGrow: 1 }}>
           <View style={[styles.qrModalHeader, { paddingTop: insets.top + 10 }]}>
             <Text style={styles.qrModalTitle}>Quét thẻ học sinh</Text>
             <TouchableOpacity
@@ -2257,7 +2258,7 @@ export default function MobileTripDetailScreen() {
               </View>
             </View>
           )}
-        </View>
+        </KeyboardScrollView>
       </Modal>
 
       {/* Report Incident Modal */}
@@ -2271,9 +2272,9 @@ export default function MobileTripDetailScreen() {
           setIncidentNote('');
         }}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.modalOverlay}
+        <KeyboardScrollView
+          style={[styles.modalOverlay, { alignItems: undefined, justifyContent: undefined }]}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
         >
           <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.modalCard}>
@@ -2371,7 +2372,7 @@ export default function MobileTripDetailScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardScrollView>
       </Modal>
 
       {/* Bus Attendant Auto Incident Confirmation Popup */}
@@ -2385,9 +2386,9 @@ export default function MobileTripDetailScreen() {
           setConfirmReason('');
         }}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.modalOverlay}
+        <KeyboardScrollView
+          style={[styles.modalOverlay, { alignItems: undefined, justifyContent: undefined }]}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
         >
           <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.modalCard}>
@@ -2477,7 +2478,7 @@ export default function MobileTripDetailScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardScrollView>
       </Modal>
     </View>
   );
