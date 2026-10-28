@@ -8,6 +8,16 @@
 
 ---
 
+Bộ tài liệu hệ thống theo source (28/10/2026): [implementation/README.md](../implementation/README.md), gồm local runbook, feature map, backend route catalog, schema và environment references. Chưa commit/push phần docs mới.
+
+## Cập nhật 28/10/2026 — Giao diện Mobile theo V1
+
+Nguồn implementation hiện tại của đợt UI là commit `db02de6` trên `dongnnp/mobile/refactor-ui`, sau các commit `113c249`, `579ccaf`, `d228c1d`. Đã có onboarding 4 trang, restyle Login/Quên mật khẩu/Đăng ký phụ huynh và `KeyboardScrollView` native/Web. API/auth context/validation/OTP và nghiệp vụ V2 giữ nguyên; không thêm dependencies, schema hoặc dữ liệu.
+
+Đọc [hiện trạng UI](../architecture/mobile-ui-implementation-status.md) và [hiện trạng source](CURRENT_STATE.md) trước khi tiếp tục. Tài liệu UI ghi rõ asset, completion marker, manual focus, nhãn/placeholder cuối cùng và phạm vi chưa làm. Quy tắc bàn phím ở [WORKING_RULES mục 3.5](../WORKING_RULES.md#35-mobile-keyboard--focus-visibility), chi tiết tại [mobile-keyboard-behavior.md](../architecture/mobile-keyboard-behavior.md).
+
+Đã push các commit source theo yêu cầu PO, chưa có bằng chứng merge main hoặc nghiệm thu thiết bị. Tsc/unit/bundle PASS không thay cho Expo iPhone/Android, Safari/Chrome mobile, VoiceOver hoặc OTP runtime; các phần đó còn NOT_VERIFIED trong đợt UI. Các snapshot, số lượng migration và trạng thái Git ở các mục lịch sử bên dưới chỉ áp dụng tại mốc ghi nhận, không được dùng để phủ nhận source/addendum mới.
+
 ## MỤC LỤC
 1. [A. Project Overview (Tổng quan Dự án)](#a-project-overview)
 2. [B. Repository Structure (Cấu trúc Repository)](#b-repository-structure)
@@ -409,16 +419,16 @@ Codex phải tuân thủ nghiêm ngặt phong cách làm việc 3 vòng:
 
 | Tài liệu | Đường dẫn | Mục đích sử dụng |
 |---|---|---|
-| **Agent Instructions** | [AGENTS.md](AGENTS.md) | Chỉ dẫn cốt lõi, reading order & operational protocol cho Agent tại root |
-| **Working Rules** | [docs/WORKING_RULES.md](docs/WORKING_RULES.md) | Quy chuẩn kỹ thuật, Test Data Policy, AI Review 13 mục |
-| **Business Context** | [docs/BUSINESS_CONTEXT.md](docs/BUSINESS_CONTEXT.md) | Ngữ cảnh nghiệp vụ nền tảng, 5 vai trò, mô hình nhà xe tập trung |
-| **Codex Handoff** | [docs/ai-handoff/CODEX_HANDOFF.md](docs/ai-handoff/CODEX_HANDOFF.md) | *Tài liệu này*: Tổng hợp kiến trúc, domain model, approved decisions |
-| **Current State** | [docs/ai-handoff/CURRENT_STATE.md](docs/ai-handoff/CURRENT_STATE.md) | Snapshot trạng thái code, migrations, tính năng đã/đang làm tại thời điểm bàn giao |
-| **Latest AI Review** | [docs/ai-review/LATEST.md](docs/ai-review/LATEST.md) | Báo cáo chi tiết của task triển khai gần nhất (Trip Operation V2) |
-| **Latest Diff** | [docs/ai-review/LATEST.diff](docs/ai-review/LATEST.diff) | Git diff của task triển khai gần nhất |
-| **Trip Operation Plan** | [docs/ai-review/trip-operation-business-architecture-plan.md](docs/ai-review/trip-operation-business-architecture-plan.md) | Thiết kế chi tiết luồng vận hành chuyến xe 4 chặng V2 |
-| **Trip Management Plan**| [docs/ai-review/trip-management-architecture-plan.md](docs/ai-review/trip-management-architecture-plan.md) | Thiết kế phê duyệt RoutePlan, sinh chuyến tự động, phân công nguồn lực |
-| **RoutePlan-First Plan**| [docs/ai-review/routeplan-first-management-plan.md](docs/ai-review/routeplan-first-management-plan.md) | Thiết kế chuyển đổi Aggregate Root sang RoutePlan |
+| **Agent Instructions** | [AGENTS.md](../../AGENTS.md) | Chỉ dẫn cốt lõi, reading order & operational protocol cho Agent tại root |
+| **Working Rules** | [docs/WORKING_RULES.md](../WORKING_RULES.md) | Quy chuẩn kỹ thuật, Test Data Policy, AI Review 13 mục |
+| **Business Context** | [docs/BUSINESS_CONTEXT.md](../BUSINESS_CONTEXT.md) | Ngữ cảnh nghiệp vụ nền tảng, 5 vai trò, mô hình nhà xe tập trung |
+| **Codex Handoff** | [docs/ai-handoff/CODEX_HANDOFF.md](CODEX_HANDOFF.md) | *Tài liệu này*: Tổng hợp kiến trúc, domain model, approved decisions |
+| **Current State** | [docs/ai-handoff/CURRENT_STATE.md](CURRENT_STATE.md) | Snapshot trạng thái code, migrations, tính năng đã/đang làm tại thời điểm bàn giao |
+| **Latest AI Review** | [docs/ai-review/LATEST.md](../ai-review/LATEST.md) | Báo cáo chi tiết của task triển khai gần nhất (Trip Operation V2) |
+| **Latest Diff** | [docs/ai-review/LATEST.diff](../ai-review/LATEST.diff) | Git diff của task triển khai gần nhất |
+| **Trip Operation Plan** | [docs/ai-review/trip-operation-business-architecture-plan.md](../ai-review/trip-operation-business-architecture-plan.md) | Thiết kế chi tiết luồng vận hành chuyến xe 4 chặng V2 |
+| **Trip Management Plan**| [docs/ai-review/trip-management-architecture-plan.md](../ai-review/trip-management-architecture-plan.md) | Thiết kế phê duyệt RoutePlan, sinh chuyến tự động, phân công nguồn lực |
+| **RoutePlan-First Plan**| [docs/ai-review/routeplan-first-management-plan.md](../ai-review/routeplan-first-management-plan.md) | Thiết kế chuyển đổi Aggregate Root sang RoutePlan |
 
 ---
 

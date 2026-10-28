@@ -1,6 +1,21 @@
 # Kế hoạch tham khảo giao diện version 1 cho RoadToSchool version 2
 
-Ngày: 28/10/2026 (Asia/Saigon). Chế độ: **PLANNING**. Trạng thái: **WAITING FOR USER REVIEW / APPROVAL**.
+Ngày: 28/10/2026 (Asia/Saigon). Tài liệu gồm kế hoạch gốc và cập nhật tiến độ; các phần chưa được PO giao vẫn ở **PLANNING / WAITING FOR USER REVIEW / APPROVAL**.
+
+## Cập nhật tiến độ — 28/10/2026
+
+| Phần PO đã giao riêng sau kế hoạch | Hiện trạng |
+| --- | --- |
+| Bốn trang onboarding | Đã triển khai, sao chép 4 JPG; có hoàn thành/bỏ qua, đã bỏ bộ đếm 1/4 |
+| Mobile Login | Đã restyle và sao chép ảnh; giữ hành động V2, không autofocus |
+| Mobile Quên mật khẩu | Đã restyle và sao chép ảnh; giữ OTP/context V2, không autofocus |
+| Mobile Đăng ký phụ huynh | Đã restyle và sao chép ảnh; giữ 4 input, chọn kênh, visibility và OTP V2 |
+| Mobile keyboard UX | Đã tích hợp shared scroll handling cho 29 TextInput/15 file, gồm modal/drawer |
+| Phần còn lại của Web/Mobile | Chưa triển khai chuyển phong cách V1; không coi toàn bộ kế hoạch là đã duyệt |
+
+Source đã push tới `db02de6` trên `dongnnp/mobile/refactor-ui`; chưa có bằng chứng merge main hoặc nghiệm thu thiết bị. Xem [tài liệu implementation](../architecture/mobile-ui-implementation-status.md) để biết trạng thái thực tế và các giới hạn kiểm chứng.
+
+**Các mục 1–10 dưới đây giữ ngữ cảnh kế hoạch tại thời điểm lập**. Những câu như “chưa có ảnh sao chép”, “chưa implement” và “chưa commit/push” mô tả mốc kế hoạch đó, không phủ nhận bảng tiến độ mới này. Các wireframe/phạm vi chưa triển khai vẫn là đề xuất.
 
 ## 1. Phạm vi và kết quả kiểm tra
 

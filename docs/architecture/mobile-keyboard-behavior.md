@@ -2,6 +2,8 @@
 
 Scope: Expo Mobile V2, including its React Native Web output. This does not change the independent Web Admin project.
 
+Current UI and onboarding/auth implementation: [mobile-ui-implementation-status.md](mobile-ui-implementation-status.md). Login and Forgot Password explicitly disable autoFocus; Parent Registration does not request automatic focus. Keyboard visibility handling applies after manual focus as well as existing OTP autofocus flows, rather than forcing focus on page entry.
+
 ## Implementation
 
 Use `KeyboardScrollView` from `@/components/keyboard-scroll-view` for a vertical area containing inputs, including multiline TextInput (textarea on Web). Preserve existing controlled values, validation, actions and routes. Put layout/padding in `contentContainerStyle` and keep the viewport bounded by its parent. A modal or drawer must own its scroll region; do not rely on the page behind a portal.

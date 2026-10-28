@@ -5,7 +5,19 @@
 > **Current Git Branch**: `main`  
 > **Mục tiêu**: Báo cáo chi tiết hiện trạng mã nguồn thực tế tại thời điểm bàn giao, phân định rõ ràng giữa những gì ĐÃ LÀM XONG, ĐANG LÀM DỞ, CHƯA LÀM và KHUYẾN NGHỊ TIẾP THEO.
 
-## Cập nhật mới nhất — 26/10/2026: Triển khai Module Báo nghỉ (Leave Notice Module)
+Bộ tài liệu hệ thống theo source (28/10/2026): [implementation/README.md](../implementation/README.md), gồm local runbook, feature map, backend route catalog, schema và environment references. Chưa commit/push phần docs mới.
+
+## Cập nhật mới nhất — 28/10/2026: Onboarding, Mobile auth UI và bàn phím
+
+- Mốc source đối chiếu: `db02de6`, nhánh `dongnnp/mobile/refactor-ui`. Các phần mô tả `main`/uncommitted work ở snapshot cũ bên dưới là lịch sử, không phải Git status hiện tại. Task bổ sung docs tạo thay đổi tài liệu local, chưa commit/push.
+- Đã thêm bốn trang onboarding với ảnh V1, vuốt/chấm trang, Tiếp theo/Bỏ qua/Bắt đầu và marker hoàn thành theo thiết bị; đã bỏ số đếm 1/4. Có fallback khi không lưu được preference; chưa có nút xem lại onboarding.
+- Đã restyle Login, Quên mật khẩu và Đăng ký phụ huynh bằng ảnh/phong cách V1. Giữ context/API/validation/OTP V2, SMS/Email selector và password visibility. Login/Quên mật khẩu không tự focus. Nội dung nhãn/placeholder cuối cùng xem tài liệu hiện trạng, không dùng báo cáo trước tinh chỉnh làm ảnh chụp hiện tại.
+- Đã tích hợp `KeyboardScrollView` native/Web cho 29 TextInput trên 15 file màn hình, gồm form/modal/drawer; không thêm package hoặc thay native config. Chi tiết: [mobile-keyboard-behavior.md](../architecture/mobile-keyboard-behavior.md).
+- Kiểm chứng lịch sử: tsc Mobile, 7 tests onboarding + 8 tests geometry PASS; bundle iOS từng đợt và Android/Web tại đợt keyboard PASS. Không coi các kết quả này là nghiệm thu bàn phím/ảnh render; Expo thiết bị, Safari iOS, Chrome Android và auth runtime trong đợt UI vẫn NOT_VERIFIED.
+- Chưa restyle OTP/Đặt lại mật khẩu, các tab/nghiệp vụ Mobile hoặc Web theo V1. Không tự mở rộng phần tiếp theo. Backend, schema/migrations và nghiệp vụ không đổi trong đợt UI.
+- Tài liệu tổng hợp: [mobile-ui-implementation-status.md](../architecture/mobile-ui-implementation-status.md); kế hoạch gốc có bảng cập nhật tiến độ: [v1-ui-transfer-plan.md](../ai-review/v1-ui-transfer-plan.md).
+
+## Cập nhật trước — 26/10/2026: Triển khai Module Báo nghỉ (Leave Notice Module)
 
 - **Phê duyệt & Triển khai**: Thực hiện toàn diện phân hệ Báo nghỉ theo chỉ thị PO tại `docs/ai-review/leave-notice-implementation-prompt.md` và kế hoạch kiến trúc `docs/ai-review/leave-notice-business-architecture-plan.md`:
   - **Database & Prisma**: Thêm model `LeaveNotice`, enums `LeaveNoticeKind`, `LeaveNoticeStatus`, `OtpPurpose.LEAVE_NOTICE`, trường audit `cancelledAt`, `cancelledById` trên `Trip`. Đã áp dụng additive migration `20261025212318_add_leave_notices` vào PostgreSQL development.
@@ -97,16 +109,16 @@ Mục này thay trạng thái navigation/schema/migration/tests ở snapshot cũ
 
 | Tính năng nghiệp vụ | Backend API | Database | Web Admin | Mobile App | Trạng thái Kiểm thử | Tài liệu tham chiếu |
 |---|:---:|:---:|:---:|:---:|:---:|---|
-| **1. Authentication & Sessions** | `AuthModule` | `users`, `sessions`, `otp_challenges` | Đầy đủ Login/Auth | Đầy đủ Login/Auth | `PASS` (Vitest + tsc) | [docs/architecture/auth-technical-design.md](docs/architecture/auth-technical-design.md) |
-| **2. Quản lý Trường học** | `SchoolsModule` | `schools` | CRUD Trường, Hợp đồng, Lịch học | Xem thông tin | `PASS` (48 unit tests) | [docs/architecture/school-management-design.md](docs/architecture/school-management-design.md) |
-| **3. Học sinh & Phụ huynh** | `StudentsModule`, `ParentsModule` | `students`, `parent_student_links` | Danh sách học sinh, gán xe | Trang chủ, Lịch con | `PASS` (Vitest + tsc) | [docs/architecture/student-parent-management-plan.md](docs/architecture/student-parent-management-plan.md) |
-| **4. Xe & Bãi đỗ xe** | `VehiclesModule`, `SystemSettingsModule` | `vehicles`, `system_settings` | CRUD Xe, Cài đặt bãi xe | Xem thông tin xe | `PASS` (Vitest + tsc) | [docs/architecture/account-vehicle-student-requests-plan.md](docs/architecture/account-vehicle-student-requests-plan.md) |
-| **5. Đơn đề nghị cập nhật** | `StudentRequestsModule` | `student_update_requests` | Duyệt / Từ chối đơn | Phụ huynh gửi đơn | `PASS` (15 unit tests) | [docs/architecture/account-vehicle-student-requests-plan.md](docs/architecture/account-vehicle-student-requests-plan.md) |
-| **6. RoutePlan-First VRP** | `RoutesModule` | `route_plans`, `routes`, `route_stops` | Wizard tạo tuyến, Preview, Distinct count | Xem lộ trình con | `PASS` (22 unit tests) | [docs/ai-review/routeplan-first-management-plan.md](docs/ai-review/routeplan-first-management-plan.md) |
-| **7. Phê duyệt & Giữ chỗ Xe** | `RoutesModule` (Readiness, Reservation) | `RoutePlanStatus.ACTIVE`, Audit fields | Card readiness, Modal duyệt của School Admin | N/A (Admin only) | `PASS` (20 unit tests) | [docs/ai-review/trip-management-architecture-plan.md](docs/ai-review/trip-management-architecture-plan.md) |
-| **8. Sinh chuyến xe tự động** | `TripsModule` (Lazy generation, Cron) | `trips`, `trip_attendances` | Danh sách chuyến, Lọc, Gán xe/người | N/A | `PASS` (17 unit tests) | [docs/ai-review/trip-management-architecture-plan.md](docs/ai-review/trip-management-architecture-plan.md) |
-| **9. Lịch trình di động 7 ngày**| `TripsController` (`/mobile/schedule`) | Dữ liệu `trips` theo tuần | N/A | Lịch tuần Tài xế, Giáo viên, Phụ huynh | `PASS` (tsc + schema) | [docs/ai-review/trip-management-architecture-plan.md](docs/ai-review/trip-management-architecture-plan.md) |
-| **10. Trip Operation V2** | `TripsModule` (`arrive-at-school`, `alighting`) | `arrived_at_school_at`, `alighted_at` | Giám sát trạng thái chuyến | Chi tiết chuyến, Sheet 2 trạng thái, Sub-tabs | `PASS` (270/270 unit tests) | [docs/ai-review/trip-operation-business-architecture-plan.md](docs/ai-review/trip-operation-business-architecture-plan.md) |
+| **1. Authentication & Sessions** | `AuthModule` | `users`, `sessions`, `otp_challenges` | Đầy đủ Login/Auth | Đầy đủ Login/Auth | `PASS` (Vitest + tsc) | [docs/architecture/auth-technical-design.md](../architecture/auth-technical-design.md) |
+| **2. Quản lý Trường học** | `SchoolsModule` | `schools` | CRUD Trường, Hợp đồng, Lịch học | Xem thông tin | `PASS` (48 unit tests) | [docs/architecture/school-management-design.md](../architecture/school-management-design.md) |
+| **3. Học sinh & Phụ huynh** | `StudentsModule`, `ParentsModule` | `students`, `parent_student_links` | Danh sách học sinh, gán xe | Trang chủ, Lịch con | `PASS` (Vitest + tsc) | [docs/architecture/student-parent-management-plan.md](../architecture/student-parent-management-plan.md) |
+| **4. Xe & Bãi đỗ xe** | `VehiclesModule`, `SystemSettingsModule` | `vehicles`, `system_settings` | CRUD Xe, Cài đặt bãi xe | Xem thông tin xe | `PASS` (Vitest + tsc) | [docs/architecture/account-vehicle-student-requests-plan.md](../architecture/account-vehicle-student-requests-plan.md) |
+| **5. Đơn đề nghị cập nhật** | `StudentRequestsModule` | `student_update_requests` | Duyệt / Từ chối đơn | Phụ huynh gửi đơn | `PASS` (15 unit tests) | [docs/architecture/account-vehicle-student-requests-plan.md](../architecture/account-vehicle-student-requests-plan.md) |
+| **6. RoutePlan-First VRP** | `RoutesModule` | `route_plans`, `routes`, `route_stops` | Wizard tạo tuyến, Preview, Distinct count | Xem lộ trình con | `PASS` (22 unit tests) | [docs/ai-review/routeplan-first-management-plan.md](../ai-review/routeplan-first-management-plan.md) |
+| **7. Phê duyệt & Giữ chỗ Xe** | `RoutesModule` (Readiness, Reservation) | `RoutePlanStatus.ACTIVE`, Audit fields | Card readiness, Modal duyệt của School Admin | N/A (Admin only) | `PASS` (20 unit tests) | [docs/ai-review/trip-management-architecture-plan.md](../ai-review/trip-management-architecture-plan.md) |
+| **8. Sinh chuyến xe tự động** | `TripsModule` (Lazy generation, Cron) | `trips`, `trip_attendances` | Danh sách chuyến, Lọc, Gán xe/người | N/A | `PASS` (17 unit tests) | [docs/ai-review/trip-management-architecture-plan.md](../ai-review/trip-management-architecture-plan.md) |
+| **9. Lịch trình di động 7 ngày**| `TripsController` (`/mobile/schedule`) | Dữ liệu `trips` theo tuần | N/A | Lịch tuần Tài xế, Giáo viên, Phụ huynh | `PASS` (tsc + schema) | [docs/ai-review/trip-management-architecture-plan.md](../ai-review/trip-management-architecture-plan.md) |
+| **10. Trip Operation V2** | `TripsModule` (`arrive-at-school`, `alighting`) | `arrived_at_school_at`, `alighted_at` | Giám sát trạng thái chuyến | Chi tiết chuyến, Sheet 2 trạng thái, Sub-tabs | `PASS` (270/270 unit tests) | [docs/ai-review/trip-operation-business-architecture-plan.md](../ai-review/trip-operation-business-architecture-plan.md) |
 
 ---
 
@@ -143,7 +155,7 @@ Chi tiết kiểm định trạng thái của phân hệ vừa hoàn thành gầ
 
 | Hạng mục kiểm tra | Trạng thái thực tế | Bằng chứng mã nguồn / Kiểm thử |
 |---|:---:|---|
-| Cập nhật Kế hoạch Kiến trúc | **ĐÃ HOÀN THÀNH** | [docs/ai-review/trip-operation-business-architecture-plan.md](docs/ai-review/trip-operation-business-architecture-plan.md) |
+| Cập nhật Kế hoạch Kiến trúc | **ĐÃ HOÀN THÀNH** | [docs/ai-review/trip-operation-business-architecture-plan.md](../ai-review/trip-operation-business-architecture-plan.md) |
 | Cập nhật Prisma Schema | **ĐÃ HOÀN THÀNH** | Thêm `Trip.arrivedAtSchoolAt` và `TripAttendance.alightedAt` |
 | Prisma Migration | **ĐÃ HOÀN THÀNH** | `20261025071759_add_trip_school_arrival_and_alighting` |
 | API Xác nhận đến trường | **ĐÃ HOÀN THÀNH** | `POST /api/v1/trips/:id/arrive-at-school` (Phân quyền: `DRIVER`) |

@@ -5,6 +5,8 @@
 
 ---
 
+> **Cập nhật hiện trạng Mobile 28/10/2026:** các nhãn chờ phê duyệt ở đầu tài liệu và wireframe bên dưới là mốc thiết kế lịch sử. Auth V2 đã có implementation; đợt UI mới chỉ đổi trình bày Login, Quên mật khẩu, Đăng ký phụ huynh, thêm onboarding và xử lý bàn phím. Xem [mobile-ui-implementation-status.md](mobile-ui-implementation-status.md) cho source/luồng thực tế; không coi wireframe cũ là ảnh render hiện tại hoặc bản cập nhật schema/API. OTP và Đặt lại mật khẩu chưa được restyle theo V1.
+
 ## 1. Database Schema Design (Prisma Specification)
 
 Sử dụng **một bảng `User` duy nhất cho cả 5 Roles**, kết hợp bảng `Session` quản lý phiên đa thiết bị (hỗ trợ cập nhật nguyên tử có điều kiện - Atomic Conditional Update & Xoay vòng toàn bộ Token Pair) và bảng `OtpChallenge` tinh giản (không giới hạn số lần nhập sai, cấp lại chỉ dựa trên thời hạn `expiresAt`).
