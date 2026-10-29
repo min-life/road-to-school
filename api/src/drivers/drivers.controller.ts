@@ -1,5 +1,7 @@
 import {
   Controller,
+  Inject,
+  HttpCode,
   Get,
   Post,
   Param,
@@ -17,6 +19,10 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
+import type { User } from '@prisma/client';
+import { CurrentUser } from '../auth/decorators/auth-user.decorator.js';
+import { PersonnelCredentialsService } from '../auth/personnel-credentials.service.js';
+import { CredentialDeliveryResultDto } from '../auth/credential-delivery.dto.js';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { RolesGuard } from '../auth/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
@@ -35,6 +41,9 @@ import {
 @Roles(Role.SYSTEM_ADMIN)
 @Controller('drivers')
 export class DriversController {
+  @Inject(PersonnelCredentialsService)
+  private readonly credentials: PersonnelCredentialsService;
+
   constructor(private readonly driversService: DriversService) {}
 
   @Get()
@@ -70,7 +79,7 @@ export class DriversController {
   @ApiOperation({
     summary: 'Tạo tài khoản tài xế mới',
     description:
-      'Khởi tạo tài khoản tài xế thuộc biên chế Nhà xe (schoolId = null). Bắt buộc cung cấp họ tên và ít nhất một định danh (Email hoặc Số điện thoại). Mật khẩu ngẫu nhiên băm bcryptjs và giao qua console ở development.',
+      'Khởi tạo tài khoản tài xế thuộc biên chế Nhà xe (schoolId = null). Bắt buộc họ tên và email; số điện thoại tùy chọn. Mật khẩu chỉ bàn giao qua email hoặc console development. credentialDeliveryStatus: SENT/FAILED/CONSOLE; FAILED vẫn giữ tài khoản đã tạo.',
   })
   @ApiResponse({
     status: 201,
@@ -80,7 +89,7 @@ export class DriversController {
   @ApiResponse({
     status: 400,
     description:
-      'Dữ liệu đầu vào không hợp lệ hoặc thiếu cả Email lẫn Số điện thoại',
+      'Dữ liệu đầu vào không hợp lệ hoặc thiếu Email bắt buộc',
   })
   @ApiResponse({
     status: 401,
@@ -98,6 +107,22 @@ export class DriversController {
     @Body() dto: CreateDriverDto,
   ): Promise<CreateDriverResponseDto> {
     return this.driversService.createDriver(dto);
+  }
+
+  @Post(':id/credentials/resend')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Cấp lại mật khẩu tài xế qua email', description: 'Sinh và lưu mật khẩu mới trước khi gửi email đã lưu. Không thu hồi phiên/push token, không chặn Trip đang chạy. FAILED vẫn có nghĩa mật khẩu đã đổi; cần gọi lại để cấp mật khẩu khác. Không nhận body.' })
+  @ApiParam({ name: 'id', format: 'uuid', description: 'ID tài xế' })
+  @ApiResponse({ status: 200, type: CredentialDeliveryResultDto, description: 'Đã đổi mật khẩu; xem credentialDeliveryStatus để biết kết quả bàn giao' })
+  @ApiResponse({ status: 400, description: 'UUID sai, tài khoản không hoạt động hoặc thiếu email hợp lệ' })
+  @ApiResponse({ status: 401, description: 'Chưa đăng nhập' })
+  @ApiResponse({ status: 403, description: 'Không có quyền cấp mật khẩu tài xế' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy tài xế' })
+  @ApiResponse({ status: 409, description: 'Đang cấp mật khẩu hoặc tài khoản thay đổi đồng thời' })
+  @ApiResponse({ status: 500, description: 'Không lưu được mật khẩu; không xác nhận cấp lại thành công' })
+  async resendCredentials(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @CurrentUser() user: User): Promise<CredentialDeliveryResultDto> {
+    return this.credentials.resend(id, user);
   }
 
   @Get(':id')

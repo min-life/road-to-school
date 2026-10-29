@@ -1,5 +1,7 @@
 import {
   Controller,
+  Inject,
+  HttpCode,
   Get,
   Post,
   Patch,
@@ -29,6 +31,8 @@ import { RolesGuard } from '../auth/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import { CurrentUser } from '../auth/decorators/auth-user.decorator.js';
 import { SchoolsService } from './schools.service.js';
+import { PersonnelCredentialsService } from '../auth/personnel-credentials.service.js';
+import { CredentialDeliveryResultDto } from '../auth/credential-delivery.dto.js';
 import {
   ListSchoolsQueryDto,
   SchoolListResponseDto,
@@ -54,6 +58,9 @@ import {
 @Roles(Role.SYSTEM_ADMIN)
 @Controller('schools')
 export class SchoolsController {
+  @Inject(PersonnelCredentialsService)
+  private readonly credentials: PersonnelCredentialsService;
+
   constructor(private readonly schoolsService: SchoolsService) {}
 
   @Post()
@@ -403,7 +410,7 @@ export class SchoolsController {
   @ApiOperation({
     summary: 'Tạo tài khoản nhân viên trường học (SCHOOL_ADMIN hoặc BUS_ATTENDANT)',
     description:
-      'Khởi tạo tài khoản nhân viên trực thuộc trường. SYSTEM_ADMIN tạo tài khoản SCHOOL_ADMIN. SCHOOL_ADMIN chỉ được tạo tài khoản Giáo viên (BUS_ATTENDANT) cho trường của mình. Mật khẩu ngẫu nhiên băm bcryptjs và giao qua console ở development.',
+      'Khởi tạo tài khoản nhân viên trực thuộc trường. SYSTEM_ADMIN tạo tài khoản SCHOOL_ADMIN. SCHOOL_ADMIN chỉ được tạo tài khoản Giáo viên (BUS_ATTENDANT) cho trường của mình. Email bắt buộc; mật khẩu chỉ bàn giao qua email hoặc console development. credentialDeliveryStatus: SENT/FAILED/CONSOLE; FAILED vẫn giữ tài khoản.',
   })
   @ApiParam({
     name: 'id',
@@ -453,6 +460,27 @@ export class SchoolsController {
     return user
       ? this.schoolsService.createSchoolAdmin(id, dto, user)
       : this.schoolsService.createSchoolAdmin(id, dto);
+  }
+
+  @Post(':id/employees/:employeeId/credentials/resend')
+  @Roles(Role.SYSTEM_ADMIN, Role.SCHOOL_ADMIN)
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Cấp lại mật khẩu nhân sự trường qua email', description: 'SYSTEM_ADMIN cấp cho SCHOOL_ADMIN; SCHOOL_ADMIN cấp cho BUS_ATTENDANT cùng trường. Lưu mật khẩu mới trước gửi email; giữ phiên/push token, cho phép khi Trip đang chạy. FAILED: mật khẩu đã đổi nhưng chưa bàn giao; cần cấp lại. Không nhận body.' })
+  @ApiParam({ name: 'id', format: 'uuid', description: 'ID trường' })
+  @ApiParam({ name: 'employeeId', format: 'uuid', description: 'ID nhân sự' })
+  @ApiResponse({ status: 200, type: CredentialDeliveryResultDto, description: 'Đã đổi mật khẩu; kết quả bàn giao SENT/FAILED/CONSOLE' })
+  @ApiResponse({ status: 400, description: 'UUID sai, nhân sự không hoạt động hoặc thiếu email hợp lệ' })
+  @ApiResponse({ status: 401, description: 'Chưa đăng nhập' })
+  @ApiResponse({ status: 403, description: 'Sai role hoặc ngoài phạm vi trường' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy nhân sự trong trường' })
+  @ApiResponse({ status: 409, description: 'Đang cấp mật khẩu hoặc tài khoản thay đổi đồng thời' })
+  @ApiResponse({ status: 500, description: 'Không lưu được mật khẩu; không xác nhận cấp lại thành công' })
+  async resendEmployeeCredentials(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('employeeId', new ParseUUIDPipe({ version: '4' })) employeeId: string,
+    @CurrentUser() user: User,
+  ): Promise<CredentialDeliveryResultDto> {
+    return this.credentials.resend(employeeId, user, id);
   }
 
   @Get(':id/settings')

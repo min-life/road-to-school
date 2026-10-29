@@ -41,6 +41,7 @@ import {
 export class ParentRequestsController {
   constructor(private readonly studentRequestsService: StudentRequestsService) {}
 
+  @ApiResponse({ status: 503, description: 'Không gửi được OTP hoặc chưa xác định kết quả gửi; khi kết quả chưa rõ phải chờ mã hết hạn trước khi yêu cầu lại' })
   @Post('students/:id/update-requests/otp')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

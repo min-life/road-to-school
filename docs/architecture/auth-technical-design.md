@@ -1,5 +1,7 @@
 # RoadToSchool — Phase 1: Authentication Technical Design & Wireframes (Stage B Final Adjustments)
 
+> Hiện trạng mới nhất: xem mục cập nhật triển khai 3.1 ngày 30/10/2026 cuối tài liệu; các trạng thái Stage B bên dưới là lịch sử.
+
 > **Giai đoạn**: Phase 1 — Authentication & Account Access: Stage B Final Adjustments (Technical Design & Wireframes)  
 > **Trạng thái**: Chờ phê duyệt (WAITING FOR APPROVAL) — Tuyệt đối chưa viết code application, chưa sửa schema thực tế, chưa chạy migration hay seed.
 
@@ -684,3 +686,17 @@ BOOTSTRAP_ADMIN_EMAIL=admin@r2s.com
 BOOTSTRAP_ADMIN_PASSWORD=Pass@123
 ```
 *(Đã loại bỏ hoàn toàn `AUTH_OTP_MAX_ATTEMPTS` theo quyết định cho phép nhập sai không giới hạn).*
+# Cập nhật triển khai mục 3.1 — 30/10/2026
+
+Phần cập nhật này ưu tiên hơn các mô tả bàn giao nhân sự/console cũ bên dưới khi có khác biệt.
+
+- Hai API POST `/api/v1/drivers` và `/api/v1/schools/:id/employees` bắt buộc email, phone tùy chọn. Response giữ field cũ và thêm `credentialDeliveryStatus` = SENT/FAILED/CONSOLE. SENT chỉ SMTP accepted, không cam kết tới inbox. FAILED vẫn giữ User đã tạo; không gọi lại create để gửi email.
+- API mới POST `/api/v1/drivers/:id/credentials/resend` và `/api/v1/schools/:id/employees/:employeeId/credentials/resend`; không yêu cầu body; response 200 có message và credentialDeliveryStatus. Nhà xe cấp cho DRIVER/SCHOOL_ADMIN; trường cấp cho BUS_ATTENDANT trường mình.
+- Resend sinh/lưu password hash trước email. FAILED có nghĩa mật khẩu mới đã có hiệu lực nhưng chưa bàn giao, cần cấp lại lần nữa. Giữ Session, tokenVersion và pushToken. Cho phép target có Trip đang chạy. Không đổi các API tự change/reset-password.
+- Lỗi resend: 400 input/email/inactive, 401/403 quyền, 404 target, 409 thao tác đồng thời hoặc trạng thái/hash thay đổi, 500 lỗi DB. Không trả mật khẩu trong HTTP. SMTP lỗi được trả qua FAILED.
+- Tái sử dụng **AUTH_EMAIL_MODE=console|smtp** cho cả OTP và mật khẩu nhân sự; **AUTH_SMS_MODE=console|esms** cho SMS OTP. Không có PERSONNEL_EMAIL_MODE riêng. Console không được dùng ở NODE_ENV=production. SMTP dùng các biến SMTP_* hiện có.
+- eSMS dùng **ESMS_API_KEY**, **ESMS_SECRET_KEY**; API key/secret chỉ ở `.env` local. Không đưa giá trị vào git/diff/report. Không cài SDK/package.
+- Gửi eSMS: HTTPS POST SendMultipleMessage_V4_post_json, Brandname Baotrixemay, SmsType 2, IsUnicode 0, Sandbox 0, đúng mẫu `CODE la ma xac minh dang ky Baotrixemay cua ban`; thay CODE bằng OTP 6 chữ số. Provider có thể yêu cầu cấp quyền dùng mẫu thử.
+- Mọi OTP SMS hiện có dùng cùng sender. Message/response shape cũ giữ nguyên. `isConsole` trong báo nghỉ tính theo mode thay vì hardcode. Lỗi gửi trả 503; definitive failure làm challenge hết hạn để xin lại; timeout/response không rõ giữ cooldown để tránh phát mã thứ hai. Fan-out giữ challenge nếu ít nhất một kênh accepted; không cam kết mọi kênh đã giao.
+- Đồng thời: in-flight guard cùng User trong một API process, conditional password update và kiểm tra lại hash/email sau gửi. Không giữ DB transaction khi chờ provider. Nhiều API process hoặc một luồng đổi mật khẩu khác có thể làm email cũ tới muộn; 409/FAILED khi phát hiện, không cam kết phân phối email/mật khẩu atomic xuyên provider.
+- Phạm vi xác minh task: TypeScript, biên dịch, lint, Swagger UI/JSON từ server chỉ phục vụ tài liệu (không application hooks/cron/DB). Không chạy bất kỳ script test nào theo PO; không tạo business records, không gửi eSMS/SMTP thật. Runtime delivery/resend và concurrency chưa nghiệm thu.

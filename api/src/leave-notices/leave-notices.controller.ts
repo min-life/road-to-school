@@ -63,6 +63,7 @@ export class LeaveNoticesController {
     return this.leaveNoticesService.getOptions(user, query);
   }
 
+  @ApiResponse({ status: 503, description: 'Không gửi được OTP hoặc chưa xác định kết quả gửi; khi kết quả chưa rõ phải chờ mã hết hạn trước khi yêu cầu lại' })
   @Post('otp')
   @HttpCode(HttpStatus.OK)
   @Roles(Role.PARENT, Role.DRIVER, Role.BUS_ATTENDANT)

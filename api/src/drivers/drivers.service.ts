@@ -1,5 +1,7 @@
+import { PersonnelCredentialsService } from '../auth/personnel-credentials.service.js';
 import {
   Injectable,
+  Inject,
   Logger,
   NotFoundException,
   BadRequestException,
@@ -21,6 +23,9 @@ import {
 @Injectable()
 export class DriversService {
   private readonly logger = new Logger(DriversService.name);
+
+  @Inject(PersonnelCredentialsService)
+  private readonly credentials: PersonnelCredentialsService;
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -102,9 +107,9 @@ export class DriversService {
    * Tạo mới tài khoản Tài xế thuộc biên chế Nhà xe.
    * - Vai trò: DRIVER
    * - schoolId: null
-   * - Bắt buộc có ít nhất Email hoặc Số điện thoại.
+   * - Bắt buộc Email để bàn giao mật khẩu.
    */
-  async createDriver(dto: CreateDriverDto): Promise<CreateDriverResponseDto> {
+  async createDriver(dto: Omit<CreateDriverDto, 'email'> & { email?: string }): Promise<CreateDriverResponseDto> {
     // 1. Chuẩn hóa Email và Số điện thoại
     let email: string | null = null;
     if (dto.email && dto.email.trim().length > 0) {
@@ -122,9 +127,9 @@ export class DriversService {
       phone = cleanPhone;
     }
 
-    if (!email && !phone) {
+    if (!email) {
       throw new BadRequestException(
-        'Bắt buộc phải cung cấp ít nhất Email hoặc Số điện thoại cho tài xế',
+        'Email tài xế là bắt buộc để bàn giao mật khẩu',
       );
     }
 
@@ -186,16 +191,7 @@ export class DriversService {
       throw error;
     }
 
-    // 5. Bàn giao mật khẩu tạm qua Logger chỉ trong môi trường Development
-    if (process.env.NODE_ENV === 'development') {
-      this.logger.log(
-        `[CONSOLE_CREDENTIAL_DELIVERY] Tạo tài khoản DRIVER thành công:\n` +
-          `  - Họ và tên:    ${newDriver.fullName}\n` +
-          `  - Định danh:    ${email || phone}\n` +
-          `  - Mật khẩu tạm: ${tempPassword}\n` +
-          `  *(Lưu ý: Chỉ phục vụ Development. Tuyệt đối không trả ra HTTP response)*`,
-      );
-    }
+    const credentialDeliveryStatus = await this.credentials.deliverCreatedUser(newDriver, tempPassword);
 
     return {
       id: newDriver.id,
@@ -207,7 +203,10 @@ export class DriversService {
       isActive: newDriver.isActive,
       isVerified: newDriver.isVerified,
       createdAt: newDriver.createdAt.toISOString(),
-      message: 'Tạo tài khoản tài xế thành công',
+      credentialDeliveryStatus,
+      message: credentialDeliveryStatus === 'FAILED'
+        ? 'Đã tạo tài khoản tài xế nhưng chưa gửi được email mật khẩu'
+        : 'Tạo tài khoản tài xế thành công',
     };
   }
 
