@@ -1,5 +1,7 @@
 'use client';
 
+import { toast } from '@/stores/toast-store';
+
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { SchoolListItem, GenerateTripsResponse } from '@/lib/types';
@@ -122,6 +124,7 @@ export function ManualGenerateTripsModal({
         fromDate,
         toDate,
       });
+      if (res.failedCount > 0) { toast.warning(`Đã tạo ${res.createdCount} chuyến; ${res.failedCount} chuyến chưa thể tạo. Xem chi tiết trong hộp thoại.`); } else { toast.success(`Đã tạo ${res.createdCount} chuyến, bỏ qua ${res.skippedCount} chuyến đã có.`); }
       setResult(res);
       onSuccess();
     } catch (err: any) {

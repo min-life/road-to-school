@@ -1,4 +1,6 @@
 'use client';
+import { BusIcon } from '@/components/icons';
+import { Button } from '@/components/ui/button';
 
 import React, { useState } from 'react';
 import { TripsTable } from '@/components/admin/trips/trips-table';
@@ -18,7 +20,7 @@ export function SchoolTripsTab({ schoolId, schoolName }: SchoolTripsTabProps) {
 
   return (
     <div className="space-y-4 pt-2">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h3 className="text-sm font-bold text-slate-800">
             Lịch trình chuyến xe của trường: {schoolName}
@@ -27,15 +29,13 @@ export function SchoolTripsTab({ schoolId, schoolName }: SchoolTripsTabProps) {
             Danh sách các chuyến xe đã được lập lịch và chuyến dự kiến thuộc các phương án tuyến ACTIVE của trường
           </p>
         </div>
+        {currentUserRole === 'SYSTEM_ADMIN' && <Button type="button" variant="primary" onClick={() => setIsManualModalOpen(true)}><BusIcon className="w-4 h-4" aria-hidden="true" />Sinh chuyến thủ công</Button>}
       </div>
 
       <TripsTable
         refreshKey={refreshKey}
         fixedSchoolId={schoolId}
         currentUserRole={currentUserRole}
-        onOpenManualGenerate={
-          currentUserRole === 'SYSTEM_ADMIN' ? () => setIsManualModalOpen(true) : undefined
-        }
       />
 
       {currentUserRole === 'SYSTEM_ADMIN' && (

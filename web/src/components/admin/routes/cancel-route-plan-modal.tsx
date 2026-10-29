@@ -1,5 +1,7 @@
 'use client';
 
+import { toast } from '@/stores/toast-store';
+
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
 import type { RoutePlanCancellationImpactResponse } from '@/lib/types';
@@ -58,6 +60,7 @@ export function CancelRoutePlanModal({
       setLoading(true);
       setError(null);
       await apiClient.cancelRoutePlan(routePlanId, reason.trim(), impact?.fingerprint);
+      toast.success('Đã hủy phương án tuyến.');
       onSuccess();
       onClose();
     } catch (err: any) {

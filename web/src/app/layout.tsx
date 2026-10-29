@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import localFont from 'next/font/local';
 import './globals.css';
 import { AuthProvider } from '@/components/auth/auth-provider';
+import ToastProvider from '@/components/shared/toast-provider';
 
 const beVietnamPro = localFont({
   variable: '--font-be-vietnam-pro',
@@ -31,7 +32,7 @@ export default function RootLayout({
       className={`${beVietnamPro.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <AuthProvider>{children}</AuthProvider>
+        <ToastProvider><AuthProvider>{children}</AuthProvider></ToastProvider>
       </body>
     </html>
   );

@@ -1,0 +1,113 @@
+{
+  "mode": "Actual component markup with CSS fetched from running dev /admin, no auth/API business data",
+  "results": [
+    {
+      "width": 1440,
+      "height": 900,
+      "bannerHeight": 140,
+      "imageWidth": 785.359375,
+      "imageLoaded": true,
+      "overflow": false,
+      "titleFits": true,
+      "filtersBelow": true,
+      "controlsFit": true,
+      "clip": {
+        "x": 274,
+        "y": 22,
+        "width": 1127,
+        "height": 212,
+        "scale": 1
+      }
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "bannerHeight": 120,
+      "imageWidth": 671.546875,
+      "imageLoaded": true,
+      "overflow": false,
+      "titleFits": true,
+      "filtersBelow": true,
+      "controlsFit": true,
+      "clip": {
+        "x": 96,
+        "y": 22,
+        "width": 889,
+        "height": 192,
+        "scale": 1
+      }
+    },
+    {
+      "width": 768,
+      "height": 900,
+      "bannerHeight": 120,
+      "imageWidth": 671.546875,
+      "imageLoaded": true,
+      "overflow": false,
+      "titleFits": true,
+      "filtersBelow": true,
+      "controlsFit": true,
+      "clip": {
+        "x": 96,
+        "y": 22,
+        "width": 633,
+        "height": 192,
+        "scale": 1
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "bannerHeight": 100,
+      "imageWidth": 557.71875,
+      "imageLoaded": true,
+      "overflow": false,
+      "titleFits": true,
+      "filtersBelow": true,
+      "controlsFit": true,
+      "clip": {
+        "x": 14,
+        "y": 16,
+        "width": 347,
+        "height": 172,
+        "scale": 1
+      }
+    },
+    {
+      "width": 375,
+      "height": 812,
+      "bannerHeight": 100,
+      "imageWidth": 557.71875,
+      "imageLoaded": true,
+      "overflow": false,
+      "titleFits": true,
+      "filtersBelow": true,
+      "controlsFit": true,
+      "clip": {
+        "x": 14,
+        "y": 16,
+        "width": 332,
+        "height": 172,
+        "scale": 1
+      }
+    },
+    {
+      "width": 812,
+      "height": 375,
+      "bannerHeight": 120,
+      "imageWidth": 671.546875,
+      "imageLoaded": true,
+      "overflow": false,
+      "titleFits": true,
+      "filtersBelow": true,
+      "controlsFit": true,
+      "clip": {
+        "x": 96,
+        "y": 22,
+        "width": 677,
+        "height": 192,
+        "scale": 1
+      }
+    }
+  ]
+}

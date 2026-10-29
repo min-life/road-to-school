@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Building2, BusFront, LocateFixed, Maximize2, UserRound, Warehouse } from 'lucide-react';
+import { Map, MapControls, MapMarker, MapRoute, MarkerContent, MarkerPopup, MarkerTooltip, useMap } from '@/components/ui/map';
 import { decodePolyline } from '@/lib/polyline';
-import { SpinnerIcon } from '@/components/icons';
-import 'maplibre-gl/dist/maplibre-gl.css';
 import type { VehiclePosition } from '@/lib/trip-location';
-import type { Marker } from 'maplibre-gl';
+import type { ErrorEvent as MapErrorEvent } from 'maplibre-gl';
+import './route-map.css';
 
 export interface MapPoint {
   id: string;
@@ -32,451 +33,168 @@ interface RouteMapProps {
   recordedTrack?: VehiclePosition[][];
 }
 
-export function RouteMap({
-  schoolLocation,
-  parkingLocation,
-  points = [],
-  polylineGeometry,
-  height = '480px',
-  focusPoint,
-  onPointClick,
-  className = '',
-  vehiclePosition,
-  recordedTrack,
-}: RouteMapProps) {
-  const mapContainerRef = useRef<HTMLDivElement | null>(null);
-  const mapInstanceRef = useRef<any>(null);
-  const markersRef = useRef<any[]>([]);
-  const vehicleMarkerRef = useRef<Marker | null>(null);
-  const hasFitInitialBoundsRef = useRef(false);
-  const lastPolylineRef = useRef<string | null | undefined>(undefined);
+const EMPTY_POINTS: MapPoint[] = [];
+const hasCoordinates = (point: { latitude: number; longitude: number } | null | undefined) =>
+  !!point && Number.isFinite(point.latitude) && Number.isFinite(point.longitude);
 
-  const [mapLoaded, setMapLoaded] = useState(false);
-  const [mapError, setMapError] = useState<string | null>(null);
+function MapMessage({ children }: { children: ReactNode }) {
+  return <div className="rts-map-message" role="status">{children}</div>;
+}
 
+class MapErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() {
+    return this.state.failed ? <MapMessage>Không thể mở bản đồ. Vui lòng tải lại trang hoặc kiểm tra WebGL.</MapMessage> : this.props.children;
+  }
+}
+
+export function RouteMap({ schoolLocation, parkingLocation, points = EMPTY_POINTS, polylineGeometry, height = '480px', focusPoint, onPointClick, className = '', vehiclePosition, recordedTrack }: RouteMapProps) {
   const tilemapKey = process.env.NEXT_PUBLIC_VIETMAP_TILEMAP_KEY || '';
-
-  // Fit All Bounds helper
-  const handleFitAll = useCallback(() => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-
-    import('maplibre-gl').then((maplibreModule) => {
-      const maplibregl: any = (maplibreModule as any).default || maplibreModule;
-      const bounds = new maplibregl.LngLatBounds();
-      let hasCoords = false;
-
-      if (parkingLocation?.latitude && parkingLocation?.longitude) {
-        bounds.extend([parkingLocation.longitude, parkingLocation.latitude]);
-        hasCoords = true;
-      }
-
-      if (schoolLocation?.latitude && schoolLocation?.longitude) {
-        bounds.extend([schoolLocation.longitude, schoolLocation.latitude]);
-        hasCoords = true;
-      }
-
-      points.forEach((pt) => {
-        if (pt.latitude && pt.longitude) {
-          bounds.extend([pt.longitude, pt.latitude]);
-          hasCoords = true;
-        }
-      });
-      recordedTrack?.flat().forEach(pt => { bounds.extend([pt.longitude, pt.latitude]); hasCoords = true; });
-      if (vehiclePosition) { bounds.extend([vehiclePosition.longitude, vehiclePosition.latitude]); hasCoords = true; }
-
-      if (polylineGeometry) {
-        const coords = decodePolyline(polylineGeometry);
-        coords.forEach((c) => bounds.extend(c));
-        hasCoords = true;
-      }
-
-      if (hasCoords) {
-        try {
-          map.fitBounds(bounds, {
-            padding: { top: 60, bottom: 60, left: 60, right: 60 },
-            maxZoom: 15,
-            duration: 700,
-          });
-        } catch {
-          // ignore single point fit bounds
-        }
-      }
-    });
-  }, [parkingLocation, schoolLocation, points, polylineGeometry, recordedTrack, vehiclePosition]);
-
-  // Initialize Map
-  useEffect(() => {
-    let isMounted = true;
-    let resizeObserver: ResizeObserver | null = null;
-
-    async function initMap() {
-      if (!mapContainerRef.current) return;
-      if (!tilemapKey) {
-        setMapError('Chưa cấu hình NEXT_PUBLIC_VIETMAP_TILEMAP_KEY');
-        return;
-      }
-
-      try {
-        const maplibreModule = await import('maplibre-gl');
-        const maplibregl: any = (maplibreModule as any).default || maplibreModule;
-
-        if (typeof maplibregl.setWorkerUrl === 'function') {
-          maplibregl.setWorkerUrl('/maplibre/maplibre-gl-worker.mjs');
-        }
-
-        const officialStyleUrl = `https://maps.vietmap.vn/maps/styles/tm/style.json?apikey=${tilemapKey}`;
-
-        const initialCenter: [number, number] = schoolLocation
-          ? [schoolLocation.longitude, schoolLocation.latitude]
-          : [106.700806, 10.776889];
-
-        const map = new maplibregl.Map({
-          container: mapContainerRef.current,
-          style: officialStyleUrl,
-          center: initialCenter,
-          zoom: 12,
-          transformRequest: (url: string) => {
-            if (url.includes('vietmap.vn') && !url.includes('apikey=')) {
-              const separator = url.includes('?') ? '&' : '?';
-              return { url: `${url}${separator}apikey=${tilemapKey}` };
-            }
-            return { url };
-          },
-        });
-
-        map.addControl(new maplibregl.NavigationControl(), 'top-right');
-
-        map.on('load', () => {
-          if (!isMounted) return;
-          mapInstanceRef.current = map;
-          setMapLoaded(true);
-        });
-
-        map.on('error', (e: any) => {
-          console.warn('MapLibre error:', e);
-        });
-
-        if (typeof ResizeObserver !== 'undefined' && mapContainerRef.current) {
-          resizeObserver = new ResizeObserver(() => {
-            if (mapInstanceRef.current) {
-              mapInstanceRef.current.resize();
-            }
-          });
-          resizeObserver.observe(mapContainerRef.current);
-        }
-      } catch (err: any) {
-        if (isMounted) {
-          setMapError(err?.message || 'Không thể khởi tạo bản đồ');
-        }
-      }
-    }
-
-    initMap();
-
-    return () => {
-      isMounted = false;
-      if (resizeObserver) resizeObserver.disconnect();
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-        vehicleMarkerRef.current = null;
-      }
-    };
+  const styles = useMemo(() => {
+    const url = `https://maps.vietmap.vn/maps/styles/tm/style.json?apikey=${tilemapKey}`;
+    return { light: url, dark: url };
   }, [tilemapKey]);
 
-  // Click-to-focus camera
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map || !mapLoaded || !focusPoint) return;
-    if (!focusPoint.latitude || !focusPoint.longitude) return;
-
-    map.flyTo({
-      center: [focusPoint.longitude, focusPoint.latitude],
-      zoom: focusPoint.zoom || 15.5,
-      essential: true,
-      duration: 700,
-    });
-  }, [focusPoint, mapLoaded]);
-
-  // Update Markers and Polyline (Static Markers, No Animations - RM-003)
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map || !mapLoaded) return;
-
-    // 1. Remove old markers
-    markersRef.current.forEach((m) => m.remove());
-    markersRef.current = [];
-
-    import('maplibre-gl').then((maplibreModule) => {
-      const maplibregl: any = (maplibreModule as any).default || maplibreModule;
-      const bounds = new maplibregl.LngLatBounds();
-      let hasCoordinates = false;
-
-      // 2. Add Depot Marker (Static, no scale animation)
-      if (parkingLocation && parkingLocation.latitude && parkingLocation.longitude) {
-        const depotEl = document.createElement('div');
-        depotEl.className =
-          'w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md border-2 border-white text-xs font-bold cursor-pointer select-none';
-        depotEl.innerHTML = 'P';
-        depotEl.title = parkingLocation.addressText || 'Bãi xe trung tâm';
-
-        const popup = new maplibregl.Popup({
-          offset: 14,
-          closeButton: false,
-          className: 'pointer-events-none',
-        }).setHTML(
-          `<div class="p-1.5 text-xs pointer-events-none"><strong class="text-blue-700">Bãi xe trung tâm</strong><br/><span class="text-slate-500">${parkingLocation.addressText || ''}</span></div>`,
-        );
-
-        depotEl.addEventListener('mouseenter', () => popup.addTo(map));
-        depotEl.addEventListener('mouseleave', () => popup.remove());
-        depotEl.addEventListener('click', (e) => {
-          e.stopPropagation();
-          map.flyTo({ center: [parkingLocation.longitude, parkingLocation.latitude], zoom: 15.5, duration: 600 });
-        });
-
-        const marker = new maplibregl.Marker({ element: depotEl })
-          .setLngLat([parkingLocation.longitude, parkingLocation.latitude])
-          .setPopup(popup)
-          .addTo(map);
-
-        markersRef.current.push(marker);
-        bounds.extend([parkingLocation.longitude, parkingLocation.latitude]);
-        hasCoordinates = true;
-      }
-
-      // 3. Add School Marker (Static, no scale animation)
-      if (schoolLocation && schoolLocation.latitude && schoolLocation.longitude) {
-        const schoolEl = document.createElement('div');
-        schoolEl.className =
-          'w-8 h-8 rounded-full bg-[#FFCB56] text-[#1E293B] flex items-center justify-center shadow-md border-2 border-white text-xs font-black cursor-pointer select-none';
-        schoolEl.innerHTML = '🏫';
-        schoolEl.title = schoolLocation.name || 'Trường học';
-
-        const popup = new maplibregl.Popup({
-          offset: 16,
-          closeButton: false,
-          className: 'pointer-events-none',
-        }).setHTML(
-          `<div class="p-1.5 text-xs pointer-events-none"><strong class="text-amber-800">Trường học</strong><br/><span class="text-slate-700">${schoolLocation.name || ''}</span></div>`,
-        );
-
-        schoolEl.addEventListener('mouseenter', () => popup.addTo(map));
-        schoolEl.addEventListener('mouseleave', () => popup.remove());
-        schoolEl.addEventListener('click', (e) => {
-          e.stopPropagation();
-          map.flyTo({ center: [schoolLocation.longitude, schoolLocation.latitude], zoom: 15.5, duration: 600 });
-        });
-
-        const marker = new maplibregl.Marker({ element: schoolEl })
-          .setLngLat([schoolLocation.longitude, schoolLocation.latitude])
-          .setPopup(popup)
-          .addTo(map);
-
-        markersRef.current.push(marker);
-        bounds.extend([schoolLocation.longitude, schoolLocation.latitude]);
-        hasCoordinates = true;
-      }
-
-      // 4. Add Student Points (Static Markers, Selected Only)
-      points.forEach((pt) => {
-        if (!pt.latitude || !pt.longitude) return;
-
-        const isNumbered = typeof pt.order === 'number';
-        const el = document.createElement('div');
-        el.className = isNumbered
-          ? 'w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border-2 border-white shadow-xs cursor-pointer select-none bg-emerald-600 text-white'
-          : 'w-4 h-4 rounded-full bg-emerald-600 border-2 border-white shadow-xs cursor-pointer select-none';
-
-        if (isNumbered) {
-          el.innerText = String(pt.order);
-        }
-
-        const tooltipContent = `
-          <div class="p-2 text-xs font-sans min-w-[140px] pointer-events-none">
-            <p class="font-bold text-slate-900">${pt.title}</p>
-            ${pt.eta ? `<p class="text-emerald-600 font-semibold mt-0.5">Dự kiến: ${pt.eta}</p>` : ''}
-            ${pt.subtitle ? `<p class="text-slate-500 text-[11px] mt-0.5 truncate max-w-[200px]">${pt.subtitle}</p>` : ''}
-          </div>
-        `;
-
-        const popup = new maplibregl.Popup({
-          offset: 12,
-          closeButton: false,
-          className: 'pointer-events-none',
-        }).setHTML(tooltipContent);
-
-        el.addEventListener('mouseenter', () => popup.addTo(map));
-        el.addEventListener('mouseleave', () => popup.remove());
-        if (onPointClick) {
-          el.addEventListener('click', (e) => {
-            e.stopPropagation();
-            onPointClick(pt);
-          });
-        }
-
-        const marker = new maplibregl.Marker({ element: el })
-          .setLngLat([pt.longitude, pt.latitude])
-          .setPopup(popup)
-          .addTo(map);
-
-        markersRef.current.push(marker);
-        bounds.extend([pt.longitude, pt.latitude]);
-        hasCoordinates = true;
-      });
-
-      // 5. Add or Update Polyline Layer (Real Road Geometry)
-      const polylineSourceId = 'route-polyline-source';
-      const polylineLayerId = 'route-polyline-layer';
-
-      if (polylineGeometry && recordedTrack === undefined) {
-        const coordinates = decodePolyline(polylineGeometry);
-        coordinates.forEach((coord) => bounds.extend(coord));
-        hasCoordinates = true;
-
-        const geojsonData: any = {
-          type: 'Feature',
-          properties: {},
-          geometry: {
-            type: 'LineString',
-            coordinates,
-          },
-        };
-
-        if (map.getSource(polylineSourceId)) {
-          map.getSource(polylineSourceId).setData(geojsonData);
-        } else {
-          map.addSource(polylineSourceId, {
-            type: 'geojson',
-            data: geojsonData,
-          });
-
-          map.addLayer({
-            id: polylineLayerId,
-            type: 'line',
-            source: polylineSourceId,
-            layout: {
-              'line-join': 'round',
-              'line-cap': 'round',
-            },
-            paint: {
-              'line-color': '#2563EB',
-              'line-width': 5,
-              'line-opacity': 0.85,
-            },
-          });
-        }
-      } else {
-        if (map.getLayer(polylineLayerId)) {
-          map.removeLayer(polylineLayerId);
-        }
-        if (map.getSource(polylineSourceId)) {
-          map.removeSource(polylineSourceId);
-        }
-      }
-
-      // 6. Only fitBounds automatically on first load or when polylineGeometry changes
-      const polylineChanged = lastPolylineRef.current !== polylineGeometry;
-      lastPolylineRef.current = polylineGeometry;
-
-      if (hasCoordinates && (!hasFitInitialBoundsRef.current || polylineChanged)) {
-        hasFitInitialBoundsRef.current = true;
-        try {
-          map.fitBounds(bounds, {
-            padding: { top: 50, bottom: 50, left: 50, right: 50 },
-            maxZoom: 15,
-            duration: 800,
-          });
-        } catch {
-          // ignore single point fit bounds
-        }
-      }
-    });
-  }, [schoolLocation, parkingLocation, points, polylineGeometry, mapLoaded, onPointClick, recordedTrack]);
-
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map || !mapLoaded) return;
-    let cancelled = false;
-    if (!vehiclePosition) { vehicleMarkerRef.current?.remove(); vehicleMarkerRef.current = null; return; }
-    void import('maplibre-gl').then(module => {
-      if (cancelled) return;
-      const maplibre = (module as typeof module & { default?: typeof module }).default ?? module;
-      if (!vehicleMarkerRef.current) {
-        const el = document.createElement('div');
-        el.textContent = '🚌'; el.title = 'Vị trí xe';
-        el.className = 'rounded-full bg-white border-2 border-amber-400 p-1 text-xl shadow-md';
-        vehicleMarkerRef.current = new maplibre.Marker({ element: el }).setLngLat([vehiclePosition.longitude, vehiclePosition.latitude]).addTo(map);
-      } else vehicleMarkerRef.current.setLngLat([vehiclePosition.longitude, vehiclePosition.latitude]);
-    });
-    return () => { cancelled = true; };
-  }, [vehiclePosition, mapLoaded]);
-
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map || !mapLoaded) return;
-    const id = 'trip-recorded-history';
-    const data = { type: 'FeatureCollection', features: (recordedTrack ?? []).filter(p => p.length).map(part => ({
-      type: 'Feature', properties: {}, geometry: part.length === 1
-        ? { type: 'Point', coordinates: [part[0].longitude, part[0].latitude] }
-        : { type: 'LineString', coordinates: part.map(p => [p.longitude, p.latitude]) },
-    })) };
-    if (map.getSource(id)) map.getSource(id).setData(data);
-    else {
-      map.addSource(id, { type: 'geojson', data });
-      map.addLayer({ id, source: id, type: 'line', filter: ['==', '$type', 'LineString'], paint: { 'line-color': '#059669', 'line-width': 5 } });
-      map.addLayer({ id: id + '-points', source: id, type: 'circle', filter: ['==', '$type', 'Point'], paint: { 'circle-color': '#059669', 'circle-radius': 5 } });
-    }
-  }, [recordedTrack, mapLoaded]);
-
   return (
-    <div className={`relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 ${className}`}>
-      <div ref={mapContainerRef} style={{ width: '100%', height }} />
-      {mapLoaded && vehiclePosition && <button type="button" className="absolute top-14 left-3 bg-white rounded-xl px-3 py-2 text-xs shadow-md"
-        onClick={() => mapInstanceRef.current?.flyTo({ center: [vehiclePosition.longitude, vehiclePosition.latitude], duration: 500 })}>Theo xe</button>}
-
-      {!mapLoaded && !mapError && (
-        <div className="absolute inset-0 bg-slate-100/80 backdrop-blur-xs flex flex-col items-center justify-center gap-2 text-slate-500 text-xs">
-          <SpinnerIcon className="w-6 h-6 animate-spin text-[#FFCB56]" />
-          <span>Đang tải bản đồ VietMap...</span>
-        </div>
+    <div className={`rts-map ${className}`} style={{ height }}>
+      {!tilemapKey ? <MapMessage>Chưa cấu hình NEXT_PUBLIC_VIETMAP_TILEMAP_KEY</MapMessage> : (
+        <MapErrorBoundary key={tilemapKey}>
+          <Map theme="light" styles={styles} center={schoolLocation ? [schoolLocation.longitude, schoolLocation.latitude] : [106.700806, 10.776889]} zoom={12}
+            transformRequest={(url) => {
+              if (url.includes('vietmap.vn') && !url.includes('apikey=')) {
+                return { url: `${url}${url.includes('?') ? '&' : '?'}apikey=${tilemapKey}` };
+              }
+              return { url };
+            }}>
+            <RouteScene schoolLocation={schoolLocation} parkingLocation={parkingLocation} points={points} polylineGeometry={polylineGeometry}
+              focusPoint={focusPoint} onPointClick={onPointClick} vehiclePosition={vehiclePosition} recordedTrack={recordedTrack} />
+          </Map>
+        </MapErrorBoundary>
       )}
-
-      {mapError && (
-        <div className="absolute inset-0 bg-rose-50/90 flex flex-col items-center justify-center p-4 text-center">
-          <p className="text-xs text-rose-700 font-semibold">{mapError}</p>
-        </div>
-      )}
-
-      {/* Fit All Button */}
-      {mapLoaded && (
-        <button
-          onClick={handleFitAll}
-          type="button"
-          title="Xem toàn bộ các điểm trên bản đồ"
-          className="absolute top-3 left-3 bg-white/95 hover:bg-white text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-xl shadow-md border border-slate-200 transition-all flex items-center gap-1.5 cursor-pointer"
-        >
-          <span>🎯</span>
-          <span>Xem toàn cảnh</span>
-        </button>
-      )}
-
-      {/* Map Legend */}
-      <div className="absolute bottom-3 left-3 bg-white/95 backdrop-blur-xs rounded-xl shadow-md border border-slate-200 p-2 text-[11px] text-slate-700 flex items-center gap-3">
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block"></span>
-          <span>Bãi xe</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#FFCB56] border border-amber-500 inline-block"></span>
-          <span>Trường học</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block"></span>
-          <span>Học sinh</span>
-        </div>
-      </div>
     </div>
   );
+}
+
+function RouteScene({ schoolLocation, parkingLocation, points = EMPTY_POINTS, polylineGeometry, focusPoint, onPointClick, vehiclePosition, recordedTrack }: RouteMapProps) {
+  const { map, isLoaded } = useMap();
+  const fitted = useRef(false);
+  const lastPolyline = useRef<string | null | undefined>(undefined);
+  const [mapError, setMapError] = useState<string | null>(null);
+  // Route membership (isSelected) is distinct from the point being inspected.
+  const [inspectedPoint, setInspectedPoint] = useState<{ id: string; focusPoint: RouteMapProps['focusPoint'] } | null>(null);
+  const [hoveredPointId, setHoveredPointId] = useState<string | null>(null);
+  const focusedPointId = focusPoint ? points.find(point => point.latitude === focusPoint.latitude && point.longitude === focusPoint.longitude)?.id : undefined;
+  const activePointId = hoveredPointId ?? (inspectedPoint?.focusPoint === focusPoint ? inspectedPoint?.id : focusedPointId);
+  const coordinates = useMemo(() => polylineGeometry ? decodePolyline(polylineGeometry) : [], [polylineGeometry]);
+
+  const fitAll = useCallback(() => {
+    if (!map) return;
+    const all: [number, number][] = [];
+    for (const point of [parkingLocation, schoolLocation, ...points, ...(recordedTrack?.flat() ?? []), vehiclePosition]) {
+      if (hasCoordinates(point)) all.push([point!.longitude, point!.latitude]);
+    }
+    all.push(...coordinates);
+    fitCoordinates(map, all, 60, 700);
+  }, [map, parkingLocation, schoolLocation, points, recordedTrack, vehiclePosition, coordinates]);
+
+  useEffect(() => {
+    if (!map) return;
+    const observer = new ResizeObserver(() => map.resize());
+    observer.observe(map.getContainer());
+    const onError = (event: MapErrorEvent) => {
+      const status = (event.error as { status?: number }).status;
+      if (status === 401 || status === 403) setMapError('Không thể tải bản đồ VietMap. Kiểm tra khóa và quyền truy cập.');
+    };
+    map.on('error', onError);
+    return () => { observer.disconnect(); map.off('error', onError); };
+  }, [map]);
+
+  useEffect(() => {
+    if (!map || !isLoaded || !hasCoordinates(focusPoint)) return;
+    map.flyTo({ center: [focusPoint!.longitude, focusPoint!.latitude], zoom: focusPoint!.zoom || 15.5, essential: true, duration: 700 });
+  }, [map, isLoaded, focusPoint]);
+
+  useEffect(() => {
+    if (!map || !isLoaded) return;
+    const changed = lastPolyline.current !== polylineGeometry;
+    lastPolyline.current = polylineGeometry;
+    const initial: [number, number][] = [];
+    for (const point of [parkingLocation, schoolLocation, ...points]) {
+      if (hasCoordinates(point)) initial.push([point!.longitude, point!.latitude]);
+    }
+    if (recordedTrack === undefined) initial.push(...coordinates);
+    if (initial.length && (!fitted.current || changed)) {
+      fitted.current = true;
+      fitCoordinates(map, initial, 50, 800);
+    }
+  }, [map, isLoaded, parkingLocation, schoolLocation, points, polylineGeometry, coordinates, recordedTrack]);
+
+  const focusLocation = (longitude: number, latitude: number) => map?.flyTo({ center: [longitude, latitude], zoom: 15.5, duration: 600 });
+  return <>
+    {recordedTrack === undefined && coordinates.length >= 2 && <MapRoute id="planned-route" coordinates={coordinates} color="#2563eb" width={5} opacity={0.85} interactive={false} />}
+    {/* Preserve recorded run/gap boundaries. Never connect separate parts. */}
+    {recordedTrack?.map((part, index) => part.length >= 2
+      ? <MapRoute key={index} id={`recorded-${index}`} coordinates={part.map(point => [point.longitude, point.latitude])} color="#059669" width={5} opacity={1} interactive={false} />
+      : part.length === 1 ? <MapMarker key={index} longitude={part[0].longitude} latitude={part[0].latitude}>
+        <MarkerContent><span className="rts-track-point" aria-label="Điểm hành trình đã ghi" /></MarkerContent>
+      </MapMarker> : null)}
+
+    {parkingLocation && hasCoordinates(parkingLocation) && <MapMarker longitude={parkingLocation.longitude} latitude={parkingLocation.latitude} onClick={() => focusLocation(parkingLocation.longitude, parkingLocation.latitude)}>
+      <MarkerContent><button type="button" className="rts-map-marker rts-map-depot" aria-label="Bãi xe trung tâm"><Warehouse size={19} /></button></MarkerContent>
+      <MarkerTooltip className="rts-map-tooltip">Bãi xe trung tâm</MarkerTooltip>
+      <MarkerPopup className="rts-map-popup" closeButton><strong>Bãi xe trung tâm</strong><p>{parkingLocation.addressText}</p></MarkerPopup>
+    </MapMarker>}
+
+    {schoolLocation && hasCoordinates(schoolLocation) && <MapMarker longitude={schoolLocation.longitude} latitude={schoolLocation.latitude} onClick={() => focusLocation(schoolLocation.longitude, schoolLocation.latitude)}>
+      <MarkerContent><button type="button" className="rts-map-marker rts-map-school" aria-label={schoolLocation.name || 'Trường học'}><Building2 size={20} /></button></MarkerContent>
+      <MarkerTooltip className="rts-map-tooltip">{schoolLocation.name || 'Trường học'}</MarkerTooltip>
+      <MarkerPopup className="rts-map-popup" closeButton><strong>Trường học</strong><p>{schoolLocation.name}</p></MarkerPopup>
+    </MapMarker>}
+
+    {points.filter(hasCoordinates).map(point => <MapMarker key={`${point.id}:${typeof point.order === 'number' ? 'route' : 'student'}`} longitude={point.longitude} latitude={point.latitude}
+      anchor={typeof point.order === 'number' ? 'bottom' : 'center'}
+      onMouseEnter={() => setHoveredPointId(point.id)} onMouseLeave={() => setHoveredPointId(null)}
+      onClick={() => { setInspectedPoint({ id: point.id, focusPoint }); onPointClick?.(point); }}>
+      <MarkerContent><button type="button" className={`rts-map-stop ${typeof point.order === 'number' ? 'rts-map-pin' : 'rts-map-student'} ${activePointId === point.id ? 'rts-map-stop-active' : ''}`}
+        aria-label={typeof point.order === 'number' ? `${point.order}. ${point.title}` : point.title}
+        onFocus={() => setInspectedPoint({ id: point.id, focusPoint })}>
+        {typeof point.order === 'number' ? <>
+          <svg className="rts-map-pin-shape" viewBox="0 0 32 40" aria-hidden="true"><path d="M16 1C7.7 1 1 7.7 1 16c0 10.5 15 23 15 23s15-12.5 15-23C31 7.7 24.3 1 16 1Z" /></svg>
+          <span className="rts-map-pin-number">{point.order}</span>
+        </> : <span className="rts-map-student-icon"><UserRound size={14} aria-hidden="true" /></span>}
+      </button></MarkerContent>
+      <MarkerTooltip className="rts-map-tooltip">{point.title}</MarkerTooltip>
+      <MarkerPopup className="rts-map-popup" closeButton>
+        <strong>{point.title}</strong>{point.eta && <p className="rts-map-eta">Dự kiến: {point.eta}</p>}{point.subtitle && <p>{point.subtitle}</p>}
+      </MarkerPopup>
+    </MapMarker>)}
+
+    {vehiclePosition && hasCoordinates(vehiclePosition) && <MapMarker longitude={vehiclePosition.longitude} latitude={vehiclePosition.latitude}>
+      <MarkerContent><button type="button" className="rts-map-marker rts-map-vehicle" aria-label="Vị trí xe"><BusFront size={23} /></button></MarkerContent>
+      <MarkerTooltip className="rts-map-tooltip">Vị trí xe</MarkerTooltip>
+    </MapMarker>}
+
+    <MapControls position="top-right" showCompass showFullscreen className="rts-map-controls" />
+    {isLoaded && <>
+      <div className="rts-map-toolbar">
+        <button type="button" onClick={fitAll}><Maximize2 size={15} />Xem toàn cảnh</button>
+        {vehiclePosition && <button type="button" onClick={() => map?.flyTo({ center: [vehiclePosition.longitude, vehiclePosition.latitude], duration: 500 })}><LocateFixed size={15} />Theo xe</button>}
+      </div>
+      <div className="rts-map-legend" aria-label="Chú giải bản đồ">
+        <span><i className="rts-legend-depot" />Bãi xe</span><span><i className="rts-legend-school" />Trường học</span><span><i className="rts-legend-stop" />Học sinh</span>
+      </div>
+    </>}
+    {mapError && <MapMessage>{mapError}</MapMessage>}
+  </>;
+}
+
+function fitCoordinates(map: NonNullable<ReturnType<typeof useMap>['map']>, coordinates: [number, number][], padding: number, duration: number) {
+  if (!coordinates.length) return;
+  let west = Infinity, south = Infinity, east = -Infinity, north = -Infinity;
+  for (const [longitude, latitude] of coordinates) {
+    west = Math.min(west, longitude); east = Math.max(east, longitude);
+    south = Math.min(south, latitude); north = Math.max(north, latitude);
+  }
+  try { map.fitBounds([[west, south], [east, north]], { padding, maxZoom: 15, duration }); } catch { /* Single point/hidden map: retry via overview control. */ }
 }

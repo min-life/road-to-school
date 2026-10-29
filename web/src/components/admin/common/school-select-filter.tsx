@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 
 interface SchoolSelectFilterProps {
+  id?: string;
   value: string;
   onChange: (schoolId: string, selectedSchool?: SchoolListItem) => void;
   allowAll?: boolean;
@@ -20,6 +21,7 @@ interface SchoolSelectFilterProps {
 }
 
 export function SchoolSelectFilter({
+  id,
   value,
   onChange,
   allowAll = true,
@@ -120,6 +122,7 @@ export function SchoolSelectFilter({
     <div ref={containerRef} className={`relative ${className}`}>
       {/* Trigger Button */}
       <Button variant="outline" size="sm"
+        id={id}
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}

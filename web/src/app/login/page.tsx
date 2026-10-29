@@ -48,12 +48,14 @@ export default function LoginPage() {
       await login(trimmedIdentifier, password);
       // Note: Khi login thành công, AuthProvider sẽ hiển thị RoleSplash 1.2s rồi tự điều hướng sang /admin
     } catch (err) {
-      setIsSubmitting(false);
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
         setError('Đăng nhập không thành công. Vui lòng kiểm tra lại thông tin.');
       }
+    } finally {
+      // The router can preserve this page when navigating away and back after logout.
+      setIsSubmitting(false);
     }
   };
 

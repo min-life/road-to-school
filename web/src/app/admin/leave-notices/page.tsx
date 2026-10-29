@@ -1,7 +1,7 @@
 'use client';
 
 import { SchoolSelectFilter } from '@/components/admin/common/school-select-filter';
-import Link from 'next/link';
+import { ContextLink } from '@/components/admin/common/context-navigation';
 import { useRouteQuery } from '@/hooks/use-route-query';
 
 
@@ -15,7 +15,6 @@ import {
   RouteDirection,
 } from '@/lib/types';
 import {
-  CalendarIcon,
   SpinnerIcon,
   AlertIcon,
   DriverIcon,
@@ -28,7 +27,7 @@ import { CancelTripModal } from '@/components/admin/leave-notices/cancel-trip-mo
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
-import { FilterToolbar } from '@/components/ui/filter-toolbar';
+import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
 import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -193,16 +192,9 @@ export default function AdminLeaveNoticesPage() {
   const hasActiveFilters = statusFilter !== 'ALL' || Boolean(dateFilter) || directionFilter !== 'ALL';
 
   return (
-    <div className="space-y-4">
+    <div className="ui-list-page">
       {/* Header */}
-      <PageHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-            <CalendarIcon className="w-6 h-6 text-slate-700" />
-            <span>Báo nghỉ</span>
-          </h1>
-        </div>
-      </PageHeader>
+      <PageHeader title="Báo nghỉ" />
 
       {/* Role Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200">
@@ -248,22 +240,32 @@ export default function AdminLeaveNoticesPage() {
         </Button>
       </div>
 
-      {focusNotice && <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm"><div className="flex justify-between"><strong>Chi tiết báo nghỉ</strong><button type="button" onClick={() => setFocusNotice(null)}>Đóng</button></div><p className="my-2">{focusNotice.kind === 'STUDENT' ? 'Học sinh' : focusNotice.kind === 'DRIVER' ? 'Tài xế' : 'Giáo viên'} · {focusNotice.status}</p><Link className="font-semibold underline" href={'/admin/trips/' + focusNotice.tripId}>Xem chuyến xe</Link></div>}
-      {isSystemAdmin && <SchoolSelectFilter value={schoolFilter} onChange={id => { setSchoolFilter(id); setPage(1); }} />}
+      {focusNotice && <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm"><div className="flex justify-between"><strong>Chi tiết báo nghỉ</strong><button type="button" onClick={() => setFocusNotice(null)}>Đóng</button></div><p className="my-2">{focusNotice.kind === 'STUDENT' ? 'Học sinh' : focusNotice.kind === 'DRIVER' ? 'Tài xế' : 'Giáo viên'} · {focusNotice.status}</p><ContextLink className="font-semibold underline" href={'/admin/trips/' + focusNotice.tripId}>Xem chuyến xe</ContextLink></div>}
+
       {actionableOnly && <button type="button" onClick={() => setActionableOnly(false)} className="text-xs font-semibold text-amber-800">Chỉ báo nghỉ cần bố trí ×</button>}
       {/* Filter Toolbar */}
-      <FilterToolbar className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3 text-xs">
-          {/* Status Dropdown */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-slate-500 font-semibold">Trạng thái:</span>
-            <Select
+      <FilterToolbar
+        hasActiveFilters={hasActiveFilters || Boolean(schoolFilter)}
+        onReset={() => {
+          setSchoolFilter('');
+          setStatusFilter('ALL');
+          setDateFilter('');
+          setDirectionFilter('ALL');
+          setPage(1);
+        }}
+      >
+        {isSystemAdmin && (<FilterField label="Trường học">
+          <SchoolSelectFilter value={schoolFilter} onChange={id => { setSchoolFilter(id); setPage(1); }} />
+        </FilterField>
+        )}
+        <FilterField label="Trạng thái">
+          <Select
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value);
                 setPage(1);
               }}
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer font-medium"
+              className="w-full"
             >
               {isStudentTab ? (
                 <>
@@ -282,55 +284,34 @@ export default function AdminLeaveNoticesPage() {
                 </>
               )}
             </Select>
-          </div>
+        </FilterField>
 
-          {/* Datepicker */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-slate-500 font-semibold">Ngày:</span>
-            <Input
+        <FilterField label="Ngày">
+          <Input
               type="date"
               value={dateFilter}
               onChange={(e) => {
                 setDateFilter(e.target.value);
                 setPage(1);
               }}
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full"
             />
-          </div>
+        </FilterField>
 
-          {/* Direction Dropdown */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-slate-500 font-semibold">Chiều:</span>
-            <Select
+        <FilterField label="Chiều">
+          <Select
               value={directionFilter}
               onChange={(e) => {
                 setDirectionFilter(e.target.value);
                 setPage(1);
               }}
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer font-medium"
+              className="w-full"
             >
               <option value="ALL">Tất cả chiều</option>
               <option value="TO_SCHOOL">Chiều đi (đến trường)</option>
               <option value="TO_PARKING">Chiều về (về nhà)</option>
             </Select>
-          </div>
-
-          {/* Reset Filters Button */}
-          {hasActiveFilters && (
-            <Button variant="outline" size="sm"
-              type="button"
-              onClick={() => {
-                setStatusFilter('ALL');
-                setDateFilter('');
-                setDirectionFilter('ALL');
-                setPage(1);
-              }}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors font-semibold text-xs cursor-pointer"
-            >
-              Đặt lại
-            </Button>
-          )}
-        </div>
+        </FilterField>
       </FilterToolbar>
 
       {/* Main Table Card */}
@@ -343,7 +324,8 @@ export default function AdminLeaveNoticesPage() {
         )}
 
         <div className="overflow-x-auto">
-          <Table className="w-full text-left text-xs">
+          <Table className="w-full text-left text-xs" minWidth={isStudentTab ? 820 : 1200}>
+            <colgroup><col /><col style={{ width: 230 }} /><col style={{ width: 140 }} /><col style={{ width: 160 }} />{!isStudentTab && <><col style={{ width: 190 }} /><col style={{ width: 240 }} /></>}</colgroup>
             <thead className="bg-background border-b border-slate-200/80 text-slate-600 uppercase font-semibold text-[11px] tracking-wider">
               <tr>
                 <th scope="col" className="px-5 py-3.5">

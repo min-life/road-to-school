@@ -23,34 +23,11 @@
 .ui-input[type="checkbox"], .ui-input[type="radio"] { accent-color: var(--brand-primary); }
 .ui-card { min-width: 0; border-color: var(--brand-border); border-radius: var(--brand-radius); background: var(--brand-surface); box-shadow: var(--brand-shadow); }
 .ui-badge { border-radius: 999px; font-size: 12px; font-weight: 500; line-height: 18px; }
-.ui-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
-.ui-table thead { background: var(--brand-hover); }
-.ui-table th { height: 42px; padding: 9px 12px; border-bottom: 1px solid var(--brand-border); color: var(--brand-muted); font-size: 13px; font-weight: 600; line-height: 20px; letter-spacing: normal; text-transform: none; vertical-align: middle; }
-.ui-table td { height: 52px; padding: 8px 12px; border-bottom: 1px solid var(--brand-border); font-size: 14px; line-height: 20px; vertical-align: middle; }
-.ui-table tbody tr:last-child td { border-bottom: 0; }
-.ui-table td[colspan] { padding-block: 32px; }
-.ui-table tbody tr:hover { background: var(--brand-row-hover); }
-.ui-table th, .ui-table td { overflow-wrap: break-word; }
 .ui-page-header { min-width: 0; }
 .ui-page-header h1, .admin-content h1 { color: var(--brand-heading); font-size: clamp(22px, 1.8vw, 28px); font-weight: 700; line-height: 1.35; letter-spacing: -.04em; }
-.ui-filter-toolbar { min-width: 0; flex-wrap: wrap; gap: 12px; padding: 16px; }
-.ui-filter-toolbar > :where(div, label) { min-width: 0; }
-.ui-filter-fields { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 12px; }
-.ui-filter-search { min-width: 0; flex: 1 1 240px; }
-.ui-filter-option { min-width: 0; flex: 0 1 192px; }
-.ui-pagination { min-width: 0; }
-.ui-pagination-info { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 12px; }
-.ui-pagination .ui-button { display: grid; width: 36px; height: 36px; padding: 0; place-items: center; }
-.ui-pagination .ui-select { min-height: 36px; }
 .ui-dialog-panel { min-width: 0; max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; }
 .ui-dialog-panel.ui-dialog-panel-body { display: flex; flex-direction: column; overflow: hidden; }
 .ui-dialog-panel-body > * { flex-shrink: 0; }
 .ui-dialog-panel-body > .ui-dialog-body { min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; }
 .admin-content { color: var(--brand-foreground); }
 .admin-content :where(h2, h3) { letter-spacing: -.02em; }
-@media (max-width: 767px) {
-  .ui-filter-toolbar { padding: 12px; }
-  .ui-filter-toolbar > * { max-width: 100%; }
-  .ui-filter-fields > .ui-filter-search, .ui-filter-fields > .ui-filter-option { width: 100%; flex-basis: 100%; }
-  .ui-pagination-info { justify-content: center; }
-}

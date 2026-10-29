@@ -1,5 +1,7 @@
 'use client';
 
+import { toast } from '@/stores/toast-store';
+
 import React, { useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { ApprovalReadinessResponse, Role } from '@/lib/types';
@@ -37,6 +39,7 @@ export function ApprovalReadinessCard({
       setApproving(true);
       setApprovalError(null);
       await apiClient.approveRoutePlan(planId);
+      toast.success('Đã duyệt phương án tuyến.');
       setShowConfirmModal(false);
       onApproved();
     } catch (err: any) {

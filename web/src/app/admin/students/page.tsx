@@ -1,11 +1,13 @@
 'use client';
 
+import { toast } from '@/stores/toast-store';
+
 import React, { useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { SchoolAdminGuard } from '@/components/admin/school-admin-guard';
 import { StudentTable } from '@/components/admin/students/student-table';
 import { AddStudentModal } from '@/components/admin/students/add-student-modal';
-import { PlusIcon, AlertIcon, CheckIcon, StudentIcon } from '@/components/icons';
+import { PlusIcon, AlertIcon, } from '@/components/icons';
 import type { StudentListItem } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
@@ -16,20 +18,12 @@ function StudentsPageContent() {
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [createdStudentToast, setCreatedStudentToast] = useState<{
-    code: string;
-    fullName: string;
-  } | null>(null);
+
 
   const handleStudentCreated = (newStudent: StudentListItem) => {
-    setCreatedStudentToast({
-      code: newStudent.code,
-      fullName: newStudent.fullName,
-    });
+    toast.success(`Đã tạo học sinh ${newStudent.fullName}.\nMã: ${newStudent.code}`, { duration: 6000 });
     setRefreshKey((k) => k + 1);
-    setTimeout(() => {
-      setCreatedStudentToast(null);
-    }, 6000);
+
   };
 
   if (!schoolId) {
@@ -47,50 +41,19 @@ function StudentsPageContent() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="ui-list-page">
       {/* Top Banner / Toast */}
-      {createdStudentToast && (
-        <div className="flex items-center justify-between p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-sm animate-in fade-in duration-200">
-          <div className="flex items-center gap-2">
-            <CheckIcon className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-            <div>
-              <span className="font-semibold">Đã tạo thành công:</span> {createdStudentToast.fullName}
-              <span className="ml-2 font-mono text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-300">
-                {createdStudentToast.code}
-              </span>
-            </div>
-          </div>
-          <Button
-            type="button"
-            onClick={() => setCreatedStudentToast(null)}
-            className="text-xs text-emerald-700 hover:underline cursor-pointer"
-          >
-            Đóng
-          </Button>
-        </div>
-      )}
+
 
       {/* Page Header */}
-      <PageHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            <StudentIcon className="w-7 h-7 text-amber-500" />
-            Quản lý học sinh
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Danh sách học sinh thuộc trường của bạn, mã QR liên kết phụ huynh và tình trạng địa chỉ.
-          </p>
-        </div>
-
-        <Button variant="primary" size="default"
+      <PageHeader title="Học sinh" actions={<Button variant="primary" size="default"
           type="button"
           onClick={() => setIsAddModalOpen(true)}
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-900 bg-primary hover:bg-amber-400 rounded-xl transition-colors shadow-xs cursor-pointer"
         >
           <PlusIcon className="w-4 h-4" />
           <span>Thêm học sinh</span>
-        </Button>
-      </PageHeader>
+        </Button>} />
 
       {/* Main Student Table */}
       <StudentTable

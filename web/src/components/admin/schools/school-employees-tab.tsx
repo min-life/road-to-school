@@ -1,5 +1,7 @@
 'use client';
 
+import { toast } from '@/stores/toast-store';
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
 import type { SchoolEmployeeItem, PaginationMeta } from '@/lib/types';
@@ -9,11 +11,10 @@ import {
   SpinnerIcon,
   UsersIcon,
   AlertIcon,
-  CheckIcon,
 } from '@/components/icons';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
 import { CreateSchoolAdminModal } from './create-school-admin-modal';
-import { FilterToolbar } from '@/components/ui/filter-toolbar';
+import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -51,7 +52,7 @@ export function SchoolEmployeesTab({
 
   // Modal tạo School Admin
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
+
 
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -106,11 +107,9 @@ export function SchoolEmployeesTab({
   };
 
   const handleCreateSuccess = () => {
-    setSuccessToast('Tạo tài khoản quản trị trường thành công.');
+    toast.success('Tạo tài khoản quản trị trường thành công.');
     fetchEmployees(1, limit, search, roleFilter, statusFilter);
-    setTimeout(() => {
-      setSuccessToast(null);
-    }, 4000);
+
   };
 
   const formatRoleLabel = (role: string) => {
@@ -127,54 +126,52 @@ export function SchoolEmployeesTab({
   return (
     <div className="space-y-4">
       {/* Toast thông báo thành công */}
-      {successToast && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2 font-medium">
-          <CheckIcon className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span>{successToast}</span>
-        </div>
-      )}
+
 
       {/* Toolbar: Tìm kiếm, Bộ lọc & Nút Tạo Quản trị trường */}
-      <FilterToolbar className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs">
-        <div className="flex flex-wrap items-center gap-2.5 flex-1">
-          {/* Search Input */}
-          <div className="relative min-w-[200px] sm:w-64">
-            <Input
+      <FilterToolbar
+        hasActiveFilters={Boolean(search || roleFilter || statusFilter)}
+        onReset={() => {
+          handleSearchChange('');
+          handleRoleChange('');
+          handleStatusChange('');
+        }}
+      >
+        <FilterField label="Tìm kiếm" grow icon={<SearchIcon />}>
+          <Input
               type="text"
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Tìm theo họ tên, email, SĐT..."
-              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+              className="w-full"
             />
-            <SearchIcon className="w-4 h-4 text-slate-400 absolute left-2.5 top-2" />
-          </div>
+        </FilterField>
 
-          {/* Role Filter */}
+        <FilterField label="Vai trò">
           <Select
             value={roleFilter}
             onChange={(e) => handleRoleChange(e.target.value)}
-            className="px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+            className="w-full"
           >
             <option value="">Tất cả vai trò</option>
             <option value="SCHOOL_ADMIN">Quản trị trường</option>
             <option value="BUS_ATTENDANT">Giám sát xe</option>
           </Select>
+        </FilterField>
 
-          {/* Status Filter */}
+        <FilterField label="Trạng thái">
           <Select
             value={statusFilter}
             onChange={(e) => handleStatusChange(e.target.value)}
-            className="px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+            className="w-full"
           >
             <option value="">Tất cả trạng thái</option>
             <option value="ACTIVE">Đang hoạt động</option>
             <option value="INACTIVE">Ngừng hoạt động</option>
           </Select>
-        </div>
+        </FilterField>
 
-        {/* Nút Tạo quản trị trường */}
-        <div>
-          <Button
+<div className="ui-filter-actions"><Button
             type="button"
             onClick={() => setIsCreateModalOpen(true)}
             disabled={!isSchoolActive}
@@ -191,8 +188,7 @@ export function SchoolEmployeesTab({
           >
             <PlusIcon className="w-4 h-4" />
             <span>Tạo quản trị trường</span>
-          </Button>
-        </div>
+          </Button></div>
       </FilterToolbar>
 
       {!isSchoolActive && (
@@ -221,7 +217,8 @@ export function SchoolEmployeesTab({
       {/* Employees Table */}
       <Card className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-2xs">
         <div className="overflow-x-auto">
-          <Table className="w-full text-left border-collapse">
+          <Table className="w-full text-left border-collapse" minWidth={1000}>
+            <colgroup><col /><col style={{ width: 240 }} /><col style={{ width: 160 }} /><col style={{ width: 180 }} /><col style={{ width: 180 }} /></colgroup>
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 <th className="py-3 px-4">Họ và tên</th>

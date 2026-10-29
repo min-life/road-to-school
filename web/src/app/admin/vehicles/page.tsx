@@ -1,5 +1,7 @@
 'use client';
 
+import { toast } from '@/stores/toast-store';
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { apiClient } from '@/lib/api-client';
@@ -10,13 +12,12 @@ import {
   VehicleIcon,
   SpinnerIcon,
   SearchIcon,
-  CheckIcon,
   AlertIcon,
 } from '@/components/icons';
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
-import { FilterToolbar } from '@/components/ui/filter-toolbar';
+import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
 import { Input } from '@/components/ui/input';
 import { Table } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -32,7 +33,7 @@ export default function VehiclesPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -81,43 +82,18 @@ export default function VehiclesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="ui-list-page">
       {/* Page Header */}
-      <PageHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 pb-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-            Phương tiện vận tải
-          </h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Quản lý đội xe đưa đón học sinh và năng lực chuyên chở
-          </p>
-        </div>
-
-        <Button variant="primary" size="default"
+      <PageHeader title="Phương tiện" actions={<Button variant="primary" size="default"
           type="button"
           onClick={() => setIsAddModalOpen(true)}
           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary hover:bg-amber-400 text-sm font-bold text-foreground transition-colors cursor-pointer shadow-xs self-start sm:self-auto"
         >
           <span>+ Thêm phương tiện</span>
-        </Button>
-      </PageHeader>
+        </Button>} />
 
       {/* Success / Error Feedback */}
-      {successMessage && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CheckIcon className="w-5 h-5 text-emerald-600 shrink-0" />
-            <span>{successMessage}</span>
-          </div>
-          <Button
-            type="button"
-            onClick={() => setSuccessMessage(null)}
-            className="text-emerald-600 hover:text-emerald-800 text-xs font-semibold cursor-pointer"
-          >
-            Đóng
-          </Button>
-        </div>
-      )}
+
 
       {errorMessage && (
         <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-center justify-between">
@@ -136,19 +112,23 @@ export default function VehiclesPage() {
       )}
 
       {/* Search Bar & Total */}
-      <FilterToolbar className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="relative w-full sm:w-80">
+      <FilterToolbar
+        hasActiveFilters={Boolean(search)}
+        onReset={() => {
+          handleSearchChange('');
+        }}
+      >
+        <FilterField label="Tìm kiếm" grow icon={<SearchIcon />}>
           <Input
             type="text"
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Tìm theo hãng xe, biển số..."
-            className="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full"
           />
-          <SearchIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-        </div>
+        </FilterField>
 
-        <div className="text-xs text-slate-500 font-medium self-end sm:self-auto">
+<div className="ui-filter-meta">
           Tổng số phương tiện: <strong className="text-slate-800">{totalItems}</strong>
         </div>
       </FilterToolbar>
@@ -156,7 +136,8 @@ export default function VehiclesPage() {
       {/* Vehicle Table */}
       <Card className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
-          <Table className="w-full text-left text-sm">
+          <Table className="w-full text-left text-sm" minWidth={930}>
+            <colgroup><col /><col style={{ width: 180 }} /><col style={{ width: 180 }} /><col style={{ width: 150 }} /><col style={{ width: 180 }} /></colgroup>
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-xs uppercase tracking-wider">
               <tr>
                 <th className="py-3.5 px-4">Hãng xe</th>
@@ -198,9 +179,9 @@ export default function VehiclesPage() {
                       {v.brand}
                     </td>
                     <td className="py-3.5 px-4 font-mono font-bold text-slate-700">
-                      <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200">
+                      <Badge className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200">
                         {v.licensePlate}
-                      </span>
+                      </Badge>
                     </td>
                     <td className="py-3.5 px-4">
                       <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
@@ -240,7 +221,7 @@ export default function VehiclesPage() {
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onSuccess={() => {
-          setSuccessMessage('Thêm phương tiện mới thành công');
+          toast.success('Thêm phương tiện mới thành công');
           fetchVehicles();
         }}
       />

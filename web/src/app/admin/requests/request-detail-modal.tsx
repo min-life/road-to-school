@@ -1,5 +1,7 @@
 'use client';
 
+import { toast } from '@/stores/toast-store';
+
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
 import type { StudentUpdateRequestDetail, UserRole, SystemRequestRoutingPreviewResponse } from '@/lib/types';
@@ -145,8 +147,10 @@ export function RequestDetailModal({
           previewToken: routingPreview?.previewToken || undefined,
           expectedFingerprint: routingPreview?.expectedFingerprint || undefined,
         });
+      toast.success('Đã duyệt yêu cầu.');
       } else if (schoolId) {
         await apiClient.approveSchoolRequest(schoolId, detail.id);
+      toast.success('Đã duyệt yêu cầu.');
       }
       setIsConfirmingApprove(false);
       onActionSuccess();
@@ -175,10 +179,12 @@ export function RequestDetailModal({
         await apiClient.rejectSystemAdminRequest(detail.id, {
           rejectionReason: reasonTrimmed,
         });
+      toast.success('Đã từ chối yêu cầu.');
       } else if (schoolId) {
         await apiClient.rejectSchoolRequest(schoolId, detail.id, {
           rejectionReason: reasonTrimmed,
         });
+      toast.success('Đã từ chối yêu cầu.');
       }
       setIsConfirmingReject(false);
       onActionSuccess();
@@ -335,7 +341,7 @@ export function RequestDetailModal({
                 {detail.type === 'ADDRESS_UPDATE' && (
                   <div className="border border-slate-200 rounded-xl overflow-hidden">
                     {detail.isStale ? (
-                      <Table className="w-full text-left border-collapse">
+                      <Table className="w-full text-left border-collapse ui-table-comparison">
                         <thead>
                           <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                             <th className="p-3 w-1/3">Lúc gửi yêu cầu</th>
@@ -380,7 +386,7 @@ export function RequestDetailModal({
                 {detail.type === 'INFORMATION_UPDATE' && (
                   <div className="border border-slate-200 rounded-xl overflow-hidden">
                     {detail.isStale ? (
-                      <Table className="w-full text-left border-collapse">
+                      <Table className="w-full text-left border-collapse ui-table-comparison">
                         <thead>
                           <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                             <th className="p-2.5">Trường thông tin</th>
@@ -417,7 +423,7 @@ export function RequestDetailModal({
                         </tbody>
                       </Table>
                     ) : (
-                      <Table className="w-full text-left border-collapse">
+                      <Table className="w-full text-left border-collapse ui-table-comparison">
                         <thead>
                           <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                             <th className="p-3 w-1/3">Trường thông tin</th>

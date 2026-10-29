@@ -1,15 +1,13 @@
 'use client';
+import { BackLink } from '@/components/admin/common/context-navigation';
 
 import React, { useState, useEffect, useMemo, useRef, use } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { apiClient, ApiError } from '@/lib/api-client';
 import { TripDetail } from '@/lib/types';
 import { useAuth } from '@/components/auth/auth-provider';
 import { useVisibleRefresh } from '@/hooks/use-visible-refresh';
 import type { RefreshContext } from '@/lib/refresh-loop';
 import {
-  ChevronLeftIcon,
   SpinnerIcon,
   AlertIcon,
   RouteIcon,
@@ -31,7 +29,6 @@ export default function AdminTripDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: tripId } = use(params);
-  const router = useRouter();
   const { user } = useAuth();
 
   const currentUserRole = user?.role || null;
@@ -170,25 +167,14 @@ export default function AdminTripDetailPage({
   if (error || !trip) {
     return (
       <div className="space-y-4">
-        <Link
-          href="/admin/trips"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800"
-        >
-          <ChevronLeftIcon className="w-4 h-4" />
-          <span>Quay lại danh sách chuyến xe</span>
-        </Link>
+        <BackLink fallback="/admin/trips" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800" />
         <Card className="p-8 rounded-2xl bg-white border border-rose-200 text-center">
           <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3">
             <AlertIcon className="w-6 h-6" />
           </div>
           <h2 className="text-base font-bold text-slate-800">Không tìm thấy chuyến xe</h2>
           <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">{error || 'Chuyến xe không tồn tại hoặc bạn không có quyền xem.'}</p>
-          <Button
-            onClick={() => router.push('/admin/trips')}
-            className="mt-4 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
-          >
-            Về trang danh sách
-          </Button>
+          <BackLink fallback="/admin/trips" className="mt-4 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors" />
         </Card>
       </div>
     );
@@ -200,13 +186,7 @@ export default function AdminTripDetailPage({
     <div className="space-y-6">
       {/* Breadcrumb & Navigation */}
       <div className="flex items-center justify-between">
-        <Link
-          href="/admin/trips"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
-        >
-          <ChevronLeftIcon className="w-4 h-4" />
-          <span>Quay lại danh sách chuyến xe</span>
-        </Link>
+        <BackLink fallback="/admin/trips" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors" />
         <span className="text-xs text-slate-400">
           Mã chuyến: <code className="text-slate-600 font-mono text-[11px]">{trip.id.slice(0, 8)}...</code>
         </span>

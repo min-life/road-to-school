@@ -20,7 +20,7 @@ import { RequestDetailModal } from './request-detail-modal';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/ui/page-header';
-import { FilterToolbar } from '@/components/ui/filter-toolbar';
+import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
@@ -156,68 +156,62 @@ export default function AdminRequestsPage() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="ui-list-page">
       {actionableOnly && <button type="button" onClick={() => setActionableOnly(false)} className="text-xs font-semibold text-amber-800">Chỉ yêu cầu cần xử lý ×</button>}
       {filterSchool && <button type="button" onClick={() => setFilterSchool('')} className="text-xs font-semibold text-slate-500">Đang lọc theo trường từ Tổng quan ×</button>}
       {/* Page Title & Scope Notice */}
-      <PageHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Quản lý yêu cầu cập nhật</h1>
-          <p className="text-xs text-slate-500 mt-1">
-            {isSystemAdmin
-              ? 'Xử lý các yêu cầu cập nhật địa chỉ đón trả học sinh trên toàn hệ thống'
-              : 'Xử lý yêu cầu thay đổi thông tin và địa chỉ đón trả của học sinh thuộc trường'}
-          </p>
-        </div>
-      </PageHeader>
+      <PageHeader title="Yêu cầu" />
 
       {/* Filter and Search Bar */}
-      <FilterToolbar className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row gap-3">
-        {/* Search */}
-        <div className="relative flex-1">
-          <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+      <FilterToolbar
+        hasActiveFilters={Boolean(search || statusFilter || (!isSystemAdmin && typeFilter))}
+        onReset={() => {
+          setSearch('');
+          setStatusFilter('');
+          setTypeFilter('');
+          setPage(1);
+        }}
+      >
+        <FilterField label="Tìm kiếm" grow icon={<SearchIcon />}>
           <Input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Tìm theo tên học sinh hoặc mã học sinh..."
-            className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-amber-400 bg-slate-50/50"
+            className="w-full"
           />
-        </div>
+        </FilterField>
 
-        {/* Status Filter */}
-        <div className="w-full md:w-44">
+        <FilterField label="Trạng thái">
           <Select
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value as RequestStatus | '');
               setPage(1);
             }}
-            className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-amber-400 bg-slate-50/50 text-slate-700"
+            className="w-full"
           >
             <option value="">Tất cả trạng thái</option>
             <option value="PENDING">Chờ duyệt</option>
             <option value="APPROVED">Đã duyệt</option>
             <option value="REJECTED">Đã từ chối</option>
           </Select>
-        </div>
+        </FilterField>
 
-        {/* Type Filter (School Admin only) */}
-        {!isSystemAdmin && (
-          <div className="w-full md:w-44">
-            <Select
+        {!isSystemAdmin && (<FilterField label="Loại yêu cầu">
+          <Select
               value={typeFilter}
               onChange={(e) => {
                 setTypeFilter(e.target.value as RequestType | '');
                 setPage(1);
               }}
-              className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-amber-400 bg-slate-50/50 text-slate-700"
+              className="w-full"
             >
               <option value="">Tất cả loại yêu cầu</option>
               <option value="INFORMATION_UPDATE">Cập nhật thông tin</option>
               <option value="ADDRESS_UPDATE">Cập nhật địa chỉ</option>
             </Select>
-          </div>
+        </FilterField>
         )}
       </FilterToolbar>
 
@@ -232,7 +226,8 @@ export default function AdminRequestsPage() {
       {/* Requests Table */}
       <Card className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <Table className="w-full text-left border-collapse text-xs">
+          <Table className="w-full text-left border-collapse text-xs" minWidth={1065}>
+            <colgroup><col /><col style={{ width: 190 }} /><col style={{ width: 150 }} /><col style={{ width: 170 }} /><col style={{ width: 170 }} /><col style={{ width: 145 }} /></colgroup>
             <thead>
               <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                 <th className="p-3.5 pl-5">Học sinh</th>

@@ -1,12 +1,12 @@
 'use client';
+import { BackLink } from '@/components/admin/common/context-navigation';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { apiClient } from '@/lib/api-client';
 import { RouteItem, Role } from '@/lib/types';
 import {
-  ArrowLeftIcon,
   SpinnerIcon,
   AlertIcon,
   RouteIcon,
@@ -23,7 +23,6 @@ import { Card } from '@/components/ui/card';
 
 export default function RouteDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const routeId = params.id as string;
 
   const [route, setRoute] = useState<RouteItem | null>(null);
@@ -122,13 +121,7 @@ export default function RouteDetailPage() {
         </div>
         <h2 className="text-lg font-bold text-slate-800">Không tìm thấy tuyến đường</h2>
         <p className="text-sm text-slate-500">{error}</p>
-        <Link
-          href="/admin/routes"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition-colors"
-        >
-          <ArrowLeftIcon className="w-4 h-4" />
-          <span>Quay lại danh sách tuyến</span>
-        </Link>
+        <BackLink fallback="/admin/routes" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition-colors" />
       </div>
     );
   }
@@ -176,14 +169,8 @@ export default function RouteDetailPage() {
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <Link
-            href={planUrl}
-            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
-            title="Quay lại Phương án tuyến"
-          >
-            <ArrowLeftIcon className="w-5 h-5" />
-          </Link>
+        <div className="flex flex-col items-start gap-3">
+          <BackLink fallback={planUrl} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors" />
           <PageHeader>
             <div className="flex items-center gap-2.5">
               <h1 className="text-2xl font-bold text-slate-800">{route.name}</h1>

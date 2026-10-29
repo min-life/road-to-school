@@ -1,8 +1,11 @@
 'use client';
+import { BackLink, ContextLink } from '@/components/admin/common/context-navigation';
+import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
+
+import { toast } from '@/stores/toast-store';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useAuth } from '@/components/auth/auth-provider';
 import { SchoolAdminGuard } from '@/components/admin/school-admin-guard';
 import { apiClient } from '@/lib/api-client';
@@ -14,14 +17,12 @@ import type {
   RequestType,
 } from '@/lib/types';
 import {
-  ArrowLeftIcon,
   StudentIcon,
   PhoneIcon,
   MapPinIcon,
   SchoolIcon,
   SpinnerIcon,
   AlertIcon,
-  CheckIcon,
 } from '@/components/icons';
 import { QRCodeDisplay } from '@/components/common/qr-code';
 import { StatusConfirmModal } from '@/components/admin/students/status-confirm-modal';
@@ -40,10 +41,10 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Table } from '@/components/ui/table';
+import { PageNavigation } from '@/components/admin/common/pagination-control';
 
 function StudentDetailPageContent() {
   const params = useParams();
-  const router = useRouter();
   const studentId = params?.id as string;
   const { user } = useAuth();
   const schoolId = user?.schoolId;
@@ -51,7 +52,7 @@ function StudentDetailPageContent() {
   const [student, setStudent] = useState<StudentDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
+
 
   // Status modal
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
@@ -198,8 +199,8 @@ function StudentDetailPageContent() {
         hasAddress: true,
       });
       setIsEditingAddress(false);
-      setSuccessToast('Đã cập nhật địa chỉ học sinh thành công.');
-      setTimeout(() => setSuccessToast(null), 3500);
+      toast.success('Đã cập nhật địa chỉ học sinh thành công.');
+
       fetchHistoryRequests();
     } catch (err: any) {
       setAddressUpdateError(err?.message || 'Không thể cập nhật địa chỉ học sinh.');
@@ -247,7 +248,7 @@ function StudentDetailPageContent() {
         setEmptyPlanNotice(null);
         setEmptyRouteActionData(null);
       }
-      setSuccessToast(
+      toast.success(
         res.message ||
           (targetStatus === 'AVAILABLE'
             ? 'Đã kích hoạt lại học sinh thành công.'
@@ -255,7 +256,7 @@ function StudentDetailPageContent() {
       );
       setIsStatusModalOpen(false);
       setTargetStatus(null);
-      setTimeout(() => setSuccessToast(null), 5000);
+
     } catch (err: any) {
       setErrorMessage(err?.message || 'Không thể cập nhật trạng thái học sinh.');
     } finally {
@@ -275,13 +276,7 @@ function StudentDetailPageContent() {
   if (errorMessage || !student) {
     return (
       <div className="p-6 max-w-2xl mx-auto space-y-4">
-        <Link
-          href="/admin/students"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
-        >
-          <ArrowLeftIcon className="w-4 h-4" />
-          <span>Quay lại danh sách học sinh</span>
-        </Link>
+        <BackLink fallback="/admin/students" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors" />
         <div className="p-6 bg-red-50 border border-red-200 rounded-xl text-red-800 text-center">
           <AlertIcon className="w-8 h-8 text-red-600 mx-auto mb-2" />
           <h2 className="text-base font-bold">Không thể tải thông tin học sinh</h2>
@@ -296,12 +291,7 @@ function StudentDetailPageContent() {
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       {/* Toast message */}
-      {successToast && (
-        <div className="flex items-center gap-2 p-3 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg animate-in fade-in duration-200">
-          <CheckIcon className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-          <span>{successToast}</span>
-        </div>
-      )}
+
 
       {/* Cảnh báo tuyến rỗng cần hủy phương án để tối ưu lại */}
       {emptyPlanNotice && (
@@ -332,12 +322,12 @@ function StudentDetailPageContent() {
             >
               Hủy toàn bộ phương án
             </Button>
-            <Link data-variant="outline" data-size="sm"
+            <ContextLink data-variant="outline" data-size="sm"
               href={`/admin/routes/plans/${emptyPlanNotice.planId}`}
               className="ui-button px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition-colors cursor-pointer text-xs"
             >
               Xem phương án
-            </Link>
+            </ContextLink>
             <Button
               type="button"
               onClick={() => setEmptyPlanNotice(null)}
@@ -351,13 +341,7 @@ function StudentDetailPageContent() {
 
       {/* Back button */}
       <div>
-        <Link
-          href="/admin/students"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
-        >
-          <ArrowLeftIcon className="w-4 h-4" />
-          <span>Quay lại danh sách học sinh</span>
-        </Link>
+        <BackLink fallback="/admin/students" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors" />
       </div>
 
       {/* Top Header Card */}
@@ -617,39 +601,51 @@ function StudentDetailPageContent() {
           </div>
 
           {/* Filters */}
-          <div className="flex items-center gap-2">
-            <Select
+          <FilterToolbar
+        hasActiveFilters={Boolean(historyTypeFilter || historyStatusFilter)}
+        onReset={() => {
+          setHistoryTypeFilter('');
+          setHistoryStatusFilter('');
+          setHistoryPage(1);
+        }}
+      >
+        <FilterField label="Loại yêu cầu">
+          <Select
               value={historyTypeFilter}
               onChange={(e) => {
                 setHistoryTypeFilter(e.target.value as RequestType | '');
                 setHistoryPage(1);
               }}
-              className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-700"
+              className="w-full"
             >
               <option value="">Tất cả loại yêu cầu</option>
               <option value="INFORMATION_UPDATE">Cập nhật thông tin</option>
               <option value="ADDRESS_UPDATE">Cập nhật địa chỉ</option>
             </Select>
+        </FilterField>
 
-            <Select
+        <FilterField label="Trạng thái">
+          <Select
               value={historyStatusFilter}
               onChange={(e) => {
                 setHistoryStatusFilter(e.target.value as RequestStatus | '');
                 setHistoryPage(1);
               }}
-              className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-700"
+              className="w-full"
             >
               <option value="">Tất cả trạng thái</option>
               <option value="PENDING">Chờ duyệt</option>
               <option value="APPROVED">Đã duyệt</option>
               <option value="REJECTED">Đã từ chối</option>
             </Select>
-          </div>
+        </FilterField>
+      </FilterToolbar>
         </div>
 
         {/* Request History Table */}
         <div className="overflow-x-auto border border-slate-100 rounded-xl">
-          <Table className="w-full text-left border-collapse text-xs">
+          <Table className="w-full text-left border-collapse text-xs" minWidth={900}>
+            <colgroup><col /><col style={{ width: 150 }} /><col style={{ width: 180 }} /><col style={{ width: 180 }} /><col style={{ width: 150 }} /></colgroup>
             <thead>
               <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
                 <th className="p-3 pl-4">Loại yêu cầu</th>
@@ -750,29 +746,13 @@ function StudentDetailPageContent() {
 
         {/* History Pagination */}
         {!isLoadingHistory && historyTotalPages > 1 && (
-          <div className="flex items-center justify-between text-xs text-slate-500 pt-2">
-            <span>
-              Tổng số {historyTotal} yêu cầu
-            </span>
-            <div className="flex items-center gap-1.5">
-              <Button variant="outline" size="default"
-                type="button"
-                disabled={historyPage <= 1}
-                onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
-                className="px-2.5 py-1 rounded-md border border-slate-200 bg-white disabled:opacity-50"
-              >
-                Trước
-              </Button>
-              <span>{historyPage} / {historyTotalPages}</span>
-              <Button variant="outline" size="default"
-                type="button"
-                disabled={historyPage >= historyTotalPages}
-                onClick={() => setHistoryPage((p) => Math.min(historyTotalPages, p + 1))}
-                className="px-2.5 py-1 rounded-md border border-slate-200 bg-white disabled:opacity-50"
-              >
-                Sau
-              </Button>
-            </div>
+          <div className="ui-pagination-history">
+            <span>Tổng số {historyTotal} yêu cầu</span>
+            <PageNavigation
+              page={historyPage}
+              totalPages={historyTotalPages}
+              onPageChange={(nextPage) => setHistoryPage(Math.max(1, Math.min(historyTotalPages, nextPage)))}
+            />
           </div>
         )}
       </Card>
@@ -849,10 +829,8 @@ function StudentDetailPageContent() {
           onSuccess={() => {
             setCancellingPlan(null);
             setEmptyPlanNotice(null);
-            setSuccessToast(
-              'Đã hủy toàn bộ phương án tuyến thành công. Tài nguyên xe và tài xế đã được giải phóng.',
-            );
-            setTimeout(() => setSuccessToast(null), 5000);
+
+
             fetchStudent();
           }}
         />

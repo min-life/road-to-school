@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { withReturnTo } from '@/lib/back-navigation';
 import { apiClient } from '@/lib/api-client';
 import { SchoolListItem } from '@/lib/types';
 import { CloseIcon, SearchIcon, SchoolIcon, SpinnerIcon } from '@/components/icons';
-import { FilterToolbar } from '@/components/ui/filter-toolbar';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -131,12 +132,12 @@ export function SchoolSelectModal({ isOpen, onClose }: SchoolSelectModalProps) {
   const handleStartPlanning = () => {
     if (!selectedSchoolId) return;
     onClose();
-    router.push(`/admin/routes/create?schoolId=${selectedSchoolId}`);
+    router.push(withReturnTo(`/admin/routes/create?schoolId=${selectedSchoolId}`, window.location.pathname + window.location.search));
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-      <FilterToolbar className="ui-dialog-panel ui-dialog-panel-body bg-white rounded-2xl shadow-xl w-full max-w-lg border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]">
+      <Card className="ui-dialog-panel ui-dialog-panel-body bg-white rounded-2xl shadow-xl w-full max-w-lg border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div>
@@ -255,7 +256,7 @@ export function SchoolSelectModal({ isOpen, onClose }: SchoolSelectModalProps) {
             Bắt đầu lập tuyến
           </Button>
         </div>
-      </FilterToolbar>
+      </Card>
     </div>
   );
 }

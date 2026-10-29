@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { getPaginationItems } from './pagination-items';
+import './pagination.css';
 
 interface PaginationControlProps {
   page: number;
@@ -35,64 +36,64 @@ export function PaginationControl({
   const effectiveTotalPages = Math.max(1, totalPages);
 
   return (
-    <div className="ui-pagination p-4 border-t border-slate-100 flex flex-col sm:flex-row flex-wrap items-center justify-between gap-3 text-xs text-slate-500 bg-white">
-      {/* Record info & Limit selector */}
-      <div className="ui-pagination-info">
-        <span>
-          Hiển thị <strong className="text-slate-800 font-semibold">{startRecord}</strong> -{' '}
-          <strong className="text-slate-800 font-semibold">{endRecord}</strong> trên{' '}
-          <strong className="text-slate-800 font-semibold">{total}</strong> bản ghi
-        </span>
-
-        <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200">
-          <label htmlFor="limit-select" className="text-slate-500">
-            Số dòng:
-          </label>
-          <Select
-            id="limit-select"
-            value={limit}
-            onChange={(e) => {
-              const newLimit = parseInt(e.target.value, 10);
-              onLimitChange(newLimit);
-            }}
-            disabled={loading}
-            className="px-2 py-1 rounded-lg border border-slate-200 bg-slate-50/50 text-slate-700 font-medium focus:outline-none focus:border-primary cursor-pointer"
-          >
-            {limitOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </Select>
-        </div>
-      </div>
-
-      {/* Page Navigation */}
-      <div className="flex items-center gap-1.5">
-        <Button
-          onClick={() => onPageChange(page - 1)}
-          disabled={page <= 1 || loading}
-          className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-          title="Trang trước"
-          aria-label="Trang trước"
+    <div className="ui-pagination" aria-busy={loading}>
+      <span className="ui-pagination-info">
+        Hiển thị <strong>{startRecord}</strong> – <strong>{endRecord}</strong> trên{' '}
+        <strong>{total}</strong> bản ghi
+      </span>
+      <PageNavigation
+        page={page}
+        totalPages={effectiveTotalPages}
+        onPageChange={onPageChange}
+        loading={loading}
+      />
+      <label className="ui-pagination-size">
+        <span>Số dòng:</span>
+        <Select
+          value={limit}
+          onChange={(e) => onLimitChange(parseInt(e.target.value, 10))}
+          disabled={loading}
         >
-          <ChevronLeftIcon className="w-4 h-4 text-slate-600" />
-        </Button>
-
-        <span className="px-2 py-1 rounded-lg bg-slate-50 text-slate-700 font-semibold text-xs border border-slate-100">
-          {page} / {effectiveTotalPages}
-        </span>
-
-        <Button
-          onClick={() => onPageChange(page + 1)}
-          disabled={page >= effectiveTotalPages || loading}
-          className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-          title="Trang sau"
-          aria-label="Trang sau"
-        >
-          <ChevronRightIcon className="w-4 h-4 text-slate-600" />
-        </Button>
-      </div>
+          {limitOptions.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+        </Select>
+      </label>
     </div>
+  );
+}
+
+/** Navigation only: the caller owns data, page state and request timing. */
+export function PageNavigation({ page, totalPages, onPageChange, loading = false }: {
+  page: number;
+  totalPages: number;
+  onPageChange: (newPage: number) => void;
+  loading?: boolean;
+}) {
+  const count = Math.max(1, totalPages);
+  const renderItems = (windowSize: number) => getPaginationItems(page, count, windowSize).map((item) => (
+    typeof item === 'number' ? (
+      <Button
+        key={item}
+        type="button"
+        aria-label={`Trang ${item}`}
+        aria-current={item === page ? 'page' : undefined}
+        disabled={loading}
+        onClick={() => { if (item !== page) onPageChange(item); }}
+      >
+        {item}
+      </Button>
+    ) : <span key={item} className="ui-pagination-ellipsis" aria-hidden="true">…</span>
+  ));
+
+  return (
+    <nav className="ui-pagination-pages" aria-label="Phân trang">
+      <Button type="button" onClick={() => onPageChange(page - 1)} disabled={page <= 1 || loading} aria-label="Trang trước" title="Trang trước">
+        <ChevronLeftIcon className="w-4 h-4" />
+      </Button>
+      <span className="ui-pagination-desktop">{renderItems(5)}</span>
+      <span className="ui-pagination-mobile">{renderItems(1)}</span>
+      <Button type="button" onClick={() => onPageChange(page + 1)} disabled={page >= count || loading} aria-label="Trang sau" title="Trang sau">
+        <ChevronRightIcon className="w-4 h-4" />
+      </Button>
+    </nav>
   );
 }

@@ -1,4 +1,9 @@
 'use client';
+import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
+import { PageHeader } from '@/components/ui/page-header';
+
+import { Table } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 
 import { useRouteQuery } from '@/hooks/use-route-query';
 
@@ -137,39 +142,39 @@ export default function AdminIncidentsPage() {
     switch (status) {
       case 'WAITING_ASSIGNMENT':
         return (
-          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+          <Badge className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
             Chờ xử lý
-          </span>
+          </Badge>
         );
       case 'WAITING_CONFIRMATION':
         return (
-          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-200">
+          <Badge className="px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-200">
             Chờ xác nhận
-          </span>
+          </Badge>
         );
       case 'RESOLVED':
         return (
-          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <Badge className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
             Đã xử lý
-          </span>
+          </Badge>
         );
       case 'CONFIRMED':
         return (
-          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-teal-50 text-teal-700 border border-teal-200">
+          <Badge className="px-2.5 py-1 rounded-full text-xs font-semibold bg-teal-50 text-teal-700 border border-teal-200">
             Đã xác nhận
-          </span>
+          </Badge>
         );
       case 'CLOSED':
         return (
-          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+          <Badge className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
             Đã đóng
-          </span>
+          </Badge>
         );
       default:
         return (
-          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200">
+          <Badge className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200">
             {status}
-          </span>
+          </Badge>
         );
     }
   };
@@ -186,28 +191,30 @@ export default function AdminIncidentsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="ui-list-page">
       {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Sự cố vận hành</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Theo dõi và xử lý các sự cố nhân sự và cảnh báo vận hành trên tuyến xe.
-        </p>
-      </div>
+      <PageHeader title="Sự cố" />
 
       {actionableOnly && <button type="button" onClick={() => setActionableOnly(false)} className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">Chỉ sự cố cần xử lý ×</button>}
       {/* Filter Row */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center gap-3">
-        {/* School filter (System Admin) */}
-        {isSystemAdmin && (
-          <div className="w-full sm:w-auto">
-            <select
+      <FilterToolbar
+        hasActiveFilters={Boolean(schoolFilter || typeFilter !== 'ALL' || statusFilter !== 'ALL' || dateFilter)}
+        onReset={() => {
+          setSchoolFilter('');
+          setTypeFilter('ALL');
+          setStatusFilter('ALL');
+          setDateFilter('');
+          setPage(1);
+        }}
+      >
+        {isSystemAdmin && (<FilterField label="Trường học">
+          <select
               value={schoolFilter}
               onChange={(e) => {
                 setSchoolFilter(e.target.value);
                 setPage(1);
               }}
-              className="w-full sm:w-48 px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+              className="w-full"
             >
               <option value="">Tất cả trường</option>
               {schools.map((s) => (
@@ -216,18 +223,16 @@ export default function AdminIncidentsPage() {
                 </option>
               ))}
             </select>
-          </div>
+        </FilterField>
         )}
-
-        {/* Type filter */}
-        <div className="w-full sm:w-auto">
+        <FilterField label="Loại sự cố">
           <select
             value={typeFilter}
             onChange={(e) => {
               setTypeFilter(e.target.value);
               setPage(1);
             }}
-            className="w-full sm:w-48 px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+            className="w-full"
           >
             <option value="ALL">Tất cả loại sự cố</option>
             <option value="ATTENDANT_MISSING">Giáo viên chưa đến</option>
@@ -235,17 +240,16 @@ export default function AdminIncidentsPage() {
             <option value="OFF_ROUTE">Lệch tuyến</option>
             <option value="LATE_STOP">Đón/trả chậm</option>
           </select>
-        </div>
+        </FilterField>
 
-        {/* Status filter */}
-        <div className="w-full sm:w-auto">
+        <FilterField label="Trạng thái">
           <select
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value);
               setPage(1);
             }}
-            className="w-full sm:w-48 px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+            className="w-full"
           >
             <option value="ALL">Tất cả trạng thái</option>
             <option value="WAITING_ASSIGNMENT">Chờ xử lý</option>
@@ -254,10 +258,9 @@ export default function AdminIncidentsPage() {
             <option value="CONFIRMED">Đã xác nhận</option>
             <option value="CLOSED">Đã đóng</option>
           </select>
-        </div>
+        </FilterField>
 
-        {/* Date filter */}
-        <div className="w-full sm:w-auto">
+        <FilterField label="Ngày">
           <input
             type="date"
             value={dateFilter}
@@ -265,26 +268,10 @@ export default function AdminIncidentsPage() {
               setDateFilter(e.target.value);
               setPage(1);
             }}
-            className="w-full sm:w-44 px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+            className="w-full"
           />
-        </div>
-
-        {/* Reset filter button */}
-        {(schoolFilter || typeFilter !== 'ALL' || statusFilter !== 'ALL' || dateFilter) && (
-          <button
-            onClick={() => {
-              setSchoolFilter('');
-              setTypeFilter('ALL');
-              setStatusFilter('ALL');
-              setDateFilter('');
-              setPage(1);
-            }}
-            className="px-3 py-2 text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors"
-          >
-            Đặt lại
-          </button>
-        )}
-      </div>
+        </FilterField>
+      </FilterToolbar>
 
       {/* Main Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -316,7 +303,8 @@ export default function AdminIncidentsPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+            <Table className="w-full text-left text-xs border-collapse" minWidth={1160}>
+            <colgroup><col /><col style={{ width: 200 }} /><col style={{ width: 130 }} /><col style={{ width: 220 }} /><col style={{ width: 180 }} /><col style={{ width: 190 }} /></colgroup>
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-500 font-semibold uppercase tracking-wider">
                   <th className="py-3.5 px-4">Chuyến xe</th>
@@ -405,13 +393,13 @@ export default function AdminIncidentsPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </div>
         )}
 
         {/* Pagination */}
         {!loading && total > 0 && (
-          <div className="p-4 border-t border-slate-100">
+          <div>
             <PaginationControl
               page={page}
               totalPages={totalPages}

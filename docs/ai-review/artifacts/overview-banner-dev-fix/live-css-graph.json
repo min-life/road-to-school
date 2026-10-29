@@ -1,0 +1,19 @@
+{
+  "route": "/admin",
+  "htmlStatus": 200,
+  "chunks": [
+    {
+      "url": "/_next/static/chunks/src_app_163cw1u-ryg4b._.css",
+      "status": 200,
+      "banner": false,
+      "filters": false
+    },
+    {
+      "url": "/_next/static/chunks/src_components_admin_overview_overview-banner_css_0mfxhjg8yvfl3.css",
+      "status": 200,
+      "banner": true,
+      "filters": true
+    }
+  ],
+  "passed": true
+}

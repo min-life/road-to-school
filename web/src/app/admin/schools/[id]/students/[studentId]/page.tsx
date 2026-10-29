@@ -1,13 +1,12 @@
 'use client';
+import { BackLink } from '@/components/admin/common/context-navigation';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { AdminSchoolsGuard } from '@/components/admin/schools/admin-schools-guard';
 import { apiClient } from '@/lib/api-client';
 import type { StudentDetail } from '@/lib/types';
 import {
-  ArrowLeftIcon,
   StudentIcon,
   PhoneIcon,
   MapPinIcon,
@@ -63,13 +62,7 @@ function SystemAdminStudentDetailPageContent() {
   if (errorMessage || !student) {
     return (
       <div className="p-6 max-w-2xl mx-auto space-y-4">
-        <Link
-          href={`/admin/schools/${schoolId}`}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
-        >
-          <ArrowLeftIcon className="w-4 h-4" />
-          <span>Quay lại chi tiết trường học</span>
-        </Link>
+        <BackLink fallback={`/admin/schools/${schoolId}?tab=students`} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors" />
         <div className="p-6 bg-red-50 border border-red-200 rounded-xl text-red-800 text-center">
           <AlertIcon className="w-8 h-8 text-red-600 mx-auto mb-2" />
           <h2 className="text-base font-bold">Không thể tải thông tin học sinh</h2>
@@ -85,13 +78,7 @@ function SystemAdminStudentDetailPageContent() {
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       {/* Back button */}
       <div>
-        <Link
-          href={`/admin/schools/${schoolId}`}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
-        >
-          <ArrowLeftIcon className="w-4 h-4" />
-          <span>Quay lại chi tiết trường học</span>
-        </Link>
+        <BackLink fallback={`/admin/schools/${schoolId}?tab=students`} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors" />
       </div>
 
       {/* Top Header Card */}

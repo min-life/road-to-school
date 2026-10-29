@@ -1,10 +1,11 @@
 'use client';
+import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
 
 import { useRouteQuery } from '@/hooks/use-route-query';
 
 
 import React, { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
+import { ContextLink } from '@/components/admin/common/context-navigation';
 import { apiClient } from '@/lib/api-client';
 import { RoutePlanItem, RoutePlanStatus, SchoolListItem, Role } from '@/lib/types';
 import {
@@ -12,7 +13,6 @@ import {
   PlusIcon,
   SearchIcon,
   SpinnerIcon,
-  ChevronLeftIcon,
   ChevronRightIcon,
   InfoIcon,
 } from '@/components/icons';
@@ -133,7 +133,7 @@ export default function RoutePlansPage() {
   const endIndex = Math.min(page * limit, totalItems);
 
   return (
-    <div className="space-y-6">
+    <div className="ui-list-page">
       {/* Top Banner Notice: RoutePlan Lifecycle Rule */}
       <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200/80 flex items-start gap-3">
         <InfoIcon className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
@@ -145,15 +145,7 @@ export default function RoutePlansPage() {
       </div>
 
       {/* Header */}
-      <PageHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Phương án tuyến</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Quản lý các phương án đưa đón học sinh theo từng trường
-          </p>
-        </div>
-
-        {isSystemAdmin && (
+      <PageHeader title="Phương án tuyến" actions={isSystemAdmin && (
           <Button variant="primary" size="default"
             onClick={() => setIsSelectSchoolOpen(true)}
             className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary hover:bg-[#e6b74d] text-foreground font-bold text-sm shadow-xs transition-all cursor-pointer"
@@ -161,28 +153,30 @@ export default function RoutePlansPage() {
             <PlusIcon className="w-4 h-4" />
             <span>Thêm phương án</span>
           </Button>
-        )}
-      </PageHeader>
+        )} />
 
       {/* Filters Bar */}
-      <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* Search */}
-          <div className="relative">
-            <SearchIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <Input
+      <FilterToolbar
+        hasActiveFilters={Boolean(search || selectedSchoolId || selectedStatus)}
+        onReset={() => {
+          setSearch('');
+          setSelectedSchoolId('');
+          setSelectedStatus('');
+          setPage(1);
+        }}
+      >
+        <FilterField label="Tìm kiếm" grow icon={<SearchIcon />}>
+          <Input
               type="text"
               placeholder="Tìm theo tên phương án hoặc trường..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-3.5 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 bg-slate-50/50"
+              className="w-full"
             />
-          </div>
+        </FilterField>
 
-          {/* School filter (for System Admin) */}
-          {isSystemAdmin && (
-            <div>
-              <SchoolSelectFilter
+        {isSystemAdmin && (<FilterField label="Trường học">
+          <SchoolSelectFilter
                 value={selectedSchoolId}
                 onChange={(schoolId) => {
                   setSelectedSchoolId(schoolId);
@@ -191,18 +185,16 @@ export default function RoutePlansPage() {
                 allowAll={true}
                 allLabel="Tất cả trường học"
               />
-            </div>
-          )}
-
-          {/* Status filter */}
-          <div>
-            <Select
+        </FilterField>
+        )}
+        <FilterField label="Trạng thái">
+          <Select
               value={selectedStatus}
               onChange={(e) => {
                 setSelectedStatus(e.target.value);
                 setPage(1);
               }}
-              className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-primary bg-slate-50/50 text-slate-700"
+              className="w-full"
             >
               <option value="">Tất cả trạng thái</option>
               <option value="ACTIVE">Đang hoạt động (ACTIVE)</option>
@@ -210,19 +202,9 @@ export default function RoutePlansPage() {
               <option value="CANCELLED">Đã hủy (CANCELLED)</option>
               <option value="EXPIRED">Hết hạn hợp đồng (EXPIRED)</option>
             </Select>
-          </div>
-
-          {/* Refresh action */}
-          <div className="flex items-center justify-end">
-            <Button
-              onClick={() => fetchRoutePlans()}
-              className="px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer w-full sm:w-auto"
-            >
-              Làm mới
-            </Button>
-          </div>
-        </div>
-      </Card>
+        </FilterField>
+        <Button type="button" onClick={() => fetchRoutePlans()} className="ui-filter-refresh">Làm mới</Button>
+      </FilterToolbar>
 
       {/* RoutePlans Table */}
       <Card className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
@@ -241,7 +223,8 @@ export default function RoutePlansPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <Table className="w-full text-left border-collapse">
+            <Table className="w-full text-left border-collapse" minWidth={1280}>
+            <colgroup><col /><col style={{ width: 210 }} /><col style={{ width: 150 }} /><col style={{ width: 100 }} /><col style={{ width: 100 }} /><col style={{ width: 150 }} /><col style={{ width: 150 }} /><col style={{ width: 180 }} /></colgroup>
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/75 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                   <th className="py-3 px-4">Tên phương án</th>
@@ -281,13 +264,13 @@ export default function RoutePlansPage() {
                     return (
                       <tr key={plan.id} className="hover:bg-slate-50/60 transition-colors">
                         <td className="py-3.5 px-4 font-semibold text-slate-800">
-                          <Link
+                          <ContextLink
                             href={`/admin/routes/plans/${plan.id}`}
                             className="hover:text-blue-600 hover:underline flex items-center gap-2"
                           >
                             <RouteIcon className="w-4 h-4 text-slate-400 shrink-0" />
                             <span>{plan.name}</span>
-                          </Link>
+                          </ContextLink>
                         </td>
 
                         <td className="py-3.5 px-4 text-slate-600 text-xs">
@@ -299,15 +282,15 @@ export default function RoutePlansPage() {
                         </td>
 
                         <td className="py-3.5 px-4 text-center">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                          <Badge className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
                             {plan.totalOutboundRoutes} tuyến
-                          </span>
+                          </Badge>
                         </td>
 
                         <td className="py-3.5 px-4 text-center">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200/60">
+                          <Badge className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200/60">
                             {plan.totalReturnRoutes} tuyến
-                          </span>
+                          </Badge>
                         </td>
 
                         <td className="py-3.5 px-4 text-center font-bold text-slate-800">
@@ -338,12 +321,12 @@ export default function RoutePlansPage() {
                         </td>
 
                         <td className="py-3.5 px-4 text-right">
-                          <Link  data-size="sm"
+                          <ContextLink  data-size="sm"
                             href={`/admin/routes/plans/${plan.id}`}
                             className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-primary hover:text-slate-900 transition-colors"
                           >
                             Chi tiết
-                          </Link>
+                          </ContextLink>
                         </td>
                       </tr>
                     );

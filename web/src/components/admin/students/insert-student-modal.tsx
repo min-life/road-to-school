@@ -14,7 +14,7 @@ import {
   CheckIcon,
   BusIcon,
 } from '@/components/icons';
-import { FilterToolbar } from '@/components/ui/filter-toolbar';
+
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -149,7 +149,7 @@ export function InsertStudentModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
-      <FilterToolbar className="ui-dialog-panel ui-dialog-panel-body bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+      <Card className="ui-dialog-panel ui-dialog-panel-body bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div className="space-y-0.5">
@@ -398,7 +398,7 @@ export function InsertStudentModal({
             <span>Xác nhận thêm vào tuyến</span>
           </Button>
         </div>
-      </FilterToolbar>
+      </Card>
     </div>
   );
 }

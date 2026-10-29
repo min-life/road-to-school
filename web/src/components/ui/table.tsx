@@ -1,6 +1,7 @@
-import type { ComponentProps } from 'react';
+import type { ComponentProps, CSSProperties } from 'react';
+import './table.css';
 
-/** No wrapper, column mapping, sorting or pagination is introduced. */
-export function Table({ className = '', ...props }: ComponentProps<'table'>) {
-  return <table {...props} className={`ui-table ${className}`} />;
+/** Native table; callers retain overflow wrappers, columns and all data behavior. */
+export function Table({ className = '', minWidth, style, ...props }: ComponentProps<'table'> & { minWidth?: number }) {
+  return <table {...props} style={{ '--table-min-width': minWidth ? `${minWidth}px` : undefined, ...style } as CSSProperties} className={`ui-table ${className}`} />;
 }

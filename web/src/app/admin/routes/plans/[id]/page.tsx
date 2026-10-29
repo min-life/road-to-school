@@ -1,13 +1,11 @@
 'use client';
+import { BackLink, ContextLink } from '@/components/admin/common/context-navigation';
 
 import React, { useState, useEffect, useCallback, use } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { RoutePlanItem, RouteItem, Role, ApprovalReadinessResponse } from '@/lib/types';
 import {
   RouteIcon,
-  ChevronLeftIcon,
   SpinnerIcon,
   AlertIcon,
   InfoIcon,
@@ -24,7 +22,6 @@ import { Table } from '@/components/ui/table';
 
 export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: planId } = use(params);
-  const router = useRouter();
 
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
   const [plan, setPlan] = useState<RoutePlanItem | null>(null);
@@ -123,25 +120,14 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
   if (error || !plan) {
     return (
       <div className="space-y-4">
-        <Link
-          href="/admin/routes"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800"
-        >
-          <ChevronLeftIcon className="w-4 h-4" />
-          <span>Quay lại danh sách phương án</span>
-        </Link>
+        <BackLink fallback="/admin/routes" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800" />
         <Card className="p-8 rounded-2xl bg-white border border-rose-200 text-center">
           <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3">
             <AlertIcon className="w-6 h-6" />
           </div>
           <h2 className="text-base font-bold text-slate-800">Không tìm thấy phương án tuyến</h2>
           <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">{error || 'Phương án không tồn tại hoặc bạn không có quyền truy cập.'}</p>
-          <Button
-            onClick={() => router.push('/admin/routes')}
-            className="mt-4 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
-          >
-            Về trang danh sách
-          </Button>
+          <BackLink fallback="/admin/routes" className="mt-4 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors" />
         </Card>
       </div>
     );
@@ -151,13 +137,7 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
     <div className="space-y-6">
       {/* Breadcrumb & Navigation */}
       <div className="flex items-center justify-between">
-        <Link
-          href="/admin/routes"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
-        >
-          <ChevronLeftIcon className="w-4 h-4" />
-          <span>Quay lại danh sách phương án</span>
-        </Link>
+        <BackLink fallback="/admin/routes" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors" />
         <span className="text-xs text-slate-400">
           Mã phương án: <code className="text-slate-600 font-mono text-[11px]">{plan.id.slice(0, 8)}...</code>
         </span>
@@ -360,7 +340,8 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
 
         {/* Routes Table */}
         <div className="overflow-x-auto">
-          <Table className="w-full text-left border-collapse">
+          <Table className="w-full text-left border-collapse" minWidth={1465}>
+            <colgroup><col /><col style={{ width: 130 }} /><col style={{ width: 150 }} /><col style={{ width: 190 }} /><col style={{ width: 190 }} /><col style={{ width: 100 }} /><col style={{ width: 100 }} /><col style={{ width: 135 }} /><col style={{ width: 130 }} /><col style={{ width: 100 }} /></colgroup>
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/75 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                 <th className="py-3 px-4">Tên tuyến</th>
@@ -392,24 +373,24 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
                   return (
                     <tr key={route.id} className="hover:bg-slate-50/60 transition-colors">
                       <td className="py-3.5 px-4 font-semibold text-slate-800">
-                        <Link
+                        <ContextLink
                           href={`/admin/routes/${route.id}`}
                           className="hover:text-blue-600 hover:underline flex items-center gap-2"
                         >
                           <RouteIcon className="w-4 h-4 text-slate-400 shrink-0" />
                           <span>{route.name}</span>
-                        </Link>
+                        </ContextLink>
                       </td>
 
                       <td className="py-3.5 px-4">
                         {isToSchool ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                          <Badge className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
                             Chiều đi
-                          </span>
+                          </Badge>
                         ) : (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200/60">
+                          <Badge className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200/60">
                             Chiều về
-                          </span>
+                          </Badge>
                         )}
                       </td>
 
@@ -446,10 +427,10 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
 
                       <td className="py-3.5 px-4 text-center">
                         {route.studentCount === 0 ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                          <Badge className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
                             <AlertIcon className="w-3 h-3 text-rose-600" />
                             0 (Vi phạm)
-                          </span>
+                          </Badge>
                         ) : (
                           <span className="font-bold text-slate-800">{route.studentCount}</span>
                         )}
@@ -468,12 +449,12 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
                       </td>
 
                       <td className="py-3.5 px-4 text-right">
-                        <Link  data-size="sm"
+                        <ContextLink  data-size="sm"
                           href={`/admin/routes/${route.id}`}
                           className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-primary hover:text-slate-900 transition-colors"
                         >
                           Xem bản đồ
-                        </Link>
+                        </ContextLink>
                       </td>
                     </tr>
                   );
@@ -504,11 +485,11 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
                 <div className="flex items-center justify-between">
                   <p className="font-bold text-slate-800">{s.fullName}</p>
                   {s.missingDirection && (
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                    <Badge className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
                       {s.missingDirection === 'RETURN' && 'Thiếu chiều về'}
                       {s.missingDirection === 'OUTBOUND' && 'Thiếu chiều đi'}
                       {s.missingDirection === 'BOTH' && 'Không xếp được 2 chiều'}
-                    </span>
+                    </Badge>
                   )}
                 </div>
                 {s.addressText && <p className="text-slate-500 truncate">{s.addressText}</p>}

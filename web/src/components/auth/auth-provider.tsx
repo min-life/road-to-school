@@ -12,6 +12,7 @@ import { User, Role } from '@/lib/types';
 import { authStorage } from '@/lib/auth-storage';
 import { apiClient } from '@/lib/api-client';
 import { RoleSplash } from './role-splash';
+import { toast } from '@/stores/toast-store';
 
 interface AuthContextType {
   user: User | null;
@@ -74,6 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Đăng ký listener xử lý sự kiện hết hạn phiên
     const unsubscribe = apiClient.onUnauthorized(() => {
       if (isMounted) {
+        toast.dismissAll();
         setUser(null);
         router.push('/login');
       }
@@ -109,6 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Bỏ qua lỗi mạng khi logout, luôn bảo đảm dọn dẹp client state
       authStorage.clear();
     } finally {
+      toast.dismissAll();
       setUser(null);
       router.push('/login');
     }

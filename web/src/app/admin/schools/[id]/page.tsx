@@ -1,12 +1,14 @@
 'use client';
+import { BackLink } from '@/components/admin/common/context-navigation';
+
+import { toast } from '@/stores/toast-store';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { schoolTabFromQuery } from '@/lib/back-navigation';
 import { apiClient } from '@/lib/api-client';
 import type { SchoolDetail } from '@/lib/types';
 import {
-  ArrowLeftIcon,
   SchoolIcon,
   MapPinIcon,
   CalendarIcon,
@@ -14,7 +16,6 @@ import {
   UsersIcon,
   SpinnerIcon,
   AlertIcon,
-  CheckIcon,
   StudentIcon,
   RouteIcon,
   BusIcon,
@@ -70,14 +71,21 @@ export default function AdminSchoolDetailPage() {
   const [school, setSchool] = useState<SchoolDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
+
 
   // Edit & Status modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
 
   // Horizontal Tabs (employees, students, routes, trips)
-  const [activeTab, setActiveTab] = useState<'employees' | 'students' | 'routes' | 'trips'>('employees');
+  const pathname = usePathname();
+  const query = useSearchParams();
+  const activeTab = schoolTabFromQuery(query.get('tab'));
+  const setActiveTab = (tab: typeof activeTab) => {
+    const nextQuery = new URLSearchParams(query.toString());
+    nextQuery.set('tab', tab);
+    router.replace(`${pathname}?${nextQuery}`, { scroll: false });
+  };
 
   const fetchSchoolDetail = useCallback(async () => {
     if (!schoolId) return;
@@ -101,15 +109,13 @@ export default function AdminSchoolDetailPage() {
   }, [fetchSchoolDetail]);
 
   const handleStatusChangeSuccess = (newStatus: boolean) => {
-    setSuccessToast(
+    toast.success(
       newStatus
         ? 'Đã kích hoạt lại trường học thành công.'
         : 'Đã chuyển trường học sang trạng thái ngừng hoạt động.',
     );
     fetchSchoolDetail();
-    setTimeout(() => {
-      setSuccessToast(null);
-    }, 4000);
+
   };
 
   if (isLoading) {
@@ -124,13 +130,7 @@ export default function AdminSchoolDetailPage() {
   if (errorMessage || !school) {
     return (
       <div className="space-y-6">
-        <Link
-          href="/admin/schools"
-          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
-        >
-          <ArrowLeftIcon className="w-4 h-4" />
-          <span>Quay lại danh sách trường</span>
-        </Link>
+        <BackLink fallback="/admin/schools" className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors" />
 
         <Card className="bg-white rounded-2xl border border-red-200 p-8 text-center max-w-lg mx-auto shadow-xs">
           <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 mx-auto flex items-center justify-center mb-4">
@@ -142,13 +142,7 @@ export default function AdminSchoolDetailPage() {
           <p className="text-xs text-slate-600 mb-6 leading-relaxed">
             {errorMessage || 'Trường học không tồn tại hoặc đã bị xóa.'}
           </p>
-          <Button
-            type="button"
-            onClick={() => router.push('/admin/schools')}
-            className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition-colors cursor-pointer"
-          >
-            Quay lại danh sách trường
-          </Button>
+          <BackLink fallback="/admin/schools" className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition-colors cursor-pointer" />
         </Card>
       </div>
     );
@@ -162,22 +156,11 @@ export default function AdminSchoolDetailPage() {
   return (
     <div className="space-y-6">
       {/* Toast thông báo */}
-      {successToast && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2 font-medium">
-          <CheckIcon className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span>{successToast}</span>
-        </div>
-      )}
+
 
       {/* Navigation quay lại */}
       <div>
-        <Link
-          href="/admin/schools"
-          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-foreground transition-colors"
-        >
-          <ArrowLeftIcon className="w-4 h-4" />
-          <span>Danh sách trường học</span>
-        </Link>
+        <BackLink fallback="/admin/schools" className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-foreground transition-colors" />
       </div>
 
       {/* Header Trường học (Wireframe W5) */}
@@ -403,7 +386,7 @@ export default function AdminSchoolDetailPage() {
         onClose={() => setIsEditModalOpen(false)}
         onSuccess={(msg?: string) => {
           setIsEditModalOpen(false);
-          setSuccessToast(msg || 'Cập nhật thông tin trường học thành công.');
+          toast.success(msg || 'Cập nhật thông tin trường học thành công.');
           fetchSchoolDetail();
         }}
       />

@@ -1,0 +1,17 @@
+.weekly-schedule { min-width:0; container-type:inline-size; }
+.weekly-schedule-heading { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:4px 12px; }
+.weekly-schedule-row { display:grid; grid-template-columns:minmax(0, 1fr); align-items:center; gap:12px; }
+.weekly-schedule-day { min-width:0; }
+.weekly-schedule-day input { flex:none; }
+.weekly-schedule-times { display:grid; grid-template-columns:minmax(0, 1fr); min-width:0; gap:12px; }
+.weekly-schedule-field { display:flex; flex-direction:column; min-width:0; gap:6px; }
+.weekly-schedule-field label { white-space:normal; }
+.weekly-schedule-input { min-width:0; }
+.weekly-schedule-input .ui-input { display:block; width:100%; min-width:0; max-width:100%; box-sizing:border-box; min-height:44px; }
+.weekly-schedule-off { justify-self:end; }
+@container (min-width:360px) {
+  .weekly-schedule-times { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+}
+@container (min-width:560px) {
+  .weekly-schedule-row { grid-template-columns:96px minmax(0, 1fr); }
+}

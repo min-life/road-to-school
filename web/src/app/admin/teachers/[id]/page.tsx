@@ -1,14 +1,13 @@
 'use client';
+import { BackLink } from '@/components/admin/common/context-navigation';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/components/auth/auth-provider';
 import { SchoolAdminGuard } from '@/components/admin/school-admin-guard';
 import { apiClient } from '@/lib/api-client';
 import type { SchoolEmployeeDetail } from '@/lib/types';
 import {
-  ArrowLeftIcon,
   TeacherIcon,
   SchoolIcon,
   PhoneIcon,
@@ -62,13 +61,7 @@ function TeacherDetailPageContent() {
   if (errorMessage || !teacher) {
     return (
       <div className="p-6 max-w-2xl mx-auto space-y-4">
-        <Link
-          href="/admin/teachers"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
-        >
-          <ArrowLeftIcon className="w-4 h-4" />
-          <span>Quay lại danh sách giáo viên</span>
-        </Link>
+        <BackLink fallback="/admin/teachers" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors" />
         <div className="p-6 bg-red-50 border border-red-200 rounded-xl text-red-800 text-center">
           <AlertIcon className="w-8 h-8 text-red-600 mx-auto mb-2" />
           <h2 className="text-base font-bold">Không thể tải thông tin giáo viên</h2>
@@ -84,13 +77,7 @@ function TeacherDetailPageContent() {
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       {/* Back button */}
       <div>
-        <Link
-          href="/admin/teachers"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
-        >
-          <ArrowLeftIcon className="w-4 h-4" />
-          <span>Quay lại danh sách giáo viên</span>
-        </Link>
+        <BackLink fallback="/admin/teachers" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors" />
       </div>
 
       {/* Header Card */}

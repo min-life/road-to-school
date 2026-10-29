@@ -1,5 +1,7 @@
 'use client';
 
+import { toast } from '@/stores/toast-store';
+
 import React, { useState, useEffect } from 'react';
 import { apiClient, ApiError } from '@/lib/api-client';
 import { LeaveNoticeItem, ReplacementCandidateItem } from '@/lib/types';
@@ -73,6 +75,7 @@ export function ReplacementModal({
 
     try {
       await apiClient.assignReplacement(notice.id, { replacementUserId: selectedUserId });
+      toast.success('Đã phân công người thay thế.');
       onSuccess();
       onClose();
     } catch (err) {

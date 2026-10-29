@@ -1,10 +1,12 @@
 'use client';
 
+import { Badge } from '@/components/ui/badge';
+
 import { useRouteQuery } from '@/hooks/use-route-query';
 
 
 import React, { useState, useEffect, useMemo } from 'react';
-import Link from 'next/link';
+import { ContextLink } from '@/components/admin/common/context-navigation';
 import { useVisibleRefresh } from '@/hooks/use-visible-refresh';
 import type { RefreshContext } from '@/lib/refresh-loop';
 import { useAuth } from '@/components/auth/auth-provider';
@@ -13,10 +15,9 @@ import { TripItem, Role } from '@/lib/types';
 import { RouteIcon, SpinnerIcon, AlertIcon, BusIcon } from '@/components/icons';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
 import { SchoolSelectFilter } from '@/components/admin/common/school-select-filter';
-import { FilterToolbar } from '@/components/ui/filter-toolbar';
+import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Table } from '@/components/ui/table';
 
@@ -24,14 +25,12 @@ interface TripsTableProps {
   fixedSchoolId?: string;
   refreshKey?: number;
   currentUserRole: Role | null;
-  onOpenManualGenerate?: () => void;
 }
 
 export function TripsTable({
   fixedSchoolId,
   refreshKey = 0,
   currentUserRole,
-  onOpenManualGenerate,
 }: TripsTableProps) {
   const { user } = useAuth();
   const isSystemAdmin = currentUserRole === 'SYSTEM_ADMIN';
@@ -51,6 +50,14 @@ export function TripsTable({
 
   // Contract dates for selected school (Requirement 08)
   const [contractBounds, setContractBounds] = useState<{ start?: string; end?: string }>({});
+
+  // Reset to the initial date window, respecting a fixed school's contract bounds.
+  const clampDefaultDate = (date: string) => fixedSchoolId
+    ? (contractBounds.start && date < contractBounds.start ? contractBounds.start
+      : contractBounds.end && date > contractBounds.end ? contractBounds.end : date)
+    : date;
+  const defaultFromDate = clampDefaultDate(formatDateStr(today));
+  const defaultToDate = clampDefaultDate(formatDateStr(nextWeek));
 
   // Data state
   const [trips, setTrips] = useState<TripItem[]>([]);
@@ -185,35 +192,35 @@ export function TripsTable({
   const renderStatusBadge = (trip: TripItem) => {
     if (trip.isVirtual || (trip.status as string) === 'NOT_CREATED') {
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+        <Badge className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
           Chưa tạo (Dự kiến)
-        </span>
+        </Badge>
       );
     }
     switch (trip.status) {
       case 'SCHEDULED':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+          <Badge className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
             Lập lịch
-          </span>
+          </Badge>
         );
       case 'IN_PROGRESS':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 animate-pulse">
+          <Badge className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 animate-pulse">
             Đang chạy
-          </span>
+          </Badge>
         );
       case 'COMPLETED':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <Badge className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
             Hoàn thành
-          </span>
+          </Badge>
         );
       case 'CANCELLED':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+          <Badge className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
             Hủy
-          </span>
+          </Badge>
         );
       default:
         return <span>{trip.status}</span>;
@@ -223,12 +230,18 @@ export function TripsTable({
   return (
     <div className="space-y-4">
       {/* Filter Toolbar */}
-      <FilterToolbar className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3 text-xs">
-          {/* Date range */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-slate-500 font-semibold">Từ:</span>
-            <Input
+      <FilterToolbar
+        hasActiveFilters={Boolean(selectedStatus || (!fixedSchoolId && selectedSchoolId) || fromDate !== defaultFromDate || toDate !== defaultToDate)}
+        onReset={() => {
+          setSelectedSchoolId(effectiveSchoolId);
+          setSelectedStatus('');
+          setFromDate(defaultFromDate);
+          setToDate(defaultToDate);
+          handleFilterChange();
+        }}
+      >
+        <FilterField label="Từ ngày">
+          <Input
               type="date"
               value={fromDate}
               min={contractBounds.start}
@@ -237,13 +250,12 @@ export function TripsTable({
                 setFromDate(e.target.value);
                 handleFilterChange();
               }}
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full"
             />
-          </div>
+        </FilterField>
 
-          <div className="flex items-center gap-1.5">
-            <span className="text-slate-500 font-semibold">Đến:</span>
-            <Input
+        <FilterField label="Đến ngày">
+          <Input
               type="date"
               value={toDate}
               min={contractBounds.start}
@@ -252,15 +264,12 @@ export function TripsTable({
                 setToDate(e.target.value);
                 handleFilterChange();
               }}
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full"
             />
-          </div>
+        </FilterField>
 
-          {/* School filter (System Admin only and not on School Detail) */}
-          {!fixedSchoolId && isSystemAdmin && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-slate-500 font-semibold">Trường:</span>
-              <SchoolSelectFilter
+        {!fixedSchoolId && isSystemAdmin && (<FilterField label="Trường học">
+          <SchoolSelectFilter
                 value={selectedSchoolId}
                 onChange={(schoolId) => {
                   setSelectedSchoolId(schoolId);
@@ -268,21 +277,18 @@ export function TripsTable({
                 }}
                 allowAll={true}
                 allLabel="Tất cả trường"
-                className="w-48"
+                className="w-full"
               />
-            </div>
-          )}
-
-          {/* Status filter */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-slate-500 font-semibold">Trạng thái:</span>
-            <Select
+        </FilterField>
+        )}
+        <FilterField label="Trạng thái">
+          <Select
               value={selectedStatus}
               onChange={(e) => {
                 setSelectedStatus(e.target.value);
                 handleFilterChange();
               }}
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+              className="w-full"
             >
               <option value="">Tất cả trạng thái</option>
               <option value="SCHEDULED">Lập lịch</option>
@@ -291,31 +297,16 @@ export function TripsTable({
               <option value="CANCELLED">Hủy</option>
               <option value="NOT_CREATED">Chưa tạo (Dự kiến)</option>
             </Select>
-          </div>
+        </FilterField>
 
-          {contractBounds.start && contractBounds.end && (
-            <span className="text-[11px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200/60 font-medium">
-              Hợp đồng: {contractBounds.start} – {contractBounds.end}
-            </span>
-          )}
-        </div>
-
-        {/* Action: Manual Generation (System Admin only) */}
-        {isSystemAdmin && onOpenManualGenerate && (
-          <Button variant="primary" size="sm"
-            onClick={onOpenManualGenerate}
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-900 bg-primary hover:bg-[#f5c042] transition-colors cursor-pointer shadow-xs shrink-0"
-          >
-            <BusIcon className="w-4 h-4 text-slate-900" />
-            <span>Sinh chuyến thủ công</span>
-          </Button>
-        )}
+        {contractBounds.start && contractBounds.end && (<Badge className="ui-filter-meta">Hợp đồng: {contractBounds.start} – {contractBounds.end}</Badge>)}
       </FilterToolbar>
 
       {/* Main Trips Table */}
       <Card className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <Table className="w-full text-left border-collapse text-xs">
+          <Table className="w-full text-left border-collapse text-xs" minWidth={1765}>
+            <colgroup><col style={{ width: 125 }} /><col /><col style={{ width: 210 }} /><col style={{ width: 115 }} /><col style={{ width: 160 }} /><col style={{ width: 150 }} /><col style={{ width: 190 }} /><col style={{ width: 190 }} /><col style={{ width: 100 }} /><col style={{ width: 170 }} /><col style={{ width: 115 }} /></colgroup>
             <thead>
               <tr className="border-b border-slate-200/80 bg-slate-50/70 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
                 <th className="py-3 px-4 w-32">Thứ / Ngày</th>
@@ -399,7 +390,7 @@ export function TripsTable({
                       </td>
 
                       <td className="py-3 px-4">
-                        <span
+                        <Badge
                           className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${
                             trip.direction === 'TO_SCHOOL'
                               ? 'bg-blue-50 text-blue-700'
@@ -407,7 +398,7 @@ export function TripsTable({
                           }`}
                         >
                           {trip.direction === 'TO_SCHOOL' ? 'Chiều đi' : 'Chiều về'}
-                        </span>
+                        </Badge>
                       </td>
 
                       <td className="py-3 px-4 text-center font-mono font-semibold text-slate-800 whitespace-nowrap">
@@ -446,12 +437,12 @@ export function TripsTable({
 
                       <td className="py-3 px-4 text-right whitespace-nowrap">
                         {!trip.isVirtual ? (
-                          <Link  data-size="sm"
+                          <ContextLink  data-size="sm"
                             href={`/admin/trips/${trip.id}`}
                             className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-primary hover:text-slate-900 transition-colors"
                           >
                             Chi tiết
-                          </Link>
+                          </ContextLink>
                         ) : (
                           <span
                             title="Chuyến này chưa được tạo trong cơ sở dữ liệu"

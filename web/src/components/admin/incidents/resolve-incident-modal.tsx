@@ -1,5 +1,7 @@
 'use client';
 
+import { toast } from '@/stores/toast-store';
+
 import React, { useState, useEffect } from 'react';
 import { apiClient, ApiError } from '@/lib/api-client';
 import { TripIncident, IncidentCandidate } from '@/lib/types';
@@ -83,6 +85,7 @@ export function ResolveIncidentModal({
         reason: reason.trim() || undefined,
         expectedStatus: incident.status,
       });
+      toast.success('Đã cập nhật xử lý sự cố.');
       onSuccess();
       onClose();
     } catch (err) {
@@ -102,6 +105,7 @@ export function ResolveIncidentModal({
     setError(null);
     try {
       await apiClient.cancelTripFromIncident(incident.id, cancelReason.trim());
+      toast.success('Đã hủy chuyến xe.');
       onSuccess();
       onClose();
     } catch (err) {

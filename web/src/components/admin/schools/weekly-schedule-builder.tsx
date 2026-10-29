@@ -1,14 +1,14 @@
 'use client';
 
 import React from 'react';
-import type { DaySchedule, WeeklySchedule } from '@/lib/types';
-import { ClockIcon } from '@/components/icons';
+import type { WeeklySchedule } from '@/lib/types';
 import {
   DAYS_OF_WEEK,
   validateWeeklySchedule,
   type DayConfig,
 } from './weekly-schedule.helper';
 import { Input } from '@/components/ui/input';
+import './weekly-schedule-builder.css';
 
 export { DAYS_OF_WEEK, validateWeeklySchedule, type DayConfig };
 
@@ -53,8 +53,8 @@ export function WeeklyScheduleBuilder({
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
+    <div className="weekly-schedule space-y-3">
+      <div className="weekly-schedule-heading">
         <label className="block text-sm font-semibold text-slate-800">
           Lịch học theo tuần <span className="text-red-500">*</span>
         </label>
@@ -71,13 +71,13 @@ export function WeeklyScheduleBuilder({
           return (
             <div
               key={day.key}
-              className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg border transition-colors ${
+              className={`weekly-schedule-row p-2.5 rounded-lg border transition-colors ${
                 isEnabled
                   ? 'bg-white border-amber-200 shadow-2xs'
                   : 'bg-transparent border-transparent opacity-75'
               }`}
             >
-              <div className="flex items-center gap-2.5 min-w-[120px]">
+              <div className="weekly-schedule-day flex items-center gap-2.5">
                 <Input
                   type="checkbox"
                   id={`day-${day.key}`}
@@ -95,15 +95,15 @@ export function WeeklyScheduleBuilder({
               </div>
 
               {isEnabled ? (
-                <div className="flex items-center gap-3 pl-6 sm:pl-0">
-                  <div className="flex items-center gap-1.5">
+                <div className="weekly-schedule-times">
+                  <div className="weekly-schedule-field">
                     <label
                       htmlFor={`${day.key}-start`}
                       className="text-xs text-slate-600 whitespace-nowrap"
                     >
                       Giờ bắt đầu học:
                     </label>
-                    <div className="relative">
+                    <div className="weekly-schedule-input">
                       <Input
                         type="time"
                         id={`${day.key}-start`}
@@ -117,16 +117,14 @@ export function WeeklyScheduleBuilder({
                     </div>
                   </div>
 
-                  <span className="text-slate-400 text-xs">—</span>
-
-                  <div className="flex items-center gap-1.5">
+                  <div className="weekly-schedule-field">
                     <label
                       htmlFor={`${day.key}-end`}
                       className="text-xs text-slate-600 whitespace-nowrap"
                     >
                       Giờ kết thúc học:
                     </label>
-                    <div className="relative">
+                    <div className="weekly-schedule-input">
                       <Input
                         type="time"
                         id={`${day.key}-end`}
@@ -141,7 +139,7 @@ export function WeeklyScheduleBuilder({
                   </div>
                 </div>
               ) : (
-                <span className="text-xs text-slate-400 italic pl-6 sm:pl-0">
+                <span className="weekly-schedule-off text-xs text-slate-400 italic">
                   Nghỉ
                 </span>
               )}

@@ -1,7 +1,9 @@
 'use client';
 
+import { toast } from '@/stores/toast-store';
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import Link from 'next/link';
+import { ContextLink } from '@/components/admin/common/context-navigation';
 import { AdminSchoolsGuard } from '@/components/admin/schools/admin-schools-guard';
 import { apiClient } from '@/lib/api-client';
 import type { DriverItem } from '@/lib/types';
@@ -10,7 +12,6 @@ import {
   SearchIcon,
   SpinnerIcon,
   AlertIcon,
-  CheckIcon,
   DriverIcon,
   PhoneIcon,
 } from '@/components/icons';
@@ -18,7 +19,7 @@ import { PaginationControl } from '@/components/admin/common/pagination-control'
 import { AddDriverModal } from '@/components/admin/drivers/add-driver-modal';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
-import { FilterToolbar } from '@/components/ui/filter-toolbar';
+import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
@@ -36,7 +37,7 @@ function DriversPageContent() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
+
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const latestRequestRef = useRef(0);
@@ -93,70 +94,56 @@ function DriversPageContent() {
   };
 
   const handleDriverAdded = () => {
-    setSuccessToast('Đã tạo tài khoản tài xế mới thành công.');
+    toast.success('Đã tạo tài khoản tài xế mới thành công.');
     fetchDrivers();
-    setTimeout(() => setSuccessToast(null), 3000);
+
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="ui-list-page">
       {/* Toast message */}
-      {successToast && (
-        <div className="flex items-center gap-2 p-3 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg animate-in fade-in duration-200">
-          <CheckIcon className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-          <span>{successToast}</span>
-        </div>
-      )}
+
 
       {/* Header */}
-      <PageHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            <DriverIcon className="w-7 h-7 text-amber-500" />
-            Quản lý tài xế
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Danh sách tài xế thuộc đội xe hệ thống, thông tin liên hệ và trạng thái hoạt động.
-          </p>
-        </div>
-
-        <Button variant="primary" size="default"
+      <PageHeader title="Tài xế" actions={<Button variant="primary" size="default"
           type="button"
           onClick={() => setIsAddModalOpen(true)}
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-900 bg-primary hover:bg-amber-400 rounded-xl transition-colors shadow-xs cursor-pointer"
         >
           <PlusIcon className="w-4 h-4" />
           <span>Thêm tài xế</span>
-        </Button>
-      </PageHeader>
+        </Button>} />
 
       {/* Filters */}
-      <FilterToolbar className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-        <div className="relative flex-1">
+      <FilterToolbar
+        hasActiveFilters={Boolean(search || statusFilter !== 'ALL')}
+        onReset={() => {
+          setSearch('');
+          setStatusFilter('ALL');
+          setPage(1);
+        }}
+      >
+        <FilterField label="Tìm kiếm" grow icon={<SearchIcon />}>
           <Input
             type="text"
             value={search}
             onChange={handleSearchChange}
             placeholder="Tìm theo tên, email hoặc số điện thoại tài xế..."
-            className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white text-slate-800"
+            className="w-full"
           />
-          <SearchIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-        </div>
+        </FilterField>
 
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-semibold text-slate-600 whitespace-nowrap">
-            Trạng thái:
-          </label>
+        <FilterField label="Trạng thái">
           <Select
             value={statusFilter}
             onChange={handleStatusChange}
-            className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 text-slate-700 cursor-pointer"
+            className="w-full"
           >
             <option value="ALL">Tất cả trạng thái</option>
             <option value="ACTIVE">Đang hoạt động</option>
             <option value="INACTIVE">Ngừng hoạt động</option>
           </Select>
-        </div>
+        </FilterField>
       </FilterToolbar>
 
       {/* Error state */}
@@ -177,7 +164,8 @@ function DriversPageContent() {
       {/* Drivers Table */}
       <Card className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <Table className="w-full text-left text-sm text-slate-700">
+          <Table className="w-full text-left text-sm text-slate-700" minWidth={1175}>
+            <colgroup><col /><col style={{ width: 235 }} /><col style={{ width: 155 }} /><col style={{ width: 165 }} /><col style={{ width: 170 }} /><col style={{ width: 210 }} /></colgroup>
             <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
               <tr>
                 <th className="px-4 py-3">Họ và tên</th>
@@ -221,12 +209,12 @@ function DriversPageContent() {
                     className="hover:bg-amber-50/30 transition-colors group"
                   >
                     <td className="px-4 py-3 font-semibold text-slate-900">
-                      <Link
+                      <ContextLink
                         href={`/admin/drivers/${driver.id}`}
                         className="hover:text-amber-700 transition-colors"
                       >
                         {driver.fullName}
-                      </Link>
+                      </ContextLink>
                     </td>
 
                     <td className="px-4 py-3 text-xs text-slate-600">
@@ -263,12 +251,12 @@ function DriversPageContent() {
                     </td>
 
                     <td className="px-4 py-3 text-right">
-                      <Link
+                      <ContextLink
                         href={`/admin/drivers/${driver.id}`}
                         className="text-xs font-medium text-slate-600 hover:text-amber-700 px-2.5 py-1 rounded-lg hover:bg-slate-100 transition-colors"
                       >
                         Xem chi tiết
-                      </Link>
+                      </ContextLink>
                     </td>
                   </tr>
                 ))

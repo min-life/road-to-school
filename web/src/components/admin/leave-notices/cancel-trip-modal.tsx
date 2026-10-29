@@ -1,5 +1,7 @@
 'use client';
 
+import { toast } from '@/stores/toast-store';
+
 import React, { useState, useEffect } from 'react';
 import { apiClient, ApiError } from '@/lib/api-client';
 import { LeaveNoticeItem } from '@/lib/types';
@@ -46,6 +48,7 @@ export function CancelTripModal({
 
     try {
       await apiClient.cancelTripFromNotice(notice.id, { cancellationReason: trimmed });
+      toast.success('Đã hủy chuyến xe.');
       onSuccess();
       onClose();
     } catch (err) {

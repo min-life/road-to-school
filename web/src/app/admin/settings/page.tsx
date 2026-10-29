@@ -1,5 +1,7 @@
 'use client';
 
+import { toast } from '@/stores/toast-store';
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { authStorage } from '@/lib/auth-storage';
@@ -11,7 +13,6 @@ import {
   EyeIcon,
   EyeOffIcon,
   SpinnerIcon,
-  CheckIcon,
   AlertIcon,
   MapPinIcon,
 } from '@/components/icons';
@@ -39,7 +40,7 @@ export default function AdminSettingsPage() {
   const [selectedAvatarFile, setSelectedAvatarFile] = useState<File | null>(null);
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
-  const [avatarSuccessMsg, setAvatarSuccessMsg] = useState<string | null>(null);
+
   const [avatarErrorMsg, setAvatarErrorMsg] = useState<string | null>(null);
 
   // 2. Change Password State
@@ -50,7 +51,7 @@ export default function AdminSettingsPage() {
   const [showNewPass, setShowNewPass] = useState(false);
   const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [isChangingPass, setIsChangingPass] = useState(false);
-  const [passSuccessMsg, setPassSuccessMsg] = useState<string | null>(null);
+
   const [passErrorMsg, setPassErrorMsg] = useState<string | null>(null);
 
   // 3. Parking Lot Settings State (SYSTEM_ADMIN only)
@@ -63,7 +64,7 @@ export default function AdminSettingsPage() {
   const [isSearchingParking, setIsSearchingParking] = useState(false);
   const [showParkingSuggestions, setShowParkingSuggestions] = useState(false);
   const [isSavingParkingLot, setIsSavingParkingLot] = useState(false);
-  const [parkingSuccessMsg, setParkingSuccessMsg] = useState<string | null>(null);
+
   const [parkingErrorMsg, setParkingErrorMsg] = useState<string | null>(null);
   const parkingSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -106,7 +107,7 @@ export default function AdminSettingsPage() {
   // Xử lý Cập nhật Avatar
   // ==========================================
   const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setAvatarSuccessMsg(null);
+
     setAvatarErrorMsg(null);
     const file = e.target.files?.[0];
     if (!file) return;
@@ -136,7 +137,7 @@ export default function AdminSettingsPage() {
   const handleUploadAvatar = async () => {
     if (!selectedAvatarFile) return;
     setIsUploadingAvatar(true);
-    setAvatarSuccessMsg(null);
+
     setAvatarErrorMsg(null);
 
     try {
@@ -144,7 +145,7 @@ export default function AdminSettingsPage() {
       const updatedUser = { ...user, avatarUrl: res.avatarUrl };
       setUser(updatedUser);
       authStorage.setUser(updatedUser);
-      setAvatarSuccessMsg('Cập nhật ảnh đại diện thành công');
+      toast.success('Cập nhật ảnh đại diện thành công');
       setSelectedAvatarFile(null);
       if (avatarPreviewUrl) {
         URL.revokeObjectURL(avatarPreviewUrl);
@@ -163,7 +164,7 @@ export default function AdminSettingsPage() {
   // ==========================================
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    setPassSuccessMsg(null);
+
     setPassErrorMsg(null);
 
     if (!currentPassword) {
@@ -189,7 +190,7 @@ export default function AdminSettingsPage() {
         currentPassword,
         newPassword,
       });
-      setPassSuccessMsg(res.message || 'Đổi mật khẩu thành công');
+      toast.success(res.message || 'Đổi mật khẩu thành công');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -205,7 +206,7 @@ export default function AdminSettingsPage() {
   // ==========================================
   const handleParkingAddressInput = (text: string) => {
     setParkingAddress(text);
-    setParkingSuccessMsg(null);
+
     setParkingErrorMsg(null);
 
     if (parkingSearchTimeoutRef.current) {
@@ -251,7 +252,7 @@ export default function AdminSettingsPage() {
 
   const handleSaveParkingLot = async (e: React.FormEvent) => {
     e.preventDefault();
-    setParkingSuccessMsg(null);
+
     setParkingErrorMsg(null);
 
     if (!parkingAddress.trim()) {
@@ -280,7 +281,7 @@ export default function AdminSettingsPage() {
           longitude: parkingLng,
         });
         setParkingLot(updated);
-        setParkingSuccessMsg('Cập nhật địa chỉ bãi xe trung tâm thành công (không đổi tọa độ)');
+        toast.success('Cập nhật địa chỉ bãi xe trung tâm thành công (không đổi tọa độ)');
         return;
       }
 
@@ -299,7 +300,7 @@ export default function AdminSettingsPage() {
           longitude: parkingLng,
         });
         setParkingLot(updated);
-        setParkingSuccessMsg('Cập nhật vị trí bãi đỗ xe trung tâm thành công (hệ thống chưa có phương án nào bị ảnh hưởng)');
+        toast.success('Cập nhật vị trí bãi đỗ xe trung tâm thành công (hệ thống chưa có phương án nào bị ảnh hưởng)');
         return;
       }
 
@@ -341,7 +342,7 @@ export default function AdminSettingsPage() {
       });
       setParkingLot(updated);
       setIsParkingImpactModalOpen(false);
-      setParkingSuccessMsg(
+      toast.success(
         `Cập nhật vị trí bãi xe thành công! Đã cascade hủy ${cancelledPlans} phương án tuyến toàn hệ thống và ${cancelledTrips} chuyến xe lập lịch.`,
       );
     } catch (err: any) {
@@ -414,12 +415,7 @@ export default function AdminSettingsPage() {
               Ảnh đại diện & Thông tin cá nhân
             </h2>
 
-            {avatarSuccessMsg && (
-              <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2">
-                <CheckIcon className="w-5 h-5 text-emerald-600 shrink-0" />
-                <span>{avatarSuccessMsg}</span>
-              </div>
-            )}
+
 
             {avatarErrorMsg && (
               <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-center gap-2">
@@ -512,12 +508,7 @@ export default function AdminSettingsPage() {
               Sau khi đổi mật khẩu thành công, toàn bộ các phiên đăng nhập khác sẽ được thu hồi tự động để bảo mật.
             </p>
 
-            {passSuccessMsg && (
-              <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2">
-                <CheckIcon className="w-5 h-5 text-emerald-600 shrink-0" />
-                <span>{passSuccessMsg}</span>
-              </div>
-            )}
+
 
             {passErrorMsg && (
               <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-center gap-2">
@@ -646,12 +637,7 @@ export default function AdminSettingsPage() {
             </p>
           </div>
 
-          {parkingSuccessMsg && (
-            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2">
-              <CheckIcon className="w-5 h-5 text-emerald-600 shrink-0" />
-              <span>{parkingSuccessMsg}</span>
-            </div>
-          )}
+
 
           {parkingErrorMsg && (
             <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-center gap-2">

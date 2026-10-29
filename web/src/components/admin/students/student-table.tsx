@@ -1,17 +1,19 @@
 'use client';
+import { FilterField } from '@/components/ui/filter-toolbar';
+
+import { toast } from '@/stores/toast-store';
 
 import { useRouteQuery } from '@/hooks/use-route-query';
 
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import Link from 'next/link';
+import { ContextLink } from '@/components/admin/common/context-navigation';
 import { apiClient } from '@/lib/api-client';
 import type { StudentListItem, StudentStatus, EmptyRoutePlanInfo } from '@/lib/types';
 import {
   SearchIcon,
   SpinnerIcon,
   AlertIcon,
-  CheckIcon,
   StudentIcon,
   PhoneIcon,
 } from '@/components/icons';
@@ -58,7 +60,7 @@ export function StudentTable({
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
+
 
   // Status toggle modal state
   const [selectedStudent, setSelectedStudent] = useState<StudentListItem | null>(null);
@@ -192,26 +194,21 @@ export function StudentTable({
       prev.map((s) => (s.id === studentId ? { ...s, status: newStatus } : s))
     );
     if (res?.message) {
-      setSuccessToast(res.message);
+      toast.success(res.message);
     } else {
-      setSuccessToast(
+      toast.success(
         newStatus === 'AVAILABLE'
           ? 'Đã kích hoạt lại học sinh thành công.'
           : 'Đã vô hiệu hóa học sinh thành công.'
       );
     }
-    setTimeout(() => setSuccessToast(null), 5000);
+
   };
 
   return (
     <div className="space-y-4">
       {/* Toast message */}
-      {successToast && (
-        <div className="flex items-center gap-2 p-3 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg animate-in fade-in duration-200">
-          <CheckIcon className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-          <span>{successToast}</span>
-        </div>
-      )}
+
 
       {/* Cảnh báo tuyến rỗng cần hủy phương án để tối ưu lại */}
       {emptyPlanNotice && (
@@ -242,12 +239,12 @@ export function StudentTable({
             >
               Hủy toàn bộ phương án
             </Button>
-            <Link data-variant="outline" data-size="sm"
+            <ContextLink data-variant="outline" data-size="sm"
               href={`/admin/routes/plans/${emptyPlanNotice.planId}`}
               className="ui-button px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition-colors cursor-pointer text-xs"
             >
               Xem phương án
-            </Link>
+            </ContextLink>
             <Button
               type="button"
               onClick={() => setEmptyPlanNotice(null)}
@@ -259,7 +256,7 @@ export function StudentTable({
         </div>
       )}
 
-      <select aria-label="Phân tuyến" value={routingFilter} onChange={event => { setRoutingFilter(event.target.value); setPage(1); }} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"><option value="">Tất cả phân tuyến</option><option value="UNASSIGNED">Chưa có tuyến</option></select>
+
       {/* Filter bar */}
       <StudentFilters
         search={search}
@@ -292,7 +289,7 @@ export function StudentTable({
           setPage(1);
         }}
         hasActiveFilters={Boolean(search || statusFilter !== 'ALL' || addressFilter !== 'ALL' || routingFilter !== '')}
-      />
+      ><FilterField label="Phân tuyến"><select aria-label="Phân tuyến" value={routingFilter} onChange={event => { setRoutingFilter(event.target.value); setPage(1); }} className="w-full"><option value="">Tất cả phân tuyến</option><option value="UNASSIGNED">Chưa có tuyến</option></select></FilterField></StudentFilters>
 
       {/* Error state */}
       {errorMessage && (
@@ -312,7 +309,8 @@ export function StudentTable({
       {/* Table Container */}
       <Card className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <Table className="w-full text-left text-sm text-slate-700">
+          <Table className="w-full text-left text-sm text-slate-700" minWidth={1330}>
+            <colgroup><col /><col style={{ width: 160 }} /><col style={{ width: 170 }} /><col style={{ width: 190 }} /><col style={{ width: 180 }} /><col style={{ width: 390 }} /></colgroup>
             <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
               <tr>
                 <th className="px-4 py-3">Học sinh</th>
@@ -383,12 +381,12 @@ export function StudentTable({
                             </div>
                           )}
                           <div>
-                            <Link
+                            <ContextLink
                               href={detailHref}
                               className="font-semibold text-slate-900 hover:text-amber-700 transition-colors line-clamp-1"
                             >
                               {student.fullName}
-                            </Link>
+                            </ContextLink>
                           </div>
                         </div>
                       </td>
@@ -439,12 +437,12 @@ export function StudentTable({
                       {/* Actions */}
                       <td className="px-4 py-3 text-right">
                         <div className="inline-flex items-center gap-2">
-                          <Link
+                          <ContextLink
                             href={detailHref}
                             className="text-xs font-medium text-slate-600 hover:text-amber-700 px-2.5 py-1 rounded-lg hover:bg-slate-100 transition-colors"
                           >
                             Xem chi tiết
-                          </Link>
+                          </ContextLink>
 
                           {currentUserRole === 'SYSTEM_ADMIN' && isAvailable && student.hasAddress && (
                             <Button
@@ -526,7 +524,7 @@ export function StudentTable({
         onSuccess={() => {
           setIsInsertModalOpen(false);
           setInsertingStudent(null);
-          setSuccessToast('Đã thêm học sinh vào cặp tuyến thành công.');
+          toast.success('Đã thêm học sinh vào cặp tuyến thành công.');
           fetchStudents();
         }}
       />
@@ -561,10 +559,8 @@ export function StudentTable({
           onSuccess={() => {
             setCancellingPlan(null);
             setEmptyPlanNotice(null);
-            setSuccessToast(
-              'Đã hủy toàn bộ phương án tuyến thành công. Tài nguyên xe và tài xế đã được giải phóng.',
-            );
-            setTimeout(() => setSuccessToast(null), 5000);
+
+
             fetchStudents();
           }}
         />

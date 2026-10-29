@@ -1,10 +1,12 @@
 'use client';
+import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
 
 import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/auth/auth-provider';
 import { SchoolSelectFilter } from '@/components/admin/common/school-select-filter';
 import { OverviewTrips } from '@/components/admin/overview/overview-trips';
+import { OverviewBanner } from '@/components/admin/overview/overview-banner';
 import { useVisibleRefresh } from '@/hooks/use-visible-refresh';
 import { getAdminOverview, vietnamToday, type AdminOverview } from '@/lib/admin-overview';
 import { ApiError } from '@/lib/api-client';
@@ -46,14 +48,16 @@ export default function AdminOverviewPage() {
     return `/admin/trips?${query}`;
   };
   return <div className="space-y-6">
-    <div className="flex flex-wrap items-center justify-between gap-4">
-      <div><h1 className="text-2xl font-bold text-foreground">Tổng quan</h1>{data?.schoolName && <p className="mt-1 text-sm text-slate-500">{data.schoolName}</p>}</div>
-      <div className="flex flex-wrap items-center gap-2">
-        {system && <SchoolSelectFilter value={schoolId} onChange={id => setSchoolId(id)} />}
-        <input aria-label="Ngày phục vụ" type="date" value={date} onChange={event => { if (event.target.value) setDate(event.target.value); }} className="rounded-xl border border-slate-200 bg-surface px-3 py-2 text-sm" />
+    <OverviewBanner schoolName={data?.schoolName} />
+      <FilterToolbar>
+        {system && <FilterField label="Trường học">
+          <SchoolSelectFilter value={schoolId} onChange={id => setSchoolId(id)} />
+        </FilterField>
+        }<FilterField label="Ngày phục vụ">
+          <input aria-label="Ngày phục vụ" type="date" value={date} onChange={event => { if (event.target.value) setDate(event.target.value); }} className="w-full" />
+        </FilterField>
         <button type="button" onClick={refresh} className="rounded-xl border border-slate-200 bg-surface px-3 py-2 text-sm font-semibold hover:bg-slate-50">Làm mới</button>
-      </div>
-    </div>
+      </FilterToolbar>
     {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}{data && ' · Đang hiển thị lần cập nhật trước.'}</div>}
     {!data && !error && <div role="status" className="rounded-2xl border border-slate-200 bg-surface p-10 text-center text-sm text-slate-500">Đang tải tổng quan…</div>}
     {data && <>

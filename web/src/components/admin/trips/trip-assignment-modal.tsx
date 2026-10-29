@@ -1,5 +1,7 @@
 'use client';
 
+import { toast } from '@/stores/toast-store';
+
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { TripDetail, Vehicle, DriverItem, SchoolEmployeeItem, Role } from '@/lib/types';
@@ -121,6 +123,7 @@ export function TripAssignmentModal({
       setSubmitting(true);
       setError(null);
       await apiClient.updateTripAssignment(trip.id, payload);
+      toast.success('Đã cập nhật phân công chuyến xe.');
       onUpdated();
       onClose();
     } catch (err: unknown) {

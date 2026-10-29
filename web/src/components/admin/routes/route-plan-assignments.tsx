@@ -1,5 +1,7 @@
 'use client';
 
+import { toast } from '@/stores/toast-store';
+
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
 import {
@@ -127,6 +129,7 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated }: Route
           currentVehicleId: selectedGroup.vehicleId,
           newVehicleId: selectedResourceId,
         });
+      toast.success('Đã cập nhật xe của nhóm tuyến.');
       } else if (modalType === 'DRIVER') {
         if (!selectedGroup.vehicleId) {
           throw new Error('Cần gán xe trước khi phân công tài xế cho nhóm');
@@ -135,6 +138,7 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated }: Route
           vehicleId: selectedGroup.vehicleId,
           driverId: selectedResourceId,
         });
+      toast.success('Đã phân công tài xế.');
       } else if (modalType === 'ATTENDANT') {
         if (!selectedGroup.vehicleId) {
           throw new Error('Cần gán xe trước khi phân công giáo viên cho nhóm');
@@ -143,6 +147,7 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated }: Route
           vehicleId: selectedGroup.vehicleId,
           busAttendantId: selectedResourceId,
         });
+      toast.success('Đã phân công giáo viên phụ xe.');
       }
       closeModal();
       onUpdated();
