@@ -1,3 +1,5 @@
-No application code changes for this Git publication task.
-Existing approved mobile/docs work is delivered as a Git commit; use git show on that commit for the cumulative patch.
-Previous task-only contact-phone diff is archived in history/2026-10-30-before-publish-mobile-ui.diff.
+No functional application code changes for this Git publication task.
+Cumulative mobile/docs work was delivered in commit 497af424362a0a36f485bd4d9f6213895f3bfc83 (187 files).
+Use git show 497af42 for its full patch; two new constants files only had extra EOF blank lines normalized during preflight.
+Previous task-only contact-phone diff: history/2026-10-30-before-publish-mobile-ui.diff.
+This follow-up changes only the delivery review/report to record verified GitHub publication.
