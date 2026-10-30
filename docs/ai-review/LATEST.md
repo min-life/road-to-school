@@ -1,31 +1,46 @@
-# AI Review — Tài liệu implementation hệ thống V2
+# AI Review — Publish mobile UI to GitHub
 
 ## 1. Task Information
-28/10/2026. Documentation. COMPLETED với giới hạn rà soát tĩnh. Source db02de6; docs chưa commit, giữ cả thay đổi docs từ task trước.
-## 2. Original Request
-Yêu cầu chi tiết trong attachment: đối chiếu code V2 và viết tài liệu hệ thống/local/API/data/UX/tests/bảo trì bằng tiếng Việt; chỉ docs, không commit/push.
-## 3. Approved Scope
-Tạo bộ docs theo chủ đề, cập nhật mục lục bàn giao. Không sửa application hoặc V1, không chạy mutation/seed/migration.
-## 4. Analysis & Decisions
-Kiểm tra manifests, app bootstrap/module, controller declarations, DTO/service references, schema/migrations, route/test/script inventory và config references. Tách catalog source chính xác khỏi mô tả nghiệp vụ và hướng dẫn vận hành; không coi việc file tồn tại là UAT PASS. Chưa review từng nhánh mọi service, không khẳng định hoàn chỉnh toàn bộ behavior ở mức runtime.
-## 5. Implementation Details
-Thêm docs/implementation/README.md, features.md, local-operations.md, api-catalog.md, data-model.md, environment.md, source-map.md. Catalog API trích method/path từ backend; data-model giữ model/enum/index/relations đúng schema; environment chỉ tên và nơi dùng, không đọc .env. Handoff liên kết bộ mới; giữ docs Mobile UI task trước. Archive LATEST trước task. No application code changes.
-## 6. Database Changes
-None. Schema chỉ đọc; không kiểm chứng trạng thái apply/drift trên DB live.
-## 7. API & Swagger Changes
-None. Static catalog không thay Swagger runtime. Request example identifier không có dữ liệu cá nhân; không gửi API.
-## 8. UI/UX Changes
-None. Dẫn tài liệu UI đã đối chiếu, phân biệt restyle và nghiệp vụ cũ.
-## 9. Verification & Testing
-PASS: kiểm kê source/controller/schema/migrations/scripts và đối chiếu manifest. PASS: kiểm tra local Markdown links, git diff --check, application diff trống. Các test/bundle/typecheck session trước chỉ được dẫn như lịch sử. Không chạy lại suites, build, migration hoặc live API trong task này. NOT_VERIFIED: thiết bị/browser, auth/OTP delivery, push/GPS, DB live và các luồng nhiều role. Tồn tại tests không đồng nghĩa đã chạy.
-## 10. Issues & Risks
-Catalog là tham chiếu tĩnh; method-level DTO/guard/service vẫn là nguồn để đọc chi tiết permission/edge cases. Không có chứng nhận API live hoặc production. Tài liệu snapshot cũ còn số model/migration và trạng thái khác; bộ mới chỉ rõ source ưu tiên. Không bịa quyết định thiết kế khi không có bằng chứng.
-## 11. Reviewer Focus
-Kiểm tra local commands/cwd, tên env, API prefix, phân quyền, snapshot/roster, các cảnh báo script có ghi DB và phân biệt đã code với đã xác minh.
-## 12. Suggested Next Step
-Đọc docs/implementation/README.md và rà soát runbook local trước khi thực hiện UAT được cấp quyền.
-## 13. Approval Status
-Tài liệu theo yêu cầu đã tạo. WAITING FOR USER REVIEW / APPROVAL. Không commit/push.
+Task: Publish accumulated mobile UI work to GitHub. Date: 30/10/2026, Asia/Saigon. Scope: Mobile / Documentation / Git. Type: Delivery. Status: source review and verification COMPLETED; commit/push transport will be checked after this report is committed.
 
-## Bổ sung công bố tài liệu — 28/10/2026
-PO yêu cầu commit và push bộ tài liệu hiện tại. Phạm vi publication: docs/**; không có thay đổi api/mobile/web. Branch dongnnp/mobile/refactor-ui; baseline local/remote db02de6 khớp. Kiểm tra 308 liên kết đã đạt trong task trước; preflight whitespace/scope kiểm tra lại. Không chạy tests/build/DB để publish docs. Không đọc hoặc đưa .env vào commit. Báo cáo trước được archive dưới before-publish-implementation-docs. Commit/push thực hiện sau khi lưu báo cáo này; kết quả remote hash/worktree được xác nhận trong chat. Phê duyệt publication đã có từ PO; nghiệm thu runtime vẫn NOT_VERIFIED.
+## 2. Original Request
+PO: “đẩy code lên giúp tôi”.
+
+## 3. Approved Scope
+Explicit authorization to commit and push the session’s accumulated mobile UI and related docs/SQL scripts to the existing dongnnp/mobile/refactor-ui branch on origin. No main merge, force push, rebase, dependency changes, or database execution. Preserve local mobile/.env.example accidental trailing character and Python __pycache__ outside the delivery.
+
+## 4. Analysis & Decisions
+HEAD initially 17fda49; branch dongnnp/mobile/refactor-ui. Origin is https://github.com/min-life/road-to-school.git. git fetch succeeded; HEAD and origin branch had 0/0 divergence. Existing pending work belongs to the UI tasks in this session: safe-area NetworkBanner, phase2 header/tab, parent Home/cards/journey, avatar/map markers, OTP/auth/empty/loading/profile styling and docs/manual SQL. Publish them together so new imports/components/assets are included. No functional application changes in this delivery task; normalize excess blank lines at EOF in mobile/constants/navigation.ts and mobile/constants/otp-styles.ts after the staged whitespace check flagged them. mobile/.env.example diff is only an unrelated trailing character; exclude without overwriting the local file.
+
+## 5. Implementation Details
+Commit pending mobile/ and docs/ files, including new components/hooks/utils/assets/pure tests, module specs and archived reports/manual PostgreSQL scripts. Exclude .agents/skills/ui-ux-pro-max/scripts/__pycache__/ and mobile/.env.example. Archive the previous contact-phone review/diff at history/2026-10-30-before-publish-mobile-ui.md/.diff. Update LATEST.md/LATEST.diff for this delivery. Exact committed file list is available with git show --stat on the delivery commit; no backend or Web files are part of this change set.
+
+## 6. Database Changes
+None in this task. Existing SQL files are included only as PO-requested scripts for manual local pgAdmin use. No SQL was executed, no records were generated/updated and no migrations applied during publication.
+
+## 7. API & Swagger Changes
+None. Backend, API contracts and Swagger unchanged by the delivery task.
+
+## 8. UI/UX Changes
+No new UI modifications in this task (only two EOF whitespace normalizations); publish existing approved UI work. Current phone contact view uses the assigned driver and attendant phone fields in the expanded Information tab. Preserve prior phase1/phase2 and student journey/avatar implementations; their module docs and historical review limitations remain applicable.
+
+## 9. Verification & Testing
+PASS: git fetch origin; initial divergence 0/0.
+PASS: mobile npx --no-install tsc --noEmit, exit0, run for this delivery.
+PASS: 36 pure tests /7 suites /0 failed via installed TypeScript transpilation into TEMP and node --test --test-reporter=tap: marker script3, navigation layout7, journey stage12, journey geometry/labels14. No DB or fake business/API fixtures.
+PASS: git -c core.safecrlf=false diff --check -- mobile docs. Initial staged diff check found extra EOF blank lines in two new constants files; removed those blank lines and reran the staged check.
+PASS: scan of 186 candidate mobile/docs files for private keys, GitHub/AWS tokens, JWTs, credential URLs and known session passwords: no findings. Separate new-literal credential scan: no findings. Only file/category counts were printed, no secret values. This is a targeted scan, not a claim of exhaustive security audit.
+PASS (previous immediately preceding implementation task, not rerun): Expo export all iOS/Android/Web/server; only EOF whitespace changes since that successful export; no functional application edits.
+NOT_VERIFIED: real-device iPhone/Android, native copy selection/map/profile/GPS and authenticated end-to-end acceptance. Mobile has no configured lint script. No test data or mutation APIs used. Git push result will be verified against the remote SHA after commit.
+
+## 10. Issues & Risks
+Large cumulative delivery covers several approved session tasks. Device acceptance remains incomplete as recorded in the implementation reports. Local unrelated .env.example character/cache remain deliberately unstaged. Do not interpret historical “not committed/pushed” statements as current Git status; they describe their review snapshot.
+
+## 11. Reviewer Focus
+Check that all imported new modules and local assets are committed; inspect parent journey enum/attendance mapping, own-child avatar privacy, map-source stability, header/safe-area/keyboard and staff contact mapping. Ensure no real .env files, cache/generated artifacts or credential values are staged. Retain all per-task native/UAT limitations.
+
+## 12. Suggested Next Step
+Review the delivered branch on GitHub and verify the updated Parent App on Expo Go iPhone.
+
+## 13. Approval Status
+Commit/push explicitly authorized by the latest PO message. Implementation acceptance remains WAITING FOR USER REVIEW / APPROVAL. Publish results will be reported after actual remote verification; no claim of device acceptance or main merge.

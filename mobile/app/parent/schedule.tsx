@@ -1,3 +1,4 @@
+import { AppHeader, headerActionStyles } from '@/components/navigation/app-header';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
@@ -105,24 +106,11 @@ export default function ParentStudentScheduleScreen() {
   }, [trips, selectedDate]);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       {/* Top Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#0F172A" />
-        </TouchableOpacity>
-        <View style={{ flex: 1, marginHorizontal: 8 }}>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            Lịch học & Xe đưa đón
-          </Text>
-          <Text style={styles.headerSubtitle} numberOfLines={1}>
-            {studentName}
-          </Text>
-        </View>
-        <TouchableOpacity onPress={goToToday} style={styles.todayButton}>
-          <Text style={styles.todayText}>Hôm nay</Text>
-        </TouchableOpacity>
-      </View>
+      <AppHeader title="Lịch học & Xe đưa đón" onBack={() => router.back()} subtitle={studentName} actions={<TouchableOpacity accessibilityRole="button" onPress={goToToday} style={headerActionStyles.textButton}>
+          <Text style={headerActionStyles.text}>Hôm nay</Text>
+        </TouchableOpacity>} />
 
       {/* Week Selector Bar */}
       <View style={styles.weekSelectorContainer}>
@@ -222,7 +210,7 @@ export default function ParentStudentScheduleScreen() {
                     </Text>
                   </View>
 
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={styles.headerBadges}>
                     {isToSchool ? (
                       <View style={[styles.badge, styles.badgeToSchool]}>
                         <Text style={styles.badgeTextToSchool}>Chiều đi học</Text>
@@ -259,7 +247,7 @@ export default function ParentStudentScheduleScreen() {
                     </Text>
                   </View>
 
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={styles.footerActions}>
                     {trip.canReportLeave && !trip.isVirtual && (
                       <TouchableOpacity
                         style={styles.leaveNoticeBtn}
@@ -312,47 +300,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  backButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F1F5F9',
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 1,
-  },
-  todayButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    backgroundColor: '#FEF3C7',
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-  },
-  todayText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#92400E',
   },
   weekSelectorContainer: {
     backgroundColor: '#FFFFFF',
@@ -446,9 +393,19 @@ const styles = StyleSheet.create({
   },
   cardHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
+    gap: 8,
     marginBottom: 8,
+  },
+  headerBadges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+    maxWidth: '100%',
+    minWidth: 0,
   },
   timeBadge: {
     flexDirection: 'row',
@@ -458,8 +415,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
+    maxWidth: '100%',
+    flexShrink: 1,
   },
   timeText: {
+    flexShrink: 1,
+    minWidth: 0,
     fontSize: 12,
     fontFamily: 'monospace',
     fontWeight: '700',
@@ -469,12 +430,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
-    marginLeft: 4,
+    maxWidth: '100%',
+    minWidth: 0,
   },
   badgeToSchool: {
     backgroundColor: '#ECFDF5',
   },
   badgeTextToSchool: {
+    flexShrink: 1,
     fontSize: 11,
     fontWeight: '700',
     color: '#059669',
@@ -483,6 +446,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F9FF',
   },
   badgeTextToParking: {
+    flexShrink: 1,
     fontSize: 11,
     fontWeight: '700',
     color: '#0284C7',
@@ -491,6 +455,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
   },
   badgeTextVirtual: {
+    flexShrink: 1,
     fontSize: 10,
     fontWeight: '600',
     color: '#64748B',
@@ -499,6 +464,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#EFF6FF',
   },
   badgeTextActive: {
+    flexShrink: 1,
     fontSize: 10,
     fontWeight: '700',
     color: '#2563EB',
@@ -515,35 +481,59 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   cardFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 10,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
     paddingTop: 10,
   },
   vehicleInfo: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 6,
+    minWidth: 0,
   },
   vehicleText: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 12,
+    lineHeight: 18,
     fontWeight: '600',
     color: '#334155',
   },
   actionLink: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    justifyContent: 'flex-end',
+    gap: 4,
+    marginLeft: 'auto',
+    minHeight: 48,
+    minWidth: 0,
+    maxWidth: '100%',
+    flexShrink: 1,
+  },
+  footerActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 10,
+    minWidth: 0,
+    width: '100%',
   },
   actionText: {
+    flexShrink: 1,
     fontSize: 12,
+    lineHeight: 18,
     fontWeight: '700',
     color: '#2563EB',
   },
   virtualNotice: {
+    marginLeft: 'auto',
+    maxWidth: '100%',
+    flexShrink: 1,
     fontSize: 11,
+    lineHeight: 17,
     color: '#94A3B8',
     fontStyle: 'italic',
   },
@@ -578,13 +568,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    minHeight: 48,
+    maxWidth: '100%',
+    flexShrink: 1,
     backgroundColor: '#FEF3C7',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 8,
   },
   leaveNoticeBtnText: {
+    flexShrink: 1,
     fontSize: 11,
+    lineHeight: 18,
     fontWeight: '700',
     color: '#D97706',
   },

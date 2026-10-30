@@ -1,3 +1,6 @@
+import { OtpHero } from '@/components/auth/otp-hero';
+import { otpStyles } from '@/constants/otp-styles';
+import { AppHeader } from '@/components/navigation/app-header';
 import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState } from 'react';
 import {
@@ -98,19 +101,11 @@ export default function VerifyOtpRequestScreen() {
       style={styles.container}
     >
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Xác thực OTP</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <AppHeader title="Xác thực OTP" onBack={() => router.back()} />
 
       <KeyboardScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
         {/* OTP Shield Icon */}
-        <View style={styles.iconCircle}>
-          <Ionicons name="shield-checkmark" size={36} color="#D97706" />
-        </View>
+        <OtpHero />
 
         <Text style={styles.title}>Nhập mã xác thực</Text>
         <Text style={styles.subtitle}>
@@ -129,6 +124,7 @@ export default function VerifyOtpRequestScreen() {
         {/* OTP Input */}
         <View style={styles.otpInputContainer}>
           <TextInput
+            accessibilityLabel="Nhập mã OTP"
             style={styles.otpInput}
             value={otp}
             onChangeText={(val) => {
@@ -170,123 +166,41 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.foreground,
-  },
   content: {
-    flexGrow: 1,
-    padding: 24,
-    alignItems: 'center',
-  },
-  iconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#FEF3C7',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 16,
+    ...otpStyles.content,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#1E293B',
-    marginBottom: 8,
+    ...otpStyles.heading,
   },
   subtitle: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 18,
-    marginBottom: 20,
-    paddingHorizontal: 16,
+    ...otpStyles.description,
   },
   phoneHighlight: {
     fontWeight: '700',
     color: '#1E293B',
   },
   errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    borderRadius: 10,
-    padding: 10,
-    gap: 8,
-    width: '100%',
-    marginBottom: 16,
+    ...otpStyles.error,
   },
   errorText: {
-    flex: 1,
-    fontSize: 12,
-    color: '#B91C1C',
+    ...otpStyles.errorText,
   },
   otpInputContainer: {
-    width: '100%',
-    alignItems: 'center',
-    marginBottom: 16,
+    ...otpStyles.inputWrap,
   },
   otpInput: {
-    width: 220,
-    height: 56,
-    borderWidth: 2,
-    borderColor: '#CBD5E1',
-    borderRadius: 14,
-    fontSize: 28,
-    fontWeight: '800',
-    textAlign: 'center',
-    letterSpacing: 10,
-    color: '#1E293B',
-    backgroundColor: '#FFFFFF',
+    ...otpStyles.codeInput,
   },
   hintText: {
-    fontSize: 11,
-    color: '#94A3B8',
-    textAlign: 'center',
-    lineHeight: 16,
-    marginBottom: 24,
-    paddingHorizontal: 16,
+    ...otpStyles.hint,
   },
   verifyButton: {
-    width: '100%',
-    backgroundColor: colors.primary,
-    height: 48,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    ...otpStyles.button,
   },
   verifyButtonDisabled: {
     opacity: 0.4,
   },
   verifyButtonText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1E293B',
+    ...otpStyles.buttonText,
   },
 });

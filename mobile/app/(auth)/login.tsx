@@ -8,6 +8,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   Image,
+  Platform,
+  type TextStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -191,6 +193,14 @@ export default function LoginScreen() {
   );
 }
 
+// Explicit defaults prevent recycled native inputs retaining another field's typography.
+const inputTypography: TextStyle = {
+  fontFamily: Platform.select({ ios: 'system-ui', android: 'sans-serif' }),
+  fontWeight: '400',
+  fontStyle: 'normal',
+  letterSpacing: 0,
+};
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   keyboardContainer: { flex: 1 },
@@ -210,12 +220,12 @@ const styles = StyleSheet.create({
     minHeight: 52, borderWidth: 1, borderColor: colors.border, borderRadius: 13,
     paddingLeft: 14, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center',
   },
-  input: { flex: 1, minWidth: 0, minHeight: 52, paddingHorizontal: 12, paddingVertical: 14, fontSize: 15, color: colors.foreground },
+  input: { ...inputTypography, flex: 1, minWidth: 0, minHeight: 52, paddingHorizontal: 12, paddingVertical: 14, fontSize: 15, color: colors.foreground },
   passwordInputContainer: {
     flexDirection: 'row', alignItems: 'center', minHeight: 52, borderWidth: 1,
     borderColor: colors.border, borderRadius: 13, paddingLeft: 14, backgroundColor: colors.surface,
   },
-  passwordInput: { flex: 1, minWidth: 0, minHeight: 52, paddingHorizontal: 12, paddingVertical: 14, fontSize: 15, color: colors.foreground },
+  passwordInput: { ...inputTypography, flex: 1, minWidth: 0, minHeight: 52, paddingHorizontal: 12, paddingVertical: 14, fontSize: 15, color: colors.foreground },
   eyeButton: { minWidth: 48, minHeight: 52, alignItems: 'center', justifyContent: 'center' },
   forgotButton: { alignSelf: 'flex-end', minHeight: 48, justifyContent: 'center', paddingHorizontal: 8, marginTop: -8 },
   forgotPasswordText: { fontSize: 14, fontWeight: '600', color: colors.foreground },

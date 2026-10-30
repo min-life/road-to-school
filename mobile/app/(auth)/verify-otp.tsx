@@ -1,3 +1,6 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { OtpHero } from '@/components/auth/otp-hero';
+import { otpStyles } from '@/constants/otp-styles';
 import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState, useEffect, useRef } from 'react';
 import {
@@ -7,7 +10,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -104,9 +106,7 @@ export default function VerifyOtpScreen() {
   };
 
   return (
-    <View
-      style={styles.keyboardContainer}
-    >
+    <SafeAreaView style={styles.keyboardContainer} edges={['top', 'bottom', 'left', 'right']}>
       <KeyboardScrollView
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
@@ -121,9 +121,9 @@ export default function VerifyOtpScreen() {
             >
               <Ionicons name="arrow-back" size={24} color={colors.foreground} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Xác thực mã OTP</Text>
-            <View style={{ width: 24 }} />
           </View>
+          <OtpHero />
+          <Text accessibilityRole="header" style={styles.headerTitle}>Xác thực mã OTP</Text>
 
           <Text style={styles.subtitle}>
             Mã xác thực gồm 6 chữ số đã được gửi đến:{'\n'}
@@ -162,6 +162,7 @@ export default function VerifyOtpScreen() {
             })}
             {/* Hidden full-width numeric TextInput */}
             <TextInput
+              accessibilityLabel="Nhập mã OTP"
               ref={inputRef}
               style={styles.hiddenInput}
               keyboardType="number-pad"
@@ -184,7 +185,7 @@ export default function VerifyOtpScreen() {
                 Mã có hiệu lực trong: <Text style={styles.countdownBold}>{formatCountdown(countdown)}</Text>
               </Text>
             ) : (
-              <TouchableOpacity
+              <TouchableOpacity style={otpStyles.linkButton}
                 onPress={handleResend}
                 disabled={isResending}
                 activeOpacity={0.7}
@@ -219,7 +220,7 @@ export default function VerifyOtpScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -229,107 +230,50 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   scrollContainer: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-    justifyContent: 'center',
+    ...otpStyles.authContent,
   },
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    paddingHorizontal: 24,
-    paddingVertical: 28,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
+    ...otpStyles.authFrame,
   },
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
+    ...otpStyles.backRow,
   },
   backButton: {
-    padding: 4,
-    marginLeft: -4,
+    ...otpStyles.backButton,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.foreground,
+    ...otpStyles.heading,
   },
   subtitle: {
-    fontSize: 13,
-    color: colors.mutedText,
-    marginBottom: 24,
-    textAlign: 'center',
-    lineHeight: 20,
+    ...otpStyles.description,
   },
   identifierText: {
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.foreground,
   },
   errorBanner: {
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 20,
+    ...otpStyles.error,
   },
   errorText: {
-    fontSize: 13,
-    color: colors.error,
-    flex: 1,
-    lineHeight: 18,
+    ...otpStyles.errorText,
   },
   otpBoxesRow: {
-    position: 'relative',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-    paddingHorizontal: 4,
+    ...otpStyles.boxes,
   },
   otpBox: {
-    width: 44,
-    height: 52,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: '#FAFAFA',
-    alignItems: 'center',
-    justifyContent: 'center',
+    ...otpStyles.box,
   },
   otpBoxFocused: {
-    borderColor: colors.primary,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
+    ...otpStyles.boxActive,
   },
   otpBoxFilled: {
-    borderColor: '#CBD5E1',
-    backgroundColor: '#FFFFFF',
+    ...otpStyles.boxFilled,
   },
   otpChar: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.foreground,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    ...otpStyles.character,
   },
   hiddenInput: {
-    position: 'absolute',
-    opacity: 0,
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
+    ...otpStyles.hiddenInput,
   },
   countdownRow: {
     alignItems: 'center',
@@ -337,36 +281,29 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   countdownText: {
-    fontSize: 13,
-    color: colors.mutedText,
+    ...otpStyles.meta,
   },
   countdownBold: {
     fontWeight: '700',
     color: colors.foreground,
   },
   resendText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#D97706',
+    ...otpStyles.link,
   },
   submitButton: {
-    backgroundColor: colors.primary,
-    height: 48,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    ...otpStyles.button,
   },
   submitButtonDisabled: {
     opacity: 0.5,
   },
   buttonLoadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
   },
   submitButtonText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.foreground,
+    ...otpStyles.buttonText,
   },
 });

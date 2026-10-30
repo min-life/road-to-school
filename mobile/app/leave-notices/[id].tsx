@@ -1,3 +1,4 @@
+import { AppHeader } from '@/components/navigation/app-header';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
@@ -140,14 +141,8 @@ export default function LeaveNoticeDetailScreen() {
 
   if (error || !notice) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="#1E293B" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Chi tiết báo nghỉ</Text>
-          <View style={{ width: 36 }} />
-        </View>
+      <View style={styles.container}>
+        <AppHeader title="Chi tiết báo nghỉ" onBack={() => router.back()} />
 
         <View style={styles.centerContainer}>
           <Ionicons name="alert-circle-outline" size={48} color="#DC2626" />
@@ -168,15 +163,9 @@ export default function LeaveNoticeDetailScreen() {
     notice.direction === 'TO_SCHOOL' ? 'Chiều đi (Đến trường)' : 'Chiều về (Về trạm)';
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#1E293B" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Chi tiết báo nghỉ</Text>
-        <View style={{ width: 36 }} />
-      </View>
+      <AppHeader title="Chi tiết báo nghỉ" onBack={() => router.back()} />
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
@@ -335,24 +324,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFDF6',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
-  },
-  backBtn: {
-    padding: 6,
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1E293B',
   },
   content: {
     padding: 16,

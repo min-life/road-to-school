@@ -1,12 +1,21 @@
 import React from 'react';
+import { StyleSheet, useWindowDimensions } from 'react-native';
 import { Tabs } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { NotificationBell } from '@/components/notification-bell';
+import { AppHeader } from '@/components/navigation/app-header';
+import { TabButton } from '@/components/navigation/tab-button';
+import { getTabBarMetrics, navigationMetrics, navigationShadow } from '@/constants/navigation';
+import { useNavigationKeyboard } from '@/hooks/use-navigation-keyboard';
 
 export default function TabLayout() {
-  const { user, isLoading } = useAuth();
+  const { user } = useAuth();
+  const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
+  const hideWebTabBar = useNavigationKeyboard();
 
   const isParent = user?.role === 'PARENT';
   const isDriverOrAttendant =
@@ -15,22 +24,25 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerRight: () => <NotificationBell style={{ marginRight: 8 }} />,
-        tabBarActiveTintColor: '#D97706', // Amber-600 for high-contrast on white/yellow
-        tabBarInactiveTintColor: '#94A3B8',
+        header: ({ options, route }) => <AppHeader
+          title={typeof options.headerTitle === 'string' ? options.headerTitle : options.title ?? route.name}
+          leading={route.name === 'index' ? <Ionicons name="bus" size={28} color={colors.navigationActive} accessible={false} /> : undefined}
+          actions={<NotificationBell />} />,
+        tabBarButton: (props) => <TabButton {...props} />,
+        tabBarHideOnKeyboard: true,
+        tabBarLabelPosition: 'below-icon',
+        tabBarActiveTintColor: colors.navigationActive,
+        tabBarInactiveTintColor: colors.mutedText,
+        tabBarLabelStyle: { fontSize: navigationMetrics.tabLabelSize, lineHeight: 15, fontWeight: '600' },
+        tabBarIconStyle: { marginBottom: 4 },
         tabBarStyle: {
+          ...navigationShadow,
+          ...getTabBarMetrics(insets.bottom, fontScale),
+          ...(hideWebTabBar && { display: 'none', height: 0, paddingBottom: 0 }),
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 8,
-        },
-        headerStyle: {
-          backgroundColor: colors.surface,
-        },
-        headerTitleStyle: {
-          color: colors.foreground,
-          fontWeight: '700',
+          borderTopWidth: StyleSheet.hairlineWidth,
+          paddingTop: 10,
         },
       }}
     >
@@ -39,12 +51,13 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Trang chủ',
+          headerShown: !isParent,
           headerTitle: 'RoadToSchool',
           tabBarIcon: ({ focused }) => (
             <Ionicons
               name={focused ? 'home' : 'home-outline'}
               size={22}
-              color={focused ? '#D97706' : '#94A3B8'}
+              color={focused ? colors.navigationActive : colors.mutedText}
             />
           ),
         }}
@@ -61,7 +74,7 @@ export default function TabLayout() {
             <Ionicons
               name={focused ? 'bus' : 'bus-outline'}
               size={22}
-              color={focused ? '#D97706' : '#94A3B8'}
+              color={focused ? colors.navigationActive : colors.mutedText}
             />
           ),
         }}
@@ -78,7 +91,7 @@ export default function TabLayout() {
             <Ionicons
               name={focused ? 'calendar' : 'calendar-outline'}
               size={22}
-              color={focused ? '#D97706' : '#94A3B8'}
+              color={focused ? colors.navigationActive : colors.mutedText}
             />
           ),
         }}
@@ -102,7 +115,7 @@ export default function TabLayout() {
             <Ionicons
               name={focused ? 'person' : 'person-outline'}
               size={22}
-              color={focused ? '#D97706' : '#94A3B8'}
+              color={focused ? colors.navigationActive : colors.mutedText}
             />
           ),
         }}

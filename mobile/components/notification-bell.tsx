@@ -3,6 +3,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { colors } from '@/constants/theme';
 import { useNotifications } from '@/context/notifications-context';
+import { navigationMetrics } from '@/constants/navigation';
 
 export function NotificationBell({ style }: { style?: StyleProp<ViewStyle> }) {
   const { summary } = useNotifications();
@@ -15,7 +16,6 @@ export function NotificationBell({ style }: { style?: StyleProp<ViewStyle> }) {
       onPress={() => router.push('/notifications')}
       style={[styles.button, style]}
       activeOpacity={0.7}
-      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
     >
       <View style={styles.iconContainer}>
         <Ionicons name="notifications-outline" size={23} color={colors.foreground} />
@@ -27,7 +27,10 @@ export function NotificationBell({ style }: { style?: StyleProp<ViewStyle> }) {
 
 const styles = StyleSheet.create({
   button: {
-    padding: 6,
+    width: navigationMetrics.actionSize,
+    height: navigationMetrics.actionSize,
+    borderRadius: navigationMetrics.actionSize / 2,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -47,6 +50,6 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: colors.error,
     borderWidth: 1.5,
-    borderColor: '#FFFFFF',
+    borderColor: colors.surface,
   },
 });

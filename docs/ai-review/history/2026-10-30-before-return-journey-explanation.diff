@@ -1,0 +1,20 @@
+--- a/mobile/components/parent/student-journey.tsx
++++ b/mobile/components/parent/student-journey.tsx
+@@ -133,4 +133,3 @@
+-    <View style={styles.diagramFooter} aria-hidden>
+-      <Text style={styles.diagramCaption}>Minh họa theo trạng thái</Text>
+-      {arrivalNote && <Text style={[styles.variance, late && styles.late]}>{arrivalNote}</Text>}
+-    </View>
++    {arrivalNote && <View style={styles.diagramFooter} aria-hidden>
++      <Text style={[styles.variance, late && styles.late]}>{arrivalNote}</Text>
++    </View>}
+@@ -196 +194,0 @@
+-  diagramCaption: { fontSize: 9, lineHeight: 14, color: colors.mutedText },
+--- a/docs/architecture/mobile-parent-student-journey.md
++++ b/docs/architecture/mobile-parent-student-journey.md
+@@ -46 +46 @@
+-Minh họa theo trạng thái                [Sớm/Trễ N phút nếu đủ giờ]
++[Sớm/Trễ N phút nếu đủ giờ]
+@@ -53,0 +54,2 @@
++
++Theo yêu cầu PO, bỏ dòng chữ hiển thị “Minh họa theo trạng thái”. Footer chỉ xuất hiện khi có thông tin sớm/trễ, không giữ khoảng trống cho caption. Cách xác định vị trí bus theo mốc và mô tả accessibility giữ nguyên.

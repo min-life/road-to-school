@@ -1,0 +1,260 @@
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -41,0 +42,2 @@
++import { childMapPinCss, childMapPinScript, childMapPinSize, serializeMapScriptValue } from '@/utils/child-map-marker';
++import { useParentMapAvatars } from '@/hooks/use-parent-map-avatars';
+@@ -215,0 +218 @@
++  const linkedMapChildren = useParentMapAvatars(identity, isParent);
+@@ -380 +383 @@
+-    const stopsJson = JSON.stringify(data.stops);
++    const stopsJson = serializeMapScriptValue(data.stops);
+@@ -395 +398 @@
+-          .mychild-marker { background: #D97706; color: white; border: 2.5px solid white; border-radius: 50%; font-weight: bold; width: 30px; height: 30px; line-height: 25px; text-align: center; font-size: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.4); }
++          ${childMapPinCss}
+@@ -408,0 +412,2 @@
++          ${childMapPinScript}
++          var hasChildPins = false;
+@@ -411,0 +417 @@
++            var ownChildPin = s.isMyChild && s.studentId && (s.type === 'PICKUP' || s.type === 'DROPOFF');
+@@ -416,2 +422,3 @@
+-            } else if (s.isMyChild) {
+-              iconHtml = '<div class="mychild-marker">★</div>';
++            } else if (ownChildPin) {
++              hasChildPins = true;
++              iconHtml = window.createChildMapPin(s.studentId, s.name);
+@@ -420 +427,4 @@
+-            var icon = L.divIcon({ className: '', html: iconHtml, iconSize: [28, 28], iconAnchor: [14, 14] });
++            var icon = L.divIcon({ className: '', html: iconHtml,
++              iconSize: ownChildPin ? [${childMapPinSize.width}, ${childMapPinSize.height}] : [28, 28],
++              iconAnchor: ownChildPin ? [${childMapPinSize.width / 2}, ${childMapPinSize.height - 1}] : [14, 14],
++              popupAnchor: ownChildPin ? [0, -${childMapPinSize.height - 5}] : [0, 0] });
+@@ -421,0 +432,3 @@
++            if (ownChildPin && marker.getElement()) {
++              marker.getElement().setAttribute('aria-label', (s.type === 'PICKUP' ? 'Điểm đón: ' : 'Điểm trả: ') + s.name);
++            }
+@@ -433 +446,3 @@
+-            map.fitBounds(bounds, { padding: [50, 50] });
++            map.fitBounds(bounds, hasChildPins
++              ? { paddingTopLeft: [50, ${childMapPinSize.height + 16}], paddingBottomRight: [50, 50] }
++              : { padding: [50, 50] });
+@@ -556,0 +572,7 @@
++  const mapAvatars = serializeMapScriptValue(isParent ? linkedMapChildren.filter(child =>
++    trip?.stops.some(stop => stop.isMyChild && stop.studentId === child.id)) : []);
++  const updateMapAvatars = useCallback(() => {
++    webView.current?.injectJavaScript('window.setChildMapAvatars && window.setChildMapAvatars(' + mapAvatars + '); true;');
++  }, [mapAvatars]);
++  useEffect(updateMapAvatars, [updateMapAvatars]);
++  const handleMapLoad = useCallback(() => { updateMap(); updateMapAvatars(); }, [updateMap, updateMapAvatars]);
+@@ -874 +896 @@
+-          onLoadEnd={updateMap}
++          onLoadEnd={handleMapLoad}
+--- a/mobile/utils/trip-map-data.ts
++++ b/mobile/utils/trip-map-data.ts
+@@ -6 +6 @@
+-    plannedArrivalTime?: string | null; isMyChild?: boolean;
++    plannedArrivalTime?: string | null; isMyChild?: boolean; studentId?: string | null;
+@@ -17,0 +18 @@
++      studentId: stop.isMyChild ? stop.studentId ?? null : null,
+--- a/docs/architecture/mobile-parent-home-ui.md
++++ b/docs/architecture/mobile-parent-home-ui.md
+@@ -5,0 +6,2 @@
++
++Từ card → Theo dõi lộ trình, điểm đón/trả riêng của mỗi con trên `/trip/[id]` dùng ghim giọt nước có avatar theo ảnh PO cung cấp, thay marker ngôi sao. Ảnh ghép theo studentId qua API danh sách con có sẵn, không đổi dữ liệu chuyến và không reload bản đồ khi ảnh cập nhật. [Nguồn ảnh, privacy, component/lifecycle và kiểm chứng](mobile-parent-map-markers.md).
+--- /dev/null
++++ b/mobile/hooks/use-parent-map-avatars.ts
+@@ -0,0 +1,23 @@
++import { useCallback, useState } from 'react';
++import { useFocusEffect } from 'expo-router';
++import { mobileApiClient, type ParentLinkedStudentItem } from '@/services/api-client';
++
++type MapChild = Pick<ParentLinkedStudentItem, 'id' | 'fullName' | 'avatarUrl'>;
++
++/** Read only the signed-in parent's linked children, once per screen focus. */
++export function useParentMapAvatars(identity: string, enabled: boolean): readonly MapChild[] {
++  const [snapshot, setSnapshot] = useState<{ identity: string; children: MapChild[] } | null>(null);
++
++  useFocusEffect(useCallback(() => {
++    if (!enabled) return;
++    let current = true;
++    mobileApiClient.getLinkedStudents().then(children => {
++      if (current) setSnapshot({ identity, children: children.map(({ id, fullName, avatarUrl }) => ({ id, fullName, avatarUrl })) });
++    }).catch(() => {
++      if (current) setSnapshot({ identity, children: [] });
++    });
++    return () => { current = false; };
++  }, [identity, enabled]));
++
++  return enabled && snapshot?.identity === identity ? snapshot.children : [];
++}
+--- /dev/null
++++ b/mobile/utils/child-map-marker.ts
+@@ -0,0 +1,82 @@
++import { colors } from '../constants/theme';
++
++// Teal silhouette follows the parent's supplied pin reference; other colors reuse the theme.
++const pinBody = '#176B80';
++export const childMapPinSize = { width: 52, height: 66 } as const;
++
++export const childMapPinCss = `
++  .child-map-pin { position: relative; width: 52px; height: 66px; filter: drop-shadow(0 3px 3px rgba(23,36,59,.25)); }
++  .child-map-pin svg { display: block; width: 100%; height: 100%; }
++  .child-map-pin-face { position: absolute; left: 7px; top: 7px; width: 38px; height: 38px; border-radius: 50%;
++    overflow: hidden; background: ${colors.background}; color: ${colors.foreground}; display: flex; align-items: center;
++    justify-content: center; font-family: system-ui, sans-serif; font-size: 17px; font-weight: 800; }
++  .child-map-pin-face img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
++  .leaflet-marker-icon:focus-visible .child-map-pin { outline: 2px solid ${colors.foreground}; outline-offset: 3px; }
++`;
++
++/** Static DOM code runs inside the existing Leaflet WebView, not a second map engine. */
++export const childMapPinScript = `
++  (function() {
++    var pins = [];
++    function safeUrl(value) {
++      try {
++        var url = new URL(value);
++        return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : '';
++      } catch (_) { return ''; }
++    }
++    function setPortrait(pin, portrait) {
++      var name = portrait && portrait.fullName || pin.name || '';
++      var words = name.replace(/\\s*\\(Con bạn\\)\\s*$/, '').trim().split(/\\s+/);
++      pin.initial.textContent = (words[words.length - 1] || '?').charAt(0).toUpperCase();
++      var url = safeUrl(portrait && portrait.avatarUrl || '');
++      if (url === pin.url) return;
++      pin.url = url;
++      if (pin.image) { pin.image.remove(); pin.image = null; }
++      pin.initial.style.visibility = 'visible';
++      if (!url) return;
++      var image = document.createElement('img');
++      image.alt = '';
++      image.decoding = 'async';
++      image.referrerPolicy = 'no-referrer';
++      image.style.display = 'none';
++      image.onload = function() {
++        if (pin.image !== image) return;
++        image.style.display = 'block';
++        pin.initial.style.visibility = 'hidden';
++      };
++      image.onerror = function() {
++        if (pin.image !== image) return;
++        image.style.display = 'none';
++        pin.initial.style.visibility = 'visible';
++      };
++      pin.image = image;
++      pin.face.appendChild(image);
++      image.src = url;
++    }
++    window.createChildMapPin = function(studentId, name) {
++      var root = document.createElement('div');
++      root.className = 'child-map-pin';
++      root.setAttribute('aria-hidden', 'true');
++      root.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 66"><path d="M26 1C12.2 1 1 12.2 1 26c0 17.5 25 39 25 39s25-21.5 25-39C51 12.2 39.8 1 26 1Z" fill="${pinBody}" stroke="${colors.surface}" stroke-width="1.2"/><circle cx="26" cy="26" r="22" fill="${colors.surface}" stroke="${colors.foreground}" stroke-width=".6"/><circle cx="26" cy="26" r="20" fill="none" stroke="${colors.navigationActive}" stroke-width=".6"/></svg>';
++      var face = document.createElement('div');
++      face.className = 'child-map-pin-face';
++      var initial = document.createElement('span');
++      face.appendChild(initial);
++      root.appendChild(face);
++      var pin = { studentId: studentId, name: name, face: face, initial: initial, image: null, url: null };
++      setPortrait(pin, null);
++      pins.push(pin);
++      return root;
++    };
++    window.setChildMapAvatars = function(children) {
++      var byId = new Map();
++      children.forEach(function(child) { byId.set(child.id, child); });
++      pins.forEach(function(pin) { setPortrait(pin, byId.get(pin.studentId)); });
++    };
++  })();
++`;
++
++/** Prevent text/URLs from terminating an inline script in the WebView document. */
++export function serializeMapScriptValue(value: unknown): string {
++  return (JSON.stringify(value) ?? 'null').replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
++}
+--- /dev/null
++++ b/mobile/scripts/child-map-marker.test.ts
+@@ -0,0 +1,26 @@
++import { describe, it } from 'node:test';
++import assert from 'node:assert/strict';
++import { Script } from 'node:vm';
++import { childMapPinScript, serializeMapScriptValue } from '../utils/child-map-marker.ts';
++
++// Untrusted text/URL primitives only; no Student/Trip fixtures or API mocks.
++describe('WebView marker script boundaries', () => {
++  it('keeps closing-script text inert while preserving its original value', () => {
++    const input = '</script><script>alert("text")</script>';
++    const encoded = serializeMapScriptValue(input);
++    assert.equal(encoded.includes('<'), false);
++    assert.equal(JSON.parse(encoded), input);
++    assert.equal(new Script(encoded).runInNewContext(), input);
++  });
++  it('round-trips quotes, backslashes, Vietnamese text and JavaScript line separators', () => {
++    for (const input of ['"\\', 'Đông', '\u2028\u2029', 'https://example.invalid/image?a=1&b="x"']) {
++      const encoded = serializeMapScriptValue(input);
++      assert.equal(JSON.parse(encoded), input);
++      assert.equal(new Script(encoded).runInNewContext(), input);
++    }
++    assert.equal(serializeMapScriptValue(undefined), 'null');
++  });
++  it('produces valid JavaScript for the WebView without requiring a map or database', () => {
++    assert.doesNotThrow(() => new Script(childMapPinScript));
++  });
++});
+--- /dev/null
++++ b/docs/architecture/mobile-parent-map-markers.md
+@@ -0,0 +1,55 @@
++# Marker ảnh học sinh trên bản đồ chuyến xe
++
++30/10/2026, local; chưa commit/push. Áp dụng luồng Trang chủ phụ huynh → mở card → Theo dõi lộ trình → `/trip/[id]`.
++
++## Phạm vi và thiết kế
++
++Điểm PICKUP/DROPOFF có `isMyChild=true` và `studentId` thay ngôi sao tròn bằng ghim giọt nước theo ảnh PO cung cấp:
++
++- Silhouette xanh teal, viền sáng và các vòng mảnh quanh ảnh.
++- Khung52×66 CSS px, ảnh tròn38px với `object-fit: cover`.
++- Mũi ghim neo tại `[26,65]`, đúng tọa độ điểm đón/trả. Popup neo phía trên ghim.
++- Mỗi con lấy ảnh riêng theo ID; không dùng ảnh đại diện phụ huynh hoặc ảnh của con đầu tiên cho tất cả điểm.
++- Chưa có ảnh, đang tải, ảnh lỗi hoặc nguồn ảnh không khả dụng: giữ ghim, hiện chữ cái cuối tên. Không sinh ảnh học sinh giả. Ảnh có sẵn sẽ tự thay chữ khi tải thành công.
++
++Ảnh PO là tham chiếu hình dạng đã chỉ định, không thay bố cục màn hình. Không đổi tọa độ/thứ tự điểm dừng, tuyến, GPS, trạng thái, điểm danh, báo nghỉ hoặc navigation. Bãi xe, trường, xe buýt và marker học sinh khác giữ kiểu cũ. Các điểm trùng tọa độ vẫn có thể chồng nhau theo Leaflet; chưa thêm clustering hoặc dời vị trí giả.
++
++## Nguồn dữ liệu và quyền riêng tư
++
++API chi tiết chuyến chưa có avatar trong từng stop. Tái dùng GET `/parents/students` qua `getLinkedStudents`, backend đã giới hạn danh sách theo tài khoản PARENT và có `id/fullName/avatarUrl`. Không thay API contract/backend/schema.
++
++[useParentMapAvatars](../../mobile/hooks/use-parent-map-avatars.ts) chỉ đọc cho PARENT, một lần mỗi khi màn hình focus. Không gộp lỗi ảnh vào controller vận hành hoặc polling5s của chuyến. Khi đổi identity/role, dữ liệu cũ không được trả về; callback hết hiệu lực sau blur/unmount/đổi scope. Đọc lỗi trả danh sách ảnh rỗng, bản đồ vẫn dùng chữ dự phòng. Focus lại sẽ thử đọc lại.
++
++Trước khi gửi vào WebView, màn hình chỉ giữ các con có ID khớp một stop hiện tại với `isMyChild=true`. [getTripMapSnapshot](../../mobile/utils/trip-map-data.ts) chỉ giữ studentId của điểm được phép nhận diện, những điểm khác dùng null. Không gửi danh sách con ngoài chuyến hoặc ảnh của học sinh khác. Masking từ backend giữ nguyên.
++
++## Source và cách tích hợp
++
++- [Màn chuyến xe](<../../mobile/app/trip/[id].tsx>): dùng hook ảnh, ghép ID, tạo marker riêng cho điểm của con và inject ảnh vào WebView sau khi tải.
++- [child-map-marker.ts](../../mobile/utils/child-map-marker.ts): CSS, SVG cố định, DOM script, kích thước/anchor và serializer an toàn.
++- [use-parent-map-avatars.ts](../../mobile/hooks/use-parent-map-avatars.ts): đọc nguồn ảnh phụ huynh có quyền xem, hủy nhận kết quả cũ.
++- [trip-map-data.ts](../../mobile/utils/trip-map-data.ts): snapshot hình học/điểm dừng ổn định, thêm ID riêng con để ghép ảnh.
++- [Kiểm tra script](../../mobile/scripts/child-map-marker.test.ts): chuỗi đóng script, Unicode, quote/backslash và cú pháp script.
++
++`createChildMapPin(studentId, name)` tạo HTMLElement để truyền vào `L.divIcon`. `setChildMapAvatars(children)` cập nhật các face đã có qua ID, không tạo lại marker hay map. Mảng chỉ chứa `id/fullName/avatarUrl` sau bộ lọc quyền. Khi URL không đổi giữ node ảnh, không tải lại liên tục. URL đổi xóa ảnh cũ; callback cũ không được ghi đè ảnh mới. Thiếu dữ liệu cho một pin sẽ bỏ ảnh cũ và trở về chữ dự phòng.
++
++`childMapPinSize` dùng chung cho Leaflet iconSize/iconAnchor/popupAnchor. Muốn đổi kích thước cần cập nhật CSS/SVG crop tương ứng, giữ mũi ghim trỏ tọa độ. Leaflet1.9.4 hiện có hỗ trợ HTMLElement trong divIcon; [API reference](https://leafletjs.com/reference#divicon).
++
++## Map lifecycle, an toàn và accessibility
++
++Avatar không nằm trong `mapData`, `mapHtml` hoặc dependency của `mapSource`. Cập nhật ảnh không reload WebView, không reset zoom/pan/follow. `handleMapLoad` gửi lại cả dữ liệu navigation hiện có và ảnh sau mỗi lần WebView thực sự tải; cập nhật ảnh trong lúc map chưa sẵn sàng được gửi lại ở load end. Polling vận hành, bridge GPS/history, controls và callbacks cũ giữ nguyên.
++
++Ảnh và chữ được gán bằng DOM properties/textContent, không ghép dữ liệu không tin cậy vào HTML. SVG là chuỗi cố định. Chỉ nhận URL ảnh HTTP(S), lỗi dùng fallback; `referrerPolicy=no-referrer`. `serializeMapScriptValue` giữ round-trip JSON nhưng escape `<`, U+2028/U+2029 để dữ liệu không đóng inline script; dùng cả cho stops và payload ảnh. Không tuyên bố xử lý toàn bộ HTML popup cũ ngoài phạm vi thay marker này.
++
++Marker Leaflet có aria-label Điểm đón/Điểm trả kèm tên con; SVG/ảnh trang trí không tạo nhãn lặp. Focus ring trên wrapper keyboard. Khung ghim lớn hơn marker cũ; fitBounds tăng đệm trên82px khi có ghim ảnh để tránh cắt đầu ghim, các màn/role không có ghim vẫn padding50px cũ. Safe area/bottom sheet/map controls giữ nguyên. Không thêm animation hoặc auto-pan khi ảnh tải.
++
++## Kiểm chứng và giới hạn
++
++- PASS Mobile typecheck,29 tests thuần:3 tests serializer/script mới +26 tests hành trình có sẵn; không DB/business fixtures/API mock.
++- PASS Expo export iOS/Android/Web/server vào TEMP, không thêm dependency.
++- PASS đối chiếu14 arrow handlers/controllers cũ và toàn bộ navigation JavaScript trong map, không đổi nghiệp vụ. Snapshot không chứa avatar/attendance động; ID chỉ cho điểm own-child.
++- PASS kiểm tra component trên Chromium ở320/390px: ghim52×66, khung ảnh tròn, tải ảnh thành công, thiếu ảnh, lỗi ảnh, chặn URL javascript, khôi phục ảnh và giữ node khi URL không đổi; không tràn ngang. Preview dùng logo có sẵn làm input kiểm tra khung ảnh, không phải ảnh con/DTO chuyến hoặc response API giả.
++- NOT_VERIFIED luồng có xác thực end-to-end trên Expo Go iPhone/Android, ảnh thật từng con, VoiceOver và việc giữ camera trong WebView native khi nhận dữ liệu mạng thực. Không tự tạo dữ liệu/đổi ảnh học sinh để kiểm tra. Chưa chạy suite trip-state-synchronization chứa fixture Trip giả; kiểm chứng source invariants thay thế, không sửa fixture.
++
++Đã SELECT read-only trên local cho tài khoản phụ huynh đang trao đổi:2 con liên kết,0 con có avatar_url. Vì vậy chưa thể nghiệm thu ảnh học sinh thật với dữ liệu hiện tại (`NOT_VERIFIED / BLOCKED_BY_TEST_DATA_POLICY`); ghim vẫn hiện chữ dự phòng. Không tự thêm ảnh hoặc ghi DB. Ảnh logo trong preview kiểm tra không được dùng làm avatar trong production.
++
++Chi tiết kết quả và giới hạn hiện hành: [AI Review](../ai-review/LATEST.md). Bước tiếp theo: kiểm tra bản đồ trên Expo Go iPhone với ảnh học sinh đã có sẵn trong tài khoản.

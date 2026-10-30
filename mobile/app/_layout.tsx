@@ -2,11 +2,12 @@ import { useFonts } from 'expo-font';
 import { DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Alert } from 'react-native';
+import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 import { colors } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/context/auth-context';
-import { BusLogo } from '@/components/BusLogo';
+import { AppLoadingSplash } from '@/components/app-loading-splash';
 import { RoleSplash } from '@/components/RoleSplash';
 import { NetworkBanner } from '@/components/NetworkBanner';
 import { useNavigationReopen } from '@/hooks/use-navigation-reopen';
@@ -38,6 +39,7 @@ const RoadToSchoolTheme = {
 };
 
 function RootNavigation() {
+  const insets = useSafeAreaInsets();
   const {
     user,
     isLoading,
@@ -99,17 +101,7 @@ function RootNavigation() {
 
   // Screen M1: Application Splash (chỉ hiển thị khi đang nạp font hoặc khôi phục phiên)
   if (isLoading || !onboarding.ready) {
-    return (
-      <View style={styles.appSplashContainer}>
-        <BusLogo size={76} />
-        <Text style={styles.appSplashTitle}>RoadToSchool</Text>
-        <ActivityIndicator
-          size="small"
-          color={colors.primary}
-          style={{ marginTop: 24 }}
-        />
-      </View>
-    );
+    return <AppLoadingSplash />;
   }
 
   return (
@@ -117,6 +109,8 @@ function RootNavigation() {
       {/* Screen M8: Network Banner nếu mất kết nối máy chủ */}
       {isNetworkError && <NetworkBanner onRetry={retryConnection} />}
 
+      {/* Banner owns the top inset while visible; screens below must not add it twice. */}
+      <SafeAreaInsetsContext.Provider value={isNetworkError ? { ...insets, top: 0 } : insets}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -128,6 +122,7 @@ function RootNavigation() {
           options={{ presentation: 'modal', title: 'Thông tin' }}
         />
       </Stack>
+      </SafeAreaInsetsContext.Provider>
 
       {/* Screen M5: Mobile Role Splash 1.2s sau Manual Login */}
       {splashRole && (
@@ -166,19 +161,3 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  appSplashContainer: {
-    flex: 1,
-    backgroundColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  appSplashTitle: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: colors.foreground,
-    marginTop: 16,
-    letterSpacing: -0.5,
-  },
-});

@@ -1,0 +1,261 @@
+diff --git a/mobile/app/(tabs)/index.tsx b/mobile/app/(tabs)/index.tsx
+--- a/mobile/app/(tabs)/index.tsx
++++ b/mobile/app/(tabs)/index.tsx
+@@ -17,0 +18 @@ import { ParentHomeScrollView } from '@/components/parent/home-scroll-view';
++import { ParentTripCard } from '@/components/parent/trip-card';
+@@ -395,27 +396,7 @@ export default function HomeScreen() {
+-                <View key={card.studentId} style={parentHomeStyles.tripCard}>
+-                  {/* Student Header */}
+-                  <View style={parentHomeStyles.parentStudentHeader}>
+-                    <View style={parentHomeStyles.avatarCircle}>
+-                      <Ionicons name="person" size={20} color="#475569" />
+-                    </View>
+-                    <View style={parentHomeStyles.identity}>
+-                      <Text style={parentHomeStyles.studentName}>{card.studentName}</Text>
+-                      <Text style={parentHomeStyles.metaText}>{card.schoolName}</Text>
+-                    </View>
+-                  </View>
+-                  <View
+-                    style={[
+-                      parentHomeStyles.statusPill,
+-                      { backgroundColor: getStatusBadge(card.tripStatus).bg },
+-                    ]}
+-                  >
+-                    <Text
+-                      style={[
+-                        parentHomeStyles.statusPillText,
+-                        { color: getStatusBadge(card.tripStatus).text },
+-                      ]}
+-                    >
+-                      {getStatusBadge(card.tripStatus).label}
+-                    </Text>
+-                  </View>
+-
++                <ParentTripCard
++                  key={`${card.studentId}:${card.tripId}`}
++                  studentName={card.studentName}
++                  avatarUrl={card.studentAvatar}
++                  schoolName={card.schoolName}
++                  status={getStatusBadge(card.tripStatus)}
++                >
+@@ -518 +499 @@ export default function HomeScreen() {
+-                </View>
++                </ParentTripCard>
+diff --git a/mobile/components/parent/trip-card.tsx b/mobile/components/parent/trip-card.tsx
+new file mode 100644
+--- /dev/null
++++ b/mobile/components/parent/trip-card.tsx
+@@ -0,0 +1,106 @@
++import { useState, type ReactNode } from 'react';
++import { Pressable, StyleSheet, Text, View } from 'react-native';
++import Ionicons from '@expo/vector-icons/Ionicons';
++import { UserAvatar } from '@/components/user-avatar';
++import { parentHomeStyles } from '@/components/parent/home-styles';
++import { colors } from '@/constants/theme';
++
++type Props = {
++  studentName: string;
++  avatarUrl?: string | null;
++  schoolName: string;
++  status: { label: string; bg: string; text: string };
++  children: ReactNode;
++};
++
++/** Owns disclosure only; the parent keeps trip data, permissions and action handlers. */
++export function ParentTripCard({ studentName, avatarUrl, schoolName, status, children }: Props) {
++  const [expanded, setExpanded] = useState(false);
++
++  return (
++    <View style={[parentHomeStyles.tripCard, styles.card]}>
++      <Pressable
++        accessibilityRole="button"
++        accessibilityLabel={`${studentName}, ${schoolName}, ${status.label}`}
++        accessibilityHint={expanded ? 'Thu gọn thông tin chuyến xe' : 'Mở rộng thông tin chuyến xe'}
++        accessibilityState={{ expanded }}
++        aria-expanded={expanded}
++        onPress={() => setExpanded(value => !value)}
++        style={({ pressed }) => [styles.summary, pressed && styles.pressed]}
++      >
++        {/* Student photo comes from the card, independently of the parent's profile photo. */}
++        <UserAvatar avatarUrl={avatarUrl} fullName={studentName} size={48} />
++        <View style={parentHomeStyles.identity}>
++          <View style={styles.nameStatusRow}>
++            <Text style={[parentHomeStyles.studentName, styles.name]}>{studentName}</Text>
++            <View style={styles.status}>
++              <View style={[parentHomeStyles.statusPill, { backgroundColor: status.bg }]}>
++                <Text style={[parentHomeStyles.statusPillText, { color: status.text }]}>
++                  {status.label}
++                </Text>
++              </View>
++            </View>
++          </View>
++          <View style={styles.schoolRow}>
++            <Text style={[parentHomeStyles.metaText, styles.school]}>{schoolName}</Text>
++            <Ionicons
++              name={expanded ? 'chevron-up' : 'chevron-down'}
++              size={18}
++              color={colors.mutedText}
++              accessible={false}
++            />
++          </View>
++        </View>
++      </Pressable>
++      {expanded && <View style={styles.details}>{children}</View>}
++    </View>
++  );
++}
++
++const styles = StyleSheet.create({
++  card: {
++    padding: 0,
++    gap: 0,
++  },
++  summary: {
++    minHeight: 80,
++    padding: 16,
++    borderRadius: 20,
++    flexDirection: 'row',
++    alignItems: 'flex-start',
++    gap: 12,
++  },
++  nameStatusRow: {
++    flexDirection: 'row',
++    alignItems: 'flex-start',
++    gap: 8,
++  },
++  name: {
++    flex: 1,
++    minWidth: 0,
++  },
++  status: {
++    maxWidth: '48%',
++    flexShrink: 0,
++  },
++  schoolRow: {
++    flexDirection: 'row',
++    alignItems: 'center',
++    gap: 8,
++    marginTop: 4,
++  },
++  school: {
++    flex: 1,
++    minWidth: 0,
++    marginTop: 0,
++  },
++  details: {
++    borderTopWidth: StyleSheet.hairlineWidth,
++    borderTopColor: colors.border,
++    padding: 16,
++    gap: 14,
++  },
++  pressed: {
++    opacity: 0.75,
++  },
++});
+diff --git a/docs/architecture/mobile-parent-home-ui.md b/docs/architecture/mobile-parent-home-ui.md
+--- a/docs/architecture/mobile-parent-home-ui.md
++++ b/docs/architecture/mobile-parent-home-ui.md
+@@ -4,0 +5,70 @@
++## Thẻ chuyến xe thu gọn/mở rộng — 29/10/2026
++
++Theo bố cục PO yêu cầu, phần tóm tắt của mỗi thẻ gồm avatar học sinh, tên và trạng thái chuyến trên cùng một hàng, trường học bên dưới. Mặc định thu gọn; nhấn toàn bộ phần tóm tắt để mở/đóng. Chevron thể hiện trạng thái, không có nút/thao tác giả. Phần chi tiết giữ đầy đủ UI/nghiệp vụ V2 trước task.
++
++```text
++[Avatar]  Tên học sinh             [Trạng thái chuyến]
++          Trường học                              ˅
++────────────── chỉ hiện khi mở rộng ───────────────
++Chiều / tuyến
++Giờ • ngày
++Điểm danh • giờ đánh dấu
++Lý do vắng (đúng điều kiện hiện có)
++Biển số • tài xế
++[Theo dõi lộ trình]
++[Báo nghỉ chuyến này — đúng điều kiện/busy hiện có]
++```
++
++### Component và dữ liệu
++
++[ParentTripCard](../../mobile/components/parent/trip-card.tsx) nhận `studentName: string`, `avatarUrl?: string | null`, `schoolName: string`, `status: { label: string; bg: string; text: string }`, `children: ReactNode`. Component chỉ giữ state trình bày `expanded`, không gọi API, router, auth hoặc phân quyền. [HomeScreen](../../mobile/app/(tabs)/index.tsx) truyền dữ liệu và toàn bộ chi tiết/action hiện có qua children.
++
++```tsx
++<ParentTripCard
++  key={`${card.studentId}:${card.tripId}`}
++  studentName={card.studentName}
++  avatarUrl={card.studentAvatar}
++  schoolName={card.schoolName}
++  status={getStatusBadge(card.tripStatus)}
++>
++  {/* Toàn bộ chi tiết và nút V2 hiện có */}
++</ParentTripCard>
++```
++
++Ảnh lấy từ `studentAvatar` sẵn có của API home-cards, dùng UserAvatar48 với fallback chữ đầu nếu thiếu/lỗi ảnh. Không cần endpoint/field mới. Mapping trạng thái vẫn qua getStatusBadge cũ; không đổi nhãn hoặc trạng thái chuyến.
++
++| Nội dung trước task | Vị trí sau task / điều kiện giữ nguyên |
++| --- | --- |
++| Tên học sinh, trường | Tóm tắt, không giới hạn số dòng |
++| Trạng thái chuyến | Cùng hàng với tên, màu/nhãn từ mapping V2 |
++| Chiều và tên tuyến | Chi tiết; giữ icon theo direction và routeName |
++| Giờ chạy, ngày phục vụ | Chi tiết; scheduledTime/serviceDate giữ cách hiển thị cũ |
++| Điểm danh, đã xuống xe an toàn | Chi tiết; giữ getAttendanceBadge(attendanceStatus, childIsAlighted) |
++| Giờ đánh dấu | Chi tiết; chỉ hiện khi markedAt có giá trị, format giờ/phút cũ |
++| Lý do vắng | Chi tiết; giữ điều kiện ABSENT và absenceReason |
++| Biển số, tài xế | Chi tiết; vehiclePlate/driverName đầy đủ |
++| Theo dõi lộ trình | Chi tiết; giữ `/trip/${card.tripId}` và callback |
++| Báo nghỉ chuyến này | Chi tiết; giữ canReportLeave, isRequesting, spinner/disabled, payload và onSuccess refresh |
++
++Các thẻ mở độc lập. Key studentId:tripId giữ state khi polling8s/rerender thay object của cùng thẻ; chuyến mới có key mới nên bắt đầu thu gọn. Không đặt hook trong map hoặc lưu state mở rộng vào dữ liệu nghiệp vụ. RefreshControl, fetch/stale guards, avatar/header tiện ích hai nút, nhánh nhân sự giữ nguyên.
++
++### Bố cục, thao tác và accessibility
++
++Tái sử dụng parentHomeStyles: nền/card/bo góc/shadow/font và CTA giữ phong cách V1 đã áp dụng. Header padding16, avatar48; identity flex/minWidth0, tên và status chung một row gap8, status giới hạn48% vùng identity. Tên/trường/status wrap theo nội dung, không ellipsis hoặc fixed height; form vẫn ở cột tối đa560px của Parent Home.
++
++Chỉ header là Pressable mở/đóng; panel và các nút nghiệp vụ là phần tử cùng cấp, nên bấm CTA không làm thẻ thu gọn. Panel chỉ mount khi mở, không để nút bị ẩn vẫn nhận focus. Header có role button, label gồm tên/trường/trạng thái, hint mở/đóng và accessibilityState.expanded; thêm aria-expanded để React Native Web công bố đúng trạng thái. Không thêm nội dung hướng dẫn dài lên UI.
++
++Không thêm overlay, keyboard offset, thư viện hoặc animation mới. Chiều cao panel tự nhiên, giữ cuộn/padding an toàn của ParentHomeScrollView và tab shell.
++
++### Kiểm chứng lượt này
++
++- PASS Mobile TypeScript và Expo export iOS/Android/Web/server; output ngoài repository.
++- PASS đối chiếu snapshot: toàn bộ subtree chi tiết giữ nguyên; state/effects/fetch/polling/helpers của HomeScreen và nhánh nhân sự không đổi. API client, parentHomeStyles, UserAvatar và HomeScrollView byte-identical.
++- PASS Chromium IAB component preview với nhãn UI tĩnh, không DTO/business record/API/auth: ban đầu panel không mount; click mở/đóng; hai thẻ độc lập; action trong panel và parent rerender giữ trạng thái; Enter/Space hoạt động; aria-expanded false/true đúng.
++- PASS kiểm tra nhãn tên/trường dài tại320×568,390×844,1440×900: không tràn ngang, tên/status có cùng y132 trong preview và cách nhau8px; trường nằm bên dưới, đầy đủ nội dung. Đây là nhãn placeholder để kiểm tra hình học, không phải dữ liệu học sinh/chuyến giả hoặc kết quả API giả.
++- NOT_VERIFIED runtime có phiên PARENT/dữ liệu thật, refresh8s thực tế, điều hướng/báo nghỉ/OTP, ảnh học sinh thực và các nhánh điểm danh qua backend. Không tạo records hoặc gọi mutation để kiểm tra.
++- NOT_VERIFIED Expo Go iPhone/Android, Safari iOS/Chrome Android, VoiceOver/Dynamic Type thực; không có thiết bị tương ứng kết nối. Preview không thay native UAT. Script/server/tab tạm đã dọn.
++
++Các báo cáo ngày28/10 phía dưới là mốc trước bố cục disclosure này; bảng field/contract ở mục hiện tại là tham chiếu mới nhất. Chưa commit/push.
++
++
+diff --git a/docs/architecture/mobile-ui-implementation-status.md b/docs/architecture/mobile-ui-implementation-status.md
+--- a/docs/architecture/mobile-ui-implementation-status.md
++++ b/docs/architecture/mobile-ui-implementation-status.md
+@@ -4,0 +5,4 @@ Ngày cập nhật: **29/10/2026 (Asia/Saigon)**. Commit `db02de6` là mốc Pha
++## Chuyến xe của con — thẻ mở rộng (29/10/2026, local)
++
++Tóm tắt gồm ảnh học sinh, tên/trạng thái cùng hàng và trường học; nhấn header để mở/đóng chi tiết. Giữ đủ field/action V2, source controller, pull-to-refresh/polling và tiện ích chỉ Báo nghỉ/Đổi điểm. [ParentTripCard/source map/kiểm chứng](mobile-parent-home-ui.md). Tsc/export all và component preview320/390/1440 PASS; dữ liệu thực/Expo iPhone còn NOT_VERIFIED. Không commit/push.
++
+diff --git a/docs/ai-handoff/CODEX_HANDOFF.md b/docs/ai-handoff/CODEX_HANDOFF.md
+--- a/docs/ai-handoff/CODEX_HANDOFF.md
++++ b/docs/ai-handoff/CODEX_HANDOFF.md
+@@ -12,0 +13,4 @@ Bộ tài liệu hệ thống theo source (28/10/2026): [implementation/README.m
++## Cập nhật 29/10/2026 — Thẻ Chuyến xe của con mở rộng
++
++Trang chủ PARENT dùng ParentTripCard: avatar studentAvatar, tên và trạng thái cùng hàng, trường bên dưới; nhấn header mở/đóng toàn bộ chi tiết/action V2. Mỗi studentId:tripId có state UI độc lập, giữ qua rerender/polling cùng thẻ. Giữ nguyên subtree tuyến/giờ/ngày/điểm danh/lý do vắng/xe/tài xế/Theo dõi/Báo nghỉ, controller và API. [Component contract, mapping field, kiểm chứng và giới hạn](../architecture/mobile-parent-home-ui.md). Typecheck/export all và browser preview320/390/1440 PASS; native và runtime có xác thực chưa nghiệm thu. Không backend/DB/dependency hoặc commit/push.
++
+diff --git a/docs/ai-handoff/CURRENT_STATE.md b/docs/ai-handoff/CURRENT_STATE.md
+--- a/docs/ai-handoff/CURRENT_STATE.md
++++ b/docs/ai-handoff/CURRENT_STATE.md
+@@ -9,0 +10,4 @@ Bộ tài liệu hệ thống theo source (28/10/2026): [implementation/README.m
++## Cập nhật 29/10/2026 — Thẻ Chuyến xe của con mở rộng
++
++Trang chủ PARENT dùng ParentTripCard: avatar studentAvatar, tên và trạng thái cùng hàng, trường bên dưới; nhấn header mở/đóng toàn bộ chi tiết/action V2. Mỗi studentId:tripId có state UI độc lập, giữ qua rerender/polling cùng thẻ. Giữ nguyên subtree tuyến/giờ/ngày/điểm danh/lý do vắng/xe/tài xế/Theo dõi/Báo nghỉ, controller và API. [Component contract, mapping field, kiểm chứng và giới hạn](../architecture/mobile-parent-home-ui.md). Typecheck/export all và browser preview320/390/1440 PASS; native và runtime có xác thực chưa nghiệm thu. Không backend/DB/dependency hoặc commit/push.
++
+diff --git a/docs/implementation/source-map.md b/docs/implementation/source-map.md
+--- a/docs/implementation/source-map.md
++++ b/docs/implementation/source-map.md
+@@ -283,0 +284,5 @@
++
++## Thẻ chuyến xe phụ huynh — mở rộng (29/10/2026)
++
++- [ParentTripCard](../../mobile/components/parent/trip-card.tsx): summary/disclosure presentation, status cùng hàng với tên, ảnh học sinh, children giữ đủ thông tin/action.
++- [HomeScreen](../../mobile/app/(tabs)/index.tsx): binding và key studentId:tripId; [contract/field map/checks](../architecture/mobile-parent-home-ui.md). Controller/API không đổi.

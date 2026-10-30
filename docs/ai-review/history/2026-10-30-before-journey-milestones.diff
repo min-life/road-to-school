@@ -1,0 +1,662 @@
+--- a/mobile/app/(tabs)/index.tsx
++++ b/mobile/app/(tabs)/index.tsx
+@@ -18,0 +19,2 @@
++import { ParentStudentJourney } from '@/components/parent/student-journey';
++import { useParentJourneyTelemetry } from '@/hooks/use-parent-journey-telemetry';
+@@ -69,0 +72 @@
++  const journeyTelemetry = useParentJourneyTelemetry(identity, isParent ? parentCards : []);
+@@ -401 +404,2 @@
+-                  status={getStatusBadge(card.tripStatus)}
++                  status={card.tripStatus === 'CANCELLED' ? { label: 'Đã hủy', bg: colors.border, text: colors.mutedText } : getStatusBadge(card.tripStatus)}
++                  journey={active => <ParentStudentJourney card={card} telemetry={journeyTelemetry.trips[card.tripId]} active={active && journeyTelemetry.active} />}
+@@ -431,0 +436 @@
++                          Điểm danh{' '}
+@@ -439,0 +445,7 @@
++                    {card.attendanceStatus === 'PRESENT' && card.childIsAlighted && card.childAlightedAt ? (
++                      <Text style={[parentHomeStyles.markedAtText, { color: att.text }]}>
++                        Xuống xe{' '}
++                        {new Date(card.childAlightedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
++                      </Text>
++                    ) : null}
++
+@@ -450,4 +462,8 @@
+-                    <Text style={parentHomeStyles.parentDriverText}>
+-                      Biển số: <Text style={{ fontWeight: '600' }}>{card.vehiclePlate}</Text> • TX:{' '}
+-                      <Text style={{ fontWeight: '600' }}>{card.driverName}</Text>
+-                    </Text>
++                    <View style={parentHomeStyles.vehicleDetailRow}>
++                      <Ionicons name="bus-outline" size={18} color={colors.navigationActive} accessible={false} />
++                      <Text style={parentHomeStyles.vehicleDetailText}>Biển số: <Text style={{ fontWeight: '700' }}>{card.vehiclePlate}</Text></Text>
++                    </View>
++                    <View style={parentHomeStyles.vehicleDetailRow}>
++                      <Ionicons name="person-outline" size={18} color={colors.navigationActive} accessible={false} />
++                      <Text style={parentHomeStyles.vehicleDetailText}>Tài xế: <Text style={{ fontWeight: '600' }}>{card.driverName}</Text></Text>
++                    </View>
+--- a/mobile/components/parent/trip-card.tsx
++++ b/mobile/components/parent/trip-card.tsx
+@@ -1,2 +1,2 @@
+-import { useState, type ReactNode } from 'react';
+-import { Pressable, StyleSheet, Text, View } from 'react-native';
++import { useEffect, useRef, useState, type ReactNode } from 'react';
++import { Animated, Easing, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+@@ -6,0 +7 @@
++import { useReducedMotionPreference } from '@/hooks/use-reduced-motion-preference';
+@@ -13,0 +15 @@
++  journey?: (active: boolean) => ReactNode;
+@@ -17 +19 @@
+-export function ParentTripCard({ studentName, avatarUrl, schoolName, status, children }: Props) {
++export function ParentTripCard({ studentName, avatarUrl, schoolName, status, children, journey }: Props) {
+@@ -18,0 +21,22 @@
++  const [visible, setVisible] = useState(false);
++  const [contentHeight, setContentHeight] = useState(0);
++  const height = useRef(new Animated.Value(0)).current;
++  const reveal = useRef(new Animated.Value(0)).current;
++  const reduced = useReducedMotionPreference();
++  const { width, fontScale } = useWindowDimensions();
++  const stacked = width < 360 || fontScale >= 1.4;
++  const expandedRef = useRef(expanded);
++  expandedRef.current = expanded;
++
++  useEffect(() => {
++    height.stopAnimation(); reveal.stopAnimation();
++    const target = expanded ? contentHeight : 0;
++    const finish = () => { if (!expandedRef.current) setVisible(false); };
++    if (reduced) { height.setValue(target); reveal.setValue(expanded ? 1 : 0); finish(); return; }
++    const animation = Animated.parallel([
++      Animated.timing(height, { toValue: target, duration: expanded ? 260 : 200, easing: Easing.out(Easing.cubic), useNativeDriver: false, isInteraction: false }),
++      Animated.timing(reveal, { toValue: expanded ? 1 : 0, duration: expanded ? 220 : 160, useNativeDriver: false, isInteraction: false }),
++    ]);
++    animation.start(({ finished }) => { if (finished) finish(); });
++    return () => animation.stop();
++  }, [expanded, contentHeight, height, reveal, reduced]);
+@@ -21 +45 @@
+-    <View style={[parentHomeStyles.tripCard, styles.card]}>
++    <View style={[parentHomeStyles.tripCard, styles.card, expanded && styles.expandedCard]}>
+@@ -28 +52 @@
+-        onPress={() => setExpanded(value => !value)}
++        onPress={() => { setVisible(true); setExpanded(value => !value); }}
+@@ -34 +58 @@
+-          <View style={styles.nameStatusRow}>
++          <View style={[styles.nameStatusRow, stacked && styles.stacked]}>
+@@ -36 +60 @@
+-            <View style={styles.status}>
++            <View style={[styles.status, stacked && styles.stackedStatus]}>
+@@ -46,6 +70,3 @@
+-            <Ionicons
+-              name={expanded ? 'chevron-up' : 'chevron-down'}
+-              size={18}
+-              color={colors.mutedText}
+-              accessible={false}
+-            />
++            <Animated.View aria-hidden style={[styles.chevron, { transform: [{ rotate: reveal.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] }) }] }]}>
++              <Ionicons name="chevron-down" size={16} color={colors.navigationActive} accessible={false} />
++            </Animated.View>
+@@ -55 +76,15 @@
+-      {expanded && <View style={styles.details}>{children}</View>}
++      <Animated.View
++        style={{ height, overflow: 'hidden' }}
++        pointerEvents={expanded ? 'auto' : 'none'}
++        accessibilityElementsHidden={!expanded}
++        importantForAccessibility={expanded ? 'auto' : 'no-hide-descendants'}
++        aria-hidden={!expanded}
++      >
++        <View style={[styles.details, !visible && styles.hidden]} onLayout={event => {
++          const measured = event.nativeEvent.layout.height;
++          if (measured > 0) setContentHeight(measured);
++        }}>
++          {journey?.(expanded)}
++          {children}
++        </View>
++      </Animated.View>
+@@ -64,0 +100,4 @@
++  expandedCard: { borderColor: colors.primary },
++  stacked: { flexDirection: 'column', gap: 6 },
++  stackedStatus: { maxWidth: '100%' },
++  chevron: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.navigationHighlight, alignItems: 'center', justifyContent: 'center' },
+@@ -97,0 +137,3 @@
++    position: 'absolute',
++    left: 0,
++    right: 0,
+@@ -102,0 +145 @@
++  hidden: { display: 'none' },
+--- a/mobile/components/parent/home-styles.ts
++++ b/mobile/components/parent/home-styles.ts
+@@ -62 +62,3 @@
+-  parentDriverRow: { paddingVertical: 2 },
++  parentDriverRow: { padding: 12, gap: 10, backgroundColor: colors.background, borderRadius: 14 },
++  vehicleDetailRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
++  vehicleDetailText: { flex: 1, minWidth: 0, fontSize: 13, lineHeight: 20, color: colors.foreground },
+--- a/docs/architecture/mobile-parent-home-ui.md
++++ b/docs/architecture/mobile-parent-home-ui.md
+@@ -5,0 +6,2 @@
++
++**Cập nhật30/10/2026:** [Card học sinh và Animated Bus Journey](mobile-parent-student-journey.md) bổ sung chuyển động mở/đóng, GPS readonly dùng chung, trạng thái riêng từng con và nhóm xe/tài xế. Contract mới có journey render prop; body giữ mount và display:none sau đóng thay vì unmount như mô tả29/10 bên dưới. Tài liệu mới là mô tả hiện hành cho phần này; toàn bộ action V2 vẫn giữ.
+--- a/docs/architecture/mobile-ui-implementation-status.md
++++ b/docs/architecture/mobile-ui-implementation-status.md
+@@ -3,0 +4,4 @@
++
++## Card học sinh Parent Home và hành trình — 30/10/2026, local
++
++Đã cải thiện disclosure đo nội dung, responsive/tag dài, xe/tài xế tách hàng; thêm thanh bus theo điểm danh từng studentId và fix GPS hợp lệ từ API GET hiện có, shared poll5s theo tripId. Không ETA, tiến độ trung gian giả hoặc backend change. Mất dữ liệu giữ fix gần nhất/trung tính; giảm chuyển động theo AccessibilityInfo, dừng khi đóng/blur/background. Giữ Home polling8s, route và Báo nghỉ. [Mapping tất cả trạng thái thực, component API, wireframe, GPS limits và kết quả kiểm chứng](mobile-parent-student-journey.md). Typecheck/export all,8 pure tests và presentation preview PASS; native/authenticated GPS NOT_VERIFIED. Chưa commit/push.
+--- a/docs/ai-handoff/CURRENT_STATE.md
++++ b/docs/ai-handoff/CURRENT_STATE.md
+@@ -8,0 +9,4 @@
++
++## Cập nhật 30/10/2026 — Card học sinh / hành trình Parent
++
++Frontend đã thêm disclosure đo chiều cao, trạng thái riêng theo attendance/alighting từng con, GPS readonly dedup tripId qua navigation5s + detail khi routeVersion đổi. Không tạo enum/ETA/tiến độ giả; thiếu dữ liệu giữ fix gần nhất hoặc trung tính. Giữ Home8s, API/actions/nhánh staff. Reduced motion, focus/background và thông tin xe/tài xế/giờ xuống xe đã xử lý. [Mapping, source, component contract, kiểm chứng và giới hạn](../architecture/mobile-parent-student-journey.md). Tsc/export all,8 pure tests và layout browser PASS; native/authenticated GPS chưa nghiệm thu. Không backend/DB/package/commit/push.
+--- a/docs/ai-handoff/CODEX_HANDOFF.md
++++ b/docs/ai-handoff/CODEX_HANDOFF.md
+@@ -11,0 +12,4 @@
++
++## Cập nhật 30/10/2026 — Card học sinh / hành trình Parent
++
++Frontend đã thêm disclosure đo chiều cao, trạng thái riêng theo attendance/alighting từng con, GPS readonly dedup tripId qua navigation5s + detail khi routeVersion đổi. Không tạo enum/ETA/tiến độ giả; thiếu dữ liệu giữ fix gần nhất hoặc trung tính. Giữ Home8s, API/actions/nhánh staff. Reduced motion, focus/background và thông tin xe/tài xế/giờ xuống xe đã xử lý. [Mapping, source, component contract, kiểm chứng và giới hạn](../architecture/mobile-parent-student-journey.md). Tsc/export all,8 pure tests và layout browser PASS; native/authenticated GPS chưa nghiệm thu. Không backend/DB/package/commit/push.
+--- /dev/null
++++ b/mobile/components/parent/student-journey.tsx
+@@ -0,0 +1,147 @@
++import { memo, useEffect, useMemo, useRef, useState } from 'react';
++import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
++import Ionicons from '@expo/vector-icons/Ionicons';
++import { colors } from '@/constants/theme';
++import type { ParentHomeCardItem } from '@/services/api-client';
++import type { ParentJourneyTelemetry } from '@/hooks/use-parent-journey-telemetry';
++import { useReducedMotionPreference } from '@/hooks/use-reduced-motion-preference';
++import { observedJourneyProgress, studentJourneyMilestone, studentJourneyPath } from '@/utils/parent-journey';
++
++type Props = { card: ParentHomeCardItem; telemetry?: ParentJourneyTelemetry; active: boolean };
++
++/** A diagram of observed progress, not an ETA or a replacement for the tracking map. */
++export const ParentStudentJourney = memo(function ParentStudentJourney({ card, telemetry, active }: Props) {
++  const [expired, setExpired] = useState(false);
++  const last = useRef<{ version: string; progress: number; sequence: number } | null>(null);
++  const milestone = studentJourneyMilestone(card.tripStatus, card.direction, card.attendanceStatus, card.childIsAlighted);
++  const { detail, navigation, receivedAt } = telemetry ?? {};
++  const path = useMemo(() => detail && detail.id === card.tripId && detail.direction === card.direction
++    ? studentJourneyPath(detail, card.studentId) : null, [detail, card.tripId, card.studentId, card.direction]);
++  const version = navigation?.routeVersion;
++  const previous = last.current?.version === version ? last.current : null;
++  const sampleAge = navigation && receivedAt ? Date.parse(navigation.serverNow)
++    - Date.parse(navigation.latestPosition?.recordedAt ?? '') + Date.now() - receivedAt : Infinity;
++  const observed = path && navigation && !expired && sampleAge <= 15000 && !telemetry?.unavailable
++    && (!card.markedAt || card.attendanceStatus !== 'PRESENT'
++      || Date.parse(navigation.latestPosition?.recordedAt ?? '') >= Date.parse(card.markedAt))
++    ? observedJourneyProgress(path, navigation, card.attendanceStatus) : null;
++  const ordered = observed !== null && (navigation?.latestPosition?.sequence ?? -1) >= (previous?.sequence ?? -1);
++  const progress = milestone.progress ?? (milestone.inactive ? null : ordered ? observed : previous?.progress ?? null);
++  const live = milestone.progress === null && !milestone.inactive && ordered && observed !== null;
++  const outbound = card.direction === 'TO_SCHOOL';
++  const label = outbound && card.tripStatus === 'IN_PROGRESS' && card.attendanceStatus === 'UNMARKED'
++    && live && path && observed !== null && observed < path.homeFraction ? 'Xe đang đến điểm đón' : milestone.label;
++  const retained = milestone.progress === null && progress !== null && !live;
++  const signal = milestone.progress !== null || milestone.inactive ? null
++    : retained ? navigation?.testMode ? 'Vị trí thử nghiệm gần nhất' : 'Vị trí gần nhất · GPS gián đoạn'
++    : live ? navigation?.testMode ? 'Vị trí thử nghiệm' : 'Vị trí GPS'
++    : !telemetry ? 'Đang tải vị trí' : telemetry.unavailable ? 'Chưa tải được vị trí' : !navigation?.latestPosition ? 'Chưa có GPS' : 'Chưa xác định tiến độ';
++
++  useEffect(() => {
++    if (ordered && observed !== null && version && navigation?.latestPosition) {
++      last.current = { version, progress: observed, sequence: navigation.latestPosition.sequence };
++    } else if (last.current?.version !== version) last.current = null;
++  }, [observed, ordered, version, navigation?.latestPosition]);
++
++  // Expire a fix even if the request hangs or the app comes back from the background.
++  useEffect(() => {
++    setExpired(false);
++    if (!navigation?.latestPosition || !receivedAt || !active) return;
++    const serverAge = Date.parse(navigation.serverNow) - Date.parse(navigation.latestPosition.recordedAt);
++    const remaining = 15000 - serverAge - (Date.now() - receivedAt);
++    if (!Number.isFinite(remaining) || remaining <= 0) { setExpired(true); return; }
++    const timer = setTimeout(() => setExpired(true), remaining);
++    return () => clearTimeout(timer);
++  }, [navigation, receivedAt, active]);
++
++  return <StudentJourneyDiagram label={label} progress={progress} outbound={outbound}
++    homeFraction={path?.homeFraction} signal={signal} retained={retained} active={active} />;
++});
++
++type DiagramProps = {
++  label: string;
++  progress: number | null;
++  outbound: boolean;
++  homeFraction?: number;
++  signal: string | null;
++  retained: boolean;
++  active: boolean;
++};
++
++/** Presentation only. Callers must provide observed progress or a confirmed endpoint. */
++export function StudentJourneyDiagram({ label, progress, outbound, homeFraction, signal, retained, active }: DiagramProps) {
++  const reduced = useReducedMotionPreference();
++  const position = useRef(new Animated.Value(0)).current;
++  const pulse = useRef(new Animated.Value(1)).current;
++  const [width, setWidth] = useState(0);
++  const initialized = useRef(false);
++  useEffect(() => {
++    position.stopAnimation();
++    const target = progress ?? 0;
++    if (reduced || !active || !initialized.current) position.setValue(target);
++    else Animated.timing(position, { toValue: target, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true, isInteraction: false }).start();
++    initialized.current = progress !== null;
++    return () => position.stopAnimation();
++  }, [progress, position, reduced, active]);
++
++  useEffect(() => {
++    pulse.stopAnimation(); pulse.setValue(1);
++    if (reduced || !active || !retained) return;
++    const animation = Animated.loop(Animated.sequence([
++      Animated.timing(pulse, { toValue: 0.55, duration: 900, useNativeDriver: true, isInteraction: false }),
++      Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true, isInteraction: false }),
++    ]));
++    animation.start();
++    return () => { animation.stop(); pulse.setValue(1); };
++  }, [active, reduced, retained, pulse]);
++
++  return (
++    <View style={styles.container} accessible accessibilityRole="image"
++      accessibilityLabel={`${outbound ? 'Chiều đến trường' : 'Chiều về điểm trả'}. ${label}${signal ? `. ${signal}` : ''}`}>
++      <View style={styles.heading}>
++        <View style={styles.headingIcon}><Ionicons name="bus-outline" size={18} color={colors.navigationActive} accessible={false} /></View>
++        <Text style={styles.title}>{label}</Text>
++      </View>
++      <View style={styles.rail} aria-hidden accessible={false} importantForAccessibility="no-hide-descendants" onLayout={e => setWidth(e.nativeEvent.layout.width)}>
++        <View style={styles.track} />
++        {progress !== null && width > 0 && <Animated.View style={[styles.completed, {
++          width, transform: [{ translateX: position.interpolate({ inputRange: [0, 1], outputRange: [-width / 2, 0] }) }, { scaleX: position }],
++        }]} />}
++        <View style={[styles.node, styles.start]}><Ionicons name={outbound ? 'car-outline' : 'school-outline'} size={18} color={colors.mutedText} /></View>
++        {/* The middle stop is placed only when its actual distance along the route is known. */}
++        {outbound && homeFraction !== undefined && homeFraction > 0 && homeFraction < 1 && <View style={[styles.middle, { left: `${homeFraction * 100}%` }]}>
++          <Ionicons name="home-outline" size={16} color={colors.mutedText} />
++        </View>}
++        <View style={[styles.node, styles.end]}><Ionicons name={outbound ? 'school-outline' : 'home-outline'} size={18} color={colors.mutedText} /></View>
++        {progress !== null && <Animated.View style={[styles.bus, { opacity: pulse, transform: [{ translateX: position.interpolate({ inputRange: [0, 1], outputRange: [0, width] }) }] }]}>
++          <Ionicons name="bus" size={20} color={colors.foreground} />
++        </Animated.View>}
++      </View>
++      <View style={styles.labels} accessible={false}>
++        <Text style={styles.endpoint}>{outbound ? 'Điểm xuất phát' : 'Trường học'}</Text>
++        <Text style={[styles.endpoint, styles.endLabel]}>{outbound ? 'Trường học' : 'Điểm trả của con'}</Text>
++      </View>
++      {outbound && homeFraction === undefined && <View style={styles.legend}><Ionicons name="home-outline" size={14} color={colors.mutedText} accessible={false} /><Text style={styles.signal}>Điểm đón của con</Text></View>}
++      {signal && <Text style={styles.signal}>{signal}</Text>}
++    </View>
++  );
++}
++
++const styles = StyleSheet.create({
++  container: { padding: 14, borderRadius: 16, backgroundColor: colors.background, gap: 8, borderWidth: 1, borderColor: colors.navigationHighlight },
++  heading: { flexDirection: 'row', alignItems: 'center', gap: 8 },
++  headingIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.navigationHighlight },
++  title: { flex: 1, minWidth: 0, fontSize: 14, lineHeight: 21, fontWeight: '700', color: colors.foreground },
++  rail: { marginHorizontal: 16, height: 46, justifyContent: 'center' },
++  track: { height: 6, borderRadius: 3, borderWidth: 1, borderColor: colors.mutedText, backgroundColor: colors.border, width: '100%' },
++  completed: { position: 'absolute', height: 6, borderRadius: 3, borderWidth: 1, borderColor: colors.navigationActive, backgroundColor: colors.primary },
++  node: { position: 'absolute', width: 30, height: 30, borderRadius: 15, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
++  start: { left: -15 }, end: { right: -15 },
++  middle: { position: 'absolute', marginLeft: -12, top: -2, width: 24, height: 22, alignItems: 'center', backgroundColor: colors.background },
++  bus: { position: 'absolute', left: -16, width: 32, height: 32, borderRadius: 12, borderWidth: 2, borderColor: colors.surface, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
++  labels: { flexDirection: 'row', justifyContent: 'space-between', gap: 16 },
++  endpoint: { flex: 1, fontSize: 11, lineHeight: 17, color: colors.mutedText },
++  endLabel: { textAlign: 'right' },
++  signal: { color: colors.mutedText, fontSize: 11, lineHeight: 17 },
++  legend: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
++});
+--- /dev/null
++++ b/mobile/hooks/use-parent-journey-telemetry.ts
+@@ -0,0 +1,77 @@
++import { useCallback, useEffect, useRef, useState } from 'react';
++import { AppState } from 'react-native';
++import { useFocusEffect } from 'expo-router';
++import { mobileApiClient, type MobileTripDetail, type ParentHomeCardItem } from '@/services/api-client';
++import { navigationApi, type NavigationState } from '@/services/trip-navigation';
++import { useActiveRefresh } from '@/hooks/use-active-refresh';
++
++export type ParentJourneyTelemetry = {
++  detail?: MobileTripDetail;
++  navigation?: NavigationState;
++  receivedAt?: number;
++  unavailable?: boolean;
++  minimumSequence?: number;
++};
++
++/** Viewer only: one batch per unique trip; never starts a publisher or GPS watcher. */
++export function useParentJourneyTelemetry(identity: string, cards: ParentHomeCardItem[]) {
++  const [active, setActive] = useState(false);
++  useFocusEffect(useCallback(() => {
++    setActive(AppState.currentState === 'active');
++    const subscription = AppState.addEventListener('change', state => setActive(state === 'active'));
++    return () => { setActive(false); subscription.remove(); };
++  }, []));
++  const ids = [...new Set(cards.filter(c => c.tripStatus === 'IN_PROGRESS' && c.attendanceStatus !== 'ABSENT'
++    && !(c.attendanceStatus === 'PRESENT' && c.childIsAlighted)).map(c => c.tripId))].sort();
++  const scope = JSON.stringify([identity, ids]);
++  const [result, setResult] = useState<{ identity: string; trips: Record<string, ParentJourneyTelemetry> }>({ identity, trips: {} });
++  const cache = useRef<{ identity: string; trips: Record<string, ParentJourneyTelemetry> }>({ identity, trips: {} });
++  useEffect(() => {
++    const retained: Record<string, ParentJourneyTelemetry> = {};
++    if (cache.current.identity === identity) for (const id of ids) {
++      if (cache.current.trips[id]) retained[id] = cache.current.trips[id];
++    }
++    cache.current = { identity, trips: retained };
++  }, [scope, identity]);
++  useActiveRefresh(scope, async ({ isCurrent }) => {
++    if (!ids.length) return false;
++    const entries = await Promise.all(ids.map(async id => {
++      const previous = cache.current.identity === identity ? cache.current.trips[id] : undefined;
++      try {
++        const navigation = await navigationApi.state(id);
++        const receivedAt = Date.now();
++        if (!isCurrent()) return null;
++        // Version includes snapshot stops/geometry/assignments. Refresh metadata on change.
++        const detail = previous?.detail && previous.navigation?.routeVersion === navigation.routeVersion
++          ? previous.detail : await mobileApiClient.getMobileTripDetail(id);
++        if (!isCurrent()) return null;
++        const changedRoute = previous?.navigation && previous.navigation.routeVersion !== navigation.routeVersion;
++        const minimumSequence = changedRoute
++          ? Math.max(previous.minimumSequence ?? -1, previous.navigation?.latestPosition?.sequence ?? -1)
++          : previous?.minimumSequence ?? -1;
++        // A route change must not reinterpret the same old fix on a different geometry.
++        const observedNavigation = navigation.latestPosition && navigation.latestPosition.sequence <= minimumSequence
++          ? { ...navigation, freshness: 'STALE' as const } : navigation;
++        return [id, { navigation: observedNavigation, detail, receivedAt, unavailable: false, minimumSequence }] as const;
++      } catch (error: unknown) {
++        if (!isCurrent()) return null;
++        const code = (error as { statusCode?: number })?.statusCode;
++        // Access errors discard the location and route; transient failures freeze the last fix.
++        if (code === 401 || code === 403 || code === 404) return [id, { unavailable: true }] as const;
++        return [id, { ...previous, unavailable: true, navigation: previous?.navigation
++          ? { ...previous.navigation, freshness: 'STALE' as const } : undefined }] as const;
++      }
++    }));
++    if (!isCurrent()) return;
++    const trips: Record<string, ParentJourneyTelemetry> = {};
++    for (const entry of entries) if (entry) trips[entry[0]] = entry[1];
++    cache.current = { identity, trips };
++    setResult({ identity, trips });
++  }, 5000);
++  // Keep unchanged trips steady when a sibling's trip changes; never cross accounts.
++  const trips: Record<string, ParentJourneyTelemetry> = {};
++  if (result.identity === identity) for (const id of ids) {
++    if (result.trips[id]) trips[id] = result.trips[id];
++  }
++  return { trips, active };
++}
+--- /dev/null
++++ b/mobile/hooks/use-reduced-motion-preference.ts
+@@ -0,0 +1,18 @@
++import { useEffect, useState } from 'react';
++import { AccessibilityInfo } from 'react-native';
++
++export function useReducedMotionPreference() {
++  // Remain still until the preference is known, including on first render.
++  const [reduced, setReduced] = useState(true);
++  useEffect(() => {
++    let active = true;
++    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', value => {
++      if (active) setReduced(value);
++    });
++    void AccessibilityInfo.isReduceMotionEnabled().then(value => {
++      if (active) setReduced(value);
++    }).catch(() => {});
++    return () => { active = false; subscription?.remove(); };
++  }, []);
++  return reduced;
++}
+--- /dev/null
++++ b/mobile/utils/parent-journey.ts
+@@ -0,0 +1,96 @@
++import type { ParentHomeCardItem, MobileTripDetail } from '../services/api-client';
++import type { NavigationState } from '../services/trip-navigation';
++import { decodePolyline } from './polyline';
++import { cumulativeDistances, distance, type Coordinate } from './trip-navigation';
++
++type TripStatus = ParentHomeCardItem['tripStatus'];
++type Direction = ParentHomeCardItem['direction'];
++type Attendance = ParentHomeCardItem['attendanceStatus'];
++
++/** Presentation labels, never additional TripStatus/AttendanceStatus values. */
++export function studentJourneyMilestone(status: TripStatus, direction: Direction, attendance: Attendance, alighted = false) {
++  if (status === 'CANCELLED') return { label: 'Chuyến đã hủy', progress: null, inactive: true };
++  if (attendance === 'ABSENT') return { label: 'Vắng mặt', progress: null, inactive: true };
++  if (attendance === 'PRESENT' && alighted) return {
++    label: direction === 'TO_SCHOOL' ? 'Đã đến trường' : 'Đã về điểm trả', progress: 1, inactive: false,
++  };
++  // Return-trip boarding can happen at school before the driver starts the trip.
++  if (status === 'SCHEDULED') return { label: 'Chờ khởi hành', progress: 0, inactive: false };
++  if (status === 'COMPLETED') return { label: 'Chuyến đã hoàn thành', progress: null, inactive: true };
++  return {
++    label: attendance === 'PRESENT' ? 'Đang trên xe' : direction === 'TO_SCHOOL' ? 'Chờ xe đón' : 'Chưa điểm danh',
++    progress: null, inactive: false,
++  };
++}
++
++export function validCoordinate(p: Coordinate) {
++  return p.every(Number.isFinite) && Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180;
++}
++
++/** Conservative projection: reject off-route fixes and ambiguous crossings/loops. */
++export function locateOnJourney(coords: Coordinate[], position: Coordinate, min = 0) {
++  if (coords.length < 2 || !coords.every(validCoordinate) || !validCoordinate(position)) return null;
++  const cumulative = cumulativeDistances(coords);
++  const cos = Math.cos(position[0] * Math.PI / 180);
++  const candidates: { metres: number; gap: number }[] = [];
++  for (let i = 1; i < coords.length; i++) {
++    const a = coords[i - 1], b = coords[i];
++    const dx = (b[1] - a[1]) * cos, dy = b[0] - a[0];
++    const t = Math.max(0, Math.min(1, (((position[1] - a[1]) * cos) * dx + (position[0] - a[0]) * dy) / (dx * dx + dy * dy || 1)));
++    const projected: Coordinate = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
++    const metres = cumulative[i - 1] + t * (cumulative[i] - cumulative[i - 1]);
++    if (metres >= min - 1) candidates.push({ metres, gap: distance(projected, position) });
++  }
++  candidates.sort((a, b) => a.gap - b.gap);
++  const best = candidates[0];
++  if (!best || best.gap > 50 || candidates.some(c => c.gap <= best.gap + 5 && Math.abs(c.metres - best.metres) > 100)) return null;
++  return best.metres;
++}
++
++export type JourneyPath = { coords: Coordinate[]; start: number; home: number; boarding: number; end: number; homeFraction: number };
++
++export function studentJourneyPath(detail: MobileTripDetail, studentId: string): JourneyPath | null {
++  // No straight-line fallback: it would pretend the bus follows an unknown road.
++  const encoded = detail.polylineGeometry;
++  if (!encoded || encoded.length > 200000 || !/^[?-~]+$/.test(encoded)) return null;
++  let groups = 0, scalars = 0;
++  for (const char of encoded) {
++    if (++groups > 6) return null;
++    if (char.charCodeAt(0) - 63 < 32) { scalars++; groups = 0; }
++  }
++  if (groups !== 0 || scalars < 4 || scalars % 2 !== 0) return null;
++  const coords = decodePolyline(encoded);
++  if (coords.length < 2 || !coords.every(validCoordinate)) return null;
++  const stops = [...detail.stops].sort((a, b) => a.stopOrder - b.stopOrder);
++  const outbound = detail.direction === 'TO_SCHOOL';
++  const origin = stops.find(s => s.stopType === (outbound ? 'PARKING_START' : 'SCHOOL_DEPARTURE'));
++  const home = stops.find(s => s.studentId === studentId && s.isMyChild === true && s.stopType === (outbound ? 'PICKUP' : 'DROPOFF'));
++  const school = stops.find(s => s.stopType === 'SCHOOL_ARRIVAL');
++  if (!origin || !home || (outbound && !school)) return null;
++  if (origin.stopOrder > home.stopOrder || (school && outbound && home.stopOrder > school.stopOrder)) return null;
++  const start = locateOnJourney(coords, [origin.latitude, origin.longitude]);
++  if (start === null) return null;
++  const atHome = locateOnJourney(coords, [home.latitude, home.longitude], start);
++  if (atHome === null) return null;
++  const end = outbound ? locateOnJourney(coords, [school!.latitude, school!.longitude], atHome) : atHome;
++  if (end === null || end - start < 1 || atHome < start || atHome > end) return null;
++  return { coords, start, home: atHome, boarding: outbound ? atHome : start, end, homeFraction: (atHome - start) / (end - start) };
++}
++
++/** A stale fix never advances the bus. Milestones are handled separately. */
++export function observedJourneyProgress(path: JourneyPath, navigation: NavigationState, attendance: Attendance) {
++  const point = navigation.latestPosition;
++  if (!point || navigation.status !== 'IN_PROGRESS') return null;
++  const age = Date.parse(navigation.serverNow) - Date.parse(point.recordedAt);
++  return progressForJourneyFix(path, [point.latitude, point.longitude], navigation.freshness === 'FRESH', age, attendance === 'PRESENT');
++}
++
++/** Pure geometry/freshness check; no sample data, clock extrapolation, or estimated speed. */
++export function progressForJourneyFix(path: JourneyPath, position: Coordinate, fresh: boolean, ageMs: number, boarded: boolean) {
++  if (!fresh || !Number.isFinite(ageMs) || ageMs < -5000 || ageMs > 15000) return null;
++  const metres = locateOnJourney(path.coords, position);
++  if (metres === null || metres < path.start - 50 || metres > path.end + 50) return null;
++  // A sampled position before this child's boarding must not overwrite that milestone.
++  if (boarded && metres < path.boarding - 50) return null;
++  return Math.max(0, Math.min(1, (metres - path.start) / (path.end - path.start)));
++}
+--- /dev/null
++++ b/mobile/scripts/parent-journey.test.ts
+@@ -0,0 +1,58 @@
++import { describe, it } from 'node:test';
++import assert from 'node:assert/strict';
++import { locateOnJourney, progressForJourneyFix, studentJourneyMilestone, validCoordinate, type JourneyPath } from '../utils/parent-journey.ts';
++import { cumulativeDistances } from '../utils/trip-navigation.ts';
++
++// Pure enum mappings and mathematical coordinates only. No Trip/User/Student fixtures or API mocks.
++describe('per-student journey labels', () => {
++  it('keeps every actual trip/attendance enum combination defined in both directions', () => {
++    for (const status of ['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] as const)
++      for (const attendance of ['UNMARKED', 'PRESENT', 'ABSENT'] as const)
++        for (const direction of ['TO_SCHOOL', 'TO_PARKING'] as const)
++          for (const down of [false, true]) {
++            const value = studentJourneyMilestone(status, direction, attendance, down);
++            assert.ok(value.label.length > 0);
++            if (status === 'CANCELLED' || attendance === 'ABSENT') assert.equal(value.progress, null);
++          }
++  });
++  it('does not mistake shared trip completion for a child alighting', () => {
++    assert.equal(studentJourneyMilestone('COMPLETED', 'TO_SCHOOL', 'PRESENT', false).progress, null);
++    assert.equal(studentJourneyMilestone('COMPLETED', 'TO_SCHOOL', 'UNMARKED', false).progress, null);
++    assert.equal(studentJourneyMilestone('IN_PROGRESS', 'TO_SCHOOL', 'PRESENT', true).label, 'Đã đến trường');
++    assert.equal(studentJourneyMilestone('IN_PROGRESS', 'TO_PARKING', 'PRESENT', true).label, 'Đã về điểm trả');
++  });
++  it('keeps siblings independent when only one has boarded/alighted', () => {
++    assert.equal(studentJourneyMilestone('IN_PROGRESS', 'TO_SCHOOL', 'PRESENT', false).label, 'Đang trên xe');
++    assert.equal(studentJourneyMilestone('IN_PROGRESS', 'TO_SCHOOL', 'UNMARKED', false).progress, null);
++    assert.equal(studentJourneyMilestone('IN_PROGRESS', 'TO_SCHOOL', 'PRESENT', true).progress, 1);
++    assert.equal(studentJourneyMilestone('IN_PROGRESS', 'TO_SCHOOL', 'ABSENT', true).progress, null);
++  });
++  it('does not move a scheduled return trip even after boarding at school', () => {
++    assert.equal(studentJourneyMilestone('SCHEDULED', 'TO_PARKING', 'PRESENT', false).progress, 0);
++  });
++});
++
++describe('observed route geometry (mathematics only)', () => {
++  const coords: [number, number][] = [[0, 0], [0, 0.01], [0, 0.02]];
++  const total = cumulativeDistances(coords).at(-1)!;
++  const path: JourneyPath = { coords, start: 0, end: total, home: total / 2, boarding: total / 2, homeFraction: 0.5 };
++  it('projects along actual line length and advances only with a fresh observed fix', () => {
++    assert.ok(Math.abs(locateOnJourney(coords, [0, 0.005])! / total - 0.25) < 1e-6);
++    assert.ok(Math.abs(progressForJourneyFix(path, [0, 0.015], true, 1000, true)! - 0.75) < 1e-6);
++  });
++  it('returns no new progress for stale, future, missing-time or off-route samples', () => {
++    assert.equal(progressForJourneyFix(path, [0, 0.015], false, 1000, true), null);
++    for (const age of [15001, -5001, NaN]) assert.equal(progressForJourneyFix(path, [0, 0.015], true, age, true), null);
++    assert.equal(progressForJourneyFix(path, [1, 0.015], true, 1000, true), null);
++  });
++  it('rejects invalid coordinates, degenerate paths and ambiguous self-crossings', () => {
++    assert.equal(validCoordinate([NaN, 0]), false);
++    assert.equal(validCoordinate([91, 0]), false);
++    assert.equal(locateOnJourney([], [0, 0]), null);
++    assert.equal(locateOnJourney([[0, 0], [0, 0.01], [0.01, 0.01], [0, 0]], [0, 0]), null);
++  });
++  it('uses this child boarding point outbound, and school departure on the return leg', () => {
++    assert.equal(progressForJourneyFix(path, [0, 0.005], true, 1000, true), null);
++    assert.ok(progressForJourneyFix({ ...path, boarding: 0 }, [0, 0.005], true, 1000, true)! > 0);
++  });
++});
+--- /dev/null
++++ b/docs/architecture/mobile-parent-student-journey.md
+@@ -0,0 +1,94 @@
++# Parent Home — card học sinh và hành trình
++
++30/10/2026, local. Chỉ frontend Mobile; chưa commit/push. Mục PO gọi “Con của bạn” tương ứng danh sách **Chuyến xe của con** tại [HomeScreen](<../../mobile/app/(tabs)/index.tsx>), không phải danh sách hồ sơ StudentCard ở tab Theo dõi.
++
++## Nguồn dữ liệu và giới hạn nghiệp vụ
++
++- [Prisma enums](../../api/prisma/schema.prisma): TripStatus = SCHEDULED / IN_PROGRESS / COMPLETED / CANCELLED; AttendanceStatus = UNMARKED / PRESENT / ABSENT; direction = TO_SCHOOL / TO_PARKING. Không thêm enum hoặc trạng thái API.
++- [getParentHomeCards](../../api/src/trips/trips.service.ts) / GET `/trips/mobile/parent/home-cards`: duyệt liên kết phụ huynh, chỉ roster `excludedAt: null`, ưu tiên chuyến đang chạy/chưa điểm danh rồi chuyến lập lịch gần nhất. Hiện chỉ trả **SCHEDULED và IN_PROGRESS**, còn trong điều kiện thời gian phục vụ; không trả mọi hồ sơ con hoặc lịch sử chuyến. Không thay bộ lọc backend.
++- [ParentHomeCardItem](../../mobile/services/api-client.ts) có attendanceStatus, markedAt, absenceReason, childIsAlighted, childAlightedAt **riêng studentId**, cùng tripId/tripStatus. Không lấy trạng thái học sinh từ tổng số PRESENT/alighted toàn chuyến, từ học sinh đầu tiên, hoặc từ trạng thái anh/chị/em.
++- `canReportLeave`, busy/spinner và toàn bộ payload/callback của useQuickLeaveNotice giữ nguyên. Nút Theo dõi vẫn `/trip/${card.tripId}`. Không tự ghi điểm danh, báo nghỉ, đến trường hoặc hoàn thành.
++- [GET navigation](../../api/src/trips/trip-navigation.controller.ts) `/trips/:id/navigation` trả latestPosition, sequence/runId, recordedAt, freshness, serverNow, routeVersion và testMode. PARENT không có publisher checkpoint/targetStopId, accuracy từng fix hoặc current-leg geometry. GET này chỉ đọc; không gọi session/position/segment hoặc history để dựng tiến độ.
++- [GET detail](../../api/src/trips/trips.service.ts) `/trips/mobile/:id` trả polylineGeometry và stops, giữ Privacy Masking. Chỉ xác định nhà theo **studentId trùng và isMyChild === true**; không dựa vào tên hoặc điểm của học sinh khác.
++
++## Bố cục đã triển khai
++
++PO đã chỉ định cấu trúc collapsed/expanded và yêu cầu implement trực tiếp; wireframe dưới đây cụ thể hóa phạm vi đó, không có vòng duyệt riêng hoặc PO nghiệm thu thành phẩm.
++
++```text
++[Avatar] Tên học sinh                   [Tag chuyến]
++         Trường học                            [˅]
++──────────── phần mở rộng ────────────────────────
++[Bus] Nhãn hành trình riêng của học sinh
++Điểm xuất phát ─── điểm đón ─── Trường (chiều đi)
++Trường ─────────────────── Điểm trả con (chiều về)
++Vị trí GPS / gần nhất / thiếu dữ liệu (nếu cần)
++Tên tuyến • chiều; giờ • ngày (V2)
++[Tag điểm danh] [Giờ điểm danh]
++[Giờ xuống xe nếu có] / [Lý do vắng nếu có]
++[Bus] Biển số — đầy đủ, tự xuống dòng
++[User] Tài xế — đầy đủ, tự xuống dòng
++[Theo dõi lộ trình]
++[Báo nghỉ chuyến này — đúng điều kiện V2]
++```
++
++Thu gọn không hiện thanh tiến độ hoặc nội dung phụ. Nền kem/card trắng, bo20, viền vàng khi mở, shadow và typography từ hệ Parent Home phong cách V1. Chevron tròn có chuyển động xoay. Khi viewport <360px hoặc fontScale >=1.4, tag chuyển xuống trong vùng identity để tên dài không bị ép; không ellipsis hoặc lược thông tin.
++
++Phần mở rộng giữ toàn bộ tuyến/chiều, lịch, điểm danh/markedAt/lý do vắng, xe/tài xế và thao tác V2. Bổ sung nhãn **Điểm danh** cho giờ cũ, **Xuống xe** khi có childAlightedAt và PRESENT + childIsAlighted để phân biệt hai mốc. Không tạo ngày/giờ thay thế.
++
++## Mapping trạng thái và chuyển động
++
++Tag tóm tắt luôn là **trạng thái chung của chuyến** qua mapping Home V2, bổ sung nhãn tiếng Việt Đã hủy cho CANCELLED trong nhánh Parent. Nhãn hành trình và tag điểm danh là hai phần riêng.
++
++| Dữ liệu thực | Nhãn hành trình / hình thức |
++| --- | --- |
++| CANCELLED | Chuyến đã hủy; đường xám, không đặt marker/hoàn thành giả |
++| ABSENT (trừ chuyến hủy được ưu tiên) | Vắng mặt; đường xám, không chạy xe cho hành trình của học sinh vắng |
++| PRESENT + childIsAlighted | TO_SCHOOL: Đã đến trường; TO_PARKING: Đã về điểm trả. Marker cuối, đường vàng100% theo **mốc điểm danh xác nhận**, dù xe chung còn chạy |
++| SCHEDULED, học sinh chưa xuống | Chờ khởi hành; marker đầu, xám100%, đứng yên. PRESENT chiều về trước start vẫn đứng đầu trường |
++| COMPLETED nhưng chưa có mốc xuống của con | Chuyến đã hoàn thành; trung tính, không kết luận đã trả con hoặc tự đặt marker100% |
++| IN_PROGRESS + PRESENT chưa xuống | Đang trên xe; dùng fix hợp lệ chiếu lên đường thực, không suy ra tiến độ từ số người đã đón |
++| IN_PROGRESS + UNMARKED chiều đi | Chờ xe đón; nếu fix hợp lệ còn trước điểm đón của chính con thì Xe đang đến điểm đón. Không dùng chữ “sắp tới” hoặc ETA vì không có dữ liệu xác nhận gần đến |
++| IN_PROGRESS + UNMARKED chiều về | Chưa điểm danh; không suy ra con đã lên xe dù xe đang chạy |
++| GPS cũ/lỗi/tọa độ không phù hợp | Giữ vị trí hợp lệ gần nhất của cùng học sinh/chuyến/routeVersion, chỉ nhấp nháy opacity nhẹ; không lặp di chuyển ngang |
++| Chưa từng có vị trí hợp lệ/không có geometry/điểm con mơ hồ | Đường xám, không đặt xe ở vị trí đoán; nhãn ngắn Đang tải vị trí / Chưa có GPS / Chưa tải được vị trí / Chưa xác định tiến độ |
++| Backend testMode | Vị trí thử nghiệm hoặc Vị trí thử nghiệm gần nhất; không gọi tọa độ mô phỏng từ backend là GPS thật |
++
++Các nhãn hành trình là text trình bày, không enum nghiệp vụ mới. CANCELLED/ABSENT ưu tiên hơn kết luận xuống xe để không hiển thị thành công với dữ liệu mâu thuẫn. Parent Home hiện không phát sinh card COMPLETED/CANCELLED theo bộ lọc API; mapping phòng vệ không thay bộ lọc đó.
++
++## Cách xác định tiến độ
++
++[parent-journey.ts](../../mobile/utils/parent-journey.ts) tái sử dụng decodePolyline, cumulativeDistances và distance. Xác minh encoded polyline, tọa độ finite/bounds, thứ tự điểm. Không thay route bằng đường thẳng khi thiếu hình học.
++
++- TO_SCHOOL: xác định PARKING_START → PICKUP của studentId → SCHOOL_ARRIVAL. Vị trí marker và điểm nhà lấy tỷ lệ **độ dài tích lũy dọc polyline**, không đặt nhà/xe ở50% cố định. Phần origin→nhà và nhà→trường nằm trên cùng rail; vàng là phần đã quan sát hoàn thành, xám là phần còn lại.
++- TO_PARKING: SCHOOL_DEPARTURE → DROPOFF của studentId. Chuyến của con kết thúc ở điểm trả, không phải PARKING_END; boarding anchor ở trường.
++- Chiếu vị trí lên polyline. Từ chối cách đường >50m, hoặc có các ứng viên tương đương (chênh gap <=5m) nhưng cách nhau >100m dọc tuyến tại giao cắt/vòng lặp. Đây là ngưỡng thận trọng để **từ chối suy diễn**, không phải ETA hoặc quy tắc nghiệp vụ mới.
++- Chỉ nhận freshness FRESH, age theo serverNow/recordedAt <=15000ms và không đi trước server quá5000ms, status navigation IN_PROGRESS; bù thời gian kể từ lúc frontend nhận response. Timer hết hạn ngay cả khi lượt đọc tiếp theo bị treo.
++- Sample sequence cũ không ghi đè fix mới. Khi con PRESENT, sample phải từ sau markedAt và không còn ở trước boarding anchor >50m. Không ngoại suy từ vận tốc/thời gian, không hardcode tiến độ trung gian, không tự suy ra trường đã đến từ GPS.
++- Lần đầu nhận vị trí đặt thẳng marker vào vị trí đó; cập nhật sau nội suy600ms, chỉ phản ánh hai mốc quan sát. RouteVersion đổi xóa tiến độ cũ và từ chối tái chiếu cùng fix cũ, chờ sequence mới; đổi account/trip/card không giữ cache cũ. Dữ liệu thiếu hoặc off-route giữ fix hợp lệ trước đó, có nhãn gần nhất.
++
++Đây là phép chiếu lên **hình học kế hoạch/snapshot đang được API trả về**, không bảo đảm đo được quãng đường thực sau reroute. Viewer không có hình học leg đang điều hướng; nếu reroute lệch tuyến thì đứng ở vị trí gần nhất/trung tính. Không hiển thị phần trăm số hoặc ETA. Endpoint mốc xuống xe có thể hiển thị100% theo xác nhận nghiệp vụ ngay cả khi GPS thiếu; không gọi đó là phép đo GPS.
++
++## Component, hook và mở rộng
++
++- [ParentTripCard](../../mobile/components/parent/trip-card.tsx): giữ props studentName, avatarUrl, schoolName, status, children; thêm `journey?: (active: boolean) => ReactNode`. Component chỉ giữ disclosure UI. Key studentId:tripId do Home quản lý, mở độc lập, giữ qua polling. Không đặt hooks trong map.
++- Body có nội dung tự đo onLayout (không chiều cao cố định). Animate chiều cao260ms mở/200ms đóng, opacity/chevron220/160ms, theo easing cubic. Inner content giữ mount nhưng display:none sau đóng, pointerEvents none/accessibility hidden khi đóng; không còn CTA ẩn trong tab order. Khi đổi width/font/nội dung, đo lại chiều cao. Không điều chỉnh scroll offset thủ công.
++- [useParentJourneyTelemetry](../../mobile/hooks/use-parent-journey-telemetry.ts): readonly viewer, deduplicate tripId IN_PROGRESS còn cần GPS (không vắng/đã xuống), navigation5s; metadata chỉ đọc lại khi chưa có/routeVersion đổi. Tái sử dụng useActiveRefresh (focus/AppState/no-overlap/isCurrent). Một lượt cho nhiều con cùng chuyến. Không dùng useTripNavigation vì hook đó có engine publisher của tài xế.
++- Telemetry độc lập Home polling8s nên lỗi GPS không làm mất dữ liệu card. Transient failure giữ cache và STALE;401/403/404 xóa location/detail. Cache theo account identity, chỉ expose tripIds còn liên quan; giữ cache các trip không đổi khi thêm/bớt trip của anh/chị/em. RouteVersion đổi buộc chờ sequence mới hơn fix của version cũ. Có active flag để dừng chuyển động khi blur/background.
++- [ParentStudentJourney / StudentJourneyDiagram](../../mobile/components/parent/student-journey.tsx): lớp đầu derive theo card thực, lớp sau chỉ vẽ. Props diagram: label, progress:number|null, outbound:boolean, homeFraction?, signal:string|null, retained:boolean, active:boolean. Không truyền tỷ lệ đoán; caller phải cung cấp phép chiếu hợp lệ hoặc mốc endpoint đã xác nhận.
++- [useReducedMotionPreference](../../mobile/hooks/use-reduced-motion-preference.ts): AccessibilityInfo đọc ban đầu và nghe reduceMotionChanged. Mặc định giảm chuyển động trước khi biết setting; khi bật thì cập nhật tức thì, không pulse. Không thêm package.
++- [home-styles](../../mobile/components/parent/home-styles.ts): thêm vehicleDetailRow/vehicleDetailText, khối xe/tài xế tách hai hàng và wrap. Avatar vẫn UserAvatar thật của học sinh, fallback chữ đầu.
++
++Bus/fill/pulse dùng Animated native driver; chỉ animate chiều cao khi mở/đóng/thay chiều cao. Không loop trên card đóng, screen blur/background hoặc reduced motion. Không thêm safe-area/keyboard offset vì màn không có input và shell hiện có sở hữu insets. Các màn form/modal điều hướng đến giữ xử lý bàn phím cũ. Desktop giữ cột max560.
++
++## Kiểm chứng và giới hạn
++
++- PASS Mobile `npx --no-install tsc --noEmit` và Expo export all (iOS/Android/Web/server).
++- PASS8 unit tests độc lập DB:48 tổ hợp enum/hướng/alighted, sibling independence, hoàn thành chung không đồng nghĩa trả con, return boarding trước start, phép chiếu/tuổi mẫu/off-route/giao cắt/boarding anchor. Test chỉ enum primitives và tọa độ toán học; không tạo records/DTO giả hoặc fake API response.
++- PASS source parity: fetchHomeData/onRefresh/getRoleLabel/getStatusBadge/getAttendanceBadge, nhánh staff, router.push và quick-leave payload/callback giữ nguyên; API clients byte-identical.
++- PASS Chromium IAB presentation-only: collapsed/expanded và nhãn dài320/390/844/1440px không tràn ngang, hai card độc lập, Enter/Space, nút trong panel không đóng card, panel cao bằng nội dung sau resize. Diagram trung tính không đặt marker giả. Diagram riêng kiểm tra phép vẽ bằng tỷ lệ từ đoạn thẳng toán học, có nhãn không phải GPS, không Student/Trip/auth/API.
++- Lint: Mobile không có script/config lint riêng; không cài công cụ mới. NOT_VERIFIED lint runtime.
++- NOT_VERIFIED Expo Go iPhone/Android, Safari iOS/Chrome Android, VoiceOver, Dynamic Type lớn trên thiết bị, thay reduced motion trên thiết bị và FPS nhiều card. Kiểm tra source reduced motion không thay thế nghiệm thu setting thật.
++- NOT_VERIFIED GPS thật, hai con cùng Trip trên app có xác thực, mất/kết nối lại GPS, đổi quyền, polling/route/Báo nghỉ qua backend. `BLOCKED_BY_TEST_DATA_POLICY` khi không có phiên/dữ liệu chuyến/GPS hợp lệ để chạy; không tạo data, phát vị trí, gọi mutation hoặc giả lập API để kiểm thử.
++
++Nghiệm thu tiếp theo: dùng tài khoản PARENT có hai con trong roster hợp lệ, ít nhất một chuyến đang chạy và GPS do luồng tài xế được PO cho phép; kiểm tra hai trạng thái điểm danh khác nhau trên Expo Go iPhone. Agent không tự chuẩn bị hoặc thay đổi các records đó.

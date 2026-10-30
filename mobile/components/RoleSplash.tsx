@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Role } from '@/services/api-client';
 import { colors } from '@/constants/theme';
+import { ParentLoginSplash } from '@/components/parent/login-splash';
 
 interface RoleSplashProps {
   role: Role;
@@ -48,6 +49,8 @@ export function RoleSplash({
     inputRange: [0, 1],
     outputRange: ['0%', '100%'],
   });
+
+  if (role === 'PARENT') return <ParentLoginSplash progressWidth={barWidth} />;
 
   return (
     <View style={styles.container}>

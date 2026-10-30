@@ -11,6 +11,8 @@ Ngày: 28/10/2026 (Asia/Saigon). Tài liệu gồm kế hoạch gốc và cập 
 | Mobile Quên mật khẩu | Đã restyle và sao chép ảnh; giữ OTP/context V2, không autofocus |
 | Mobile Đăng ký phụ huynh | Đã restyle và sao chép ảnh; giữ 4 input, chọn kênh, visibility và OTP V2 |
 | Mobile keyboard UX | Đã tích hợp shared scroll handling cho 29 TextInput/15 file, gồm modal/drawer |
+| Phase 2 header/tab Mobile | Đã implement local theo yêu cầu PO mới nhất: [chi tiết và giới hạn kiểm chứng](../architecture/mobile-navigation-phase2.md); chưa commit/push |
+| Trang chủ phụ huynh | Đã restyle local, giữ context/callback V2; [chi tiết và giới hạn](../architecture/mobile-parent-home-ui.md), chưa commit/push |
 | Phần còn lại của Web/Mobile | Chưa triển khai chuyển phong cách V1; không coi toàn bộ kế hoạch là đã duyệt |
 
 Source đã push tới `db02de6` trên `dongnnp/mobile/refactor-ui`; chưa có bằng chứng merge main hoặc nghiệm thu thiết bị. Xem [tài liệu implementation](../architecture/mobile-ui-implementation-status.md) để biết trạng thái thực tế và các giới hạn kiểm chứng.

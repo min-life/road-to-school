@@ -10,6 +10,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppHeader, headerActionStyles } from '@/components/navigation/app-header';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useActiveRefresh } from '@/hooks/use-active-refresh';
@@ -126,21 +127,14 @@ export default function ScheduleScreen() {
   }, [trips, selectedDate]);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTitleWrap}>
-          <Text style={styles.title}>Lịch vận hành</Text>
-          <Text style={styles.subtitle}>Phân công tuyến xe dành cho {roleTitle}</Text>
-        </View>
-
-        <View style={styles.headerActions}>
-          <TouchableOpacity onPress={goToToday} style={styles.todayButton} activeOpacity={0.7}>
-            <Text style={styles.todayText}>Hôm nay</Text>
+      <AppHeader title="Lịch vận hành" subtitle={`Phân công tuyến xe dành cho ${roleTitle}`} actions={<>
+          <TouchableOpacity accessibilityRole="button" onPress={goToToday} style={headerActionStyles.textButton} activeOpacity={0.7}>
+            <Text style={headerActionStyles.text}>Hôm nay</Text>
           </TouchableOpacity>
           <NotificationBell />
-        </View>
-      </View>
+        </>} />
 
       {/* Week Selector Bar */}
       <View style={styles.weekSelectorContainer}>
@@ -329,50 +323,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  headerTitleWrap: {
-    flex: 1,
-    paddingRight: 12,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#0F172A',
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  todayButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    backgroundColor: '#FEF3C7',
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-  },
-  todayText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#92400E',
   },
   weekSelectorContainer: {
     backgroundColor: '#FFFFFF',

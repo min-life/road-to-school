@@ -1,0 +1,973 @@
+--- a/mobile/app/(tabs)/index.tsx
++++ b/mobile/app/(tabs)/index.tsx
+@@ -15,0 +16 @@
++import { journeyTones } from '@/constants/parent-journey';
+@@ -20,0 +22,2 @@
++import { activeJourneyIncident, journeySchoolArrived, journeyServiceDate, parentJourneyCard, studentJourneyBadge } from '@/utils/parent-journey-stage';
++import { journeyRecordedClock } from '@/utils/parent-journey';
+@@ -122,0 +126 @@
++  const serviceDates = [...new Set(parentCards.map(card => card.serviceDate))];
+@@ -395 +399,4 @@
+-            <Text accessibilityRole="header" style={parentHomeStyles.sectionTitle}>Chuyến xe của con</Text>
++            <View style={parentHomeStyles.sectionHeader}>
++              <Text accessibilityRole="header" style={parentHomeStyles.sectionTitle}>Chuyến xe của con</Text>
++              <Text style={parentHomeStyles.sectionDate}>{serviceDates.map(journeyServiceDate).join(' · ')}</Text>
++            </View>
+@@ -397 +404,5 @@
+-              const att = getAttendanceBadge(card.attendanceStatus, card.childIsAlighted);
++              const tripTelemetry = journeyTelemetry.trips[card.tripId];
++              const student = parentJourneyCard(card, tripTelemetry?.unavailable || tripTelemetry?.operationUnavailable ? undefined : tripTelemetry?.operation);
++              const schoolArrived = card.direction === 'TO_SCHOOL' && journeySchoolArrived(tripTelemetry?.operation, card.tripId);
++              const studentStatus = studentJourneyBadge(student.attendanceStatus, Boolean(student.childIsAlighted), schoolArrived, Boolean(card.hasLeaveNotice));
++              const att = getAttendanceBadge(student.attendanceStatus, student.childIsAlighted);
+@@ -404,2 +415,6 @@
+-                  status={card.tripStatus === 'CANCELLED' ? { label: 'Đã hủy', bg: colors.border, text: colors.mutedText } : getStatusBadge(card.tripStatus)}
+-                  journey={active => <ParentStudentJourney card={card} telemetry={journeyTelemetry.trips[card.tripId]} active={active && journeyTelemetry.active} />}
++                  status={student.tripStatus === 'CANCELLED' ? { label: 'Đã hủy', bg: journeyTones.danger.bg, text: journeyTones.danger.text } : getStatusBadge(student.tripStatus)}
++                  studentStatus={studentStatus}
++                  hasIncident={tripTelemetry?.incidents?.some(i => activeJourneyIncident(i.status))}
++                  attention={student.attendanceStatus === 'UNMARKED' && student.tripStatus !== 'CANCELLED' && student.tripStatus !== 'COMPLETED'}
++                  stale={tripTelemetry?.operationUnavailable || tripTelemetry?.incidentsUnavailable}
++                  journey={active => <ParentStudentJourney card={student} telemetry={tripTelemetry} active={active && journeyTelemetry.active} showServiceDate={serviceDates.length > 1} />}
+@@ -407,20 +421,0 @@
+-                  {/* Route & Time */}
+-                  <View style={parentHomeStyles.parentRouteBox}>
+-                    <View style={parentHomeStyles.directionRow}>
+-                      <Ionicons
+-                        name={card.direction === 'TO_SCHOOL' ? 'arrow-forward' : 'arrow-back'}
+-                        size={14}
+-                        color={card.direction === 'TO_SCHOOL' ? '#2563EB' : '#D97706'}
+-                      />
+-                      <Text style={parentHomeStyles.parentRouteName}>
+-                        {card.routeName}
+-                      </Text>
+-                    </View>
+-                    <View style={parentHomeStyles.parentTimeRow}>
+-                      <Ionicons name="time-outline" size={14} color="#64748B" />
+-                      <Text style={parentHomeStyles.parentTimeText}>
+-                        {card.scheduledTime} • {card.serviceDate}
+-                      </Text>
+-                    </View>
+-                  </View>
+-
+@@ -434 +429 @@
+-                      {card.markedAt ? (
++                      {student.markedAt ? (
+@@ -437,4 +432 @@
+-                          {new Date(card.markedAt).toLocaleTimeString([], {
+-                            hour: '2-digit',
+-                            minute: '2-digit',
+-                          })}
++                          {journeyRecordedClock(student.markedAt) ?? '—:—'}
+@@ -445 +437 @@
+-                    {card.attendanceStatus === 'PRESENT' && card.childIsAlighted && card.childAlightedAt ? (
++                    {student.attendanceStatus === 'PRESENT' && student.childIsAlighted && student.childAlightedAt ? (
+@@ -448 +440 @@
+-                        {new Date(card.childAlightedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
++                        {journeyRecordedClock(student.childAlightedAt) ?? '—:—'}
+@@ -452 +444 @@
+-                    {card.attendanceStatus === 'ABSENT' && card.absenceReason ? (
++                    {student.attendanceStatus === 'ABSENT' && student.absenceReason ? (
+@@ -455 +447 @@
+-                        <Text style={parentHomeStyles.absenceReasonContent}>{card.absenceReason}</Text>
++                        <Text style={parentHomeStyles.absenceReasonContent}>{student.absenceReason}</Text>
+--- a/mobile/components/parent/student-journey.tsx
++++ b/mobile/components/parent/student-journey.tsx
+@@ -1,2 +1,2 @@
+-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+-import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
++import { memo, useLayoutEffect, useRef, useState } from 'react';
++import { Animated, StyleSheet, Text, View } from 'react-native';
+@@ -4,0 +5 @@
++import { journeyTones } from '@/constants/parent-journey';
+@@ -8,46 +9,19 @@
+-import { journeyDiagramPosition, observedJourneyProgress, studentJourneyMilestone, studentJourneyPath, studentJourneyTimes, type JourneyTime } from '@/utils/parent-journey';
+-
+-type Props = { card: ParentHomeCardItem; telemetry?: ParentJourneyTelemetry; active: boolean };
+-
+-/** A diagram of observed progress, not an ETA or a replacement for the tracking map. */
+-export const ParentStudentJourney = memo(function ParentStudentJourney({ card, telemetry, active }: Props) {
+-  const [expired, setExpired] = useState(false);
+-  const last = useRef<{ version: string; progress: number; sequence: number } | null>(null);
+-  const milestone = studentJourneyMilestone(card.tripStatus, card.direction, card.attendanceStatus, card.childIsAlighted);
+-  const { detail, navigation, receivedAt } = telemetry ?? {};
+-  const path = useMemo(() => detail && detail.id === card.tripId && detail.direction === card.direction
+-    ? studentJourneyPath(detail, card.studentId) : null, [detail, card.tripId, card.studentId, card.direction]);
+-  const version = navigation?.routeVersion;
+-  const previous = last.current?.version === version ? last.current : null;
+-  const sampleAge = navigation && receivedAt ? Date.parse(navigation.serverNow)
+-    - Date.parse(navigation.latestPosition?.recordedAt ?? '') + Date.now() - receivedAt : Infinity;
+-  const observed = path && navigation && !expired && sampleAge <= 15000 && !telemetry?.unavailable
+-    && (!card.markedAt || card.attendanceStatus !== 'PRESENT'
+-      || Date.parse(navigation.latestPosition?.recordedAt ?? '') >= Date.parse(card.markedAt))
+-    ? observedJourneyProgress(path, navigation, card.attendanceStatus) : null;
+-  const ordered = observed !== null && (navigation?.latestPosition?.sequence ?? -1) >= (previous?.sequence ?? -1);
+-  const progress = milestone.progress ?? (milestone.inactive ? null : ordered ? observed : previous?.progress ?? null);
+-  const live = milestone.progress === null && !milestone.inactive && ordered && observed !== null;
+-  const outbound = card.direction === 'TO_SCHOOL';
+-  const label = outbound && card.tripStatus === 'IN_PROGRESS' && card.attendanceStatus === 'UNMARKED'
+-    && live && path && observed !== null && observed < path.homeFraction ? 'Xe đang đến điểm đón' : milestone.label;
+-  const retained = milestone.progress === null && progress !== null && !live;
+-  const signal = milestone.progress !== null || milestone.inactive ? null
+-    : retained ? navigation?.testMode ? 'Vị trí thử nghiệm gần nhất' : 'Vị trí gần nhất · GPS gián đoạn'
+-    : live ? navigation?.testMode ? 'Vị trí thử nghiệm' : 'Vị trí GPS'
+-    : !telemetry ? 'Đang tải vị trí' : telemetry.unavailable ? 'Chưa tải được vị trí' : !navigation?.latestPosition ? 'Chưa có GPS' : 'Chưa xác định tiến độ';
+-
+-  useEffect(() => {
+-    if (ordered && observed !== null && version && navigation?.latestPosition) {
+-      last.current = { version, progress: observed, sequence: navigation.latestPosition.sequence };
+-    } else if (last.current?.version !== version) last.current = null;
+-  }, [observed, ordered, version, navigation?.latestPosition]);
+-
+-  // Expire a fix even if the request hangs or the app comes back from the background.
+-  useEffect(() => {
+-    setExpired(false);
+-    if (!navigation?.latestPosition || !receivedAt || !active) return;
+-    const serverAge = Date.parse(navigation.serverNow) - Date.parse(navigation.latestPosition.recordedAt);
+-    const remaining = 15000 - serverAge - (Date.now() - receivedAt);
+-    if (!Number.isFinite(remaining) || remaining <= 0) { setExpired(true); return; }
+-    const timer = setTimeout(() => setExpired(true), remaining);
++import { journeyRecordedClock, studentJourneyTimes, type JourneyTime } from '@/utils/parent-journey';
++import { activeJourneyIncident, journeyIncidentLabel, journeyMinutesBeforeSchedule, journeyScheduleCountdown,
++  journeySchoolArrived, journeyServiceDate, journeyStagePosition } from '@/utils/parent-journey-stage';
++
++type Props = { card: ParentHomeCardItem; telemetry?: ParentJourneyTelemetry; active: boolean; showServiceDate?: boolean };
++
++/** Workflow illustration only. Existing Trip Detail remains the real location tracking screen. */
++export const ParentStudentJourney = memo(function ParentStudentJourney({ card, telemetry, active, showServiceDate }: Props) {
++  const [boardingFrame, setBoardingFrame] = useState(false);
++  const previousAttendance = useRef(card.attendanceStatus);
++  useLayoutEffect(() => {
++    const justBoarded = previousAttendance.current === 'UNMARKED' && card.attendanceStatus === 'PRESENT';
++    previousAttendance.current = card.attendanceStatus;
++    if (!active || card.direction !== 'TO_SCHOOL' || card.tripStatus !== 'IN_PROGRESS' || !justBoarded) {
++      setBoardingFrame(false); return;
++    }
++    // Briefly acknowledge the observed attendance event, then show the next illustrative leg.
++    setBoardingFrame(true);
++    const timer = setTimeout(() => setBoardingFrame(false), 1600);
+@@ -55,5 +29,27 @@
+-  }, [navigation, receivedAt, active]);
+-
+-  return <StudentJourneyDiagram label={label} progress={progress} outbound={outbound}
+-    homeFraction={path?.homeFraction} signal={signal} retained={retained} active={active}
+-    {...studentJourneyTimes(card, detail)} />;
++  }, [card.attendanceStatus, card.direction, card.tripStatus, active]);
++  const operation = telemetry?.unavailable ? undefined : telemetry?.operation;
++  const arrived = journeySchoolArrived(operation, card.tripId);
++  const stagePosition = journeyStagePosition(card.tripStatus, card.direction, card.attendanceStatus,
++    Boolean(card.childIsAlighted), arrived, boardingFrame);
++  const times = studentJourneyTimes(card, telemetry?.detail, operation);
++  const remaining = journeyScheduleCountdown(card.serviceDate, times.plannedArrival, Date.now());
++  const bubble = stagePosition !== null && stagePosition > 0.5 && stagePosition < 1 && !boardingFrame && remaining !== null
++    ? remaining <= 60 ? remaining + 'p' : times.plannedArrival : null;
++  const variance = journeyMinutesBeforeSchedule(card.serviceDate, times.plannedArrival, times.comparisonArrivalAt);
++  const arrivalNote = variance === null ? null : variance > 0 ? 'Sớm ' + variance + ' phút' : variance < 0 ? 'Trễ ' + Math.abs(variance) + ' phút' : 'Đúng giờ';
++  const incidents = telemetry?.incidents?.filter(i => activeJourneyIncident(i.status)) ?? [];
++  return <>
++    <StudentJourneyRouteHeader routeName={card.routeName} outbound={card.direction === 'TO_SCHOOL'} serviceDate={showServiceDate ? card.serviceDate : undefined} />
++    <StudentJourneyDiagram stagePosition={stagePosition} outbound={card.direction === 'TO_SCHOOL'} active={active}
++      departure={times.departure} arrival={times.arrival} pickup={times.pickup} pickupTitle={times.pickupTitle}
++      arrivalTitle={times.arrivalTitle} arrivalNote={arrivalNote} late={variance !== null && variance < 0} bubble={bubble} />
++    {card.direction === 'TO_PARKING' && times.routeScheduledEnd && <Text style={styles.scheduleNote}>Kết thúc tuyến theo lịch {times.routeScheduledEnd}</Text>}
++    {(telemetry?.operationUnavailable || telemetry?.incidentsUnavailable || telemetry?.detailUnavailable) && <Text style={styles.scheduleNote}>Chưa cập nhật được đầy đủ dữ liệu chuyến.</Text>}
++    {incidents.length > 0 && <View style={styles.incidentBox}>
++      <Text style={styles.incidentTitle}>Chuyến có sự cố{telemetry?.incidentsUnavailable ? ' · dữ liệu trước đó' : ''}</Text>
++      {incidents.map(incident => <View key={incident.id} style={styles.incidentRow}>
++        <Ionicons name="warning-outline" size={16} color={journeyTones.danger.text} accessible={false} />
++        <Text style={styles.incidentText}>{journeyIncidentLabel(incident.type)}{journeyRecordedClock(incident.createdAt) ? ' · ' + journeyRecordedClock(incident.createdAt) : ''}</Text>
++      </View>)}
++    </View>}
++  </>;
+@@ -61,0 +58,10 @@
++export function StudentJourneyRouteHeader({ routeName, outbound, serviceDate }: { routeName: string; outbound: boolean; serviceDate?: string }) {
++  return <View style={styles.routeHeader}>
++    <Ionicons name={outbound ? 'arrow-forward-circle-outline' : 'arrow-back-circle-outline'} size={20} color={colors.navigationActive} accessible={false} />
++    <View style={styles.routeIdentity}>
++      <Text style={styles.routeName}>{routeName}</Text>
++      <Text style={styles.routeDirection}>{outbound ? 'Đến trường' : 'Về điểm trả'}{serviceDate ? ' · ' + journeyServiceDate(serviceDate) : ''}</Text>
++    </View>
++  </View>;
++}
++
+@@ -63,2 +69 @@
+-  label: string;
+-  progress: number | null;
++  stagePosition: number | null;
+@@ -66,3 +70,0 @@
+-  homeFraction?: number;
+-  signal: string | null;
+-  retained: boolean;
+@@ -71,0 +74,6 @@
++  pickup: JourneyTime;
++  pickupTitle: string;
++  arrivalTitle: string;
++  arrivalNote?: string | null;
++  late?: boolean;
++  bubble?: string | null;
+@@ -74,2 +82,2 @@
+-/** Presentation only. Callers must provide observed progress or a confirmed endpoint. */
+-export function StudentJourneyDiagram({ label, progress, outbound, homeFraction, signal, retained, active, departure, arrival }: DiagramProps) {
++/** Positions are the PO-approved milestone illustrations, never live GPS or percentage measurements. */
++export function StudentJourneyDiagram({ stagePosition, outbound, active, departure, arrival, pickup, pickupTitle, arrivalTitle, arrivalNote, late, bubble }: DiagramProps) {
+@@ -77,2 +85,2 @@
+-  const position = useRef(new Animated.Value(0)).current;
+-  const pulse = useRef(new Animated.Value(1)).current;
++  const position = useRef(new Animated.Value(stagePosition ?? 0)).current;
++  const opacity = useRef(new Animated.Value(1)).current;
+@@ -80,18 +88,8 @@
+-  const diagramPosition = journeyDiagramPosition(progress, homeFraction, outbound);
+-  const initialized = useRef(false);
+-  useEffect(() => {
+-    position.stopAnimation();
+-    const target = diagramPosition ?? 0;
+-    if (reduced || !active || !initialized.current) position.setValue(target);
+-    else Animated.timing(position, { toValue: target, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true, isInteraction: false }).start();
+-    initialized.current = diagramPosition !== null;
+-    return () => position.stopAnimation();
+-  }, [diagramPosition, position, reduced, active]);
+-
+-  useEffect(() => {
+-    pulse.stopAnimation(); pulse.setValue(1);
+-    if (reduced || !active || !retained) return;
+-    const animation = Animated.loop(Animated.sequence([
+-      Animated.timing(pulse, { toValue: 0.55, duration: 900, useNativeDriver: true, isInteraction: false }),
+-      Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true, isInteraction: false }),
+-    ]));
++  // At a two-thirds stage adjacent markers are only one sixth of the rail apart.
++  const markerScale = outbound && width > 0 ? Math.min(1, width / 186) : 1;
++  useLayoutEffect(() => {
++    position.setValue(stagePosition ?? 0);
++    opacity.stopAnimation();
++    if (reduced || !active) { opacity.setValue(1); return; }
++    opacity.setValue(0.65);
++    const animation = Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true, isInteraction: false });
+@@ -99,42 +97,41 @@
+-    return () => { animation.stop(); pulse.setValue(1); };
+-  }, [active, reduced, retained, pulse]);
+-
+-  return (
+-    <View style={styles.container} accessible accessibilityRole="image"
+-      accessibilityLabel={`${outbound ? 'Chiều đến trường, qua điểm đón của con' : 'Chiều về điểm trả'}. ${label}. Khởi hành ${timeDescription(departure)}. Đến nơi ${timeDescription(arrival)}${signal ? `. ${signal}` : ''}`}>
+-      <View style={styles.timeRow} aria-hidden>
+-        <JourneyTimeBadge title="Khởi hành" time={departure} returnLeg={!outbound} />
+-        {outbound && <View style={styles.timeColumn} />}
+-        <JourneyTimeBadge title="Đến nơi" time={arrival} returnLeg={!outbound} />
+-        {signal && <View style={styles.qualityIcon}>
+-          <Ionicons name={signal === 'Vị trí GPS' ? 'locate-outline' : signal.includes('thử nghiệm') ? 'flask-outline' : signal === 'Đang tải vị trí' ? 'ellipsis-horizontal' : 'cloud-offline-outline'}
+-            size={16} color={colors.mutedText} accessible={false} />
+-        </View>}
+-      </View>
+-      <View style={[styles.rail, { marginHorizontal: outbound ? '16.666667%' : '25%' }]} aria-hidden accessible={false}
+-        importantForAccessibility="no-hide-descendants" onLayout={e => setWidth(e.nativeEvent.layout.width)}>
+-        <View style={styles.track} />
+-        {diagramPosition !== null && width > 0 && <Animated.View style={[styles.completed, {
+-          width, transform: [{ translateX: position.interpolate({ inputRange: [0, 1], outputRange: [-width / 2, 0] }) }, { scaleX: position }],
+-        }]} />}
+-        {diagramPosition !== null && <Animated.View style={[styles.busStem, { opacity: pulse,
+-          transform: [{ translateX: position.interpolate({ inputRange: [0, 1], outputRange: [0, width] }) }] }]} />}
+-        <View style={[styles.node, styles.start]}>
+-          <View style={styles.nodeStem} /><Ionicons name={outbound ? 'car-outline' : 'school-outline'} size={17} color={colors.mutedText} />
+-        </View>
+-        {/* Three ordinal milestones stay legible even without geometry. No GPS percentage is inferred. */}
+-        {outbound && <View style={[styles.node, styles.home]}><Ionicons name="home-outline" size={18} color={colors.navigationActive} /></View>}
+-        <View style={[styles.node, styles.end]}>
+-          <View style={styles.nodeStem} /><Ionicons name={outbound ? 'school-outline' : 'home-outline'} size={17} color={colors.mutedText} />
+-        </View>
+-        {diagramPosition !== null && <Animated.View style={[styles.bus, { opacity: pulse, transform: [{ translateX: position.interpolate({ inputRange: [0, 1], outputRange: [0, width] }) }] }]}>
+-          <Ionicons name="bus" size={20} color={colors.foreground} />
+-        </Animated.View>}
+-      </View>
+-      <View style={styles.labels} aria-hidden accessible={false}>
+-        <Text style={styles.endpoint}>{outbound ? 'Xuất phát' : 'Trường học'}</Text>
+-        {outbound && <Text style={[styles.endpoint, styles.homeLabel]}>Điểm đón{ '\n' }của con</Text>}
+-        <Text style={styles.endpoint}>{outbound ? 'Trường học' : 'Điểm trả của con'}</Text>
+-      </View>
+-    </View>
+-  );
++    return () => animation.stop();
++  }, [stagePosition, position, opacity, active, reduced]);
++  const onStart = stagePosition === 0, onHome = outbound && stagePosition === 0.5, onEnd = stagePosition === 1;
++  return <View style={styles.container} accessible accessibilityRole="image"
++    accessibilityLabel={'Tiến trình minh họa theo trạng thái. ' + (outbound ? 'Xuất phát, điểm đón của con, trường học. ' : 'Trường học, điểm trả của con. ')
++      + 'Khởi hành ' + timeDescription(departure) + '. ' + (outbound ? pickupTitle + ' ' + timeDescription(pickup) + '. ' : '')
++      + arrivalTitle + ' ' + timeDescription(arrival) + (arrivalNote ? '. ' + arrivalNote : '') + (bubble ? '. Còn ' + bubble + ' theo lịch, không phải ETA trực tiếp.' : '')}>
++    <View style={styles.timeRow} aria-hidden>
++      <JourneyTimeBadge title="Khởi hành" time={departure} returnLeg={!outbound} />
++      {outbound && <JourneyTimeBadge title={pickupTitle} time={pickup} returnLeg={false} />}
++      <JourneyTimeBadge title={arrivalTitle} time={arrival} returnLeg={!outbound} />
++    </View>
++    <View style={[styles.rail, { marginHorizontal: outbound ? '16.666667%' : '25%' }]} aria-hidden
++      onLayout={e => setWidth(e.nativeEvent.layout.width)}>
++      <View style={styles.track} />
++      <View style={[styles.nodeConnector, { left: 0 }]} />
++      {outbound && <View style={[styles.nodeConnector, { left: '50%' }]} />}
++      <View style={[styles.nodeConnector, { right: 0 }]} />
++      {stagePosition !== null && width > 0 && <Animated.View style={[styles.completed, { width,
++        transform: [{ translateX: position.interpolate({ inputRange: [0, 1], outputRange: [-width / 2, 0] }) }, { scaleX: position }],
++      }]} />}
++      {!onStart && <View style={[styles.node, styles.start, { transform: [{ scale: markerScale }] }]}><Ionicons name={outbound ? 'car-outline' : 'school-outline'} size={17} color={colors.mutedText} /></View>}
++      {outbound && !onHome && <View style={[styles.node, styles.home, { transform: [{ scale: markerScale }] }]}><Ionicons name="home-outline" size={18} color={colors.navigationActive} /></View>}
++      {!onEnd && <View style={[styles.node, styles.end, { transform: [{ scale: markerScale }] }]}><Ionicons name={outbound ? 'school-outline' : 'home-outline'} size={17} color={colors.mutedText} /></View>}
++      {stagePosition !== null && <Animated.View style={[styles.bus, { opacity,
++        transform: [{ translateX: position.interpolate({ inputRange: [0, 1], outputRange: [0, width] }) }],
++      }]}>
++        <View style={[styles.busFace, { transform: [{ scale: markerScale }] }]}><Ionicons name="bus" size={20} color={colors.foreground} /></View>
++        {bubble && <View style={styles.bubble}><Text style={styles.bubbleValue}>{bubble}</Text><Text style={styles.bubbleCaption}>theo lịch</Text><View style={styles.bubbleTail} /></View>}
++      </Animated.View>}
++    </View>
++    <View style={styles.labels} aria-hidden>
++      <Text style={styles.endpoint}>{outbound ? 'Xuất phát' : 'Trường học'}</Text>
++      {outbound && <Text style={[styles.endpoint, styles.homeLabel]}>Điểm đón{'\n'}của con</Text>}
++      <Text style={styles.endpoint}>{outbound ? 'Trường học' : 'Điểm trả của con'}</Text>
++    </View>
++    <View style={styles.diagramFooter} aria-hidden>
++      <Text style={styles.diagramCaption}>Minh họa theo trạng thái</Text>
++      {arrivalNote && <Text style={[styles.variance, late && styles.late]}>{arrivalNote}</Text>}
++    </View>
++  </View>;
+@@ -144 +141 @@
+-  return time.value ? `${time.value}, ${time.kind === 'actual' ? 'thực tế' : 'dự kiến'}` : 'chưa có giờ';
++  return time.value ? time.value + ', ' + (time.kind === 'actual' ? 'thực tế' : 'dự kiến') : 'chưa có giờ';
+@@ -152,0 +150 @@
++      {time.kind === 'actual' && time.scheduledValue && <Text style={styles.plannedTime}>Lịch {time.scheduledValue}</Text>}
+@@ -158,0 +157,4 @@
++  routeHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
++  routeIdentity: { flex: 1, minWidth: 0 },
++  routeName: { color: colors.foreground, fontSize: 14, lineHeight: 21, fontWeight: '700' },
++  routeDirection: { color: colors.mutedText, fontSize: 11, lineHeight: 17, marginTop: 2 },
+@@ -160 +162 @@
+-  timeRow: { flexDirection: 'row', alignItems: 'flex-end', position: 'relative' },
++  timeRow: { flexDirection: 'row', alignItems: 'flex-end' },
+@@ -163 +165 @@
+-  timeBadge: { width: '100%', maxWidth: 110, alignItems: 'center', gap: 2, paddingHorizontal: 4, paddingVertical: 8,
++  timeBadge: { width: '100%', maxWidth: 110, minHeight: 94, justifyContent: 'center', alignItems: 'center', gap: 2, paddingHorizontal: 4, paddingVertical: 8,
+@@ -169,3 +171,5 @@
+-  timeStem: { width: 1, height: 36, backgroundColor: colors.border },
+-  qualityIcon: { position: 'absolute', left: '50%', top: 10, marginLeft: -8, width: 16, height: 16, alignItems: 'center', justifyContent: 'center' },
+-  rail: { height: 36, justifyContent: 'center' },
++  plannedTime: { fontSize: 9, lineHeight: 14, color: colors.mutedText, textAlign: 'center' },
++  variance: { fontSize: 9, lineHeight: 14, fontWeight: '700', color: journeyTones.success.text, textAlign: 'center' },
++  late: { color: journeyTones.danger.text },
++  timeStem: { width: 1, height: 30, backgroundColor: colors.border },
++  rail: { height: 82, justifyContent: 'center' },
+@@ -172,0 +177 @@
++  nodeConnector: { position: 'absolute', top: 0, height: 27, width: 1, backgroundColor: colors.border },
+@@ -174 +179 @@
+-  node: { position: 'absolute', top: 4, zIndex: 2, width: 28, height: 28, borderRadius: 14, backgroundColor: colors.surface,
++  node: { position: 'absolute', top: 27, zIndex: 2, width: 28, height: 28, borderRadius: 14, backgroundColor: colors.surface,
+@@ -176 +180,0 @@
+-  nodeStem: { position: 'absolute', top: -5, width: 1, height: 4, backgroundColor: colors.border },
+@@ -179,2 +183,2 @@
+-  busStem: { position: 'absolute', left: -1, top: 0, width: 2, height: 18, backgroundColor: colors.navigationActive, zIndex: 1 },
+-  bus: { position: 'absolute', left: -16, top: -30, zIndex: 3, width: 32, height: 32, borderRadius: 12, borderWidth: 2,
++  bus: { position: 'absolute', left: -16, top: 25, zIndex: 3, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
++  busFace: { width: 32, height: 32, borderRadius: 12, borderWidth: 2,
+@@ -182 +186,7 @@
+-  labels: { flexDirection: 'row', alignItems: 'flex-start', paddingTop: 4 },
++  bubble: { position: 'absolute', bottom: 38, minWidth: 52, maxWidth: 76, paddingHorizontal: 6, paddingVertical: 3,
++    alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.surface },
++  bubbleValue: { fontSize: 11, lineHeight: 15, fontWeight: '800', color: colors.foreground },
++  bubbleCaption: { fontSize: 8, lineHeight: 12, color: colors.mutedText },
++  bubbleTail: { position: 'absolute', bottom: -4, width: 6, height: 6, backgroundColor: colors.surface,
++    borderBottomWidth: 1, borderRightWidth: 1, borderColor: colors.primary, transform: [{ rotate: '45deg' }] },
++  labels: { flexDirection: 'row', alignItems: 'flex-start' },
+@@ -184,0 +195,7 @@
++  diagramFooter: { marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
++  diagramCaption: { fontSize: 9, lineHeight: 14, color: colors.mutedText },
++  scheduleNote: { fontSize: 11, lineHeight: 17, color: colors.mutedText },
++  incidentBox: { padding: 12, gap: 8, borderRadius: 12, backgroundColor: journeyTones.danger.bg },
++  incidentTitle: { fontSize: 12, lineHeight: 18, fontWeight: '700', color: journeyTones.danger.text },
++  incidentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
++  incidentText: { flex: 1, minWidth: 0, fontSize: 12, lineHeight: 18, color: journeyTones.danger.text },
+--- a/mobile/components/parent/trip-card.tsx
++++ b/mobile/components/parent/trip-card.tsx
+@@ -7,0 +8,2 @@
++import { journeyTones } from '@/constants/parent-journey';
++import type { StudentJourneyBadge } from '@/utils/parent-journey-stage';
+@@ -15,0 +18,4 @@
++  studentStatus?: StudentJourneyBadge;
++  hasIncident?: boolean;
++  attention?: boolean;
++  stale?: boolean;
+@@ -19 +25 @@
+-export function ParentTripCard({ studentName, avatarUrl, schoolName, status, children, journey }: Props) {
++export function ParentTripCard({ studentName, avatarUrl, schoolName, status, children, journey, studentStatus, hasIncident, attention, stale }: Props) {
+@@ -45 +51 @@
+-    <View style={[parentHomeStyles.tripCard, styles.card, expanded && styles.expandedCard]}>
++    <View style={[parentHomeStyles.tripCard, styles.card, expanded && styles.expandedCard, attention && styles.attentionCard]}>
+@@ -48 +54 @@
+-        accessibilityLabel={`${studentName}, ${schoolName}, ${status.label}`}
++        accessibilityLabel={`${studentName}, ${schoolName}, ${status.label}${studentStatus ? ', ' + studentStatus.label : ''}${hasIncident ? ', Chuyến có sự cố' : ''}${stale ? ', Chưa cập nhật đầy đủ' : ''}`}
+@@ -53 +59 @@
+-        style={({ pressed }) => [styles.summary, pressed && styles.pressed]}
++        style={({ pressed }) => [styles.summary, attention && styles.attentionSummary, pressed && styles.pressed]}
+@@ -73,0 +80,11 @@
++          {(studentStatus || hasIncident || stale) && <View style={styles.studentTags}>
++            {studentStatus && <View style={[styles.studentBadge, { backgroundColor: journeyTones[studentStatus.tone].bg, borderColor: journeyTones[studentStatus.tone].border }]}>
++              <Ionicons name={studentStatus.icon} size={14} color={journeyTones[studentStatus.tone].text} accessible={false} />
++              <Text style={[styles.studentBadgeText, { color: journeyTones[studentStatus.tone].text }]}>{studentStatus.label}</Text>
++            </View>}
++            {hasIncident && <View style={[styles.studentBadge, styles.incidentBadge]}>
++              <Ionicons name="warning-outline" size={14} color={journeyTones.danger.text} accessible={false} />
++              <Text style={[styles.studentBadgeText, styles.incidentText]}>Chuyến có sự cố</Text>
++            </View>}
++            {stale && <Text style={styles.stale}>Chưa cập nhật đầy đủ</Text>}
++          </View>}
+@@ -98,0 +116 @@
++    borderLeftWidth: 4,
+@@ -100,0 +119,9 @@
++  attentionCard: { borderColor: journeyTones.warning.border, borderLeftWidth: 4 },
++  attentionSummary: { backgroundColor: journeyTones.warning.bg },
++  studentTags: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 8 },
++  studentBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4,
++    borderWidth: 1, borderRadius: 9, maxWidth: '100%' },
++  studentBadgeText: { flexShrink: 1, fontSize: 11, lineHeight: 17, fontWeight: '700' },
++  incidentBadge: { backgroundColor: journeyTones.danger.bg, borderColor: journeyTones.danger.border },
++  incidentText: { color: journeyTones.danger.text },
++  stale: { fontSize: 10, lineHeight: 16, color: colors.mutedText },
+--- a/mobile/components/parent/home-styles.ts
++++ b/mobile/components/parent/home-styles.ts
+@@ -2,0 +3 @@
++import { journeyTones } from '@/constants/parent-journey';
+@@ -10 +11 @@
+-  dangerText: '#991B1B',
++  dangerText: journeyTones.danger.text,
+@@ -37,0 +39,2 @@
++  sectionHeader: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
++  sectionDate: { flexShrink: 1, fontSize: 12, lineHeight: 19, fontWeight: '600', color: colors.mutedText },
+--- a/mobile/hooks/use-parent-journey-telemetry.ts
++++ b/mobile/hooks/use-parent-journey-telemetry.ts
+@@ -4,2 +4 @@
+-import { mobileApiClient, type MobileTripDetail, type ParentHomeCardItem } from '@/services/api-client';
+-import { navigationApi, type NavigationState } from '@/services/trip-navigation';
++import { mobileApiClient, type MobileTripDetail, type OperationalStateResponse, type ParentHomeCardItem, type TripIncident } from '@/services/api-client';
+@@ -10,2 +9,5 @@
+-  navigation?: NavigationState;
+-  receivedAt?: number;
++  operation?: OperationalStateResponse;
++  incidents?: TripIncident[];
++  operationUnavailable?: boolean;
++  incidentsUnavailable?: boolean;
++  detailUnavailable?: boolean;
+@@ -13 +15 @@
+-  minimumSequence?: number;
++  metadataAt?: number;
+@@ -16 +18 @@
+-/** Viewer only: one batch per unique trip; never starts a publisher or GPS watcher. */
++/** Read-only operational milestones. No location request, publisher or GPS watcher. */
+@@ -25,3 +27 @@
+-  const gpsIds = [...new Set(cards.filter(c => c.tripStatus === 'IN_PROGRESS' && c.attendanceStatus !== 'ABSENT'
+-    && !(c.attendanceStatus === 'PRESENT' && c.childIsAlighted)).map(c => c.tripId))].sort();
+-  const scope = JSON.stringify([identity, ids, gpsIds]);
++  const scope = JSON.stringify([identity, ids]);
+@@ -31 +31 @@
+-    const retained: Record<string, ParentJourneyTelemetry> = {};
++    const trips: Record<string, ParentJourneyTelemetry> = {};
+@@ -33 +33 @@
+-      if (cache.current.trips[id]) retained[id] = cache.current.trips[id];
++      if (cache.current.trips[id]) trips[id] = cache.current.trips[id];
+@@ -35 +35 @@
+-    cache.current = { identity, trips: retained };
++    cache.current = { identity, trips };
+@@ -41,32 +41,19 @@
+-      try {
+-        if (!gpsIds.includes(id)) {
+-          if (previous?.detail && !immediate) return [id, previous] as const;
+-          // Scheduled/finished student journeys still need their real stops and planned times.
+-          const detail = await mobileApiClient.getMobileTripDetail(id);
+-          if (!isCurrent()) return null;
+-          return [id, { ...previous, detail, unavailable: false, navigation: previous?.navigation
+-            ? { ...previous.navigation, freshness: 'STALE' as const } : undefined }] as const;
+-        }
+-        const navigation = await navigationApi.state(id);
+-        const receivedAt = Date.now();
+-        if (!isCurrent()) return null;
+-        // Version includes snapshot stops/geometry/assignments. Refresh metadata on change.
+-        const detail = previous?.detail && previous.navigation?.routeVersion === navigation.routeVersion
+-          ? previous.detail : await mobileApiClient.getMobileTripDetail(id);
+-        if (!isCurrent()) return null;
+-        const changedRoute = previous?.navigation && previous.navigation.routeVersion !== navigation.routeVersion;
+-        const minimumSequence = changedRoute
+-          ? Math.max(previous.minimumSequence ?? -1, previous.navigation?.latestPosition?.sequence ?? -1)
+-          : previous?.minimumSequence ?? -1;
+-        // A route change must not reinterpret the same old fix on a different geometry.
+-        const observedNavigation = navigation.latestPosition && navigation.latestPosition.sequence <= minimumSequence
+-          ? { ...navigation, freshness: 'STALE' as const } : navigation;
+-        return [id, { navigation: observedNavigation, detail, receivedAt, unavailable: false, minimumSequence }] as const;
+-      } catch (error: unknown) {
+-        if (!isCurrent()) return null;
+-        const code = (error as { statusCode?: number })?.statusCode;
+-        // Access errors discard the location and route; transient failures freeze the last fix.
+-        if (code === 401 || code === 403 || code === 404) return [id, { unavailable: true }] as const;
+-        return [id, { ...previous, unavailable: true, navigation: previous?.navigation
+-          ? { ...previous.navigation, freshness: 'STALE' as const } : undefined }] as const;
+-      }
++      const readDetail = immediate || !previous?.detail || Date.now() - (previous.metadataAt ?? 0) >= 20000;
++      const [operation, incidents, detail] = await Promise.allSettled([
++        mobileApiClient.getOperationalState(id),
++        mobileApiClient.getTripIncidents(id),
++        readDetail ? mobileApiClient.getMobileTripDetail(id) : Promise.resolve(previous?.detail),
++      ]);
++      if (!isCurrent()) return null;
++      const denied = [operation, incidents, detail].some(r => r.status === 'rejected'
++        && [401, 403, 404].includes((r.reason as { statusCode?: number })?.statusCode ?? 0));
++      if (denied) return [id, { unavailable: true, operationUnavailable: true, incidentsUnavailable: true, detailUnavailable: true }] as const;
++      return [id, {
++        operation: operation.status === 'fulfilled' ? operation.value : previous?.operation,
++        incidents: incidents.status === 'fulfilled' ? incidents.value : previous?.incidents,
++        detail: detail.status === 'fulfilled' ? detail.value : previous?.detail,
++        operationUnavailable: operation.status === 'rejected', incidentsUnavailable: incidents.status === 'rejected',
++        detailUnavailable: detail.status === 'rejected',
++        metadataAt: readDetail && detail.status === 'fulfilled' ? Date.now() : previous?.metadataAt,
++        unavailable: false,
++      }] as const;
+@@ -79,2 +65,0 @@
+-    // Metadata-only journeys stop polling after a successful load; focus retries them.
+-    return gpsIds.length > 0 || Object.values(trips).some(t => t.unavailable && !t.detail);
+@@ -82 +66,0 @@
+-  // Keep unchanged trips steady when a sibling's trip changes; never cross accounts.
+--- a/mobile/utils/parent-journey.ts
++++ b/mobile/utils/parent-journey.ts
+@@ -1 +1 @@
+-import type { ParentHomeCardItem, MobileTripDetail } from '../services/api-client';
++import type { ParentHomeCardItem, MobileTripDetail, OperationalStateResponse } from '../services/api-client';
+@@ -10 +10 @@
+-export type JourneyTime = { value: string | null; kind: 'scheduled' | 'actual' };
++export type JourneyTime = { value: string | null; kind: 'scheduled' | 'actual'; scheduledValue?: string | null };
+@@ -35 +35 @@
+-export function studentJourneyTimes(card: ParentHomeCardItem, detail?: MobileTripDetail) {
++export function studentJourneyTimes(card: ParentHomeCardItem, detail?: MobileTripDetail, operation?: OperationalStateResponse) {
+@@ -40 +40,11 @@
+-  const actualArrival = card.attendanceStatus === 'PRESENT' && card.childIsAlighted ? journeyRecordedClock(card.childAlightedAt) : null;
++  const validOperation = operation?.tripId === card.tripId && (!operation.direction || operation.direction === card.direction) ? operation : undefined;
++  const scheduledDeparture = range.start ?? journeyClock(validDetail?.scheduledStartTime);
++  const plannedArrival = journeyArrivalClock(card.direction, destination?.plannedArrivalTime, journeyClock(validDetail?.scheduledEndTime) ?? range.end);
++  const start = journeyRecordedClock(validOperation?.actualStartTime);
++  const schoolAt = journeyRecordedClock(validOperation?.arrivedAtSchoolAt) ? validOperation?.arrivedAtSchoolAt : null;
++  const downAt = card.attendanceStatus === 'PRESENT' && card.childIsAlighted ? card.childAlightedAt : null;
++  const arrivalAt = card.direction === 'TO_SCHOOL' ? schoolAt ?? downAt : downAt;
++  const actualArrival = journeyRecordedClock(arrivalAt);
++  const arrived = Boolean(actualArrival || (card.direction === 'TO_SCHOOL' && validOperation?.isSchoolArrived));
++  const pickupStop = validDetail?.stops.find(s => s.stopType === 'PICKUP' && s.studentId === card.studentId && s.isMyChild === true);
++  const pickupActual = card.attendanceStatus !== 'UNMARKED' ? journeyRecordedClock(card.markedAt) : null;
+@@ -42,3 +52,8 @@
+-    departure: { value: range.start ?? journeyClock(validDetail?.scheduledStartTime), kind: 'scheduled' } as JourneyTime,
+-    arrival: { value: actualArrival ?? journeyArrivalClock(card.direction, destination?.plannedArrivalTime,
+-      journeyClock(validDetail?.scheduledEndTime) ?? range.end), kind: actualArrival ? 'actual' : 'scheduled' } as JourneyTime,
++    departure: { value: start ?? scheduledDeparture, kind: start ? 'actual' : 'scheduled', scheduledValue: scheduledDeparture } as JourneyTime,
++    arrival: { value: arrived ? actualArrival : plannedArrival, kind: arrived ? 'actual' : 'scheduled', scheduledValue: plannedArrival } as JourneyTime,
++    pickup: { value: pickupActual ?? journeyClock(pickupStop?.plannedArrivalTime), kind: pickupActual ? 'actual' : 'scheduled' } as JourneyTime,
++    pickupTitle: pickupActual ? card.attendanceStatus === 'ABSENT' ? card.hasLeaveNotice ? 'Báo nghỉ' : 'Báo vắng' : 'Điểm danh' : 'Đón con',
++    arrivalTitle: card.direction === 'TO_SCHOOL' ? (!schoolAt && actualArrival ? 'Xuống xe' : 'Đến trường') : 'Đến điểm trả',
++    comparisonArrivalAt: card.direction === 'TO_SCHOOL' ? schoolAt : downAt,
++    plannedArrival,
++    routeScheduledEnd: range.end,
+--- a/docs/architecture/mobile-parent-student-journey.md
++++ b/docs/architecture/mobile-parent-student-journey.md
+@@ -1 +1 @@
+-# Parent Home — card học sinh và hành trình
++# Parent Home — tiến trình theo mốc nghiệp vụ
+@@ -3 +3 @@
+-30/10/2026, local. Chỉ frontend Mobile; chưa commit/push. Mục PO gọi “Con của bạn” tương ứng danh sách **Chuyến xe của con** tại [HomeScreen](<../../mobile/app/(tabs)/index.tsx>), không phải danh sách hồ sơ StudentCard ở tab Theo dõi.
++30/10/2026, local, chưa commit/push. Mục “Con của bạn” PO đề cập là **Chuyến xe của con** trên [HomeScreen](<../../mobile/app/(tabs)/index.tsx>). Đây là spec hiện hành, thay thế thiết kế GPS-only và bus pin nổi ở các task trước; báo cáo cũ vẫn lưu trong ai-review/history.
+@@ -5 +5 @@
+-## Cập nhật mốc hành trình và giờ — 30/10/2026
++## Quyết định mới nhất của PO
+@@ -7 +7 @@
+-Theo yêu cầu tiếp theo của PO, bỏ toàn bộ heading/dòng trạng thái hiển thị trong khối hành trình; tag chuyến ở summary và tag điểm danh trong phần chi tiết giữ nguyên. Ngữ nghĩa trạng thái vẫn có trong accessibilityLabel để người dùng trình đọc màn hình hiểu sơ đồ. Chất lượng GPS chỉ còn icon nhỏ (định vị/thử nghiệm/mất tín hiệu), không thêm dòng text trạng thái lặp.
++PO yêu cầu icon bus nằm trên rail, nhảy cóc theo xuất phát/điểm danh/đến trường/xuống xe, dùng vị trí minh họa2/3 từng chặng. Đây là thay đổi đã được PO chỉ định, thay thế quy tắc cũ bắt buộc progress GPS. Không sửa enum, record hoặc luồng vận hành backend. Bản đồ ở nút Theo dõi lộ trình vẫn dùng cơ chế định vị hiện có; Home rail là **Minh họa theo trạng thái**, không phải vị trí địa lý.
+@@ -9 +9 @@
+-Điểm đón của con nay là node nhà có tâm nằm đúng trên rail, luôn có cả khi metadata/GPS chưa tải. Sơ đồ chiều đi gồm3 mốc theo thứ tự: xuất phát → điểm đón con → trường; chiều về gồm trường → điểm trả con. Khoảng cách node là bố cục schematic để nhãn không chồng khi điểm đón thực ở2% hoặc98% quãng đường, **không phải khoảng cách địa lý hoặc tiến độ50% giả**. Vị trí xe trong mỗi chặng vẫn lấy phép chiếu GPS đã kiểm chứng; không đủ dữ liệu xác định chặng thì không đặt marker trung gian.
++## Kiểm tra API trước triển khai
+@@ -11 +11,11 @@
+-Hai time badge trắng bo12 nổi phía trên mốc đầu/cuối, có stem nối thẳng xuống node; nhãn Khởi hành/Đến nơi, giờ nổi bật với tabular numerals, chú thích Dự kiến/Thực tế. Bus là pin nổi phía trên đường, stem gắn xuống vị trí hiện tại để không che icon nhà trên rail. Số giờ đủ5 ký tự, auto-fit khi font lớn; nhãn khác wrap, không ellipsis nội dung nghiệp vụ.
++| Thông tin cần | Nguồn thực tế | Kết quả |
++| --- | --- | --- |
++| Học sinh, avatar, trường, trip/route/direction, serviceDate, lịch tuyến, attendance, markedAt, alighting, notice/canReportLeave | GET /trips/mobile/parent/home-cards; ParentHomeCardItem | Có, theo từng studentId; không dùng aggregate của chuyến làm trạng thái con |
++| Giờ điểm đón/trả dự kiến, trường, geometry, dấu isMyChild | GET /trips/mobile/:id; MobileTripDetail/stops | Có; điểm riêng trùng studentId + isMyChild; giữ Privacy Masking |
++| Giờ xuất phát thực tế | GET /trips/:id/operational-state, actualStartTime | Có trong projection PARENT hiện có |
++| Xe đến trường, giờ đến trường | Cùng operational-state, isSchoolArrived/arrivedAtSchoolAt | Có; độc lập với việc từng con đã xuống xe |
++| Điểm danh/giờ điểm danh, xuống xe/giờ xuống của từng con | Cùng operational-state, children[] | Có; chọn bằng studentId, không children[0] hoặc tổng PRESENT/alighted |
++| Sự cố loại/trạng thái/thời điểm | GET /trips/:id/incidents; getTripIncidents hiện có | Có cấp chuyến; PARENT bị ẩn context/description/người báo/người xử lý, không suy ra LATE_STOP thuộc con nào |
++| ETA cập nhật theo vận hành/quãng đường còn lại | Các response viewer đã kiểm tra | **Chưa có**; bubble chỉ đếm đến lịch công bố và ghi “theo lịch”, không ETA trực tiếp |
++| Sự kiện độc lập xe đến/rời điểm đón, pickupArrivedAt/pickupDepartedAt | Các response đã kiểm tra | **Chưa có**; chỉ có markedAt. Không tự tạo sự kiện đó |
++| Danh sách card lịch sử COMPLETED/CANCELLED trên Home | getParentHomeCards server filter | Hiện chỉ SCHEDULED/IN_PROGRESS theo roster/time window; task không thay filter hoặc tự giữ card lịch sử |
+@@ -13,6 +23 @@
+-Nguồn giờ:
+-- Xuất phát: phần đầu scheduledTime của home-cards, fallback detail.scheduledStartTime; luôn ghi Dự kiến vì nguồn hiện dùng không cung cấp actualStartTime.
+-- Đến trường: plannedArrivalTime của SCHOOL_ARRIVAL, fallback scheduledEndTime/phần cuối scheduledTime (chiều đi).
+-- Đến điểm trả chiều về: **chỉ** plannedArrivalTime của DROPOFF trùng studentId + isMyChild; không lấy giờ xe về bãi làm giờ trả con.
+-- Khi PRESENT + childIsAlighted và childAlightedAt hợp lệ: dùng mốc xuống xe thực tế, hiển thị Thực tế; format Asia/Ho_Chi_Minh. Không dùng GPS để tự suy ra giờ đến.
+-- Thiếu/không hợp lệ: —:— / Chưa có giờ, không nội suy hoặc tạo ETA. Khối lịch cũ vẫn giữ nguyên toàn bộ giờ/ngày V2, kể cả giờ kết thúc tuyến về bãi.
++Bằng chứng: [TripsService](../../api/src/trips/trips.service.ts), [IncidentsService.listByTrip](../../api/src/incidents/incidents.service.ts), [mobile client/types](../../mobile/services/api-client.ts), [Prisma enums](../../api/prisma/schema.prisma). Không đổi backend/API contract hoặc gọi publisher/segment để lấy ETA.
+@@ -20 +25 @@
+-Metadata detail được đọc cho mọi tripId có card, một lần và khi focus; navigation vẫn chỉ poll5s với chuyến IN_PROGRESS còn cần GPS. Metadata-only ngừng polling sau khi tải thành công, lỗi thiếu metadata retry theo loop hiện có. Nhiều con cùng trip dùng chung GET, controller Home và poll8s không đổi.
++TripStatus thực: SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED. AttendanceStatus: UNMARKED, PRESENT, ABSENT. Incident types: ATTENDANT_MISSING, DRIVER_MISSING, OFF_ROUTE, LATE_STOP; incident statuses thực: WAITING_ASSIGNMENT, WAITING_CONFIRMATION, RESOLVED, CONFIRMED, CLOSED. Không tạo enum nghiệp vụ mới.
+@@ -22 +27 @@
+-## Nguồn dữ liệu và giới hạn nghiệp vụ
++## Wireframe và thông tin được chuyển vị trí
+@@ -24,10 +29 @@
+-- [Prisma enums](../../api/prisma/schema.prisma): TripStatus = SCHEDULED / IN_PROGRESS / COMPLETED / CANCELLED; AttendanceStatus = UNMARKED / PRESENT / ABSENT; direction = TO_SCHOOL / TO_PARKING. Không thêm enum hoặc trạng thái API.
+-- [getParentHomeCards](../../api/src/trips/trips.service.ts) / GET `/trips/mobile/parent/home-cards`: duyệt liên kết phụ huynh, chỉ roster `excludedAt: null`, ưu tiên chuyến đang chạy/chưa điểm danh rồi chuyến lập lịch gần nhất. Hiện chỉ trả **SCHEDULED và IN_PROGRESS**, còn trong điều kiện thời gian phục vụ; không trả mọi hồ sơ con hoặc lịch sử chuyến. Không thay bộ lọc backend.
+-- [ParentHomeCardItem](../../mobile/services/api-client.ts) có attendanceStatus, markedAt, absenceReason, childIsAlighted, childAlightedAt **riêng studentId**, cùng tripId/tripStatus. Không lấy trạng thái học sinh từ tổng số PRESENT/alighted toàn chuyến, từ học sinh đầu tiên, hoặc từ trạng thái anh/chị/em.
+-- `canReportLeave`, busy/spinner và toàn bộ payload/callback của useQuickLeaveNotice giữ nguyên. Nút Theo dõi vẫn `/trip/${card.tripId}`. Không tự ghi điểm danh, báo nghỉ, đến trường hoặc hoàn thành.
+-- [GET navigation](../../api/src/trips/trip-navigation.controller.ts) `/trips/:id/navigation` trả latestPosition, sequence/runId, recordedAt, freshness, serverNow, routeVersion và testMode. PARENT không có publisher checkpoint/targetStopId, accuracy từng fix hoặc current-leg geometry. GET này chỉ đọc; không gọi session/position/segment hoặc history để dựng tiến độ.
+-- [GET detail](../../api/src/trips/trips.service.ts) `/trips/mobile/:id` trả polylineGeometry và stops, giữ Privacy Masking. Chỉ xác định nhà theo **studentId trùng và isMyChild === true**; không dựa vào tên hoặc điểm của học sinh khác.
+-
+-## Bố cục đã triển khai
+-
+-PO đã chỉ định cấu trúc collapsed/expanded và yêu cầu implement trực tiếp; wireframe dưới đây cụ thể hóa phạm vi đó, không có vòng duyệt riêng hoặc PO nghiệm thu thành phẩm.
++Bố cục đã trình bày trước code theo yêu cầu triển khai trực tiếp của PO, không có lượt duyệt wireframe riêng hoặc nghiệm thu thành phẩm.
+@@ -36,12 +32,17 @@
+-[Avatar] Tên học sinh                   [Tag chuyến]
+-         Trường học                            [˅]
+-──────────── phần mở rộng ────────────────────────
+-[Khởi hành · giờ · Dự kiến]       [Đến nơi · giờ · Dự kiến/Thực tế]
+-              │                                   │
+-Xuất phát ─────── [Nhà: điểm đón con] ─────────── Trường
+-Trường ─────────────────────────────────────── Điểm trả (chiều về)
+-Tên tuyến • chiều; giờ • ngày (V2)
+-[Tag điểm danh] [Giờ điểm danh]
+-[Giờ xuống xe nếu có] / [Lý do vắng nếu có]
+-[Bus] Biển số — đầy đủ, tự xuống dòng
+-[User] Tài xế — đầy đủ, tự xuống dòng
++Chuyến xe của con                              DD/MM/YYYY
++[Avatar] Tên học sinh                          [Tag chuyến]
++         Trường học                                  [˅]
++         [Tag điểm danh] [Chuyến có sự cố nếu có]
++──────────── khi mở rộng ─────────────────────────────────
++Tên tuyến đầy đủ
++Chiều đi/về (ngày riêng nếu các card có nhiều serviceDate)
++[Khởi hành]             [Đón con/Điểm danh]     [Đến trường]
++[Giờ thực/dự kiến]      [Giờ thực/dự kiến]      [Giờ thực/dự kiến]
++[Lịch cũ nếu đã có giờ thực tế]
++     │                        │                      │
++ Xuất phát ───────────────── Nhà ───────────────── Trường
++              Bus ở vị trí mốc được PO chỉ định
++                         [Np / theo lịch] trên bus khi phù hợp
++Minh họa theo trạng thái                [Sớm/Trễ N phút nếu đủ giờ]
++[Tag điểm danh + giờ / giờ xuống xe / lý do vắng V2]
++[Biển số] [Tài xế]
+@@ -49 +50 @@
+-[Báo nghỉ chuyến này — đúng điều kiện V2]
++[Báo nghỉ chuyến này — đúng canReportLeave/busy cũ]
+@@ -52 +53 @@
+-Thu gọn không hiện thanh tiến độ hoặc nội dung phụ. Nền kem/card trắng, bo20, viền vàng khi mở, shadow và typography từ hệ Parent Home phong cách V1. Chevron tròn có chuyển động xoay. Khi viewport <360px hoặc fontScale >=1.4, tag chuyển xuống trong vùng identity để tên dài không bị ép; không ellipsis hoặc lược thông tin.
++Đã bỏ khối card cũ chứa routeName/scheduledTime/serviceDate. RouteName chuyển thành dòng riêng ở đầu panel, đầy đủ/wrap; direction có chữ. Ngày lấy từ **serviceDate API**, DD/MM/YYYY, ngang tiêu đề; nhiều ngày thì hiển thị đủ ở header và gắn thêm ngày cho từng route để không nhầm. Không thay ngày API bằng hôm nay.
+@@ -54 +55 @@
+-Phần mở rộng giữ toàn bộ tuyến/chiều, lịch, điểm danh/markedAt/lý do vắng, xe/tài xế và thao tác V2. Bổ sung nhãn **Điểm danh** cho giờ cũ, **Xuống xe** khi có childAlightedAt và PRESENT + childIsAlighted để phân biệt hai mốc. Không tạo ngày/giờ thay thế.
++Giờ tuyến cũ không bị mất: giờ khởi hành dự kiến ở time badge (hoặc dòng Lịch khi đã có actualStartTime); giờ đến trường dự kiến ở destination badge; chiều về giờ kết thúc tuyến ở bãi được giữ thành dòng “Kết thúc tuyến theo lịch HH:mm”, tách khỏi giờ trả con.
+@@ -56 +57 @@
+-## Mapping trạng thái và chuyển động
++## Vị trí minh họa và icon trên rail
+@@ -58 +59 @@
+-Tag tóm tắt luôn là **trạng thái chung của chuyến** qua mapping Home V2, bổ sung nhãn tiếng Việt Đã hủy cho CANCELLED trong nhánh Parent. Không hiển thị nhãn trạng thái thứ hai trong khối hành trình; helper chỉ còn phục vụ ngữ nghĩa accessibility. Tag điểm danh vẫn giữ ở phần chi tiết.
++Chiều đi có mốc0 xuất phát,0.5 điểm đón,1 trường. Chiều về có mốc0 trường,1 điểm trả của con. Khoảng cách là layout, không km hoặc phần trăm hành trình thực.
+@@ -60 +61 @@
+-| Dữ liệu thực | Ngữ nghĩa accessibility / hình thức |
++| Dữ liệu | Vị trí bus trên sơ đồ |
+@@ -62,11 +63,12 @@
+-| CANCELLED | Chuyến đã hủy; đường xám, không đặt marker/hoàn thành giả |
+-| ABSENT (trừ chuyến hủy được ưu tiên) | Vắng mặt; đường xám, không chạy xe cho hành trình của học sinh vắng |
+-| PRESENT + childIsAlighted | TO_SCHOOL: Đã đến trường; TO_PARKING: Đã về điểm trả. Marker cuối, đường vàng100% theo **mốc điểm danh xác nhận**, dù xe chung còn chạy |
+-| SCHEDULED, học sinh chưa xuống | Chờ khởi hành; marker đầu, xám100%, đứng yên. PRESENT chiều về trước start vẫn đứng đầu trường |
+-| COMPLETED nhưng chưa có mốc xuống của con | Chuyến đã hoàn thành; trung tính, không kết luận đã trả con hoặc tự đặt marker100% |
+-| IN_PROGRESS + PRESENT chưa xuống | Đang trên xe; dùng fix hợp lệ chiếu lên đường thực, không suy ra tiến độ từ số người đã đón |
+-| IN_PROGRESS + UNMARKED chiều đi | Chờ xe đón; nếu fix hợp lệ còn trước điểm đón của chính con thì Xe đang đến điểm đón. Không dùng chữ “sắp tới” hoặc ETA vì không có dữ liệu xác nhận gần đến |
+-| IN_PROGRESS + UNMARKED chiều về | Chưa điểm danh; không suy ra con đã lên xe dù xe đang chạy |
+-| GPS cũ/lỗi/tọa độ không phù hợp | Giữ vị trí hợp lệ gần nhất của cùng học sinh/chuyến/routeVersion, chỉ nhấp nháy opacity nhẹ; không lặp di chuyển ngang |
+-| Chưa từng có vị trí hợp lệ/không có geometry/điểm con mơ hồ | Đường xám, không đặt xe ở vị trí đoán; icon chất lượng dữ liệu; accessibility mô tả Đang tải vị trí / Chưa có GPS / Chưa tải được vị trí / Chưa xác định tiến độ |
+-| Backend testMode | Vị trí thử nghiệm hoặc Vị trí thử nghiệm gần nhất; không gọi tọa độ mô phỏng từ backend là GPS thật |
++| SCHEDULED | 0; bus thay icon xuất phát, đường xám |
++| IN_PROGRESS + UNMARKED chiều đi | 1/3 rail =2/3 chặng0→0.5; vẫn có icon xe tại xuất phát |
++| Mới quan sát UNMARKED→PRESENT trên card đang mở, chiều đi đang chạy | 0.5 trong1600ms để ghi nhận điểm danh; bus thay nhà |
++| IN_PROGRESS + PRESENT, chưa đến trường/chưa xuống | 5/6 rail =2/3 chặng0.5→1 |
++| Xe đã đến trường, con chưa xuống | 1, bus thay trường; tag con vẫn Chưa xuống xe nếu PRESENT |
++| PRESENT + đã xuống | 1, tag Đã xuống xe |
++| Chiều về PRESENT trước start | 0 tại trường, chưa minh họa đã chạy |
++| Chiều về IN_PROGRESS + PRESENT | 2/3 chặng trường→điểm trả |
++| Chiều về đã xuống | 1, bus thay nhà |
++| ABSENT hoặc CANCELLED | Không đặt bus cho hành trình con không tham gia/hủy |
++| COMPLETED thiếu mốc đến/xuống xác nhận | Trung tính, không tự xác nhận đã trả con |
++| UNMARKED chiều về đang chạy nhưng chưa có boarding | Trung tính, không suy ra con đã lên xe |
+@@ -74 +76 @@
+-Các nhãn hành trình là text ngữ nghĩa accessibility, không hiển thị lặp trên UI và không enum nghiệp vụ mới. CANCELLED/ABSENT ưu tiên hơn kết luận xuống xe để không hiển thị thành công với dữ liệu mâu thuẫn. Parent Home hiện không phát sinh card COMPLETED/CANCELLED theo bộ lọc API; mapping phòng vệ không thay bộ lọc đó.
++Nhịp1600ms là **hiệu ứng UI sau sự kiện điểm danh thực được quan sát**, không field/sự kiện mới “đã rời điểm đón”. Mở một card đã PRESENT từ trước sẽ đi thẳng chặng kế tiếp, không phát lại điểm danh giả. Cần endpoint/event riêng nếu sau này phải giữ bus ở pickup cho đến khi tài xế thực sự rời điểm đó.
+@@ -76 +78 @@
+-## Cách xác định tiến độ
++Bus thay icon của node khi ở đúng node, không vẽ hai icon chồng nhau. Chiều đi: tại node có3 icon; giữa chặng có4 (xuất phát, nhà, trường, bus). Tâm bus và tâm node cùng y với rail. Marker co theo bề ngang rail ở máy nhỏ để không đè node bên cạnh. Vị trí nhảy ngay; chỉ fade opacity180ms, không chạy liên tục hoặc giả lập GPS. Giữ reduced motion và dừng khi blur/background.
+@@ -78 +80 @@
+-[parent-journey.ts](../../mobile/utils/parent-journey.ts) tái sử dụng decodePolyline, cumulativeDistances và distance. Xác minh encoded polyline, tọa độ finite/bounds, thứ tự điểm. Không thay route bằng đường thẳng khi thiếu hình học.
++## Tag và trạng thái con ở card thu gọn
+@@ -80,6 +82 @@
+-- TO_SCHOOL: xác định PARKING_START → PICKUP của studentId → SCHOOL_ARRIVAL. Tỷ lệ GPS và mốc nhà lấy từ **độ dài tích lũy dọc polyline**. Diagram ánh xạ mỗi chặng trước/sau điểm nhà sang một nửa rail để dành chỗ cho nhãn; node nhà ở giữa sơ đồ không hàm ý50% quãng đường. Không tự gán xe vào giữa khi thiếu hình học. Phần origin→nhà và nhà→trường nằm trên cùng rail; vàng là phần đã quan sát hoàn thành, xám là phần còn lại.
+-- TO_PARKING: SCHOOL_DEPARTURE → DROPOFF của studentId. Chuyến của con kết thúc ở điểm trả, không phải PARKING_END; boarding anchor ở trường.
+-- Chiếu vị trí lên polyline. Từ chối cách đường >50m, hoặc có các ứng viên tương đương (chênh gap <=5m) nhưng cách nhau >100m dọc tuyến tại giao cắt/vòng lặp. Đây là ngưỡng thận trọng để **từ chối suy diễn**, không phải ETA hoặc quy tắc nghiệp vụ mới.
+-- Chỉ nhận freshness FRESH, age theo serverNow/recordedAt <=15000ms và không đi trước server quá5000ms, status navigation IN_PROGRESS; bù thời gian kể từ lúc frontend nhận response. Timer hết hạn ngay cả khi lượt đọc tiếp theo bị treo.
+-- Sample sequence cũ không ghi đè fix mới. Khi con PRESENT, sample phải từ sau markedAt và không còn ở trước boarding anchor >50m. Không ngoại suy từ vận tốc/thời gian, không hardcode tiến độ trung gian, không tự suy ra trường đã đến từ GPS.
+-- Lần đầu nhận vị trí đặt thẳng marker vào vị trí đó; cập nhật sau nội suy600ms, chỉ phản ánh hai mốc quan sát. RouteVersion đổi xóa tiến độ cũ và từ chối tái chiếu cùng fix cũ, chờ sequence mới; đổi account/trip/card không giữ cache cũ. Dữ liệu thiếu hoặc off-route giữ fix hợp lệ trước đó, có nhãn gần nhất.
++Tag chuyến là trạng thái chung, tag con dựa attendance/alighting **của chính studentId**:
+@@ -87 +84,9 @@
+-Đây là phép chiếu lên **hình học kế hoạch/snapshot đang được API trả về**, không bảo đảm đo được quãng đường thực sau reroute. Viewer không có hình học leg đang điều hướng; nếu reroute lệch tuyến thì đứng ở vị trí gần nhất/trung tính. Không hiển thị phần trăm số hoặc ETA. Endpoint mốc xuống xe có thể hiển thị100% theo xác nhận nghiệp vụ ngay cả khi GPS thiếu; không gọi đó là phép đo GPS.
++| Con | Tag/tone |
++| --- | --- |
++| UNMARKED | Chưa điểm danh, amber đậm + alert icon, nền summary vàng nhạt và viền nhấn |
++| PRESENT chưa đến/chưa xuống | Đã điểm danh, xanh dương + check icon |
++| Xe đến trường + PRESENT chưa xuống | Chưa xuống xe, tím + icon xuống xe |
++| PRESENT + isAlighted | Đã xuống xe, xanh lá |
++| ABSENT + hasLeaveNotice | Đã báo nghỉ, đỏ |
++| ABSENT không notice | Vắng mặt, đỏ |
++| Có incident WAITING_ASSIGNMENT/WAITING_CONFIRMATION | Chuyến có sự cố, tag đỏ riêng, không biến attendance của con thành “sự cố” |
+@@ -89 +94 @@
+-## Component, hook và mở rộng
++Dùng cả chữ/icon/màu, không dựa màu đơn thuần. Viền trái giữ độ rộng4px ở mọi trạng thái để đổi màu không làm thay đổi bề ngang. Tag wrap, không ellipsis tên/trường/tuyến. Sự cố RESOLVED/CONFIRMED/CLOSED không tạo cảnh báo đang mở; panel chỉ trình bày loại/thời điểm cấp chuyến được backend cho phép, không context hoặc tên học sinh khác.
+@@ -91,7 +96 @@
+-- [ParentTripCard](../../mobile/components/parent/trip-card.tsx): giữ props studentName, avatarUrl, schoolName, status, children; thêm `journey?: (active: boolean) => ReactNode`. Component chỉ giữ disclosure UI. Key studentId:tripId do Home quản lý, mở độc lập, giữ qua polling. Không đặt hooks trong map.
+-- Body có nội dung tự đo onLayout (không chiều cao cố định). Animate chiều cao260ms mở/200ms đóng, opacity/chevron220/160ms, theo easing cubic. Inner content giữ mount nhưng display:none sau đóng, pointerEvents none/accessibility hidden khi đóng; không còn CTA ẩn trong tab order. Khi đổi width/font/nội dung, đo lại chiều cao. Không điều chỉnh scroll offset thủ công.
+-- [useParentJourneyTelemetry](../../mobile/hooks/use-parent-journey-telemetry.ts): readonly viewer, deduplicate mọi tripId để đọc metadata; navigation5s chỉ cho IN_PROGRESS còn cần GPS (không vắng/đã xuống). Metadata đọc lần đầu/focus/routeVersion đổi; metadata-only ngừng poll sau thành công. Tái sử dụng useActiveRefresh (focus/AppState/no-overlap/isCurrent). Một lượt cho nhiều con cùng chuyến. Không dùng useTripNavigation vì hook đó có engine publisher của tài xế.
+-- Telemetry độc lập Home polling8s nên lỗi GPS không làm mất dữ liệu card. Transient failure giữ cache và STALE;401/403/404 xóa location/detail. Cache theo account identity, chỉ expose tripIds còn liên quan; giữ cache các trip không đổi khi thêm/bớt trip của anh/chị/em. RouteVersion đổi buộc chờ sequence mới hơn fix của version cũ. Có active flag để dừng chuyển động khi blur/background.
+-- [ParentStudentJourney / StudentJourneyDiagram](../../mobile/components/parent/student-journey.tsx): lớp đầu derive theo card thực, lớp sau chỉ vẽ. Props diagram: label, progress:number|null, outbound:boolean, homeFraction?, signal:string|null, retained:boolean, active:boolean, departure:JourneyTime, arrival:JourneyTime. JourneyTime là {value:string|null; kind: scheduled|actual}; label/signal phục vụ accessibility, không render dòng trạng thái. Không truyền tỷ lệ đoán; caller phải cung cấp phép chiếu hợp lệ hoặc mốc endpoint đã xác nhận.
+-- [useReducedMotionPreference](../../mobile/hooks/use-reduced-motion-preference.ts): AccessibilityInfo đọc ban đầu và nghe reduceMotionChanged. Mặc định giảm chuyển động trước khi biết setting; khi bật thì cập nhật tức thì, không pulse. Không thêm package.
+-- [home-styles](../../mobile/components/parent/home-styles.ts): thêm vehicleDetailRow/vehicleDetailText, khối xe/tài xế tách hai hàng và wrap. Avatar vẫn UserAvatar thật của học sinh, fallback chữ đầu.
++## Nguồn và ý nghĩa thời gian
+@@ -99 +98 @@
+-Bus/fill/pulse dùng Animated native driver; chỉ animate chiều cao khi mở/đóng/thay chiều cao. Không loop trên card đóng, screen blur/background hoặc reduced motion. Không thêm safe-area/keyboard offset vì màn không có input và shell hiện có sở hữu insets. Các màn form/modal điều hướng đến giữ xử lý bàn phím cũ. Desktop giữ cột max560.
++[studentJourneyTimes](../../mobile/utils/parent-journey.ts) nhận thêm operation tùy chọn, không thay DTO API:
+@@ -101 +100,8 @@
+-## Kiểm chứng và giới hạn
++- Khởi hành: actualStartTime hợp lệ thì Thực tế + giữ dòng Lịch; chưa có thì lịch từ scheduledTime/detail.scheduledStartTime, không đoán thời gian xuất phát từ lúc frontend tải.
++- Điểm đón: PRESENT dùng markedAt và nhãn Điểm danh; ABSENT dùng markedAt với Báo nghỉ/Báo vắng tương ứng; đây là thời điểm ghi nhận, không thời điểm bus đến pickup. UNMARKED dùng plannedArrivalTime của PICKUP riêng con nếu có.
++- Đến trường: arrivedAtSchoolAt từ operational-state, independent với alighting. Nếu chỉ biết đã xuống qua Home và chưa có giờ xe tới trường, dùng mốc đó với nhãn Xuống xe, không tính sớm/trễ như thể đó là giờ xe tới.
++- Chiều về: plannedArrivalTime của DROPOFF đúng studentId/isMyChild; thực tế là alightedAt của chính con. Không dùng actualEndTime/giờ xe về bãi thay thế.
++- Nếu đã đến nhưng timestamp chưa có thì —:—/Chưa có giờ + giữ lịch; không gán timestamp thời điểm render.
++- Các timestamp thực format Asia/Ho_Chi_Minh; serviceDate + giờ lịch có offset+07:00.
++- Sớm/trễ = lịch đích trừ timestamp đích đã xác nhận, làm tròn phút. Không đủ một trong hai mốc thì không tính chênh lệch.
++- Bubble tính số phút còn đến **lịch đã công bố** theo clock thiết bị, ceil phút; caption theo lịch. Không hiện0/âm hoặc tự cộng giờ trễ để tạo ETA mới. Trên60phút hiển thị giờ lịch, không số lớn hoặc ETA giả.
+@@ -103,7 +109 @@
+-- PASS Mobile `npx --no-install tsc --noEmit` và Expo export all (iOS/Android/Web/server).
+-- PASS14 unit tests độc lập DB:8 kiểm tra trạng thái/hình học có sẵn và6 kiểm tra mới về parse giờ, thiếu mốc, giờ điểm trả khác giờ về bãi, timezone Việt Nam, mapping các chặng và không giả định tiến độ trung gian. Test chỉ enum primitives và tọa độ toán học; không tạo records/DTO giả hoặc fake API response.
+-- PASS source parity: fetchHomeData/onRefresh/getRoleLabel/getStatusBadge/getAttendanceBadge, nhánh staff, router.push và quick-leave payload/callback giữ nguyên; API clients byte-identical.
+-- PASS Chromium IAB presentation-only cho lần cập nhật mốc:3 diagram ×4 kích thước320/390/844/1440px không tràn ngang; mọi node có tâm cùng y với rail, time badge thẳng node đầu/cuối (sai số tối đa0.016px). Điểm đón nằm trên rail khi thiếu geometry/GPS; không có dòng text trạng thái lặp. Kiểm tra hình học điểm đón2%/98% và pin bus không che node. Nhãn giờ chỉ là typography preview, không Student/Trip/auth/API hoặc chứng nhận giờ thực tế. Kết quả disclosure/Enter/Space/hai card độc lập đã chạy ở task trước, không chạy lại trong task chỉ sửa diagram.
+-- Lint: Mobile không có script/config lint riêng; không cài công cụ mới. NOT_VERIFIED lint runtime.
+-- NOT_VERIFIED Expo Go iPhone/Android, Safari iOS/Chrome Android, VoiceOver, Dynamic Type lớn trên thiết bị, thay reduced motion trên thiết bị và FPS nhiều card. Kiểm tra source reduced motion không thay thế nghiệm thu setting thật.
+-- NOT_VERIFIED GPS thật, hai con cùng Trip trên app có xác thực, mất/kết nối lại GPS, đổi quyền, polling/route/Báo nghỉ qua backend. `BLOCKED_BY_TEST_DATA_POLICY` khi không có phiên/dữ liệu chuyến/GPS hợp lệ để chạy; không tạo data, phát vị trí, gọi mutation hoặc giả lập API để kiểm thử.
++Time badges ở trên rail với đường nối xuống từng mốc; giờ thực nổi vàng nhạt, lịch nền trắng, giờ cũ nhỏ vẫn đọc được. MinHeight94 (không fixed height), số giờ auto-fit đủ5 ký tự, nhãn/phụ chú tự wrap. Sớm/trễ nằm ở footer diagram để các badge cân đối. Không thêm text trạng thái chuyến lặp trong diagram.
+@@ -111 +111,29 @@
+-Nghiệm thu tiếp theo: dùng tài khoản PARENT có hai con trong roster hợp lệ, ít nhất một chuyến đang chạy và GPS do luồng tài xế được PO cho phép; kiểm tra hai trạng thái điểm danh khác nhau trên Expo Go iPhone. Agent không tự chuẩn bị hoặc thay đổi các records đó.
++## Component, hook, quyền và mở rộng
++
++- [ParentTripCard](../../mobile/components/parent/trip-card.tsx): giữ studentName/avatarUrl/schoolName/status/children/journey(active). Thêm optional studentStatus, hasIncident, attention, stale. Chỉ giữ disclosure; không gọi API hoặc đổi permissions. accessibilityLabel gồm status con/sự cố và aria-expanded. CTA là sibling của summary, không đóng card.
++- [ParentStudentJourney](../../mobile/components/parent/student-journey.tsx): nhận card thực đã chuẩn hóa, telemetry, active, showServiceDate?. Derive time/stage, nhịp boarding sau event thật, panel sự cố. Không mutation hoặc engine định vị.
++- StudentJourneyRouteHeader: routeName, outbound, serviceDate?; presentation thuần.
++- StudentJourneyDiagram: stagePosition:number|null, outbound, active, departure/arrival/pickup:JourneyTime, pickupTitle, arrivalTitle; optional arrivalNote/late/bubble. Caller phải dùng mốc đúng quy tắc được PO duyệt; không truyền tọa độ GPS vào stagePosition.
++- JourneyTime: value:string|null, kind:scheduled|actual, scheduledValue? để giữ lịch khi actual đã có.
++- [parent-journey-stage](../../mobile/utils/parent-journey-stage.ts): helpers pure normalize riêng child qua children.find(studentId), position, badge, incident active/label, service date, timestamp lịch và arithmetic. Tone/position là trạng thái trình bày, không enum nghiệp vụ.
++- [journeyTones](../../mobile/constants/parent-journey.ts): màu cảnh báo/info/success/danger/purple/neutral dùng chung, tái sử dụng theme. Không cài package/font.
++- [useParentJourneyTelemetry](../../mobile/hooks/use-parent-journey-telemetry.ts): một GET operational-state + incidents mỗi5s cho mỗi tripId, metadata detail tối đa mỗi20s và khi focus. Dedup nhiều con cùng chuyến; useActiveRefresh giữ no-overlap/isCurrent/focus/AppState. **Không gọi navigation/state/history/segment/session/position, không GPS watcher.** Home vẫn fetch8s như cũ.
++- Cache theo account identity và tập tripId, giữ trips không đổi khi sibling đổi.401/403/404 xóa operation/incidents/detail của trip; lỗi từng nguồn giữ dữ liệu trước đó và có nhãn chưa cập nhật, mutable attendance fallback Home khi operational-state đọc lỗi. Không để cached account khác xuất hiện.
++- [HomeScreen](<../../mobile/app/(tabs)/index.tsx>) chọn từng child, giữ nguyên auth/router/quick-leave payload/canReportLeave/busy; nhánh staff không đổi. getAttendanceBadge và getStatusBadge cũ không sửa. Giờ trong panel điểm danh chuyển cùng timezone Việt Nam.
++
++Safe area/header/tab/keyboard của shell và các form được điều hướng đến giữ nguyên. Home không có input; không cộng offset bàn phím. MaxWidth560, responsive, không truncation. Card studentId:tripId giữ expanded qua polling; chiều cao panel đo lại khi metadata/status/font/width đổi. Body display:none khi đóng; button ẩn không vào tab order. Các helper GPS cũ còn trong parent-journey.ts để tương thích/tests, không còn được Home rail gọi.
++
++## Kiểm chứng
++
++- PASS Mobile tsc --noEmit và Expo export all iOS/Android/Web/server; outputs ngoài repo, không cài mới.
++- PASS24 pure node:test checks:14 cũ +10 mới, enums/booleans/clock/geometry only, không records/DTO giả/API mock hoặc DB.
++- PASS source parity: controller Home, API clients, staff JSX và router/quick-leave callback payload giữ nguyên. Khối lịch cũ chỉ chuyển trình bày; dữ liệu lịch đầy đủ còn ở các vị trí mới.
++- PASS Chromium IAB presentation-only:8 trạng thái tại320px, bus cùng y rail, node không chồng,3 icon tại xuất phát/pickup/đích và4 giữa chặng; các tag hiện ngay khi collapsed. Header/date cùng hàng320/390/844/1440, tên/trường/tuyến dài đủ và không tràn. Chiều về320/390, bubble theo lịch, CTA local không đóng card, Enter collapse hoạt động. Dùng primitive presentation selectors/nhãn kiểu chữ, không Trip/Student DTO hoặc fake API.
++- NOT_VERIFIED lint: Mobile không có script/config riêng, không thêm dependency.
++- NOT_VERIFIED Expo Go iPhone/Android, Safari iOS/Chrome Android, VoiceOver, Dynamic Type và settings reduced motion thực; thời gian1600ms từ sự kiện API thật, polling/error/permissions và API mutations end-to-end. BLOCKED_BY_TEST_DATA_POLICY cho phần cần phiên/dữ liệu vận hành chưa sẵn; không tự tạo records/phát vị trí hoặc gọi mutations để test.
++
++## Phần thiếu / giới hạn
++
++ETA vận hành và sự kiện xe đến/rời pickup không có trong response hiện dùng; chỉ triển khai lịch và mốc điểm danh có thật. Parent incident bị privacy mask nên chỉ có cảnh báo cấp chuyến. Home không trả lịch sử completed/cancelled; khi backend bỏ chuyến khỏi Home, card có thể chuyển sang chuyến ưu tiên tiếp theo hoặc rỗng, không có history cache do agent tự tạo. PARENT cùng chuyến có thể thấy rail khác nhau theo trạng thái từng con: đây là tiến trình minh họa, không hai vị trí GPS khác nhau của một xe.
++
++Bước tiếp theo duy nhất: nghiệm thu trên Expo Go iPhone với dữ liệu chuyến/điểm danh hợp lệ do PO chuẩn bị.
+--- a/docs/architecture/mobile-parent-home-ui.md
++++ b/docs/architecture/mobile-parent-home-ui.md
+@@ -3,0 +4,4 @@
++
++## Hiện hành30/10/2026 — rail theo mốc và tag con
++
++[Spec mới nhất, API audit, component contracts và limits](mobile-parent-student-journey.md): rail minh họa theo start/attendance/school arrival/alighting được PO duyệt, không GPS-only; bus nằm trên rail/thay icon mốc. Collapsed có tag điểm danh màu/icon và cảnh báo sự cố cấp chuyến; ngày cùng heading. RouteName chuyển đầu panel, actual/planned time gắn mốc; khối route/time/date cũ đã bỏ. Callback/permissions/nhánh staff và thông tin V2 giữ nguyên, kết thúc tuyến về bãi vẫn có dòng riêng. ETA động/event rời pickup thiếu trong API, không tự tạo. Các phần29/10 và mô tả GPS/pin ở các lần trước là lịch sử, ưu tiên spec mới nhất.
+--- a/docs/architecture/mobile-ui-implementation-status.md
++++ b/docs/architecture/mobile-ui-implementation-status.md
+@@ -3,0 +4,4 @@
++
++## Rail theo trạng thái nghiệp vụ — 30/10/2026, mới nhất
++
++Bus trên rail và nhảy theo mốc PO chỉ định, không cần GPS. Dùng operational-state/incident API có sẵn cho actual departure, school arrival và trạng thái từng child;3 icon ở node,4 giữa chặng. Thêm tag điểm danh/sự cố khi card đóng, ngày ngang heading, route/giờ chuyển sang vị trí mới, bỏ khối lịch cũ. Bubble số phút theo lịch, sớm/trễ từ timestamp thực; không tạo ETA hoặc event rời pickup. [Spec và API thiếu/đủ](mobile-parent-student-journey.md). Typecheck/export all,24 pure tests và presenter responsive PASS; native/API runtime NOT_VERIFIED. Chưa commit/push. Mô tả GPS-only/pin ở các phần trước đã được thay thế bởi mục này.
+--- a/docs/ai-handoff/CURRENT_STATE.md
++++ b/docs/ai-handoff/CURRENT_STATE.md
+@@ -8,0 +9,4 @@
++
++## Cập nhật 30/10/2026 — Tiến trình theo mốc nghiệp vụ (mới nhất)
++
++PO đổi rail sang minh họa nhảy2/3 từng chặng theo start/attendance/school arrival/alighting, không phụ thuộc GPS. Bus nằm trên rail, thay node khi ở mốc; collapsed có tag điểm danh nổi bật và sự cố cấp chuyến, ngày ngang heading, tên tuyến/giờ chuyển khỏi khối cũ. Đọc GET operational-state/incidents5s + detail20s/focus, không sửa backend/contract. ActualStartTime/arrivedAtSchoolAt/children hỗ trợ giờ thực và sớm/trễ; ETA động và event đến/rời pickup vẫn thiếu, bubble chỉ “theo lịch”; nhịp pickup1600ms là hiệu ứng sau điểm danh, không event rời điểm mới. [Spec/API audit/source map/verification](../architecture/mobile-parent-student-journey.md). Tsc/export all,24 pure tests và presenter checks PASS; native/auth end-to-end NOT_VERIFIED. Không DB/dependency/commit/push. Các mục GPS/pin ở dưới là lịch sử đã thay thế.
+--- a/docs/ai-handoff/CODEX_HANDOFF.md
++++ b/docs/ai-handoff/CODEX_HANDOFF.md
+@@ -11,0 +12,4 @@
++
++## Cập nhật 30/10/2026 — Tiến trình theo mốc nghiệp vụ (mới nhất)
++
++PO đổi rail sang minh họa nhảy2/3 từng chặng theo start/attendance/school arrival/alighting, không phụ thuộc GPS. Bus nằm trên rail, thay node khi ở mốc; collapsed có tag điểm danh nổi bật và sự cố cấp chuyến, ngày ngang heading, tên tuyến/giờ chuyển khỏi khối cũ. Đọc GET operational-state/incidents5s + detail20s/focus, không sửa backend/contract. ActualStartTime/arrivedAtSchoolAt/children hỗ trợ giờ thực và sớm/trễ; ETA động và event đến/rời pickup vẫn thiếu, bubble chỉ “theo lịch”; nhịp pickup1600ms là hiệu ứng sau điểm danh, không event rời điểm mới. [Spec/API audit/source map/verification](../architecture/mobile-parent-student-journey.md). Tsc/export all,24 pure tests và presenter checks PASS; native/auth end-to-end NOT_VERIFIED. Không DB/dependency/commit/push. Các mục GPS/pin ở dưới là lịch sử đã thay thế.
+--- /dev/null
++++ b/mobile/constants/parent-journey.ts
+@@ -0,0 +1,12 @@
++import { colors } from './theme';
++
++export const journeyTones = {
++  warning: { bg: '#FFF4DC', text: '#854D0E', border: '#D59A25' },
++  info: { bg: '#EAF2FF', text: '#1D4ED8', border: '#93B4ED' },
++  success: { bg: '#E9F8EF', text: '#166534', border: '#82C89D' },
++  danger: { bg: '#FFF0F0', text: '#991B1B', border: '#E8A0A0' },
++  purple: { bg: '#F1ECFF', text: '#6B21A8', border: '#C6AFE7' },
++  neutral: { bg: colors.background, text: colors.mutedText, border: colors.border },
++} as const;
++
++export type JourneyTone = keyof typeof journeyTones;
+--- /dev/null
++++ b/mobile/utils/parent-journey-stage.ts
+@@ -0,0 +1,75 @@
++import type { OperationalStateResponse, ParentHomeCardItem, TripIncident, TripIncidentStatus } from '../services/api-client';
++import type { JourneyTone } from '../constants/parent-journey';
++import { journeyClock } from './parent-journey';
++
++export type StudentJourneyBadge = { label: string; tone: JourneyTone; icon: 'alert-circle-outline' | 'checkmark-circle-outline' | 'time-outline' | 'log-out-outline' | 'close-circle-outline' };
++
++export function parentJourneyCard(card: ParentHomeCardItem, operation?: OperationalStateResponse): ParentHomeCardItem {
++  if (!operation || operation.tripId !== card.tripId || (operation.direction && operation.direction !== card.direction)) return card;
++  const child = operation.children?.find(c => c.studentId === card.studentId);
++  return { ...card, tripStatus: operation.status, ...(child ? {
++    attendanceStatus: child.attendanceStatus, markedAt: child.markedAt ?? null,
++    absenceReason: child.absenceReason ?? null, childIsAlighted: child.isAlighted, childAlightedAt: child.alightedAt ?? null,
++  } : {}) };
++}
++
++export function studentJourneyBadge(attendance: ParentHomeCardItem['attendanceStatus'], alighted: boolean, schoolArrived: boolean, hasLeaveNotice: boolean): StudentJourneyBadge {
++  if (attendance === 'ABSENT') return { label: hasLeaveNotice ? 'Đã báo nghỉ' : 'Vắng mặt', tone: 'danger', icon: 'close-circle-outline' };
++  if (attendance === 'UNMARKED') return { label: 'Chưa điểm danh', tone: 'warning', icon: 'alert-circle-outline' };
++  if (alighted) return { label: 'Đã xuống xe', tone: 'success', icon: 'checkmark-circle-outline' };
++  if (schoolArrived) return { label: 'Chưa xuống xe', tone: 'purple', icon: 'log-out-outline' };
++  return { label: 'Đã điểm danh', tone: 'info', icon: 'checkmark-circle-outline' };
++}
++
++/** PO-approved illustration: these fractions represent workflow stages, never GPS or distance. */
++export function journeyStagePosition(status: ParentHomeCardItem['tripStatus'], direction: ParentHomeCardItem['direction'],
++  attendance: ParentHomeCardItem['attendanceStatus'], alighted: boolean, schoolArrived: boolean, boardingFrame = false) {
++  if (status === 'CANCELLED' || attendance === 'ABSENT') return null;
++  if ((attendance === 'PRESENT' && alighted) || (direction === 'TO_SCHOOL' && schoolArrived)) return 1;
++  if (status === 'SCHEDULED') return 0;
++  if (status === 'COMPLETED') return null; // No invented child-arrival milestone.
++  if (direction === 'TO_PARKING') return attendance === 'PRESENT' ? 2 / 3 : null;
++  if (attendance === 'UNMARKED') return 1 / 3; // 2/3 of the departure → pickup leg.
++  return boardingFrame ? 1 / 2 : 5 / 6; // Pickup, then 2/3 of the pickup → school leg.
++}
++
++export function journeySchoolArrived(operation?: OperationalStateResponse, tripId?: string) {
++  if (tripId && operation?.tripId !== tripId) return false;
++  return Boolean(operation?.isSchoolArrived || (operation?.arrivedAtSchoolAt && Number.isFinite(Date.parse(operation.arrivedAtSchoolAt))));
++}
++
++export function activeJourneyIncident(status: TripIncidentStatus) {
++  return status === 'WAITING_ASSIGNMENT' || status === 'WAITING_CONFIRMATION';
++}
++
++export function journeyIncidentLabel(type: TripIncident['type']) {
++  switch (type) {
++    case 'ATTENDANT_MISSING': return 'Thiếu giáo viên phụ xe';
++    case 'DRIVER_MISSING': return 'Thiếu tài xế';
++    case 'OFF_ROUTE': return 'Xe lệch tuyến';
++    case 'LATE_STOP': return 'Chuyến có điểm dừng trễ';
++  }
++}
++
++export function journeyServiceDate(value: string) {
++  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
++  return m ? `${m[3]}/${m[2]}/${m[1]}` : value;
++}
++
++export function scheduledJourneyInstant(serviceDate: string, clock?: string | null) {
++  const time = journeyClock(clock);
++  if (!/^\d{4}-\d{2}-\d{2}$/.test(serviceDate) || !time) return null;
++  const date = new Date(`${serviceDate}T${time}:00+07:00`);
++  return Number.isFinite(date.getTime()) && new Date(date.getTime() + 7 * 3600000).toISOString().slice(0, 10) === serviceDate ? date.getTime() : null;
++}
++
++export function journeyMinutesBeforeSchedule(serviceDate: string, clock: string | null, actual?: string | null) {
++  const planned = scheduledJourneyInstant(serviceDate, clock), arrived = Date.parse(actual ?? '');
++  return planned !== null && Number.isFinite(arrived) ? Math.round((planned - arrived) / 60000) : null;
++}
++
++export function journeyScheduleCountdown(serviceDate: string, clock: string | null, now: number) {
++  const planned = scheduledJourneyInstant(serviceDate, clock);
++  if (planned === null || !Number.isFinite(now) || planned <= now) return null;
++  return Math.ceil((planned - now) / 60000);
++}
+--- /dev/null
++++ b/mobile/scripts/parent-journey-stage.test.ts
+@@ -0,0 +1,63 @@
++import { describe, it } from 'node:test';
++import assert from 'node:assert/strict';
++import { activeJourneyIncident, journeyMinutesBeforeSchedule, journeyScheduleCountdown, journeyServiceDate,
++  journeyStagePosition, scheduledJourneyInstant, studentJourneyBadge } from '../utils/parent-journey-stage.ts';
++
++// Pure enums, booleans, dates and clocks only. No Trip/Student fixtures or API response mocks.
++describe('PO-approved workflow illustration', () => {
++  it('waits at departure and jumps to two-thirds of the first leg when started', () => {
++    assert.equal(journeyStagePosition('SCHEDULED', 'TO_SCHOOL', 'UNMARKED', false, false), 0);
++    assert.equal(journeyStagePosition('IN_PROGRESS', 'TO_SCHOOL', 'UNMARKED', false, false), 1 / 3);
++  });
++  it('acknowledges boarding at pickup, then illustrates the school-bound leg', () => {
++    assert.equal(journeyStagePosition('IN_PROGRESS', 'TO_SCHOOL', 'PRESENT', false, false, true), 0.5);
++    assert.equal(journeyStagePosition('IN_PROGRESS', 'TO_SCHOOL', 'PRESENT', false, false), 5 / 6);
++  });
++  it('distinguishes reaching school from this child alighting', () => {
++    assert.equal(journeyStagePosition('IN_PROGRESS', 'TO_SCHOOL', 'PRESENT', false, true), 1);
++    assert.equal(studentJourneyBadge('PRESENT', false, true, false).label, 'Chưa xuống xe');
++    assert.equal(studentJourneyBadge('PRESENT', true, true, false).label, 'Đã xuống xe');
++    assert.equal(studentJourneyBadge('UNMARKED', false, true, false).label, 'Chưa điểm danh');
++  });
++  it('keeps return boarding at school until start, then jumps along the return leg', () => {
++    assert.equal(journeyStagePosition('SCHEDULED', 'TO_PARKING', 'PRESENT', false, false), 0);
++    assert.equal(journeyStagePosition('IN_PROGRESS', 'TO_PARKING', 'PRESENT', false, false), 2 / 3);
++    assert.equal(journeyStagePosition('IN_PROGRESS', 'TO_PARKING', 'PRESENT', true, false), 1);
++  });
++  it('never illustrates a journey for absent/cancelled or an unverified completion', () => {
++    assert.equal(journeyStagePosition('IN_PROGRESS', 'TO_SCHOOL', 'ABSENT', false, true), null);
++    assert.equal(journeyStagePosition('CANCELLED', 'TO_SCHOOL', 'PRESENT', true, true), null);
++    assert.equal(journeyStagePosition('COMPLETED', 'TO_SCHOOL', 'PRESENT', false, false), null);
++    assert.equal(journeyStagePosition('IN_PROGRESS', 'TO_SCHOOL', 'UNMARKED', true, false), 1 / 3);
++  });
++  it('shows individual badges without copying a sibling attendance or active incident into attendance', () => {
++    assert.equal(studentJourneyBadge('UNMARKED', false, false, false).tone, 'warning');
++    assert.equal(studentJourneyBadge('PRESENT', false, false, false).tone, 'info');
++    assert.equal(studentJourneyBadge('ABSENT', false, false, true).label, 'Đã báo nghỉ');
++    assert.equal(studentJourneyBadge('ABSENT', false, false, false).label, 'Vắng mặt');
++    assert.equal(studentJourneyBadge('PRESENT', true, false, false).tone, 'success');
++  });
++  it('uses the two actual pending incident statuses and excludes closed history', () => {
++    for (const status of ['WAITING_ASSIGNMENT', 'WAITING_CONFIRMATION'] as const) assert.equal(activeJourneyIncident(status), true);
++    for (const status of ['RESOLVED', 'CONFIRMED', 'CLOSED'] as const) assert.equal(activeJourneyIncident(status), false);
++  });
++});
++
++describe('planned versus actual clock information', () => {
++  it('compares timestamps against the Vietnam service day without guessing an ETA', () => {
++    assert.equal(journeyMinutesBeforeSchedule('2026-10-30', '07:15', '2026-10-30T00:05:00Z'), 10);
++    assert.equal(journeyMinutesBeforeSchedule('2026-10-30', '07:15', '2026-10-30T00:20:00Z'), -5);
++    assert.equal(journeyMinutesBeforeSchedule('2026-10-30', '07:15', '2026-10-30T00:15:00Z'), 0);
++    assert.equal(journeyMinutesBeforeSchedule('2026-10-30', null, '2026-10-30T00:15:00Z'), null);
++  });
++  it('counts only until the published schedule and does not fabricate zero or negative arrival minutes', () => {
++    assert.equal(journeyScheduleCountdown('2026-10-30', '07:15', Date.parse('2026-10-30T00:05:00Z')), 10);
++    assert.equal(journeyScheduleCountdown('2026-10-30', '07:15', Date.parse('2026-10-30T00:20:00Z')), null);
++    assert.equal(journeyScheduleCountdown('2026-10-30', null, Date.now()), null);
++    assert.equal(scheduledJourneyInstant('2026-02-30', '07:15'), null);
++  });
++  it('formats the API service date without replacing it with today', () => {
++    assert.equal(journeyServiceDate('2026-10-30'), '30/10/2026');
++    assert.equal(journeyServiceDate('unknown'), 'unknown');
++  });
++});

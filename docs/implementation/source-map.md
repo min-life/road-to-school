@@ -242,7 +242,25 @@
 - [web/src/lib/refresh-loop.test.ts](../../web/src/lib/refresh-loop.test.ts)
 - [web/src/lib/trip-location-history.test.ts](../../web/src/lib/trip-location-history.test.ts)
 - [web/src/lib/vietmap/vietmap.service.test.ts](../../web/src/lib/vietmap/vietmap.service.test.ts)
+## Mobile Parent Home presentation
+
+- [Expanded/compact header + scroll](../../mobile/components/parent/home-scroll-view.tsx)
+
+- [Hướng dẫn / ánh xạ / kết quả kiểm tra](../architecture/mobile-parent-home-ui.md)
+- [HomeScreen](<../../mobile/app/(tabs)/index.tsx>)
+- [Styles chỉ cho phụ huynh](../../mobile/components/parent/home-styles.ts)
+
+## Mobile navigation Phase 2
+
+- [Component và route map / cách mở rộng](../architecture/mobile-navigation-phase2.md)
+- [AppHeader, HeaderAction](../../mobile/components/navigation/app-header.tsx)
+- [TabButton](../../mobile/components/navigation/tab-button.tsx)
+- [Tokens](../../mobile/constants/navigation.ts), [geometry](../../mobile/utils/navigation-layout.ts)
+- [Web keyboard hook](../../mobile/hooks/use-navigation-keyboard.web.ts)
+
 ## Mobile tests
+
+- [mobile/scripts/navigation-layout.test.ts](../../mobile/scripts/navigation-layout.test.ts)
 
 - [mobile/scripts/keyboard-visibility.test.ts](../../mobile/scripts/keyboard-visibility.test.ts)
 - [mobile/scripts/leave-notices-ui.test.ts](../../mobile/scripts/leave-notices-ui.test.ts)
@@ -258,3 +276,13 @@
 - [api/scripts/seed-admin.ts](../../api/scripts/seed-admin.ts)
 - [api/scripts/seed-round3-test-users.ts](../../api/scripts/seed-round3-test-users.ts)
 - [api/scripts/test_live_round3.js](../../api/scripts/test_live_round3.js)
+
+## OTP Mobile — restyle V1 (29/10/2026)
+
+- [OtpHero](../../mobile/components/auth/otp-hero.tsx), [otpStyles](../../mobile/constants/otp-styles.ts), [verify-phone.jpg](../../mobile/assets/images/auth/verify-phone.jpg).
+- [Năm route, component API, bảo toàn logic, safe area/bàn phím và kiểm chứng](../architecture/mobile-otp-ui.md). Không backend/DB/dependency/Git writes.
+
+## Thẻ chuyến xe phụ huynh — mở rộng (29/10/2026)
+
+- [ParentTripCard](../../mobile/components/parent/trip-card.tsx): summary/disclosure presentation, status cùng hàng với tên, ảnh học sinh, children giữ đủ thông tin/action.
+- [HomeScreen](../../mobile/app/(tabs)/index.tsx): binding và key studentId:tripId; [contract/field map/checks](../architecture/mobile-parent-home-ui.md). Controller/API không đổi.

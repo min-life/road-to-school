@@ -4,6 +4,18 @@ Scope: Expo Mobile V2, including its React Native Web output. This does not chan
 
 Current UI and onboarding/auth implementation: [mobile-ui-implementation-status.md](mobile-ui-implementation-status.md). Login and Forgot Password explicitly disable autoFocus; Parent Registration does not request automatic focus. Keyboard visibility handling applies after manual focus as well as existing OTP autofocus flows, rather than forcing focus on page entry.
 
+## OTP presentation integration — 29/10/2026
+
+All five OTP screens now use the V1 verify-phone illustration and shared presentation styles. [OTP source map/contract](mobile-otp-ui.md). Auth OTP/reset own SafeAreaView; business screens retain AppHeader and bottom inset padding. OtpHero sizes by width, avoiding keyboard-height-driven image resizing. Existing autofocus/controlled fields remain; registration hidden input still fills the six-box row. No wrapper algorithm, fixed keyboard offset or second keyboard owner added. Chromium isolated previews320/390/1440 pass; native keyboard/notch/home-indicator and full OTP mutations remain NOT_VERIFIED.
+
+## Login typography after logout — 28/10/2026
+
+Login explicitly declares system font on native, weight400, normal style and letterSpacing0 for identifier/password; keeps fontSize15 and existing layout. This mitigates a suspected iOS Fabric recycled-TextInput attribute leak, not a keyboard visibility change. No focus-driven remount, delayed reset, forced blur/focus, autofill disabling or credential clearing was added. Root/auth/logout and this keyboard wrapper remain unchanged. Typecheck/export pass; original iPhone symptom and mitigation require native UAT, not established by Web/static verification. [Investigation/status](mobile-ui-implementation-status.md#login--ổn-định-chữ-sau-đăng-xuất-28102026).
+
+## Phase 2 navigation integration
+
+See [header/tab implementation](mobile-navigation-phase2.md). Native tabs hide on keyboard through the navigator; Mobile Web hides the bar on coarse-pointer devices when a focused field loses measured viewport space. KeyboardScrollView continues to own input visibility in pages/modals/drawers. Do not add a second keyboard-height offset. Root transfers top inset ownership to NetworkBanner while it is visible. Phase 2 used a Chromium IAB component preview; physical iPhone/Android, Safari/Chrome mobile and keyboard/modal UAT remain NOT_VERIFIED. The no-browser observation below describes the earlier Phase 1 session, not current tool availability.
+
 ## Implementation
 
 Use `KeyboardScrollView` from `@/components/keyboard-scroll-view` for a vertical area containing inputs, including multiline TextInput (textarea on Web). Preserve existing controlled values, validation, actions and routes. Put layout/padding in `contentContainerStyle` and keep the viewport bounded by its parent. A modal or drawer must own its scroll region; do not rely on the page behind a portal.

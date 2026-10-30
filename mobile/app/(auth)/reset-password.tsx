@@ -1,3 +1,6 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { OtpHero } from '@/components/auth/otp-hero';
+import { otpStyles } from '@/constants/otp-styles';
 import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState, useEffect } from 'react';
 import {
@@ -7,7 +10,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -115,9 +117,7 @@ export default function ResetPasswordScreen() {
   };
 
   return (
-    <View
-      style={styles.keyboardContainer}
-    >
+    <SafeAreaView style={styles.keyboardContainer} edges={['top', 'bottom', 'left', 'right']}>
       <KeyboardScrollView
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
@@ -132,9 +132,9 @@ export default function ResetPasswordScreen() {
             >
               <Ionicons name="arrow-back" size={24} color={colors.foreground} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Đặt lại mật khẩu</Text>
-            <View style={{ width: 24 }} />
           </View>
+          {!success && <OtpHero compact />}
+          <Text accessibilityRole="header" style={styles.headerTitle}>Đặt lại mật khẩu</Text>
 
           {success ? (
             <View style={styles.successContainer}>
@@ -179,12 +179,13 @@ export default function ResetPasswordScreen() {
                       Hết hạn: <Text style={styles.countdownBold}>{formatCountdown(countdown)}</Text>
                     </Text>
                   ) : (
-                    <TouchableOpacity onPress={handleResend} disabled={isResending}>
+                    <TouchableOpacity style={otpStyles.linkButton} onPress={handleResend} disabled={isResending}>
                       <Text style={styles.resendText}>Gửi lại mã</Text>
                     </TouchableOpacity>
                   )}
                 </View>
                 <TextInput
+                  accessibilityLabel="Nhập mã OTP"
                   style={[styles.input, styles.otpInput]}
                   placeholder="000000"
                   placeholderTextColor="#94A3B8"
@@ -287,7 +288,7 @@ export default function ResetPasswordScreen() {
           )}
         </View>
       </KeyboardScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -297,38 +298,20 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   scrollContainer: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-    justifyContent: 'center',
+    ...otpStyles.authContent,
   },
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    paddingHorizontal: 24,
-    paddingVertical: 28,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
+    ...otpStyles.authFrame,
   },
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
+    ...otpStyles.backRow,
   },
   backButton: {
-    padding: 4,
-    marginLeft: -4,
+    ...otpStyles.backButton,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.foreground,
+    ...otpStyles.heading,
+    marginBottom: 20,
   },
   infoBanner: {
     backgroundColor: '#FEF3C7',
@@ -349,119 +332,77 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   errorBanner: {
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
+    ...otpStyles.error,
   },
   errorText: {
-    fontSize: 13,
-    color: colors.error,
-    flex: 1,
-    lineHeight: 18,
+    ...otpStyles.errorText,
   },
   formGroup: {
     marginBottom: 14,
   },
   label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.foreground,
-    marginBottom: 6,
+    ...otpStyles.label,
   },
   otpHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
     marginBottom: 6,
   },
   countdownText: {
-    fontSize: 12,
-    color: colors.mutedText,
+    ...otpStyles.meta,
   },
   countdownBold: {
     fontWeight: '700',
     color: colors.foreground,
   },
   resendText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#D97706',
+    ...otpStyles.link,
   },
   input: {
-    height: 48,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    fontSize: 14,
-    color: colors.foreground,
-    backgroundColor: '#FAFAFA',
+    ...otpStyles.codeInput,
   },
   otpInput: {
-    fontSize: 20,
-    fontWeight: '700',
-    letterSpacing: 8,
-    textAlign: 'center',
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    ...otpStyles.codeInput,
   },
   passwordInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    backgroundColor: '#FAFAFA',
-    height: 48,
+    ...otpStyles.fieldShell,
   },
   passwordInput: {
-    flex: 1,
-    height: '100%',
-    paddingHorizontal: 14,
-    fontSize: 14,
-    color: colors.foreground,
+    ...otpStyles.field,
   },
   eyeButton: {
-    paddingHorizontal: 14,
-    height: '100%',
-    justifyContent: 'center',
+    minWidth: 48,
+    minHeight: 54,
+    paddingHorizontal: 12,
+    justifyContent: "center",
+    alignItems: "center",
   },
   submitButton: {
-    backgroundColor: colors.primary,
-    height: 48,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    ...otpStyles.button,
     marginTop: 8,
   },
   submitButtonDisabled: {
     opacity: 0.5,
   },
   buttonLoadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
   },
   submitButtonText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.foreground,
+    ...otpStyles.buttonText,
   },
   backLink: {
-    marginTop: 18,
-    alignItems: 'center',
-    paddingVertical: 4,
+    ...otpStyles.linkButton,
+    marginTop: 12,
   },
   backLinkText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.mutedText,
+    ...otpStyles.link,
   },
   successContainer: {
     alignItems: 'center',
@@ -485,14 +426,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   loginNowButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
+    ...otpStyles.button,
   },
   loginNowText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.foreground,
+    ...otpStyles.buttonText,
   },
 });

@@ -1,0 +1,47 @@
+diff --git "a/C:\\Users\\phuon\\AppData\\Local\\Temp\\push-before-notifications.txt" b/mobile/app/notifications.tsx
+index 72caf4b..a1094c3 100644
+--- "a/C:\\Users\\phuon\\AppData\\Local\\Temp\\push-before-notifications.txt"
++++ b/mobile/app/notifications.tsx
+@@ -15 +15 @@ export default function NotificationsScreen() {
+-  const { open, refresh: refreshSummary, enablePush, disablePush, pushStatus } = useNotifications();
++  const { open, refresh: refreshSummary } = useNotifications();
+@@ -38 +37,0 @@ export default function NotificationsScreen() {
+-    <View style={styles.push}><Text style={styles.muted}>{pushStatus || 'Thông báo ngoài ứng dụng'}</Text><View style={styles.filters}><TouchableOpacity onPress={() => { void enablePush(); }}><Text style={styles.link}>Bật</Text></TouchableOpacity><TouchableOpacity onPress={() => { void disablePush().catch(() => Alert.alert('Thông báo', 'Chưa thể tắt thông báo đẩy')); }}><Text style={styles.muted}>Tắt trên thiết bị</Text></TouchableOpacity></View></View>
+@@ -51 +50 @@ const styles = StyleSheet.create({
+-  filters: { flexDirection: 'row', gap: 18, padding: 12, alignItems: 'center' }, filter: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.surface }, selected: { backgroundColor: colors.primary }, text: { fontSize: 14, color: colors.foreground }, muted: { color: colors.mutedText, fontSize: 12, marginTop: 4 }, link: { color: colors.foreground, fontWeight: '700', fontSize: 13 }, push: { paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: colors.border },
++  filters: { flexDirection: 'row', gap: 18, padding: 12, alignItems: 'center' }, filter: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.surface }, selected: { backgroundColor: colors.primary }, text: { fontSize: 14, color: colors.foreground }, muted: { color: colors.mutedText, fontSize: 12, marginTop: 4 }, link: { color: colors.foreground, fontWeight: '700', fontSize: 13 },
+
+diff --git "a/C:\\Users\\phuon\\AppData\\Local\\Temp\\push-before-settings.txt" b/mobile/app/(tabs)/settings.tsx
+index f07e8f8..78c80bb 100644
+--- "a/C:\\Users\\phuon\\AppData\\Local\\Temp\\push-before-settings.txt"
++++ b/mobile/app/(tabs)/settings.tsx
+@@ -20,0 +21 @@ import { useAuth } from '@/context/auth-context';
++import { useNotifications } from '@/context/notifications-context';
+@@ -24,0 +26 @@ export default function SettingsScreen() {
++  const { enablePush, disablePush, pushStatus } = useNotifications();
+@@ -398,0 +401,19 @@ export default function SettingsScreen() {
++      <View style={[styles.card, { marginTop: 16 }]}>
++        <Text style={styles.sectionTitle}>Thông báo thiết bị</Text>
++        <Text style={styles.settingValue} accessibilityLiveRegion="polite">
++          {pushStatus || 'Thông báo ngoài ứng dụng'}
++        </Text>
++        <View style={styles.pushActions}>
++          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Bật thông báo thiết bị"
++            style={styles.pushButton} activeOpacity={0.7} onPress={() => { void enablePush(); }}>
++            <Text style={styles.pushButtonText}>Bật</Text>
++          </TouchableOpacity>
++          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Tắt thông báo trên thiết bị"
++            style={[styles.pushButton, styles.pushDisableButton]} activeOpacity={0.7}
++            onPress={() => { void disablePush().catch(() => Alert.alert('Thông báo', 'Chưa thể tắt thông báo đẩy')); }}>
++            <Text style={styles.pushButtonText}>Tắt trên thiết bị</Text>
++          </TouchableOpacity>
++        </View>
++      </View>
++
++      {/* App Information Card */}
+@@ -723,0 +745,5 @@ const styles = StyleSheet.create({
++  pushActions: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 16 },
++  pushButton: { minHeight: 48, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 24,
++    justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary },
++  pushDisableButton: { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
++  pushButtonText: { color: colors.foreground, fontSize: 13, lineHeight: 20, fontWeight: '600' },

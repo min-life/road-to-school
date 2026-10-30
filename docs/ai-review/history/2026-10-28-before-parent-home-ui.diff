@@ -1,0 +1,1249 @@
+diff --git a/mobile/app/(tabs)/_layout.tsx b/mobile/app/(tabs)/_layout.tsx
+index a16d6d5..72d6b8d 100644
+--- a/mobile/app/(tabs)/_layout.tsx
++++ b/mobile/app/(tabs)/_layout.tsx
+@@ -1,0 +2 @@ import React from 'react';
++import { StyleSheet, useWindowDimensions } from 'react-native';
+@@ -2,0 +4 @@ import { Tabs } from 'expo-router';
++import { useSafeAreaInsets } from 'react-native-safe-area-context';
+@@ -6,0 +9,4 @@ import { NotificationBell } from '@/components/notification-bell';
++import { AppHeader } from '@/components/navigation/app-header';
++import { TabButton } from '@/components/navigation/tab-button';
++import { getTabBarMetrics, navigationMetrics, navigationShadow } from '@/constants/navigation';
++import { useNavigationKeyboard } from '@/hooks/use-navigation-keyboard';
+@@ -9 +15,4 @@ export default function TabLayout() {
+-  const { user, isLoading } = useAuth();
++  const { user } = useAuth();
++  const insets = useSafeAreaInsets();
++  const { fontScale } = useWindowDimensions();
++  const hideWebTabBar = useNavigationKeyboard();
+@@ -18,3 +27,11 @@ export default function TabLayout() {
+-        headerRight: () => <NotificationBell style={{ marginRight: 8 }} />,
+-        tabBarActiveTintColor: '#D97706', // Amber-600 for high-contrast on white/yellow
+-        tabBarInactiveTintColor: '#94A3B8',
++        header: ({ options, route }) => <AppHeader
++          title={typeof options.headerTitle === 'string' ? options.headerTitle : options.title ?? route.name}
++          leading={route.name === 'index' ? <Ionicons name="bus" size={28} color={colors.navigationActive} accessible={false} /> : undefined}
++          actions={<NotificationBell />} />,
++        tabBarButton: (props) => <TabButton {...props} />,
++        tabBarHideOnKeyboard: true,
++        tabBarLabelPosition: 'below-icon',
++        tabBarActiveTintColor: colors.navigationActive,
++        tabBarInactiveTintColor: colors.mutedText,
++        tabBarLabelStyle: { fontSize: navigationMetrics.tabLabelSize, lineHeight: 15, fontWeight: '600' },
++        tabBarIconStyle: { marginBottom: 4 },
+@@ -21,0 +39,3 @@ export default function TabLayout() {
++          ...navigationShadow,
++          ...getTabBarMetrics(insets.bottom, fontScale),
++          ...(hideWebTabBar && { display: 'none', height: 0, paddingBottom: 0 }),
+@@ -24,10 +44,2 @@ export default function TabLayout() {
+-          height: 60,
+-          paddingBottom: 8,
+-          paddingTop: 8,
+-        },
+-        headerStyle: {
+-          backgroundColor: colors.surface,
+-        },
+-        headerTitleStyle: {
+-          color: colors.foreground,
+-          fontWeight: '700',
++          borderTopWidth: StyleSheet.hairlineWidth,
++          paddingTop: 10,
+@@ -47 +59 @@ export default function TabLayout() {
+-              color={focused ? '#D97706' : '#94A3B8'}
++              color={focused ? colors.navigationActive : colors.mutedText}
+@@ -64 +76 @@ export default function TabLayout() {
+-              color={focused ? '#D97706' : '#94A3B8'}
++              color={focused ? colors.navigationActive : colors.mutedText}
+@@ -81 +93 @@ export default function TabLayout() {
+-              color={focused ? '#D97706' : '#94A3B8'}
++              color={focused ? colors.navigationActive : colors.mutedText}
+@@ -105 +117 @@ export default function TabLayout() {
+-              color={focused ? '#D97706' : '#94A3B8'}
++              color={focused ? colors.navigationActive : colors.mutedText}
+diff --git a/mobile/app/(tabs)/schedule.tsx b/mobile/app/(tabs)/schedule.tsx
+index 33e4a0b..ed0be0b 100644
+--- a/mobile/app/(tabs)/schedule.tsx
++++ b/mobile/app/(tabs)/schedule.tsx
+@@ -12,0 +13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
++import { AppHeader, headerActionStyles } from '@/components/navigation/app-header';
+@@ -129 +130 @@ export default function ScheduleScreen() {
+-    <View style={[styles.container, { paddingTop: insets.top }]}>
++    <View style={styles.container}>
+@@ -131,9 +132,3 @@ export default function ScheduleScreen() {
+-      <View style={styles.header}>
+-        <View style={styles.headerTitleWrap}>
+-          <Text style={styles.title}>Lịch vận hành</Text>
+-          <Text style={styles.subtitle}>Phân công tuyến xe dành cho {roleTitle}</Text>
+-        </View>
+-
+-        <View style={styles.headerActions}>
+-          <TouchableOpacity onPress={goToToday} style={styles.todayButton} activeOpacity={0.7}>
+-            <Text style={styles.todayText}>Hôm nay</Text>
++      <AppHeader title="Lịch vận hành" subtitle={`Phân công tuyến xe dành cho ${roleTitle}`} actions={<>
++          <TouchableOpacity accessibilityRole="button" onPress={goToToday} style={headerActionStyles.textButton} activeOpacity={0.7}>
++            <Text style={headerActionStyles.text}>Hôm nay</Text>
+@@ -142,2 +137 @@ export default function ScheduleScreen() {
+-        </View>
+-      </View>
++        </>} />
+@@ -333,44 +326,0 @@ const styles = StyleSheet.create({
+-  header: {
+-    paddingHorizontal: 20,
+-    paddingTop: 12,
+-    paddingBottom: 10,
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'space-between',
+-    backgroundColor: '#FFFFFF',
+-    borderBottomWidth: 1,
+-    borderBottomColor: '#F1F5F9',
+-  },
+-  headerTitleWrap: {
+-    flex: 1,
+-    paddingRight: 12,
+-  },
+-  headerActions: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    gap: 8,
+-  },
+-  title: {
+-    fontSize: 22,
+-    fontWeight: '800',
+-    color: '#0F172A',
+-    letterSpacing: -0.5,
+-  },
+-  subtitle: {
+-    fontSize: 12,
+-    color: '#64748B',
+-    marginTop: 2,
+-  },
+-  todayButton: {
+-    paddingHorizontal: 12,
+-    paddingVertical: 6,
+-    borderRadius: 12,
+-    backgroundColor: '#FEF3C7',
+-    borderWidth: 1,
+-    borderColor: '#FDE68A',
+-  },
+-  todayText: {
+-    fontSize: 12,
+-    fontWeight: '700',
+-    color: '#92400E',
+-  },
+diff --git a/mobile/app/(tabs)/tracking.tsx b/mobile/app/(tabs)/tracking.tsx
+index 023c812..8a20eb9 100644
+--- a/mobile/app/(tabs)/tracking.tsx
++++ b/mobile/app/(tabs)/tracking.tsx
+@@ -14 +14 @@ import { useRouter } from 'expo-router';
+-import { useSafeAreaInsets } from 'react-native-safe-area-context';
++import { AppHeader } from '@/components/navigation/app-header';
+@@ -25 +24,0 @@ export default function ParentTrackingScreen() {
+-  const insets = useSafeAreaInsets();
+@@ -81,5 +80 @@ export default function ParentTrackingScreen() {
+-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+-        <View style={styles.headerTitleWrap}>
+-          <Text style={styles.headerTitle}>Học sinh theo dõi</Text>
+-          <Text style={styles.headerSubtitle}>
+-            {students.length > 0
++      <AppHeader title="Học sinh theo dõi" subtitle={students.length > 0
+@@ -87,5 +82 @@ export default function ParentTrackingScreen() {
+-              : 'Quản lý thông tin đưa đón học sinh'}
+-          </Text>
+-        </View>
+-        <NotificationBell />
+-      </View>
++              : 'Quản lý thông tin đưa đón học sinh'} actions={<NotificationBell />} />
+@@ -142 +133 @@ export default function ParentTrackingScreen() {
+-          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 90 }]}
++          contentContainerStyle={[styles.listContent, { paddingBottom: 90 }]}
+@@ -164 +155 @@ export default function ParentTrackingScreen() {
+-        style={[styles.fab, { bottom: insets.bottom + 16 }]}
++        style={[styles.fab, { bottom: 16 }]}
+@@ -180,25 +170,0 @@ const styles = StyleSheet.create({
+-  header: {
+-    paddingHorizontal: 20,
+-    paddingBottom: 12,
+-    backgroundColor: colors.surface,
+-    borderBottomWidth: 1,
+-    borderBottomColor: colors.border,
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'space-between',
+-  },
+-  headerTitleWrap: {
+-    flex: 1,
+-    paddingRight: 12,
+-  },
+-  headerTitle: {
+-    fontSize: 22,
+-    fontWeight: '800',
+-    color: colors.foreground,
+-    letterSpacing: -0.5,
+-  },
+-  headerSubtitle: {
+-    fontSize: 12,
+-    color: colors.mutedText,
+-    marginTop: 2,
+-  },
+diff --git a/mobile/app/_layout.tsx b/mobile/app/_layout.tsx
+index f84b4c4..34f9204 100644
+--- a/mobile/app/_layout.tsx
++++ b/mobile/app/_layout.tsx
+@@ -5,0 +6 @@ import { View, Text, StyleSheet, ActivityIndicator, Alert } from 'react-native';
++import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
+@@ -40,0 +42 @@ function RootNavigation() {
++  const insets = useSafeAreaInsets();
+@@ -119,0 +122,2 @@ function RootNavigation() {
++      {/* Banner owns the top inset while visible; screens below must not add it twice. */}
++      <SafeAreaInsetsContext.Provider value={isNetworkError ? { ...insets, top: 0 } : insets}>
+@@ -130,0 +135 @@ function RootNavigation() {
++      </SafeAreaInsetsContext.Provider>
+diff --git a/mobile/app/incidents/[id].tsx b/mobile/app/incidents/[id].tsx
+index f775e05..59da813 100644
+--- a/mobile/app/incidents/[id].tsx
++++ b/mobile/app/incidents/[id].tsx
+@@ -0,0 +1 @@
++import { AppHeader } from '@/components/navigation/app-header';
+@@ -142 +143 @@ export default function IncidentDetailScreen() {
+-    <View style={[styles.container, { paddingTop: insets.top }]}>
++    <View style={styles.container}>
+@@ -144,11 +145 @@ export default function IncidentDetailScreen() {
+-      <View style={styles.header}>
+-        <TouchableOpacity
+-          onPress={() => router.back()}
+-          style={styles.backButton}
+-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+-        >
+-          <Ionicons name="arrow-back" size={24} color="#1E293B" />
+-        </TouchableOpacity>
+-        <Text style={styles.headerTitle}>Chi tiết sự cố</Text>
+-        <View style={{ width: 40 }} />
+-      </View>
++      <AppHeader title="Chi tiết sự cố" onBack={() => router.back()} />
+@@ -483,21 +473,0 @@ const styles = StyleSheet.create({
+-  header: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'space-between',
+-    paddingHorizontal: 16,
+-    paddingVertical: 12,
+-    backgroundColor: '#FFFFFF',
+-    borderBottomWidth: 1,
+-    borderBottomColor: '#E2E8F0',
+-  },
+-  backButton: {
+-    width: 40,
+-    height: 40,
+-    alignItems: 'center',
+-    justifyContent: 'center',
+-  },
+-  headerTitle: {
+-    fontSize: 17,
+-    fontWeight: '700',
+-    color: '#1E293B',
+-  },
+diff --git a/mobile/app/incidents/index.tsx b/mobile/app/incidents/index.tsx
+index a4df18a..d23392c 100644
+--- a/mobile/app/incidents/index.tsx
++++ b/mobile/app/incidents/index.tsx
+@@ -0,0 +1 @@
++import { AppHeader } from '@/components/navigation/app-header';
+@@ -12 +12,0 @@ import { useRouter } from 'expo-router';
+-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+@@ -42 +41,0 @@ export default function IncidentsHistoryScreen() {
+-  const insets = useSafeAreaInsets();
+@@ -112 +111 @@ export default function IncidentsHistoryScreen() {
+-    <View style={[styles.container, { paddingTop: insets.top }]}>
++    <View style={styles.container}>
+@@ -114,11 +113 @@ export default function IncidentsHistoryScreen() {
+-      <View style={styles.header}>
+-        <TouchableOpacity
+-          onPress={() => router.back()}
+-          style={styles.backButton}
+-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+-        >
+-          <Ionicons name="arrow-back" size={24} color="#1E293B" />
+-        </TouchableOpacity>
+-        <Text style={styles.headerTitle}>Lịch sử sự cố</Text>
+-        <View style={{ width: 40 }} />
+-      </View>
++      <AppHeader title="Lịch sử sự cố" onBack={() => router.back()} />
+@@ -292,21 +280,0 @@ const styles = StyleSheet.create({
+-  header: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'space-between',
+-    paddingHorizontal: 16,
+-    paddingVertical: 12,
+-    backgroundColor: '#FFFFFF',
+-    borderBottomWidth: 1,
+-    borderBottomColor: '#E2E8F0',
+-  },
+-  backButton: {
+-    width: 40,
+-    height: 40,
+-    alignItems: 'center',
+-    justifyContent: 'center',
+-  },
+-  headerTitle: {
+-    fontSize: 17,
+-    fontWeight: '700',
+-    color: '#1E293B',
+-  },
+diff --git a/mobile/app/leave-notices/[id].tsx b/mobile/app/leave-notices/[id].tsx
+index 3775c6d..85b3100 100644
+--- a/mobile/app/leave-notices/[id].tsx
++++ b/mobile/app/leave-notices/[id].tsx
+@@ -0,0 +1 @@
++import { AppHeader } from '@/components/navigation/app-header';
+@@ -143,8 +144,2 @@ export default function LeaveNoticeDetailScreen() {
+-      <View style={[styles.container, { paddingTop: insets.top }]}>
+-        <View style={styles.header}>
+-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+-            <Ionicons name="arrow-back" size={24} color="#1E293B" />
+-          </TouchableOpacity>
+-          <Text style={styles.headerTitle}>Chi tiết báo nghỉ</Text>
+-          <View style={{ width: 36 }} />
+-        </View>
++      <View style={styles.container}>
++        <AppHeader title="Chi tiết báo nghỉ" onBack={() => router.back()} />
+@@ -171 +166 @@ export default function LeaveNoticeDetailScreen() {
+-    <View style={[styles.container, { paddingTop: insets.top }]}>
++    <View style={styles.container}>
+@@ -173,7 +168 @@ export default function LeaveNoticeDetailScreen() {
+-      <View style={styles.header}>
+-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+-          <Ionicons name="arrow-back" size={24} color="#1E293B" />
+-        </TouchableOpacity>
+-        <Text style={styles.headerTitle}>Chi tiết báo nghỉ</Text>
+-        <View style={{ width: 36 }} />
+-      </View>
++      <AppHeader title="Chi tiết báo nghỉ" onBack={() => router.back()} />
+@@ -339,18 +327,0 @@ const styles = StyleSheet.create({
+-  header: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'space-between',
+-    paddingHorizontal: 16,
+-    paddingVertical: 12,
+-    borderBottomWidth: 1,
+-    borderBottomColor: '#E2E8F0',
+-    backgroundColor: '#FFFFFF',
+-  },
+-  backBtn: {
+-    padding: 6,
+-  },
+-  headerTitle: {
+-    fontSize: 17,
+-    fontWeight: '700',
+-    color: '#1E293B',
+-  },
+diff --git a/mobile/app/leave-notices/create.tsx b/mobile/app/leave-notices/create.tsx
+index 50d5d7c..9dee6b1 100644
+--- a/mobile/app/leave-notices/create.tsx
++++ b/mobile/app/leave-notices/create.tsx
+@@ -0,0 +1 @@
++import { AppHeader } from '@/components/navigation/app-header';
+@@ -234 +235 @@ export default function CreateLeaveNoticeScreen() {
+-    <View style={[styles.container, { paddingTop: insets.top }]}>
++    <View style={styles.container}>
+@@ -236,7 +237 @@ export default function CreateLeaveNoticeScreen() {
+-      <View style={styles.header}>
+-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+-          <Ionicons name="arrow-back" size={24} color="#1E293B" />
+-        </TouchableOpacity>
+-        <Text style={styles.headerTitle}>Tạo báo nghỉ</Text>
+-        <View style={{ width: 36 }} />
+-      </View>
++      <AppHeader title="Tạo báo nghỉ" onBack={() => router.back()} />
+@@ -666,18 +660,0 @@ const styles = StyleSheet.create({
+-  header: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'space-between',
+-    paddingHorizontal: 16,
+-    paddingVertical: 12,
+-    borderBottomWidth: 1,
+-    borderBottomColor: '#E2E8F0',
+-    backgroundColor: '#FFFFFF',
+-  },
+-  backBtn: {
+-    padding: 6,
+-  },
+-  headerTitle: {
+-    fontSize: 17,
+-    fontWeight: '700',
+-    color: '#1E293B',
+-  },
+diff --git a/mobile/app/leave-notices/index.tsx b/mobile/app/leave-notices/index.tsx
+index cbd146a..53bd62a 100644
+--- a/mobile/app/leave-notices/index.tsx
++++ b/mobile/app/leave-notices/index.tsx
+@@ -0,0 +1 @@
++import { AppHeader, HeaderAction } from '@/components/navigation/app-header';
+@@ -177 +178 @@ export default function LeaveNoticesHistoryScreen() {
+-    <View style={[styles.container, { paddingTop: insets.top }]}>
++    <View style={styles.container}>
+@@ -179,8 +180 @@ export default function LeaveNoticesHistoryScreen() {
+-      <View style={styles.header}>
+-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+-          <Ionicons name="arrow-back" size={24} color="#1E293B" />
+-        </TouchableOpacity>
+-        <Text style={styles.headerTitle}>Báo nghỉ</Text>
+-        <TouchableOpacity
+-          style={styles.addBtn}
+-          onPress={() =>
++      <AppHeader title="Báo nghỉ" onBack={() => router.back()} actions={<HeaderAction icon="add" label="Tạo báo nghỉ" onPress={() =>
+@@ -191,6 +185 @@ export default function LeaveNoticesHistoryScreen() {
+-          }
+-          activeOpacity={0.8}
+-        >
+-          <Ionicons name="add" size={22} color="#1E293B" />
+-        </TouchableOpacity>
+-      </View>
++          } />} />
+@@ -331,26 +319,0 @@ const styles = StyleSheet.create({
+-  header: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'space-between',
+-    paddingHorizontal: 16,
+-    paddingVertical: 12,
+-    borderBottomWidth: 1,
+-    borderBottomColor: '#E2E8F0',
+-    backgroundColor: '#FFFFFF',
+-  },
+-  backBtn: {
+-    padding: 6,
+-  },
+-  headerTitle: {
+-    fontSize: 17,
+-    fontWeight: '700',
+-    color: '#1E293B',
+-  },
+-  addBtn: {
+-    width: 36,
+-    height: 36,
+-    borderRadius: 12,
+-    backgroundColor: '#FFCB56',
+-    alignItems: 'center',
+-    justifyContent: 'center',
+-  },
+diff --git a/mobile/app/leave-notices/otp.tsx b/mobile/app/leave-notices/otp.tsx
+index 71cebee..5a1b22b 100644
+--- a/mobile/app/leave-notices/otp.tsx
++++ b/mobile/app/leave-notices/otp.tsx
+@@ -0,0 +1 @@
++import { AppHeader } from '@/components/navigation/app-header';
+@@ -13 +13,0 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
+-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+@@ -20 +19,0 @@ export default function LeaveNoticeOtpScreen() {
+-  const insets = useSafeAreaInsets();
+@@ -130 +129 @@ export default function LeaveNoticeOtpScreen() {
+-      style={[styles.container, { paddingTop: insets.top }]}
++      style={styles.container}
+@@ -133,7 +132 @@ export default function LeaveNoticeOtpScreen() {
+-      <View style={styles.header}>
+-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+-          <Ionicons name="arrow-back" size={24} color="#1E293B" />
+-        </TouchableOpacity>
+-        <Text style={styles.headerTitle}>Xác nhận OTP</Text>
+-        <View style={{ width: 36 }} />
+-      </View>
++      <AppHeader title="Xác nhận OTP" onBack={() => router.back()} />
+@@ -242,18 +234,0 @@ const styles = StyleSheet.create({
+-  header: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'space-between',
+-    paddingHorizontal: 16,
+-    paddingVertical: 12,
+-    borderBottomWidth: 1,
+-    borderBottomColor: '#E2E8F0',
+-    backgroundColor: '#FFFFFF',
+-  },
+-  backBtn: {
+-    padding: 6,
+-  },
+-  headerTitle: {
+-    fontSize: 17,
+-    fontWeight: '700',
+-    color: '#1E293B',
+-  },
+diff --git a/mobile/app/notifications.tsx b/mobile/app/notifications.tsx
+index 3599c61..72caf4b 100644
+--- a/mobile/app/notifications.tsx
++++ b/mobile/app/notifications.tsx
+@@ -0,0 +1 @@
++import { AppHeader, HeaderAction } from '@/components/navigation/app-header';
+@@ -34,2 +35,2 @@ export default function NotificationsScreen() {
+-  return <View style={[styles.container, { paddingTop: insets.top }]}>
+-    <View style={styles.header}><TouchableOpacity accessibilityLabel="Quay lại" onPress={() => router.back()}><Ionicons name="arrow-back" size={24} color={colors.foreground} /></TouchableOpacity><Text style={styles.title}>Thông báo</Text><TouchableOpacity accessibilityLabel="Đánh dấu tất cả đã đọc" disabled={busy} onPress={() => { void readAll(); }}><Ionicons name="checkmark-done" size={23} color={colors.foreground} /></TouchableOpacity></View>
++  return <View style={styles.container}>
++    <AppHeader title="Thông báo" onBack={() => router.back()} actions={<HeaderAction icon="checkmark-done" label="Đánh dấu tất cả đã đọc" disabled={busy} onPress={() => { void readAll(); }} />} />
+@@ -49 +50 @@ const styles = StyleSheet.create({
+-  container: { flex: 1, backgroundColor: colors.background }, header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, backgroundColor: colors.surface }, title: { fontSize: 18, fontWeight: '700', color: colors.foreground },
++  container: { flex: 1, backgroundColor: colors.background },
+diff --git a/mobile/app/parent/create-request/address/[studentId].tsx b/mobile/app/parent/create-request/address/[studentId].tsx
+index e51a8ba..f28380b 100644
+--- a/mobile/app/parent/create-request/address/[studentId].tsx
++++ b/mobile/app/parent/create-request/address/[studentId].tsx
+@@ -0,0 +1 @@
++import { AppHeader } from '@/components/navigation/app-header';
+@@ -171,7 +172 @@ export default function CreateAddressRequestScreen() {
+-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+-        </TouchableOpacity>
+-        <Text style={styles.headerTitle}>Đổi địa chỉ đón trả</Text>
+-        <View style={{ width: 40 }} />
+-      </View>
++      <AppHeader title="Đổi địa chỉ đón trả" onBack={() => router.back()} />
+@@ -315,22 +309,0 @@ const styles = StyleSheet.create({
+-  header: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'space-between',
+-    paddingHorizontal: 16,
+-    paddingBottom: 12,
+-    backgroundColor: colors.surface,
+-    borderBottomWidth: 1,
+-    borderBottomColor: colors.border,
+-  },
+-  backButton: {
+-    width: 40,
+-    height: 40,
+-    borderRadius: 20,
+-    justifyContent: 'center',
+-    alignItems: 'center',
+-  },
+-  headerTitle: {
+-    fontSize: 17,
+-    fontWeight: '700',
+-    color: colors.foreground,
+-  },
+diff --git a/mobile/app/parent/create-request/information/[studentId].tsx b/mobile/app/parent/create-request/information/[studentId].tsx
+index dba1e3e..caf4118 100644
+--- a/mobile/app/parent/create-request/information/[studentId].tsx
++++ b/mobile/app/parent/create-request/information/[studentId].tsx
+@@ -0,0 +1 @@
++import { AppHeader } from '@/components/navigation/app-header';
+@@ -116,7 +117 @@ export default function CreateInformationRequestScreen() {
+-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+-        </TouchableOpacity>
+-        <Text style={styles.headerTitle}>Đổi thông tin học sinh</Text>
+-        <View style={{ width: 40 }} />
+-      </View>
++      <AppHeader title="Đổi thông tin học sinh" onBack={() => router.back()} />
+@@ -223,22 +217,0 @@ const styles = StyleSheet.create({
+-  header: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'space-between',
+-    paddingHorizontal: 16,
+-    paddingBottom: 12,
+-    backgroundColor: colors.surface,
+-    borderBottomWidth: 1,
+-    borderBottomColor: colors.border,
+-  },
+-  backButton: {
+-    width: 40,
+-    height: 40,
+-    borderRadius: 20,
+-    justifyContent: 'center',
+-    alignItems: 'center',
+-  },
+-  headerTitle: {
+-    fontSize: 17,
+-    fontWeight: '700',
+-    color: colors.foreground,
+-  },
+diff --git a/mobile/app/parent/create-request/verify-otp.tsx b/mobile/app/parent/create-request/verify-otp.tsx
+index 2ead6e9..9971c9a 100644
+--- a/mobile/app/parent/create-request/verify-otp.tsx
++++ b/mobile/app/parent/create-request/verify-otp.tsx
+@@ -0,0 +1 @@
++import { AppHeader } from '@/components/navigation/app-header';
+@@ -101,7 +102 @@ export default function VerifyOtpRequestScreen() {
+-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+-        </TouchableOpacity>
+-        <Text style={styles.headerTitle}>Xác thực OTP</Text>
+-        <View style={{ width: 40 }} />
+-      </View>
++      <AppHeader title="Xác thực OTP" onBack={() => router.back()} />
+@@ -173,22 +167,0 @@ const styles = StyleSheet.create({
+-  header: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'space-between',
+-    paddingHorizontal: 16,
+-    paddingBottom: 12,
+-    backgroundColor: colors.surface,
+-    borderBottomWidth: 1,
+-    borderBottomColor: colors.border,
+-  },
+-  backButton: {
+-    width: 40,
+-    height: 40,
+-    borderRadius: 20,
+-    justifyContent: 'center',
+-    alignItems: 'center',
+-  },
+-  headerTitle: {
+-    fontSize: 17,
+-    fontWeight: '700',
+-    color: colors.foreground,
+-  },
+diff --git a/mobile/app/parent/link-student.tsx b/mobile/app/parent/link-student.tsx
+index b7f4a4e..77948c1 100644
+--- a/mobile/app/parent/link-student.tsx
++++ b/mobile/app/parent/link-student.tsx
+@@ -0,0 +1 @@
++import { AppHeader } from '@/components/navigation/app-header';
+@@ -14 +14,0 @@ import { useRouter } from 'expo-router';
+-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+@@ -45 +44,0 @@ export default function LinkStudentScreen() {
+-  const insets = useSafeAreaInsets();
+@@ -114,11 +113 @@ export default function LinkStudentScreen() {
+-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+-        <TouchableOpacity
+-          style={styles.backButton}
+-          onPress={() => router.back()}
+-          disabled={isSubmitting}
+-        >
+-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+-        </TouchableOpacity>
+-        <Text style={styles.headerTitle}>Liên kết học sinh</Text>
+-        <View style={{ width: 40 }} />
+-      </View>
++      <AppHeader title="Liên kết học sinh" onBack={() => router.back()} backDisabled={isSubmitting} />
+@@ -309,22 +297,0 @@ const styles = StyleSheet.create({
+-  header: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'space-between',
+-    paddingHorizontal: 16,
+-    paddingBottom: 12,
+-    backgroundColor: colors.surface,
+-    borderBottomWidth: 1,
+-    borderBottomColor: colors.border,
+-  },
+-  backButton: {
+-    width: 40,
+-    height: 40,
+-    borderRadius: 20,
+-    justifyContent: 'center',
+-    alignItems: 'center',
+-  },
+-  headerTitle: {
+-    fontSize: 18,
+-    fontWeight: '700',
+-    color: colors.foreground,
+-  },
+diff --git a/mobile/app/parent/route-detail.tsx b/mobile/app/parent/route-detail.tsx
+index 2db4d25..c4a963b 100644
+--- a/mobile/app/parent/route-detail.tsx
++++ b/mobile/app/parent/route-detail.tsx
+@@ -0,0 +1 @@
++import { AppHeader } from '@/components/navigation/app-header';
+@@ -172,8 +173,2 @@ export default function ParentRouteDetailScreen() {
+-      <View style={[styles.container, { paddingTop: insets.top }]}>
+-        <View style={styles.header}>
+-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+-            <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+-          </TouchableOpacity>
+-          <Text style={styles.headerTitle}>Tuyến đường đưa đón</Text>
+-          <View style={{ width: 40 }} />
+-        </View>
++      <View style={styles.container}>
++        <AppHeader title="Tuyến đường đưa đón" onBack={() => router.back()} />
+@@ -209,8 +204,2 @@ export default function ParentRouteDetailScreen() {
+-      <View style={[styles.container, { paddingTop: insets.top }]}>
+-        <View style={styles.header}>
+-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+-            <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+-          </TouchableOpacity>
+-          <Text style={styles.headerTitle}>Tuyến đường đưa đón</Text>
+-          <View style={{ width: 40 }} />
+-        </View>
++      <View style={styles.container}>
++        <AppHeader title="Tuyến đường đưa đón" onBack={() => router.back()} />
+@@ -233 +222 @@ export default function ParentRouteDetailScreen() {
+-    <View style={[styles.container, { paddingTop: insets.top }]}>
++    <View style={styles.container}>
+@@ -235,7 +224 @@ export default function ParentRouteDetailScreen() {
+-      <View style={styles.header}>
+-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+-        </TouchableOpacity>
+-        <Text style={styles.headerTitle}>Tuyến đường đưa đón</Text>
+-        <View style={{ width: 40 }} />
+-      </View>
++      <AppHeader title="Tuyến đường đưa đón" onBack={() => router.back()} />
+@@ -391,22 +373,0 @@ const styles = StyleSheet.create({
+-  header: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'space-between',
+-    paddingHorizontal: 16,
+-    paddingBottom: 12,
+-    backgroundColor: colors.surface,
+-    borderBottomWidth: 1,
+-    borderBottomColor: colors.border,
+-  },
+-  backButton: {
+-    width: 40,
+-    height: 40,
+-    borderRadius: 20,
+-    justifyContent: 'center',
+-    alignItems: 'center',
+-  },
+-  headerTitle: {
+-    fontSize: 18,
+-    fontWeight: '700',
+-    color: colors.foreground,
+-  },
+diff --git a/mobile/app/parent/schedule.tsx b/mobile/app/parent/schedule.tsx
+index d043caa..a637404 100644
+--- a/mobile/app/parent/schedule.tsx
++++ b/mobile/app/parent/schedule.tsx
+@@ -0,0 +1 @@
++import { AppHeader, headerActionStyles } from '@/components/navigation/app-header';
+@@ -108 +109 @@ export default function ParentStudentScheduleScreen() {
+-    <View style={[styles.container, { paddingTop: insets.top }]}>
++    <View style={styles.container}>
+@@ -110,16 +111,3 @@ export default function ParentStudentScheduleScreen() {
+-      <View style={styles.header}>
+-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+-          <Ionicons name="arrow-back" size={24} color="#0F172A" />
+-        </TouchableOpacity>
+-        <View style={{ flex: 1, marginHorizontal: 8 }}>
+-          <Text style={styles.headerTitle} numberOfLines={1}>
+-            Lịch học & Xe đưa đón
+-          </Text>
+-          <Text style={styles.headerSubtitle} numberOfLines={1}>
+-            {studentName}
+-          </Text>
+-        </View>
+-        <TouchableOpacity onPress={goToToday} style={styles.todayButton}>
+-          <Text style={styles.todayText}>Hôm nay</Text>
+-        </TouchableOpacity>
+-      </View>
++      <AppHeader title="Lịch học & Xe đưa đón" onBack={() => router.back()} subtitle={studentName} actions={<TouchableOpacity accessibilityRole="button" onPress={goToToday} style={headerActionStyles.textButton}>
++          <Text style={headerActionStyles.text}>Hôm nay</Text>
++        </TouchableOpacity>} />
+@@ -316,41 +303,0 @@ const styles = StyleSheet.create({
+-  header: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'space-between',
+-    paddingHorizontal: 16,
+-    paddingVertical: 10,
+-    backgroundColor: '#FFFFFF',
+-    borderBottomWidth: 1,
+-    borderBottomColor: '#F1F5F9',
+-  },
+-  backButton: {
+-    width: 38,
+-    height: 38,
+-    borderRadius: 19,
+-    alignItems: 'center',
+-    justifyContent: 'center',
+-    backgroundColor: '#F1F5F9',
+-  },
+-  headerTitle: {
+-    fontSize: 16,
+-    fontWeight: '800',
+-    color: '#0F172A',
+-  },
+-  headerSubtitle: {
+-    fontSize: 12,
+-    color: '#64748B',
+-    marginTop: 1,
+-  },
+-  todayButton: {
+-    paddingHorizontal: 10,
+-    paddingVertical: 6,
+-    borderRadius: 10,
+-    backgroundColor: '#FEF3C7',
+-    borderWidth: 1,
+-    borderColor: '#FDE68A',
+-  },
+-  todayText: {
+-    fontSize: 11,
+-    fontWeight: '700',
+-    color: '#92400E',
+-  },
+diff --git a/mobile/app/parent/student-detail/[id].tsx b/mobile/app/parent/student-detail/[id].tsx
+index 0fa7d5f..b229102 100644
+--- a/mobile/app/parent/student-detail/[id].tsx
++++ b/mobile/app/parent/student-detail/[id].tsx
+@@ -0,0 +1 @@
++import { AppHeader } from '@/components/navigation/app-header';
+@@ -99,8 +100,2 @@ export default function StudentDetailScreen() {
+-      <View style={[styles.container, { paddingTop: insets.top }]}>
+-        <View style={styles.header}>
+-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+-            <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+-          </TouchableOpacity>
+-          <Text style={styles.headerTitle}>Chi tiết học sinh</Text>
+-          <View style={{ width: 40 }} />
+-        </View>
++      <View style={styles.container}>
++        <AppHeader title="Chi tiết học sinh" onBack={() => router.back()} />
+@@ -125,11 +120 @@ export default function StudentDetailScreen() {
+-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+-        <TouchableOpacity
+-          style={styles.backButton}
+-          onPress={() => router.back()}
+-          disabled={isUnlinking}
+-        >
+-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+-        </TouchableOpacity>
+-        <Text style={styles.headerTitle}>Hồ sơ học sinh</Text>
+-        <View style={{ width: 40 }} />
+-      </View>
++      <AppHeader title="Hồ sơ học sinh" onBack={() => router.back()} backDisabled={isUnlinking} />
+@@ -384,22 +368,0 @@ const styles = StyleSheet.create({
+-  header: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'space-between',
+-    paddingHorizontal: 16,
+-    paddingBottom: 12,
+-    backgroundColor: colors.surface,
+-    borderBottomWidth: 1,
+-    borderBottomColor: colors.border,
+-  },
+-  backButton: {
+-    width: 40,
+-    height: 40,
+-    borderRadius: 20,
+-    justifyContent: 'center',
+-    alignItems: 'center',
+-  },
+-  headerTitle: {
+-    fontSize: 18,
+-    fontWeight: '700',
+-    color: colors.foreground,
+-  },
+diff --git a/mobile/app/parent/update-requests/detail/[requestId].tsx b/mobile/app/parent/update-requests/detail/[requestId].tsx
+index d2b4724..346a11f 100644
+--- a/mobile/app/parent/update-requests/detail/[requestId].tsx
++++ b/mobile/app/parent/update-requests/detail/[requestId].tsx
+@@ -0,0 +1 @@
++import { AppHeader } from '@/components/navigation/app-header';
+@@ -119,7 +120 @@ export default function ParentRequestDetailScreen() {
+-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+-        </TouchableOpacity>
+-        <Text style={styles.headerTitle}>Chi tiết yêu cầu</Text>
+-        <View style={{ width: 40 }} />
+-      </View>
++      <AppHeader title="Chi tiết yêu cầu" onBack={() => router.back()} />
+@@ -325,22 +319,0 @@ const styles = StyleSheet.create({
+-  header: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'space-between',
+-    paddingHorizontal: 16,
+-    paddingBottom: 12,
+-    backgroundColor: colors.surface,
+-    borderBottomWidth: 1,
+-    borderBottomColor: colors.border,
+-  },
+-  backButton: {
+-    width: 40,
+-    height: 40,
+-    borderRadius: 20,
+-    justifyContent: 'center',
+-    alignItems: 'center',
+-  },
+-  headerTitle: {
+-    fontSize: 17,
+-    fontWeight: '700',
+-    color: colors.foreground,
+-  },
+diff --git a/mobile/app/parent/verify-otp.tsx b/mobile/app/parent/verify-otp.tsx
+index bd99efd..7537246 100644
+--- a/mobile/app/parent/verify-otp.tsx
++++ b/mobile/app/parent/verify-otp.tsx
+@@ -0,0 +1 @@
++import { AppHeader } from '@/components/navigation/app-header';
+@@ -14 +14,0 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
+-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+@@ -21 +20,0 @@ export default function VerifyOtpScreen() {
+-  const insets = useSafeAreaInsets();
+@@ -123,11 +122 @@ export default function VerifyOtpScreen() {
+-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+-        <TouchableOpacity
+-          style={styles.backButton}
+-          onPress={() => router.back()}
+-          disabled={isVerifying}
+-        >
+-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+-        </TouchableOpacity>
+-        <Text style={styles.headerTitle}>Xác thực OTP</Text>
+-        <View style={{ width: 40 }} />
+-      </View>
++      <AppHeader title="Xác thực OTP" onBack={() => router.back()} backDisabled={isVerifying} />
+@@ -237,22 +225,0 @@ const styles = StyleSheet.create({
+-  header: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'space-between',
+-    paddingHorizontal: 16,
+-    paddingBottom: 12,
+-    backgroundColor: colors.surface,
+-    borderBottomWidth: 1,
+-    borderBottomColor: colors.border,
+-  },
+-  backButton: {
+-    width: 40,
+-    height: 40,
+-    borderRadius: 20,
+-    justifyContent: 'center',
+-    alignItems: 'center',
+-  },
+-  headerTitle: {
+-    fontSize: 18,
+-    fontWeight: '700',
+-    color: colors.foreground,
+-  },
+diff --git a/mobile/app/trip/[id].tsx b/mobile/app/trip/[id].tsx
+index 4da7667..5af486f 100644
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -785,8 +785,2 @@ export default function MobileTripDetailScreen() {
+-      <View style={[styles.container, { paddingTop: insets.top }]}>
+-        <View style={styles.topBar}>
+-          <TouchableOpacity onPress={() => router.back()} style={styles.iconButton}>
+-            <Ionicons name="arrow-back" size={24} color="#0F172A" />
+-          </TouchableOpacity>
+-          <Text style={styles.topBarTitle}>Chi tiết chuyến xe</Text>
+-          <View style={{ width: 40 }} />
+-        </View>
++      <View style={styles.container}>
++        <AppHeader title="Chi tiết chuyến xe" onBack={() => router.back()} />
+@@ -971,7 +965 @@ export default function MobileTripDetailScreen() {
+-        <TouchableOpacity
+-          onPress={() => router.back()}
+-          style={styles.floatingBackButton}
+-          activeOpacity={0.8}
+-        >
+-          <Ionicons name="arrow-back" size={22} color="#0F172A" />
+-        </TouchableOpacity>
++        <HeaderAction icon="arrow-back" label="Quay lại" onPress={() => router.back()} />
+@@ -2504,18 +2491,0 @@ const styles = StyleSheet.create({
+-  topBar: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'space-between',
+-    paddingHorizontal: 16,
+-    paddingVertical: 12,
+-    borderBottomWidth: 1,
+-    borderBottomColor: '#E2E8F0',
+-    backgroundColor: '#FFFFFF',
+-  },
+-  topBarTitle: {
+-    fontSize: 16,
+-    fontWeight: '700',
+-    color: '#0F172A',
+-  },
+-  iconButton: {
+-    padding: 6,
+-  },
+@@ -2556,13 +2525,0 @@ const styles = StyleSheet.create({
+-  floatingBackButton: {
+-    width: 42,
+-    height: 42,
+-    borderRadius: 21,
+-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+-    alignItems: 'center',
+-    justifyContent: 'center',
+-    shadowColor: '#000',
+-    shadowOffset: { width: 0, height: 2 },
+-    shadowOpacity: 0.15,
+-    shadowRadius: 4,
+-    elevation: 4,
+-  },
+@@ -3630,0 +3588 @@ const styles = StyleSheet.create({
++import { AppHeader, HeaderAction } from '@/components/navigation/app-header';
+diff --git a/mobile/components/notification-bell.tsx b/mobile/components/notification-bell.tsx
+index dfd4b40..6e34131 100644
+--- a/mobile/components/notification-bell.tsx
++++ b/mobile/components/notification-bell.tsx
+@@ -5,0 +6 @@ import { useNotifications } from '@/context/notifications-context';
++import { navigationMetrics } from '@/constants/navigation';
+@@ -18 +18,0 @@ export function NotificationBell({ style }: { style?: StyleProp<ViewStyle> }) {
+-      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+@@ -30 +30,4 @@ const styles = StyleSheet.create({
+-    padding: 6,
++    width: navigationMetrics.actionSize,
++    height: navigationMetrics.actionSize,
++    borderRadius: navigationMetrics.actionSize / 2,
++    backgroundColor: colors.surface,
+@@ -50 +53 @@ const styles = StyleSheet.create({
+-    borderColor: '#FFFFFF',
++    borderColor: colors.surface,
+diff --git a/mobile/constants/theme.ts b/mobile/constants/theme.ts
+index bbecc75..fade766 100644
+--- a/mobile/constants/theme.ts
++++ b/mobile/constants/theme.ts
+@@ -7,0 +8,3 @@ export const colors = {
++  navigationActive: '#996300',
++  navigationHighlight: '#FFF3D2',
++  navigationShadow: '#17243B',
+
+diff --git a/mobile/components/navigation/app-header.tsx b/mobile/components/navigation/app-header.tsx
+new file mode 100644
+index 0000000..f71fe2d
+--- /dev/null
++++ b/mobile/components/navigation/app-header.tsx
+@@ -0,0 +1,71 @@
++import type { ReactNode } from 'react';
++import { Pressable, StyleSheet, Text, View } from 'react-native';
++import Ionicons from '@expo/vector-icons/Ionicons';
++import { useSafeAreaInsets } from 'react-native-safe-area-context';
++import { colors } from '@/constants/theme';
++import { navigationMetrics as metrics } from '@/constants/navigation';
++
++type IconName = React.ComponentProps<typeof Ionicons>['name'];
++
++export function HeaderAction({ icon, label, onPress, disabled = false }: {
++  icon: IconName;
++  label: string;
++  onPress: () => void;
++  disabled?: boolean;
++}) {
++  return (
++    <Pressable accessibilityRole="button" accessibilityLabel={label}
++      accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
++      style={({ pressed }) => [styles.action, pressed && styles.pressed, disabled && styles.disabled]}>
++      <Ionicons name={icon} size={metrics.iconSize} color={colors.foreground} />
++    </Pressable>
++  );
++}
++
++export type AppHeaderProps = {
++  title: string;
++  subtitle?: string;
++  leading?: ReactNode;
++  actions?: ReactNode;
++  onBack?: () => void;
++  backDisabled?: boolean;
++  /** Set 0 only when a parent already owns the top safe area. */
++  topInset?: number;
++};
++
++/** In-flow header: consumes the top inset once, never overlays screen content. */
++export function AppHeader({ title, subtitle, leading, actions, onBack, backDisabled, topInset }: AppHeaderProps) {
++  const insets = useSafeAreaInsets();
++  return (
++    <View style={[styles.surface, { paddingTop: topInset ?? insets.top,
++      paddingLeft: insets.left, paddingRight: insets.right }]}>
++      <View style={styles.row}>
++        {onBack ? <HeaderAction icon="arrow-back" label="Quay lại" onPress={onBack} disabled={backDisabled} /> : leading}
++        <View style={styles.copy}>
++          <Text accessibilityRole="header" numberOfLines={2} style={styles.title}>{title}</Text>
++          {!!subtitle && <Text numberOfLines={2} style={styles.subtitle}>{subtitle}</Text>}
++        </View>
++        {!!actions && <View style={styles.actions}>{actions}</View>}
++      </View>
++    </View>
++  );
++}
++
++export const headerActionStyles = StyleSheet.create({
++  textButton: { minHeight: metrics.actionSize, justifyContent: 'center', paddingHorizontal: 10,
++    borderRadius: 24, backgroundColor: colors.navigationHighlight },
++  text: { color: colors.foreground, fontSize: 12, fontWeight: '700' },
++});
++
++const styles = StyleSheet.create({
++  surface: { flexShrink: 0, backgroundColor: colors.background, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
++  row: { minHeight: metrics.headerMinHeight, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, gap: 12 },
++  copy: { flex: 1, minWidth: 0 },
++  title: { color: colors.foreground, fontSize: 19, lineHeight: 25, fontWeight: '700' },
++  subtitle: { color: colors.mutedText, fontSize: 12, lineHeight: 18, marginTop: 2 },
++  actions: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 },
++  action: { width: metrics.actionSize, height: metrics.actionSize, borderRadius: metrics.actionSize / 2,
++    backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
++  pressed: { opacity: 0.7 },
++  disabled: { opacity: 0.45 },
++});
+
+diff --git a/mobile/components/navigation/tab-button.tsx b/mobile/components/navigation/tab-button.tsx
+new file mode 100644
+index 0000000..1d73ce7
+--- /dev/null
++++ b/mobile/components/navigation/tab-button.tsx
+@@ -0,0 +1,23 @@
++import type { ComponentProps } from 'react';
++import { Link, Tabs, type Href } from 'expo-router';
++import { Platform, Pressable, StyleSheet } from 'react-native';
++
++type Options = Exclude<NonNullable<ComponentProps<typeof Tabs>['screenOptions']>, (...args: never[]) => unknown>;
++type TabButtonProps = Parameters<NonNullable<Options['tabBarButton']>>[0];
++
++/** Keep navigator-provided events, accessibility and Web links; no local tab state. */
++export function TabButton({ href, style, children, ref: navigationRef, pressColor: _color, pressOpacity: _opacity,
++  hoverEffect: _hover, ...props }: TabButtonProps) {
++  const button = <Pressable {...props} ref={navigationRef as ComponentProps<typeof Pressable>['ref']} accessibilityRole="tab"
++    aria-selected={props['aria-selected'] ?? props.accessibilityState?.selected}
++    style={({ pressed }) => [style, styles.button, pressed && styles.pressed, props.disabled && styles.disabled]}>
++    {children}
++  </Pressable>;
++  return Platform.OS === 'web' && href ? <Link href={href as Href} asChild>{button}</Link> : button;
++}
++
++const styles = StyleSheet.create({
++  button: { minHeight: 48 },
++  pressed: { opacity: 0.7 },
++  disabled: { opacity: 0.45 },
++});
+
+diff --git a/mobile/constants/navigation.ts b/mobile/constants/navigation.ts
+new file mode 100644
+index 0000000..f7a7481
+--- /dev/null
++++ b/mobile/constants/navigation.ts
+@@ -0,0 +1,11 @@
++import { colors } from './theme';
++export { getTabBarMetrics, navigationMetrics } from '../utils/navigation-layout';
++
++export const navigationShadow = {
++  shadowColor: colors.navigationShadow,
++  shadowOffset: { width: 0, height: -2 },
++  shadowOpacity: 0.08,
++  shadowRadius: 7,
++  elevation: 8,
++};
++
+
+diff --git a/mobile/hooks/use-navigation-keyboard.ts b/mobile/hooks/use-navigation-keyboard.ts
+new file mode 100644
+index 0000000..73f1f98
+--- /dev/null
++++ b/mobile/hooks/use-navigation-keyboard.ts
+@@ -0,0 +1,2 @@
++/** Native keyboard visibility is owned by the existing tab navigator. */
++export function useNavigationKeyboard() { return false; }
+
+diff --git a/mobile/hooks/use-navigation-keyboard.web.ts b/mobile/hooks/use-navigation-keyboard.web.ts
+new file mode 100644
+index 0000000..db5bd84
+--- /dev/null
++++ b/mobile/hooks/use-navigation-keyboard.web.ts
+@@ -0,0 +1,38 @@
++import { useEffect, useRef, useState } from 'react';
++import { isNavigationOccluded } from '@/utils/navigation-layout';
++
++export function useNavigationKeyboard() {
++  const [hidden, setHidden] = useState(false);
++  const availableHeight = useRef(0);
++  useEffect(() => {
++    const viewport = window.visualViewport;
++    const touch = window.matchMedia('(pointer: coarse)');
++    availableHeight.current = window.innerHeight;
++    let frame: number | undefined;
++    const measure = () => {
++      if (frame !== undefined) cancelAnimationFrame(frame);
++      frame = requestAnimationFrame(() => {
++        const editing = document.activeElement?.matches('input:not([readonly]):not([disabled]), textarea:not([readonly]):not([disabled]), [contenteditable="true"]') ?? false;
++        if (!editing) availableHeight.current = window.innerHeight;
++        setHidden(touch.matches && isNavigationOccluded(editing, Math.max(availableHeight.current, window.innerHeight),
++          viewport ? viewport.offsetTop + viewport.height : window.innerHeight));
++      });
++    };
++    // Capture also sees fields whose scroll region stops bubbling focus events.
++    document.addEventListener('focusin', measure, true);
++    document.addEventListener('focusout', measure, true);
++    viewport?.addEventListener('resize', measure);
++    viewport?.addEventListener('scroll', measure);
++    window.addEventListener('resize', measure);
++    measure();
++    return () => {
++      document.removeEventListener('focusin', measure, true);
++      document.removeEventListener('focusout', measure, true);
++      viewport?.removeEventListener('resize', measure);
++      viewport?.removeEventListener('scroll', measure);
++      window.removeEventListener('resize', measure);
++      if (frame !== undefined) cancelAnimationFrame(frame);
++    };
++  }, []);
++  return hidden;
++}
+
+diff --git a/mobile/scripts/navigation-layout.test.ts b/mobile/scripts/navigation-layout.test.ts
+new file mode 100644
+index 0000000..cf4704a
+--- /dev/null
++++ b/mobile/scripts/navigation-layout.test.ts
+@@ -0,0 +1,34 @@
++import { describe, it } from 'node:test';
++import assert from 'node:assert/strict';
++import { getTabBarMetrics, isNavigationOccluded } from '../utils/navigation-layout.ts';
++
++describe('navigation in changing device viewports (no API/DB)', () => {
++  it('reserves a home-indicator inset in addition to the tab content', () => {
++    const phone = getTabBarMetrics(34, 1), noInset = getTabBarMetrics(0, 1);
++    assert.equal(phone.height - phone.paddingBottom, noInset.height - noInset.paddingBottom);
++    assert.ok(phone.paddingBottom >= 34);
++    assert.ok(noInset.paddingBottom > 0);
++  });
++  it('grows the label area for accessibility font sizes without losing the inset', () => {
++    const normal = getTabBarMetrics(34, 1), large = getTabBarMetrics(34, 2);
++    assert.ok(large.height > normal.height);
++    assert.equal(large.paddingBottom, normal.paddingBottom);
++  });
++  it('does not shrink touch/navigation space for smaller fonts', () => {
++    assert.deepEqual(getTabBarMetrics(0, 0.8), getTabBarMetrics(0, 1));
++  });
++  it('does not hide navigation just because a visible field was focused', () => {
++    assert.equal(isNavigationOccluded(true, 844, 844), false);
++  });
++  it('hides for both visual viewport and layout viewport keyboard resizing', () => {
++    assert.equal(isNavigationOccluded(true, 844, 510), true);
++    assert.equal(isNavigationOccluded(true, 844, 420), true);
++  });
++  it('accounts for viewport panning rather than counting its height alone', () => {
++    assert.equal(isNavigationOccluded(true, 844, 300 + 544), false);
++  });
++  it('restores navigation when editing ends or the keyboard is dismissed', () => {
++    assert.equal(isNavigationOccluded(false, 844, 510), false);
++    assert.equal(isNavigationOccluded(true, 844, 844), false);
++  });
++});
+
+diff --git a/mobile/utils/navigation-layout.ts b/mobile/utils/navigation-layout.ts
+new file mode 100644
+index 0000000..b1d7ca6
+--- /dev/null
++++ b/mobile/utils/navigation-layout.ts
+@@ -0,0 +1,18 @@
++export const navigationMetrics = {
++  headerMinHeight: 72,
++  actionSize: 48,
++  iconSize: 22,
++  tabContentHeight: 66,
++  minimumBottomInset: 8,
++  tabLabelSize: 11,
++} as const;
++
++export function getTabBarMetrics(bottomInset: number, fontScale: number) {
++  const paddingBottom = Math.max(bottomInset, navigationMetrics.minimumBottomInset);
++  return { height: navigationMetrics.tabContentHeight + paddingBottom + Math.ceil(15 * Math.max(0, fontScale - 1)), paddingBottom };
++}
++
++/** Only hide navigation when an editable field loses actual viewport space. */
++export function isNavigationOccluded(editing: boolean, availableHeight: number, viewportBottom: number) {
++  return editing && viewportBottom < availableHeight - 1;
++}

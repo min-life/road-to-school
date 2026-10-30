@@ -1,3 +1,7 @@
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { OtpHero } from '@/components/auth/otp-hero';
+import { otpStyles } from '@/constants/otp-styles';
+import { AppHeader } from '@/components/navigation/app-header';
 import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState, useEffect } from 'react';
 import {
@@ -10,14 +14,13 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors } from '@/constants/theme';
 import { mobileApiClient, MaskedContactChannel } from '@/services/api-client';
 
 export default function LeaveNoticeOtpScreen() {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const params = useLocalSearchParams<{
     challengeId: string;
     maskedChannels: string;
@@ -127,23 +130,15 @@ export default function LeaveNoticeOtpScreen() {
 
   return (
     <View
-      style={[styles.container, { paddingTop: insets.top }]}
+      style={styles.container}
     >
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#1E293B" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Xác nhận OTP</Text>
-        <View style={{ width: 36 }} />
-      </View>
+      <AppHeader title="Xác nhận OTP" onBack={() => router.back()} />
 
-      <KeyboardScrollView contentContainerStyle={styles.content}>
+      <KeyboardScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
         {/* Context Card */}
         <View style={styles.infoCard}>
-          <View style={styles.iconCircle}>
-            <Ionicons name="key-outline" size={28} color="#D97706" />
-          </View>
+          <OtpHero />
 
           <Text style={styles.infoTitle}>Nhập mã xác thực</Text>
 
@@ -173,6 +168,7 @@ export default function LeaveNoticeOtpScreen() {
         {/* OTP Input */}
         <View style={styles.inputContainer}>
           <TextInput
+            accessibilityLabel="Nhập mã OTP"
             style={styles.otpInput}
             value={otp}
             onChangeText={(txt) => {
@@ -203,7 +199,7 @@ export default function LeaveNoticeOtpScreen() {
               Gửi lại mã sau <Text style={{ fontWeight: '700' }}>{countdown}s</Text>
             </Text>
           ) : (
-            <TouchableOpacity onPress={handleResend} disabled={resending}>
+            <TouchableOpacity style={otpStyles.linkButton} onPress={handleResend} disabled={resending}>
               {resending ? (
                 <ActivityIndicator size="small" color="#D97706" />
               ) : (
@@ -237,74 +233,36 @@ export default function LeaveNoticeOtpScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFDF6',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
-  },
-  backBtn: {
-    padding: 6,
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1E293B',
+    backgroundColor: colors.background,
   },
   content: {
-    padding: 20,
-    gap: 20,
-    alignItems: 'center',
+    ...otpStyles.content,
+    gap: 12,
   },
   infoCard: {
-    width: '100%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  iconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#FEF3C7',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
+    ...otpStyles.section,
   },
   infoTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1E293B',
+    ...otpStyles.heading,
   },
   destinationList: {
-    gap: 4,
-    marginVertical: 4,
-    alignItems: 'center',
+    gap: 6,
+    marginVertical: 8,
+    width: "100%",
   },
   destinationItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
+    width: "100%",
   },
   destinationText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#334155',
+    flex: 1,
+    minWidth: 0,
+    fontSize: 14,
+    lineHeight: 22,
+    fontWeight: "600",
+    color: colors.foreground,
   },
   consoleBadge: {
     fontSize: 11,
@@ -312,78 +270,37 @@ const styles = StyleSheet.create({
     color: '#D97706',
   },
   infoSubtext: {
-    fontSize: 12,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 18,
+    ...otpStyles.description,
+    marginBottom: 0,
   },
   inputContainer: {
-    width: '100%',
-    alignItems: 'center',
+    ...otpStyles.inputWrap,
   },
   otpInput: {
-    width: '80%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#FFCB56',
-    paddingVertical: 14,
-    textAlign: 'center',
-    fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: 10,
-    color: '#1E293B',
+    ...otpStyles.codeInput,
   },
   errorBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: '#FEE2E2',
+    ...otpStyles.error,
   },
   errorText: {
-    fontSize: 12,
-    color: '#B91C1C',
-    fontWeight: '500',
+    ...otpStyles.errorText,
   },
   resendRow: {
-    alignItems: 'center',
-    paddingVertical: 4,
+    alignItems: "center",
   },
   countdownText: {
-    fontSize: 13,
-    color: '#64748B',
+    ...otpStyles.meta,
   },
   resendBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#D97706',
-    textDecorationLine: 'underline',
+    ...otpStyles.link,
   },
   submitBtn: {
-    width: '100%',
-    backgroundColor: '#FFCB56',
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-    marginTop: 8,
+    ...otpStyles.button,
   },
   submitBtnDisabled: {
-    backgroundColor: '#CBD5E1',
-    shadowOpacity: 0,
-    elevation: 0,
+    ...otpStyles.disabled,
   },
   submitBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1E293B',
+    ...otpStyles.buttonText,
   },
 });

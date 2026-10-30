@@ -13,6 +13,14 @@ import type { RefreshContext } from '@/utils/refresh-loop';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors } from '@/constants/theme';
+import { journeyTones } from '@/constants/parent-journey';
+import { parentHomeStyles } from '@/components/parent/home-styles';
+import { ParentHomeScrollView } from '@/components/parent/home-scroll-view';
+import { ParentTripCard } from '@/components/parent/trip-card';
+import { ParentStudentJourney } from '@/components/parent/student-journey';
+import { useParentJourneyTelemetry } from '@/hooks/use-parent-journey-telemetry';
+import { activeJourneyIncident, journeySchoolArrived, journeyServiceDate, parentJourneyCard, studentJourneyBadge } from '@/utils/parent-journey-stage';
+import { journeyRecordedClock } from '@/utils/parent-journey';
 import { useAuth } from '@/context/auth-context';
 import { useQuickLeaveNotice } from '@/hooks/use-quick-leave-notice';
 import {
@@ -24,6 +32,7 @@ import {
 export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const isParent = user?.role === 'PARENT';
   const { triggerQuickLeaveNotice, isRequesting } = useQuickLeaveNotice();
 
   const [loading, setLoading] = useState(true);
@@ -63,6 +72,7 @@ export default function HomeScreen() {
     }
   };
   const identity = JSON.stringify([user?.id, user?.role]);
+  const journeyTelemetry = useParentJourneyTelemetry(identity, isParent ? parentCards : []);
   useEffect(() => { setHomeTrip(null); setParentCards([]); setHasHomeTrip(false); setLoading(true); }, [identity]);
   const { refresh: loadHomeData } = useActiveRefresh(identity, fetchHomeData, 8000);
 
@@ -112,67 +122,76 @@ export default function HomeScreen() {
     }
   };
 
+  const HomeScrollView = isParent ? ParentHomeScrollView : ScrollView;
+  const serviceDates = [...new Set(parentCards.map(card => card.serviceDate))];
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
+    <HomeScrollView
+      {...(isParent ? { fullName: user?.fullName, avatarUrl: user?.avatarUrl,
+        onOpenLeave: () => router.push('/leave-notices' as any),
+        onChangeStop: () => router.push('/parent/change-stop') } : {})}
+      style={[styles.container, isParent && parentHomeStyles.container]}
+      contentContainerStyle={[styles.content, isParent && parentHomeStyles.content]}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
       }
     >
       {/* Tiện ích Card (Wireframe 6.1) */}
-      <View style={styles.utilityCard}>
-        <View style={styles.utilityHeader}>
-          <Text style={styles.utilityCardTitle}>Tiện ích</Text>
+      {!isParent && <View style={[styles.utilityCard, isParent && parentHomeStyles.utilityCard]}>
+        <View style={[styles.utilityHeader, isParent && parentHomeStyles.utilityHeader]}>
+          <Text style={[styles.utilityCardTitle, isParent && parentHomeStyles.utilityCardTitle]}>Tiện ích</Text>
           <TouchableOpacity
-            style={styles.refreshIconBtn}
+            accessibilityRole={isParent ? "button" : undefined}
+            accessibilityLabel={isParent ? "Làm mới trang chủ" : undefined}
+            style={[styles.refreshIconBtn, isParent && parentHomeStyles.refreshIconBtn]}
             onPress={onRefresh}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            hitSlop={isParent ? undefined : { top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Ionicons name="refresh" size={18} color="#64748B" />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.utilityCenter}>
+        <View style={[styles.utilityCenter, isParent && parentHomeStyles.utilityCenter]}>
           <TouchableOpacity
-            style={styles.utilityActionBtn}
+            style={[styles.utilityActionBtn, isParent && parentHomeStyles.utilityActionBtn]}
+            accessibilityRole={isParent ? 'button' : undefined}
+            accessibilityLabel={isParent ? 'Báo nghỉ' : undefined}
             onPress={() => router.push('/leave-notices' as any)}
             activeOpacity={0.8}
           >
-            <View style={styles.utilityIconWrap}>
+            <View style={[styles.utilityIconWrap, isParent && parentHomeStyles.utilityIconWrap]}>
               <Ionicons name="calendar-outline" size={24} color="#1E293B" />
             </View>
-            <Text style={styles.utilityActionText}>Báo nghỉ</Text>
+            <Text style={[styles.utilityActionText, isParent && parentHomeStyles.utilityActionText]}>Báo nghỉ</Text>
           </TouchableOpacity>
 
           {(user?.role === 'DRIVER' || user?.role === 'BUS_ATTENDANT') && (
             <TouchableOpacity
-              style={styles.utilityActionBtn}
+              style={[styles.utilityActionBtn, isParent && parentHomeStyles.utilityActionBtn]}
               onPress={() => router.push('/incidents' as any)}
               activeOpacity={0.8}
             >
               <View style={[styles.utilityIconWrap, { backgroundColor: '#FEE2E2' }]}>
                 <Ionicons name="warning-outline" size={24} color="#DC2626" />
               </View>
-              <Text style={styles.utilityActionText}>Sự cố</Text>
+              <Text style={[styles.utilityActionText, isParent && parentHomeStyles.utilityActionText]}>Sự cố</Text>
             </TouchableOpacity>
           )}
         </View>
-      </View>
+      </View>}
 
       {/* Main Content Area */}
       {loading ? (
-        <View style={styles.loadingContainer}>
+        <View style={[styles.loadingContainer, isParent && parentHomeStyles.loadingContainer]}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Đang cập nhật chuyến xe...</Text>
+          <Text style={[styles.loadingText, isParent && parentHomeStyles.loadingText]}>Đang cập nhật chuyến xe...</Text>
         </View>
       ) : error ? (
-        <View style={styles.emptyContainer}>
+        <View style={[styles.emptyContainer, isParent && parentHomeStyles.emptyContainer]}>
           <Ionicons name="alert-circle-outline" size={40} color="#EF4444" />
-          <Text style={styles.emptyTitle}>Lỗi kết nối</Text>
-          <Text style={styles.emptySubtitle}>{error}</Text>
-          <TouchableOpacity style={styles.actionBtn} onPress={loadHomeData}>
-            <Text style={styles.actionBtnText}>Thử lại</Text>
+          <Text style={[styles.emptyTitle, isParent && parentHomeStyles.emptyTitle]}>Lỗi kết nối</Text>
+          <Text style={[styles.emptySubtitle, isParent && parentHomeStyles.emptySubtitle]}>{error}</Text>
+          <TouchableOpacity accessibilityRole={isParent ? 'button' : undefined} style={[styles.actionBtn, isParent && parentHomeStyles.actionBtn]} onPress={loadHomeData}>
+            <Text style={[styles.actionBtnText, isParent && parentHomeStyles.actionBtnText]}>Thử lại</Text>
           </TouchableOpacity>
         </View>
       ) : (user?.role === 'DRIVER' || user?.role === 'BUS_ATTENDANT') ? (
@@ -376,104 +395,86 @@ export default function HomeScreen() {
       ) : user?.role === 'PARENT' ? (
         /* ================= PARENT HOME (D05, D06, D10) ================= */
         parentCards.length > 0 ? (
-          <View style={styles.parentCardList}>
+          <View style={parentHomeStyles.parentCardList}>
+            <View style={parentHomeStyles.sectionHeader}>
+              <Text accessibilityRole="header" style={parentHomeStyles.sectionTitle}>Chuyến xe của con</Text>
+              <Text style={parentHomeStyles.sectionDate}>{serviceDates.map(journeyServiceDate).join(' · ')}</Text>
+            </View>
             {parentCards.map((card) => {
-              const att = getAttendanceBadge(card.attendanceStatus, card.childIsAlighted);
+              const tripTelemetry = journeyTelemetry.trips[card.tripId];
+              const student = parentJourneyCard(card, tripTelemetry?.unavailable || tripTelemetry?.operationUnavailable ? undefined : tripTelemetry?.operation);
+              const schoolArrived = card.direction === 'TO_SCHOOL' && journeySchoolArrived(tripTelemetry?.operation, card.tripId);
+              const studentStatus = studentJourneyBadge(student.attendanceStatus, Boolean(student.childIsAlighted), schoolArrived, Boolean(card.hasLeaveNotice), card.direction);
+              const att = getAttendanceBadge(student.attendanceStatus, student.childIsAlighted);
               return (
-                <View key={card.studentId} style={styles.tripCard}>
-                  {/* Student Header */}
-                  <View style={styles.parentStudentHeader}>
-                    <View style={styles.avatarCircle}>
-                      <Ionicons name="person" size={20} color="#475569" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.studentName}>{card.studentName}</Text>
-                      <Text style={styles.metaText}>{card.schoolName}</Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.statusPill,
-                        { backgroundColor: getStatusBadge(card.tripStatus).bg },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.statusPillText,
-                          { color: getStatusBadge(card.tripStatus).text },
-                        ]}
-                      >
-                        {getStatusBadge(card.tripStatus).label}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Route & Time */}
-                  <View style={styles.parentRouteBox}>
-                    <View style={styles.directionRow}>
-                      <Ionicons
-                        name={card.direction === 'TO_SCHOOL' ? 'arrow-forward' : 'arrow-back'}
-                        size={14}
-                        color={card.direction === 'TO_SCHOOL' ? '#2563EB' : '#D97706'}
-                      />
-                      <Text style={styles.parentRouteName} numberOfLines={1}>
-                        {card.routeName}
-                      </Text>
-                    </View>
-                    <View style={styles.parentTimeRow}>
-                      <Ionicons name="time-outline" size={14} color="#64748B" />
-                      <Text style={styles.parentTimeText}>
-                        {card.scheduledTime} • {card.serviceDate}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Attendance Card (D10: Parent sees absence reason if ABSENT) */}
-                  <View style={[styles.attendanceBox, { backgroundColor: att.bg }]}>
-                    <View style={styles.attendanceBoxHeader}>
-                      <Ionicons name={att.icon as any} size={18} color={att.text} />
-                      <Text style={[styles.attendanceBoxTitle, { color: att.text }]}>
-                        {att.label}
-                      </Text>
-                      {card.markedAt ? (
-                        <Text style={[styles.markedAtText, { color: att.text }]}>
-                          {new Date(card.markedAt).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                <ParentTripCard
+                  key={`${card.studentId}:${card.tripId}`}
+                  studentName={card.studentName}
+                  avatarUrl={card.studentAvatar}
+                  schoolName={card.schoolName}
+                  status={student.tripStatus === 'CANCELLED' ? { label: 'Đã hủy', bg: journeyTones.danger.bg, text: journeyTones.danger.text } : getStatusBadge(student.tripStatus)}
+                  studentStatus={studentStatus}
+                  hasIncident={tripTelemetry?.incidents?.some(i => activeJourneyIncident(i.status))}
+                  attention={student.attendanceStatus === 'UNMARKED' && student.tripStatus !== 'CANCELLED' && student.tripStatus !== 'COMPLETED'}
+                  stale={tripTelemetry?.operationUnavailable || tripTelemetry?.incidentsUnavailable}
+                  journey={active => <ParentStudentJourney card={student} telemetry={tripTelemetry} active={active && journeyTelemetry.active} showServiceDate={serviceDates.length > 1} />}
+                >
+                  {/* Attendance details; the status badge stays in the card header. */}
+                  {(student.markedAt || (student.attendanceStatus === 'PRESENT' && student.childIsAlighted && student.childAlightedAt)
+                    || (student.attendanceStatus === 'ABSENT' && student.absenceReason)) ? (
+                    <View style={[parentHomeStyles.attendanceBox, { backgroundColor: att.bg }]}>
+                      {student.markedAt ? (
+                        <Text style={[parentHomeStyles.markedAtText, { color: att.text }]}>
+                          Điểm danh{' '}
+                          {journeyRecordedClock(student.markedAt) ?? '—:—'}
                         </Text>
                       ) : null}
-                    </View>
+                      {student.attendanceStatus === 'PRESENT' && student.childIsAlighted && student.childAlightedAt ? (
+                        <Text style={[parentHomeStyles.markedAtText, { color: att.text }]}>
+                          Xuống xe{' '}
+                          {journeyRecordedClock(student.childAlightedAt) ?? '—:—'}
+                        </Text>
+                      ) : null}
 
-                    {card.attendanceStatus === 'ABSENT' && card.absenceReason ? (
-                      <View style={styles.absenceReasonBox}>
-                        <Text style={styles.absenceReasonLabel}>Lý do vắng:</Text>
-                        <Text style={styles.absenceReasonContent}>{card.absenceReason}</Text>
-                      </View>
-                    ) : null}
-                  </View>
+                      {student.attendanceStatus === 'ABSENT' && student.absenceReason ? (
+                        <View style={parentHomeStyles.absenceReasonBox}>
+                          <Text style={parentHomeStyles.absenceReasonLabel}>Lý do vắng:</Text>
+                          <Text style={parentHomeStyles.absenceReasonContent}>{student.absenceReason}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  ) : null}
 
                   {/* Vehicle & Driver */}
-                  <View style={styles.parentDriverRow}>
-                    <Text style={styles.parentDriverText}>
-                      Biển số: <Text style={{ fontWeight: '600' }}>{card.vehiclePlate}</Text> • TX:{' '}
-                      <Text style={{ fontWeight: '600' }}>{card.driverName}</Text>
-                    </Text>
+                  <View style={parentHomeStyles.parentDriverRow}>
+                    <View style={parentHomeStyles.vehicleDetailRow}>
+                      <Ionicons name="bus-outline" size={18} color={colors.navigationActive} accessible={false} />
+                      <Text style={parentHomeStyles.vehicleDetailText}>Biển số: <Text style={{ fontWeight: '700' }}>{card.vehiclePlate}</Text></Text>
+                    </View>
+                    <View style={parentHomeStyles.vehicleDetailRow}>
+                      <Ionicons name="person-outline" size={18} color={colors.navigationActive} accessible={false} />
+                      <Text style={parentHomeStyles.vehicleDetailText}>Tài xế: <Text style={{ fontWeight: '600' }}>{card.driverName}</Text></Text>
+                    </View>
                   </View>
 
                   {/* Action & Báo nghỉ Button */}
                   <View style={{ gap: 8 }}>
                     <TouchableOpacity
-                      style={styles.primaryBtn}
+                      style={parentHomeStyles.primaryBtn}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Theo dõi lộ trình của ${card.studentName}`}
                       onPress={() => router.push(`/trip/${card.tripId}` as any)}
                       activeOpacity={0.85}
                     >
-                      <Text style={styles.primaryBtnText}>Theo dõi lộ trình</Text>
-                      <Ionicons name="navigate-outline" size={16} color="#FFFFFF" />
+                      <Text style={parentHomeStyles.primaryBtnText}>Theo dõi lộ trình</Text>
+                      <Ionicons name="navigate-outline" size={16} color={colors.foreground} />
                     </TouchableOpacity>
 
                     {card.canReportLeave && (
                       <TouchableOpacity
-                        style={styles.leaveNoticeCardBtn}
+                        style={[parentHomeStyles.leaveNoticeCardBtn, isRequesting(card.tripId) && parentHomeStyles.disabled]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Báo nghỉ chuyến này cho ${card.studentName}`}
                         disabled={isRequesting(card.tripId)}
                         onPress={() =>
                           triggerQuickLeaveNotice({
@@ -489,33 +490,35 @@ export default function HomeScreen() {
                         activeOpacity={0.8}
                       >
                         {isRequesting(card.tripId) ? (
-                          <ActivityIndicator size="small" color="#D97706" />
+                          <ActivityIndicator size="small" color={colors.navigationActive} />
                         ) : (
                           <>
-                            <Ionicons name="calendar-outline" size={16} color="#D97706" />
-                            <Text style={styles.leaveNoticeCardBtnText}>Báo nghỉ chuyến này</Text>
+                            <Ionicons name="calendar-outline" size={16} color={colors.navigationActive} />
+                            <Text style={parentHomeStyles.leaveNoticeCardBtnText}>Báo nghỉ chuyến này</Text>
                           </>
                         )}
                       </TouchableOpacity>
                     )}
                   </View>
-                </View>
+                </ParentTripCard>
               );
             })}
           </View>
         ) : (
-          <View style={styles.emptyContainer}>
+          <View style={parentHomeStyles.emptyContainer}>
             <Ionicons name="people-outline" size={48} color="#94A3B8" />
-            <Text style={styles.emptyTitle}>Chưa có chuyến xe cho con</Text>
-            <Text style={styles.emptySubtitle}>
+            <Text style={parentHomeStyles.emptyTitle}>Chưa có chuyến xe cho con</Text>
+            <Text style={parentHomeStyles.emptySubtitle}>
               Hiện không có lịch đưa đón nào trong khung giờ hôm nay cho học sinh của bạn.
             </Text>
             <TouchableOpacity
-              style={styles.secondaryBtn}
+              style={parentHomeStyles.secondaryBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Xem lịch tuần của con"
               onPress={() => router.push('/(tabs)/schedule' as any)}
             >
               <Ionicons name="calendar-outline" size={16} color="#1E293B" />
-              <Text style={styles.secondaryBtnText}>Xem lịch tuần của con</Text>
+              <Text style={parentHomeStyles.secondaryBtnText}>Xem lịch tuần của con</Text>
             </TouchableOpacity>
           </View>
         )
@@ -529,7 +532,7 @@ export default function HomeScreen() {
           </Text>
         </View>
       )}
-    </ScrollView>
+    </HomeScrollView>
   );
 }
 
@@ -815,96 +818,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '600',
-  },
-  parentCardList: {
-    gap: 16,
-  },
-  parentStudentHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  avatarCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#E2E8F0',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  studentName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  parentRouteBox: {
-    backgroundColor: '#F8FAFC',
-    padding: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 4,
-  },
-  directionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  parentRouteName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#0F172A',
-  },
-  parentTimeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  parentTimeText: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  attendanceBox: {
-    padding: 12,
-    borderRadius: 10,
-    gap: 6,
-  },
-  attendanceBoxHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  attendanceBoxTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    flex: 1,
-  },
-  markedAtText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  absenceReasonBox: {
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.06)',
-    paddingTop: 6,
-  },
-  absenceReasonLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#991B1B',
-  },
-  absenceReasonContent: {
-    fontSize: 12,
-    color: '#7F1D1D',
-    marginTop: 2,
-    lineHeight: 16,
-  },
-  parentDriverRow: {
-    paddingVertical: 2,
-  },
-  parentDriverText: {
-    fontSize: 12,
-    color: '#64748B',
   },
   utilityCard: {
     backgroundColor: '#FFFFFF',
