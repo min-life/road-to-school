@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated, Image } from 'react-native';
 import { Role } from '@/services/api-client';
 import { colors } from '@/constants/theme';
 
@@ -53,7 +53,15 @@ export function RoleSplash({
     <View style={styles.container}>
       <View style={styles.content}>
         <View style={styles.iconCircle}>
-          <Text style={styles.iconText}>{roleIcon}</Text>
+          {role === 'DRIVER' ? (
+            <Image
+              source={require('@/assets/driver/Bus.png')}
+              style={styles.busIcon}
+              resizeMode="contain"
+            />
+          ) : (
+            <Text style={styles.iconText}>{roleIcon}</Text>
+          )}
         </View>
 
         <Text style={styles.roleTitle}>{roleTitle}</Text>
@@ -97,6 +105,10 @@ const styles = StyleSheet.create({
   },
   iconText: {
     fontSize: 40,
+  },
+  busIcon: {
+    width: 50,
+    height: 50,
   },
   roleTitle: {
     fontSize: 22,

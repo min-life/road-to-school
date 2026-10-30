@@ -16,6 +16,7 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Pressable,
+  Image,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -1354,7 +1355,11 @@ export default function MobileTripDetailScreen() {
                 {/* Xe */}
                 <View style={styles.infoCard}>
                   <View style={styles.infoIconCircle}>
-                    <Ionicons name="bus-outline" size={20} color="#D97706" />
+                    <Image
+                      source={require('@/assets/driver/Bus.png')}
+                      style={{ width: 24, height: 24 }}
+                      resizeMode="contain"
+                    />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.infoLabel}>Phương tiện đưa đón</Text>

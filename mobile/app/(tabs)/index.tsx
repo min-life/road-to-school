@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   ScrollView,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { useActiveRefresh } from '@/hooks/use-active-refresh';
 import type { RefreshContext } from '@/utils/refresh-loop';
@@ -140,7 +141,7 @@ export default function HomeScreen() {
             activeOpacity={0.8}
           >
             <View style={styles.utilityIconWrap}>
-              <Ionicons name="calendar-outline" size={24} color="#1E293B" />
+              <Image source={require('@/assets/driver/leave.png')} style={{ width: 36, height: 36 }} />
             </View>
             <Text style={styles.utilityActionText}>Báo nghỉ</Text>
           </TouchableOpacity>
@@ -151,8 +152,8 @@ export default function HomeScreen() {
               onPress={() => router.push('/incidents' as any)}
               activeOpacity={0.8}
             >
-              <View style={[styles.utilityIconWrap, { backgroundColor: '#FEE2E2' }]}>
-                <Ionicons name="warning-outline" size={24} color="#DC2626" />
+              <View style={styles.utilityIconWrap}>
+                <Image source={require('@/assets/driver/Incident.png')} style={{ width: 36, height: 36 }} />
               </View>
               <Text style={styles.utilityActionText}>Sự cố</Text>
             </TouchableOpacity>
@@ -198,7 +199,7 @@ export default function HomeScreen() {
                     homeTrip.direction === 'TO_SCHOOL' ? styles.dirTextSchool : styles.dirTextReturn,
                   ]}
                 >
-                  {homeTrip.direction === 'TO_SCHOOL' ? 'Chiều đi (Đến trường)' : 'Chiều về (Về trạm)'}
+                  {homeTrip.direction === 'TO_SCHOOL' ? 'Đến trường' : 'Về trạm'}
                 </Text>
               </View>
 
@@ -228,14 +229,14 @@ export default function HomeScreen() {
             {/* Route Name & School */}
             <Text style={styles.tripRouteName}>{homeTrip.routeName}</Text>
             <View style={styles.metaRow}>
-              <Ionicons name="school-outline" size={15} color="#64748B" />
+              <Image source={require('@/assets/driver/School-icon.png')} style={{ width: 18, height: 18 }} />
               <Text style={styles.metaText}>{homeTrip.schoolName}</Text>
             </View>
 
             {/* Scheduled Time & Service Date */}
             <View style={styles.timeBadgeContainer}>
               <View style={styles.timeBadge}>
-                <Ionicons name="time-outline" size={15} color="#1E293B" />
+                <Image source={require('@/assets/driver/Clock.png')} style={{ width: 16, height: 16 }} />
                 <Text style={styles.timeBadgeText}>{homeTrip.scheduledTime}</Text>
               </View>
               <Text style={styles.dateText}>{homeTrip.serviceDate}</Text>
@@ -244,12 +245,11 @@ export default function HomeScreen() {
             {/* Info Grid */}
             <View style={styles.infoGrid}>
               <View style={styles.infoCol}>
-                <View style={styles.infoColHeader}>
-                  <Ionicons name="bus-outline" size={16} color="#475569" />
-                  <Text style={styles.infoColTitle}>Xe đưa đón</Text>
+                <View style={[styles.infoColHeader, { justifyContent: 'center' }]}>
+                  <Image source={require('@/assets/driver/Bus.png')} style={{ width: 16, height: 16 }} />
                 </View>
-                <Text style={styles.infoColMain}>{homeTrip.vehiclePlate}</Text>
-                <Text style={styles.infoColSub}>
+                <Text style={[styles.infoColMain, { textAlign: 'center' }]}>{homeTrip.vehiclePlate}</Text>
+                <Text style={[styles.infoColSub, { textAlign: 'center' }]}>
                   {homeTrip.vehicleSeats} chỗ • {homeTrip.studentCount} HS
                 </Text>
               </View>
@@ -257,9 +257,8 @@ export default function HomeScreen() {
               <View style={styles.infoColDivider} />
 
               <View style={styles.infoCol}>
-                <View style={styles.infoColHeader}>
-                  <Ionicons name="people-outline" size={16} color="#475569" />
-                  <Text style={styles.infoColTitle}>Nhân sự phụ trách</Text>
+                <View style={[styles.infoColHeader, { justifyContent: 'center' }]}>
+                  <Image source={require('@/assets/driver/Personal-charge.png')} style={{ width: 36, height: 16 }} />
                 </View>
                 <Text style={styles.infoColMain} numberOfLines={1}>
                   TX: {homeTrip.driver.fullName}
@@ -349,7 +348,8 @@ export default function HomeScreen() {
                     <ActivityIndicator size="small" color="#D97706" />
                   ) : (
                     <>
-                      <Ionicons name="calendar-outline" size={16} color="#D97706" />
+          <Image source={require('@/assets/driver/leave.png')} style={{ width: 26, height: 26 }} />
+
                       <Text style={styles.leaveNoticeCardBtnText}>Báo nghỉ chuyến này</Text>
                     </>
                   )}
