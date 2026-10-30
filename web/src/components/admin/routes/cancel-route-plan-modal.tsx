@@ -71,96 +71,130 @@ export function CancelRoutePlanModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
-      <Card className="ui-dialog-panel bg-white rounded-2xl shadow-xl w-full max-w-md border border-slate-200 overflow-hidden">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-rose-100 flex items-center justify-between bg-rose-50/50">
-          <div className="flex items-center gap-2.5 text-rose-700">
-            <div className="w-8 h-8 rounded-lg bg-rose-100 flex items-center justify-center shrink-0">
-              <AlertIcon className="w-5 h-5 text-rose-600" />
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="cancel-route-plan-title"
+      aria-describedby="cancel-route-plan-description"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/55 backdrop-blur-[2px] animate-in fade-in duration-150"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && !loading) onClose();
+      }}
+    >
+      <Card className="ui-dialog-panel w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-150">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-rose-100 bg-rose-50 text-rose-600">
+              <AlertIcon className="h-5 w-5" aria-hidden="true" />
             </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-800">Hủy phương án tuyến</h3>
-              <p className="text-xs text-rose-600 font-medium">Cascade hủy các chuyến xe đã lập lịch</p>
+            <div className="min-w-0 pt-0.5">
+              <h2 id="cancel-route-plan-title" className="text-lg font-bold leading-6 text-slate-900">
+                Hủy phương án tuyến?
+              </h2>
+              <p id="cancel-route-plan-description" className="mt-1 text-sm leading-5 text-slate-500">
+                Thao tác này không thể hoàn tác.
+              </p>
             </div>
           </div>
           <Button
+            type="button"
+            variant="ghost"
+            size="icon"
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+            disabled={loading}
+            aria-label="Đóng hộp thoại"
+            className="-mr-1 -mt-1 shrink-0 text-slate-400 hover:text-slate-700"
           >
-            <CloseIcon className="w-5 h-5" />
+            <CloseIcon className="h-5 w-5" aria-hidden="true" />
           </Button>
         </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {loadingImpact ? (
-            <div className="py-6 flex flex-col items-center justify-center text-slate-400 gap-2">
-              <SpinnerIcon className="w-6 h-6 animate-spin text-amber-500" />
-              <span className="text-xs">Đang tải thông tin tác động...</span>
-            </div>
-          ) : impact ? (
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2 text-slate-700">
-              <div className="flex items-center justify-between">
-                <span>Số tuyến thuộc phương án:</span>
-                <span className="font-bold text-slate-900">{impact.routesCount} tuyến</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Chuyến xe SCHEDULED sẽ bị hủy:</span>
-                <span className="font-bold text-rose-600">{impact.scheduledTripsCount} chuyến</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Chuyến xe đang chạy (IN_PROGRESS) giữ nguyên:</span>
-                <span className="font-bold text-emerald-600">{impact.inProgressTripsCount} chuyến</span>
-              </div>
-              {impact.pendingStaffLeaveNoticesCount > 0 && (
-                <div className="flex items-center justify-between">
-                  <span>Thông báo nghỉ nhân sự chờ duyệt sẽ đóng:</span>
-                  <span className="font-bold text-amber-700">
-                    {impact.pendingStaffLeaveNoticesCount} thông báo
-                  </span>
-                </div>
-              )}
-            </div>
-          ) : null}
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-5 px-6 py-5">
+            <p className="text-sm leading-6 text-slate-600">
+              Bạn đang hủy <span className="font-semibold text-slate-900">{routePlanName || 'phương án tuyến này'}</span>.
+              Các chuyến đã lên lịch sẽ được xử lý như bên dưới.
+            </p>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Lý do hủy phương án <span className="text-rose-500">*</span>
-            </label>
-            <Textarea
-              rows={3}
-              required
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Ví dụ: Thay đổi kế hoạch học kỳ, điều chỉnh cơ sở vật chất..."
-              className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 focus:outline-hidden focus:border-rose-400 focus:ring-2 focus:ring-rose-100 resize-none"
-            />
+            {loadingImpact ? (
+              <div className="flex min-h-32 flex-col items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-500">
+                <SpinnerIcon className="h-5 w-5 animate-spin text-amber-500" aria-hidden="true" />
+                <span className="text-sm">Đang kiểm tra tác động…</span>
+              </div>
+            ) : impact ? (
+              <section className="overflow-hidden rounded-xl border border-slate-200" aria-labelledby="cancellation-impact-title">
+                <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                  <h3 id="cancellation-impact-title" className="text-sm font-semibold text-slate-800">Tác động khi hủy</h3>
+                </div>
+                <dl className="divide-y divide-slate-100 px-4 text-sm">
+                  <div className="flex items-center justify-between gap-4 py-2.5">
+                    <dt className="text-slate-600">Tuyến trong phương án</dt>
+                    <dd className="shrink-0 font-semibold text-slate-900">{impact.routesCount} tuyến</dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 py-2.5">
+                    <dt className="text-slate-600">Chuyến đã lên lịch sẽ bị hủy</dt>
+                    <dd className="shrink-0 font-semibold text-rose-600">{impact.scheduledTripsCount} chuyến</dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 py-2.5">
+                    <dt className="text-slate-600">Chuyến đang chạy được giữ nguyên</dt>
+                    <dd className="shrink-0 font-semibold text-emerald-700">{impact.inProgressTripsCount} chuyến</dd>
+                  </div>
+                  {impact.pendingStaffLeaveNoticesCount > 0 && (
+                    <div className="flex items-center justify-between gap-4 py-2.5">
+                      <dt className="text-slate-600">Báo nghỉ chờ duyệt sẽ được đóng</dt>
+                      <dd className="shrink-0 font-semibold text-amber-700">
+                        {impact.pendingStaffLeaveNoticesCount} báo nghỉ
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </section>
+            ) : null}
+
+            <div>
+              <label htmlFor="cancel-route-plan-reason" className="mb-2 block text-sm font-semibold text-slate-800">
+                Lý do hủy <span className="text-rose-600" aria-hidden="true">*</span>
+                <span className="sr-only">(bắt buộc)</span>
+              </label>
+              <Textarea
+                id="cancel-route-plan-reason"
+                rows={4}
+                required
+                autoFocus
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                placeholder="Nhập lý do hủy phương án…"
+                aria-invalid={!reason.trim() && Boolean(error)}
+                aria-describedby={error ? 'cancel-route-plan-error' : undefined}
+                className="w-full resize-none px-3.5 py-3 text-sm leading-5"
+              />
+            </div>
+
+            {error && (
+              <div id="cancel-route-plan-error" role="alert" className="flex gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm leading-5 text-rose-700">
+                <AlertIcon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>{error}</span>
+              </div>
+            )}
           </div>
 
-          {error && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700">
-              {error}
-            </div>
-          )}
-
-          {/* Footer */}
-          <div className="flex items-center justify-end gap-2.5 pt-2">
+          <div className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/70 px-6 py-4 sm:flex-row sm:justify-end">
             <Button
+              variant="outline"
               type="button"
               disabled={loading}
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              className="w-full sm:w-auto"
             >
-              Quay lại
+              Giữ phương án
             </Button>
             <Button
               type="submit"
               disabled={loading || loadingImpact}
-              className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+              className="w-full border border-rose-700 bg-rose-600 px-5 font-semibold text-white hover:bg-rose-700 disabled:border-rose-300 disabled:bg-rose-300 sm:w-auto"
             >
-              {loading && <SpinnerIcon className="w-3.5 h-3.5 animate-spin" />}
-              <span>Xác nhận hủy</span>
+              {loading && <SpinnerIcon className="h-4 w-4 animate-spin" aria-hidden="true" />}
+              <span>{loading ? 'Đang hủy…' : 'Hủy phương án'}</span>
             </Button>
           </div>
         </form>

@@ -21,6 +21,7 @@ interface RoutePlanAssignmentsProps {
   plan: RoutePlanItem;
   currentUserRole: Role | null;
   onUpdated: () => void;
+  compact?: boolean;
 }
 
 interface VehicleGroup {
@@ -37,7 +38,7 @@ interface VehicleGroup {
   routes: RouteItem[];
 }
 
-export function RoutePlanAssignments({ plan, currentUserRole, onUpdated }: RoutePlanAssignmentsProps) {
+export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact = false }: RoutePlanAssignmentsProps) {
   const isSystemAdmin = currentUserRole === 'SYSTEM_ADMIN';
   const isSchoolAdmin = currentUserRole === 'SCHOOL_ADMIN';
   const isActive = plan.status === 'ACTIVE';
@@ -159,7 +160,7 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated }: Route
   };
 
   return (
-    <div className="space-y-4">
+    <div className={`space-y-4${compact ? ' saved-plan-assignments' : ''}`}>
       {/* Notice for ACTIVE plans */}
       {isActive && (
         <div className="p-3.5 rounded-xl bg-blue-50/80 border border-blue-200/80 flex items-start gap-3">
@@ -173,7 +174,7 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated }: Route
 
       {/* Vehicle Groups Cards */}
       <Card className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <div className="assignment-heading px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div className="flex items-center gap-2">
             <BusIcon className="w-4 h-4 text-slate-500" />
             <h2 className="text-sm font-bold text-slate-800">
@@ -187,20 +188,22 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated }: Route
 
         <div className="divide-y divide-slate-100">
           {groups.map((group, idx) => (
-            <div key={idx} className="p-6 hover:bg-slate-50/40 transition-colors space-y-4">
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div key={idx} className="assignment-group p-6 hover:bg-slate-50/40 transition-colors space-y-4">
+              <div className="assignment-fields flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                 {/* Vehicle Column */}
                 <div className="flex-1 space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                       Phương tiện (Xe)
                     </span>
-                    {isSystemAdmin && (
+                    {isSystemAdmin && (!compact || !!group.vehicleId) && (
                       <Button
+                        variant={compact ? 'outline' : undefined}
+                        size={compact ? 'sm' : undefined}
                         onClick={() => openModal('VEHICLE', group)}
-                        className="text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                        className={compact ? 'assignment-action-button' : 'text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer'}
                       >
-                        [Đổi xe]
+                        {compact ? (group.vehicleId ? 'Đổi xe' : 'Chọn xe') : '[Đổi xe]'}
                       </Button>
                     )}
                   </div>
@@ -224,10 +227,12 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated }: Route
                     </span>
                     {isSystemAdmin && group.vehicleId && (
                       <Button
+                        variant={compact && !group.driverId ? 'primary' : compact ? 'outline' : undefined}
+                        size={compact ? 'sm' : undefined}
                         onClick={() => openModal('DRIVER', group)}
-                        className="text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                        className={compact ? 'assignment-action-button' : 'text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer'}
                       >
-                        [{group.driverId ? 'Đổi tài xế' : 'Phân công'}]
+                        {compact ? (group.driverId ? 'Đổi tài xế' : '+ Phân công tài xế') : `[${group.driverId ? 'Đổi tài xế' : 'Phân công'}]`}
                       </Button>
                     )}
                   </div>
@@ -266,7 +271,7 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated }: Route
                       )}
                     </div>
                   ) : (
-                    <span className="text-xs text-rose-600 font-semibold italic">Chưa phân công</span>
+                    <span className={compact && isSystemAdmin ? 'text-xs text-slate-500' : 'text-xs text-rose-600 font-semibold italic'}>{compact && isSystemAdmin ? 'Chờ trường phân công giáo viên' : 'Chưa phân công'}</span>
                   )}
                 </div>
               </div>

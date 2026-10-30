@@ -1,0 +1,51 @@
+.saved-plan-heading { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.saved-plan-heading > span { padding: 5px 10px; border-radius: 8px; color: #047857; background: #ecfdf5; font-size: 12px; }
+.saved-plan-panel-heading { padding: 16px; border-bottom: 1px solid var(--brand-border); }
+.saved-plan-panel-heading h2 { font-weight: 700; font-size: 16px; }
+.saved-plan-panel-heading p { margin-top: 4px; color: var(--brand-muted); font-size: 13px; }
+.saved-plan-route-select { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; font-size: 13px; font-weight: 600; }
+.saved-plan-route-select select { width: 100%; min-width: 0; border: 1px solid var(--brand-border); border-radius: 10px; padding: 10px; background: white; }
+.saved-plan-assignments > .ui-card { border: 0; box-shadow: none; background: transparent; overflow: visible; }
+.saved-plan-assignments .assignment-heading { padding: 0 0 12px; background: transparent; border: 0; }
+.saved-plan-assignments .assignment-heading > span { display: none; }
+.saved-plan-assignments .assignment-group { padding: 16px; margin-bottom: 12px; border: 1px solid var(--brand-border); border-radius: 12px; background: white; overflow-wrap: anywhere; }
+.saved-plan-assignments .assignment-fields { flex-direction: column; align-items: stretch; }
+.saved-plan-assignments .assignment-fields > div { min-width: 0; }
+.saved-plan-error { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 12px; margin-bottom: 12px; color: #be123c; background: #fff1f2; border-radius: 10px; font-size: 13px; }
+.saved-plan-map-error { position: absolute; bottom: 58px; left: 12px; right: 12px; display: flex; align-items: center; gap: 8px; padding: 12px; border-radius: 10px; background: white; color: #be123c; font-size: 13px; }
+.saved-plan-page .route-workspace-map > .saved-plan-map-error { height: auto; }
+/* Only the System Admin saved-plan workspace opts into these styles. */
+.saved-plan-page .route-workspace-without-footer { grid-template-rows: minmax(0, 1fr); }
+.saved-plan-heading > div { flex: 1; min-width: 0; }
+.saved-plan-heading h1 { overflow-wrap: anywhere; }
+.saved-plan-heading > div > p { font-size: 13px; color: var(--brand-muted); margin-top: 4px; }
+.saved-plan-heading > span[data-status=DRAFT] { color: #92400e; background: #fffbeb; }
+.saved-plan-heading > span[data-status=CANCELLED], .saved-plan-heading > span[data-status=EXPIRED] { color: #475569; background: #f1f5f9; }
+.saved-plan-cancel-button { flex-shrink: 0; white-space: nowrap; }
+.saved-plan-route-toolbar { padding: 12px 14px 0; }
+.saved-plan-route-toolbar .saved-plan-route-select { margin-bottom: 12px; }
+.saved-plan-readiness { padding: 12px; margin-bottom: 12px; background: #f8fafc; border: 1px solid var(--brand-border); border-radius: 10px; font-size: 12px; overflow-wrap: anywhere; }
+.saved-plan-readiness summary { cursor: pointer; font-weight: 600; }
+.saved-plan-readiness p, .saved-plan-readiness ul { margin-top: 8px; color: var(--brand-muted); }
+.saved-plan-readiness ul { padding-left: 16px; list-style: disc; }
+.saved-plan-readiness li + li { margin-top: 6px; }
+.saved-plan-route-info { padding: 14px; border: 1px solid var(--brand-border); border-radius: 12px; font-size: 13px; margin-bottom: 16px; }
+.saved-plan-route-info strong { display: block; }
+.saved-plan-route-info p { color: var(--brand-muted); margin: 6px 0; }
+.saved-plan-route-info a { color: #2563eb; }
+.saved-plan-stops-title { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+.saved-plan-stops { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.saved-plan-stops button { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 12px; border: 1px solid var(--brand-border); border-radius: 10px; text-align: left; cursor: pointer; background: white; }
+.saved-plan-stops button:hover { background: var(--brand-hover); }
+.saved-plan-stop-number { display: grid; place-items: center; flex-shrink: 0; width: 24px; height: 24px; background: var(--brand-navy); color: white; border-radius: 50%; font-size: 11px; }
+.saved-plan-stops button > span:nth-child(2) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.saved-plan-stops strong { font-size: 12px; display: block; }
+.saved-plan-stops small { font-size: 11px; color: var(--brand-muted); display: block; margin-top: 4px; }
+.saved-plan-stops time { flex-shrink: 0; font-size: 11px; color: #047857; }
+.saved-plan-notice { padding: 10px 14px; background: #fffbeb; border-radius: 10px; font-size: 13px; color: #92400e; }
+.saved-plan-assignments .assignment-heading { display: none; }
+.saved-plan-assignment-status { display: flex; flex-direction: column; gap: 3px; margin-bottom: 12px; padding: 12px 14px; border: 1px solid #a7f3d0; border-radius: 10px; background: #ecfdf5; color: #065f46; font-size: 12px; line-height: 1.45; }
+.saved-plan-assignment-status[data-pending=true] { border-color: #fcd34d; background: #fffbeb; color: #92400e; }
+.saved-plan-assignment-status strong { font-size: 13px; }
+.saved-plan-assignments .assignment-action-button { min-height: 34px; padding-inline: 11px; white-space: nowrap; font-size: 12px; font-weight: 650; }
+.saved-plan-assignments .assignment-fields > div > div:first-child { justify-content: space-between; }

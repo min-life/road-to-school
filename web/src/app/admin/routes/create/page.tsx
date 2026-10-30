@@ -1,6 +1,5 @@
 'use client';
-import { BackLink, useBackDestination } from '@/components/admin/common/context-navigation';
-import { withReturnTo } from '@/lib/back-navigation';
+import { BackLink } from '@/components/admin/common/context-navigation';
 
 import { toast } from '@/stores/toast-store';
 
@@ -26,6 +25,7 @@ import {
 } from '@/components/icons';
 import { RouteMap, MapPoint } from '@/components/admin/routes/route-map';
 import { RoutePlanningWorkspace, PlanningTabs } from '@/components/admin/routes/route-planning-workspace';
+import { SaveRoutePlanDialog } from '@/components/admin/routes/save-route-plan-dialog';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -41,7 +41,6 @@ function CreateRoutePlanContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const schoolId = searchParams.get('schoolId');
-  const backDestination = useBackDestination('/admin/routes');
 
   const [setupTab, setSetupTab] = useState<'STUDENTS' | 'VEHICLES'>('STUDENTS');
   const [studentMapSnapshot, setStudentMapSnapshot] = useState<{ route: PreviewRoute | undefined; points: MapPoint[] } | null>(null);
@@ -75,6 +74,7 @@ function CreateRoutePlanContent() {
   const { activePreviewTab, setActivePreviewTab } = useRoutePlanDraft(useShallow(state => ({ activePreviewTab: state.activePreviewTab, setActivePreviewTab: state.setActivePreviewTab })));
   const { activeRouteIndex, setActiveRouteIndex } = useRoutePlanDraft(useShallow(state => ({ activeRouteIndex: state.activeRouteIndex, setActiveRouteIndex: state.setActiveRouteIndex })));
   const [isConfirming, setIsConfirming] = useState(false);
+  const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
   const [cancellingReturnIndex, setCancellingReturnIndex] = useState<number | null>(null);
 
   const handleMapPointClick = useCallback((pt: MapPoint) => {
@@ -319,11 +319,7 @@ function CreateRoutePlanContent() {
 
   // Confirm RoutePlan (Section 16)
   const handleConfirmRoutePlan = async () => {
-    if (!previewResult) return;
-    const confirmed = window.confirm(
-      `Xác nhận lưu toàn bộ phương án tuyến DRAFT (${previewResult.outboundRoutes.length} tuyến đi, ${previewResult.returnRoutes.length} tuyến về)? Sau khi xác nhận, toàn bộ phương án chỉ có thể hủy cùng nhau.`,
-    );
-    if (!confirmed) return;
+    if (!previewResult || isConfirming) return;
 
     try {
       setIsConfirming(true);
@@ -332,8 +328,13 @@ function CreateRoutePlanContent() {
         previewToken: previewResult.previewToken,
       });
       toast.success('Đã tạo phương án tuyến.');
+      setShowSaveConfirmation(false);
       if (confirmedPlan?.id) {
-        router.push(withReturnTo(`/admin/routes/plans/${confirmedPlan.id}`, backDestination.href));
+        const savedParams = new URLSearchParams(searchParams.toString());
+        savedParams.delete('schoolId');
+        savedParams.delete('savedPlanId');
+        savedParams.set('tab', 'assignments');
+        router.replace(`/admin/routes/plans/${confirmedPlan.id}?${savedParams.toString()}`);
       } else {
         router.push('/admin/routes');
       }
@@ -1128,7 +1129,7 @@ function CreateRoutePlanContent() {
           {previewResult ? <div className="route-workspace-actions">
             <Button variant="outline" size="sm" onClick={() => setPreviewResult(null)}>Chỉnh thiết lập</Button>
             <Button variant="outline" size="sm" onClick={handleCancelAllAndRecreate}>Hủy kết quả</Button>
-            <Button variant="primary" size="sm" disabled={isConfirming} onClick={handleConfirmRoutePlan}>
+            <Button variant="primary" size="sm" disabled={isConfirming} onClick={() => { setOptimizeError(null); setShowSaveConfirmation(true); }}>
               {isConfirming && <SpinnerIcon className="w-4 h-4 animate-spin" />} Lưu phương án nháp
             </Button>
           </div> : (<>
@@ -1153,15 +1154,40 @@ function CreateRoutePlanContent() {
 
           </>)}
         </>} />
+      {previewResult && <SaveRoutePlanDialog
+        isOpen={showSaveConfirmation}
+        outboundCount={previewResult.outboundRoutes.length}
+        returnCount={previewResult.returnRoutes.length}
+        isSaving={isConfirming}
+        error={optimizeError}
+        onClose={() => setShowSaveConfirmation(false)}
+        onConfirm={handleConfirmRoutePlan}
+      />}
     </div>
   );
 }
 
 function CreateRoutePlanScope() {
   const { user } = useAuth();
-  const schoolId = useSearchParams().get('schoolId');
+  const searchParams = useSearchParams();
+  const schoolId = searchParams.get('schoolId');
+  const savedPlanId = searchParams.get('savedPlanId');
   const scope = JSON.stringify([user?.id, user?.role, user?.schoolId, schoolId]);
+  if (savedPlanId) return <SavedPlanRedirect planId={savedPlanId} />;
   return <RoutePlanDraftProvider key={scope}><CreateRoutePlanContent /></RoutePlanDraftProvider>;
+}
+
+function SavedPlanRedirect({ planId }: { planId: string }) {
+  const router = useRouter();
+  const query = useSearchParams().toString();
+  useEffect(() => {
+    const params = new URLSearchParams(query);
+    params.delete('schoolId');
+    params.delete('savedPlanId');
+    params.set('tab', 'assignments');
+    router.replace(`/admin/routes/plans/${encodeURIComponent(planId)}?${params.toString()}`);
+  }, [planId, query, router]);
+  return <p role="status">Đang mở phương án đã lưu…</p>;
 }
 
 export default function CreateRoutePlanPage() {

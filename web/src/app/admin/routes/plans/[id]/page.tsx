@@ -19,8 +19,20 @@ import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Table } from '@/components/ui/table';
+import { useAuth } from '@/components/auth/auth-provider';
+import { SavedRoutePlanWorkspace } from '@/components/admin/routes/saved-route-plan-workspace';
 
 export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const { user, isLoading } = useAuth();
+  if (isLoading || !user) return <div className="py-20 text-center" role="status">Đang tải phương án…</div>;
+  if (user.role === 'SYSTEM_ADMIN') {
+    return <SavedRoutePlanWorkspace key={`${user.id}:${id}`} planId={id} role={user.role} />;
+  }
+  return <LegacyRoutePlanDetailPage params={params} />;
+}
+
+function LegacyRoutePlanDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: planId } = use(params);
 
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);

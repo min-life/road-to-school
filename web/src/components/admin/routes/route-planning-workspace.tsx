@@ -4,12 +4,13 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import './route-planning-workspace.css';
 
 /** Presentation only: the page owns all selections, requests and results. */
-export function RoutePlanningWorkspace({ map, panel, footer, preview, configuration }: {
+export function RoutePlanningWorkspace({ map, panel, footer, preview, configuration, panelLabel }: {
   map: ReactNode;
   panel: ReactNode;
-  footer: ReactNode;
+  footer?: ReactNode;
   preview: boolean;
   configuration?: ReactNode;
+  panelLabel?: string;
 }) {
   const [mobileView, setMobileView] = useState<'panel' | 'map'>('panel');
   const workspaceRef = useRef<HTMLElement>(null);
@@ -33,9 +34,9 @@ export function RoutePlanningWorkspace({ map, panel, footer, preview, configurat
     return () => { observer.disconnect(); window.removeEventListener('resize', resize); };
   }, []);
   return (
-    <section ref={workspaceRef} className="route-workspace" aria-label="Lập phương án tuyến" data-mobile-view={mobileView}>
+    <section ref={workspaceRef} className={`route-workspace${footer ? '' : ' route-workspace-without-footer'}`} aria-label="Phương án tuyến" data-mobile-view={mobileView}>
       <div className="route-workspace-mobile-switch" aria-label="Chế độ xem">
-        <button type="button" aria-pressed={mobileView === 'panel'} onClick={() => setMobileView('panel')}>{preview ? 'Kết quả' : 'Thiết lập'}</button>
+        <button type="button" aria-pressed={mobileView === 'panel'} onClick={() => setMobileView('panel')}>{panelLabel ?? (preview ? 'Kết quả' : 'Thiết lập')}</button>
         <button type="button" aria-pressed={mobileView === 'map'} onClick={() => setMobileView('map')}>Bản đồ</button>
         {configuration && <button type="button" aria-haspopup="dialog" onClick={event => { event.currentTarget.focus(); configDialogRef.current?.showModal(); }}>Cấu hình</button>}
       </div>
@@ -59,7 +60,7 @@ export function RoutePlanningWorkspace({ map, panel, footer, preview, configurat
         <footer><button type="button" onClick={() => configDialogRef.current?.close()}>Xong</button></footer>
       </dialog>}
       <div className="route-workspace-panel">{panel}</div>
-      <footer className="route-workspace-footer">{footer}</footer>
+      {footer && <footer className="route-workspace-footer">{footer}</footer>}
     </section>
   );
 }
