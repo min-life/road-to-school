@@ -1,0 +1,22 @@
+diff --git a/mobile/app/(auth)/login.tsx b/mobile/app/(auth)/login.tsx
+index 373835b..87f427e 100644
+--- a/mobile/app/(auth)/login.tsx
++++ b/mobile/app/(auth)/login.tsx
+@@ -10,0 +11,2 @@ import {
++  Platform,
++  type TextStyle,
+@@ -193,0 +196,8 @@ export default function LoginScreen() {
++// Explicit defaults prevent recycled native inputs retaining another field's typography.
++const inputTypography: TextStyle = {
++  fontFamily: Platform.select({ ios: 'system-ui', android: 'sans-serif' }),
++  fontWeight: '400',
++  fontStyle: 'normal',
++  letterSpacing: 0,
++};
++
+@@ -213 +223 @@ const styles = StyleSheet.create({
+-  input: { flex: 1, minWidth: 0, minHeight: 52, paddingHorizontal: 12, paddingVertical: 14, fontSize: 15, color: colors.foreground },
++  input: { ...inputTypography, flex: 1, minWidth: 0, minHeight: 52, paddingHorizontal: 12, paddingVertical: 14, fontSize: 15, color: colors.foreground },
+@@ -218 +228 @@ const styles = StyleSheet.create({
+-  passwordInput: { flex: 1, minWidth: 0, minHeight: 52, paddingHorizontal: 12, paddingVertical: 14, fontSize: 15, color: colors.foreground },
++  passwordInput: { ...inputTypography, flex: 1, minWidth: 0, minHeight: 52, paddingHorizontal: 12, paddingVertical: 14, fontSize: 15, color: colors.foreground },

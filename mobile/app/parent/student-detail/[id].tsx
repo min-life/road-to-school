@@ -1,3 +1,4 @@
+import { AppHeader } from '@/components/navigation/app-header';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
@@ -96,14 +97,8 @@ export default function StudentDetailScreen() {
 
   if (errorMessage || !student) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color={colors.foreground} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Chi tiết học sinh</Text>
-          <View style={{ width: 40 }} />
-        </View>
+      <View style={styles.container}>
+        <AppHeader title="Chi tiết học sinh" onBack={() => router.back()} />
 
         <View style={styles.centerContainer}>
           <Ionicons name="alert-circle-outline" size={48} color={colors.error} />
@@ -122,17 +117,7 @@ export default function StudentDetailScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-          disabled={isUnlinking}
-        >
-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Hồ sơ học sinh</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <AppHeader title="Hồ sơ học sinh" onBack={() => router.back()} backDisabled={isUnlinking} />
 
       <ScrollView
         contentContainerStyle={[
@@ -380,28 +365,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.foreground,
   },
   content: {
     padding: 16,

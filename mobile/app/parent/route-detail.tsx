@@ -1,3 +1,4 @@
+import { AppHeader } from '@/components/navigation/app-header';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   StyleSheet,
@@ -169,14 +170,8 @@ export default function ParentRouteDetailScreen() {
 
   if (errorMessage || !routingDetail) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={colors.foreground} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Tuyến đường đưa đón</Text>
-          <View style={{ width: 40 }} />
-        </View>
+      <View style={styles.container}>
+        <AppHeader title="Tuyến đường đưa đón" onBack={() => router.back()} />
 
         <View style={styles.centerContainer}>
           <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
@@ -206,14 +201,8 @@ export default function ParentRouteDetailScreen() {
     }
 
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={colors.foreground} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Tuyến đường đưa đón</Text>
-          <View style={{ width: 40 }} />
-        </View>
+      <View style={styles.container}>
+        <AppHeader title="Tuyến đường đưa đón" onBack={() => router.back()} />
 
         <View style={styles.emptyContainer}>
           <View style={styles.emptyIconCircle}>
@@ -230,15 +219,9 @@ export default function ParentRouteDetailScreen() {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tuyến đường đưa đón</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <AppHeader title="Tuyến đường đưa đón" onBack={() => router.back()} />
 
       <ScrollView contentContainerStyle={styles.content}>
         {/* Status Badge Notice */}
@@ -387,28 +370,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.foreground,
   },
   content: {
     padding: 16,

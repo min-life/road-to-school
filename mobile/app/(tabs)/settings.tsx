@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+import React, { useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,20 +8,39 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Image,
   Modal,
   TextInput,
   Platform,
+  Switch,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
 import { File as ExpoFile } from 'expo-file-system';
 import { colors } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
+import { UserAvatar } from '@/components/user-avatar';
+import { useNotifications } from '@/context/notifications-context';
 import { mobileApiClient } from '@/services/api-client';
 
 export default function SettingsScreen() {
   const { user, logout, setUser, refreshUser } = useAuth();
+  const { enablePush, disablePush, pushStatus, pushEnabled } = useNotifications();
+  const [isChangingPush, setIsChangingPush] = useState(false);
+  const changingPush = useRef(false);
+  const handlePushChange = async (enabled: boolean) => {
+    if (changingPush.current) return;
+    changingPush.current = true;
+    setIsChangingPush(true);
+    try {
+      if (enabled) await enablePush();
+      else await disablePush();
+    } catch {
+      Alert.alert('Thông báo', 'Chưa thể cập nhật thông báo trên thiết bị');
+    } finally {
+      changingPush.current = false;
+      setIsChangingPush(false);
+    }
+  };
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // 1. Avatar Update State
@@ -309,24 +329,14 @@ export default function SettingsScreen() {
           {/* Avatar with Camera badge */}
           <TouchableOpacity
             style={styles.avatarWrapper}
+            accessibilityRole="button"
+            accessibilityLabel="Đổi ảnh đại diện"
             onPress={handlePickAvatar}
             disabled={isUploadingAvatar}
             activeOpacity={0.8}
           >
-            {user.avatarUrl ? (
-              <Image
-                key={user.avatarUrl}
-                source={{ uri: user.avatarUrl }}
-                style={styles.avatarImage}
-                onLoad={() => console.log('[AVATAR_DIAG] [8. AVATAR_RENDERED]', { platform: Platform.OS, hasAvatarUrl: Boolean(user.avatarUrl) })}
-              />
-            ) : (
-              <View style={styles.avatarCircle}>
-                <Text style={styles.avatarText}>
-                  {(user.fullName || 'U').charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            )}
+            <UserAvatar avatarUrl={user.avatarUrl} fullName={user.fullName} size={72}
+              onLoad={() => console.log('[AVATAR_DIAG] [8. AVATAR_RENDERED]', { platform: Platform.OS, hasAvatarUrl: Boolean(user.avatarUrl) })} />
 
             <View style={styles.cameraBadge}>
               {isUploadingAvatar ? (
@@ -380,6 +390,20 @@ export default function SettingsScreen() {
               <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
             </TouchableOpacity>
 
+            <View style={[styles.actionButton, styles.pushRow]}>
+              <Ionicons name="notifications-outline" size={18} color={colors.mutedText} />
+              <View style={styles.pushLabel}>
+                <Text style={styles.pushTitle}>Thông báo thiết bị</Text>
+                {!!pushStatus && <Text style={styles.settingValue} accessibilityLiveRegion="polite">{pushStatus}</Text>}
+              </View>
+              <Switch accessibilityLabel="Thông báo thiết bị"
+                accessibilityState={{ busy: isChangingPush }}
+                value={pushEnabled} disabled={isChangingPush || isLoggingOut}
+                onValueChange={value => { void handlePushChange(value); }}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor={colors.surface} ios_backgroundColor={colors.border} />
+            </View>
+
             {/* Đăng xuất */}
             <TouchableOpacity
               style={[styles.actionButton, styles.logoutButtonRow]}
@@ -394,7 +418,7 @@ export default function SettingsScreen() {
         </View>
       )}
 
-      {/* System Settings Card */}
+      {/* App Information Card */}
       <View style={[styles.card, { marginTop: 16 }]}>
         <Text style={styles.sectionTitle}>Thông tin ứng dụng</Text>
 
@@ -430,7 +454,10 @@ export default function SettingsScreen() {
         transparent={true}
         onRequestClose={() => setIsPasswordModalOpen(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardScrollView
+          style={[styles.modalOverlay, { alignItems: undefined, justifyContent: undefined }]}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+        >
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Đổi mật khẩu</Text>
@@ -533,7 +560,7 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardScrollView>
       </Modal>
 
       {/* Modal: Change Name (PARENT only) */}
@@ -543,7 +570,10 @@ export default function SettingsScreen() {
         transparent={true}
         onRequestClose={() => setIsNameModalOpen(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardScrollView
+          style={[styles.modalOverlay, { alignItems: undefined, justifyContent: undefined }]}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+        >
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Đổi tên tài khoản phụ huynh</Text>
@@ -589,7 +619,7 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardScrollView>
       </Modal>
     </ScrollView>
   );
@@ -620,24 +650,6 @@ const styles = StyleSheet.create({
   avatarWrapper: {
     position: 'relative',
     marginBottom: 12,
-  },
-  avatarCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarImage: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-  },
-  avatarText: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: colors.foreground,
   },
   cameraBadge: {
     position: 'absolute',
@@ -714,6 +726,9 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     marginBottom: 14,
   },
+  pushRow: { minHeight: 56 },
+  pushLabel: { flex: 1, minWidth: 0, marginLeft: 10, marginRight: 10 },
+  pushTitle: { color: colors.foreground, fontSize: 14, lineHeight: 20, fontWeight: '600' },
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',

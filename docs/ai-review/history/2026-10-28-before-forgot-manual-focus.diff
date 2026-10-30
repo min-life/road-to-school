@@ -1,0 +1,264 @@
+diff --git a/mobile/app/(auth)/forgot-password.tsx b/mobile/app/(auth)/forgot-password.tsx
+index 256080f..cdc8615 100644
+--- a/mobile/app/(auth)/forgot-password.tsx
++++ b/mobile/app/(auth)/forgot-password.tsx
+@@ -7,7 +7,9 @@ import {
+   TouchableOpacity,
+   StyleSheet,
+   ActivityIndicator,
++  Image,
+ } from 'react-native';
++import { SafeAreaView } from 'react-native-safe-area-context';
+ import { useRouter } from 'expo-router';
+ import { Ionicons } from '@expo/vector-icons';
+ import { useAuth } from '@/context/auth-context';
+@@ -55,12 +57,14 @@ export default function ForgotPasswordScreen() {
+   };
+
+   return (
+-    <View
++    <SafeAreaView
+       style={styles.keyboardContainer}
++      edges={['top', 'bottom', 'left', 'right']}
+     >
+       <KeyboardScrollView
+         contentContainerStyle={styles.scrollContainer}
+         keyboardShouldPersistTaps="handled"
++        showsVerticalScrollIndicator={false}
+       >
+         <View style={styles.card}>
+           {/* Header Row */}
+@@ -69,13 +73,21 @@ export default function ForgotPasswordScreen() {
+               onPress={() => router.back()}
+               style={styles.backButton}
+               accessibilityLabel="Quay lại"
++              accessibilityRole="button"
+             >
+               <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+             </TouchableOpacity>
+-            <Text style={styles.headerTitle}>Quên mật khẩu</Text>
+             <View style={{ width: 24 }} />
+           </View>
+
++          <Image
++            source={require('@/assets/images/auth/forget-password.jpg')}
++            style={styles.heroImage}
++            resizeMode="contain"
++            accessible={false}
++          />
++          <Text style={styles.headerTitle} accessibilityRole="header">Quên mật khẩu</Text>
++
+           <Text style={styles.subtitle}>
+             Nhập email hoặc số điện thoại liên kết với tài khoản để nhận mã xác minh OTP.
+           </Text>
+@@ -91,21 +103,25 @@ export default function ForgotPasswordScreen() {
+           {/* Input Identifier */}
+           <View style={styles.formGroup}>
+             <Text style={styles.label}>Email hoặc Số điện thoại</Text>
+-            <TextInput
+-              style={styles.input}
+-              placeholder="0912345678 hoặc user@r2s.com"
+-              placeholderTextColor="#94A3B8"
+-              autoCapitalize="none"
+-              autoCorrect={false}
+-              keyboardType="email-address"
+-              value={identifier}
+-              onChangeText={(text) => {
+-                setIdentifier(text);
+-                if (error) setError(null);
+-              }}
+-              editable={!isSubmitting}
+-              autoFocus
+-            />
++            <View style={styles.inputShell}>
++              <Ionicons name="person-outline" size={20} color={colors.mutedText} accessible={false} />
++              <TextInput
++                style={styles.input}
++                accessibilityLabel="Email hoặc Số điện thoại"
++                placeholder="0912345678 hoặc user@r2s.com"
++                placeholderTextColor={colors.mutedText}
++                autoCapitalize="none"
++                autoCorrect={false}
++                keyboardType="email-address"
++                value={identifier}
++                onChangeText={(text) => {
++                  setIdentifier(text);
++                  if (error) setError(null);
++                }}
++                editable={!isSubmitting}
++                autoFocus
++              />
++            </View>
+           </View>
+
+           {/* Submit Button */}
+@@ -115,6 +131,8 @@ export default function ForgotPasswordScreen() {
+               (isSubmitting || !identifier.trim()) && styles.submitButtonDisabled,
+             ]}
+             onPress={handleRequestOtp}
++            accessibilityRole="button"
++            accessibilityState={{ busy: isSubmitting, disabled: isSubmitting || !identifier.trim() }}
+             disabled={isSubmitting || !identifier.trim()}
+             activeOpacity={0.8}
+           >
+@@ -131,6 +149,7 @@ export default function ForgotPasswordScreen() {
+           {/* Back to Login */}
+           <TouchableOpacity
+             style={styles.backLink}
++            accessibilityRole="button"
+             onPress={() => router.push('/(auth)/login')}
+             activeOpacity={0.7}
+           >
+@@ -138,122 +157,38 @@ export default function ForgotPasswordScreen() {
+           </TouchableOpacity>
+         </View>
+       </KeyboardScrollView>
+-    </View>
++    </SafeAreaView>
+   );
+ }
+
+ const styles = StyleSheet.create({
+-  keyboardContainer: {
+-    flex: 1,
+-    backgroundColor: colors.background,
+-  },
+-  scrollContainer: {
+-    flexGrow: 1,
+-    paddingHorizontal: 20,
+-    paddingVertical: 32,
+-    justifyContent: 'center',
+-  },
+-  card: {
+-    backgroundColor: colors.surface,
+-    borderRadius: 20,
+-    paddingHorizontal: 24,
+-    paddingVertical: 28,
+-    shadowColor: '#000',
+-    shadowOffset: { width: 0, height: 4 },
+-    shadowOpacity: 0.08,
+-    shadowRadius: 10,
+-    elevation: 3,
+-    borderWidth: 1,
+-    borderColor: '#F1F5F9',
+-  },
+-  headerRow: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'space-between',
+-    marginBottom: 8,
+-  },
+-  backButton: {
+-    padding: 4,
+-    marginLeft: -4,
+-  },
+-  headerTitle: {
+-    fontSize: 18,
+-    fontWeight: '700',
+-    color: colors.foreground,
+-  },
+-  subtitle: {
+-    fontSize: 13,
+-    color: colors.mutedText,
+-    marginBottom: 20,
+-    textAlign: 'center',
+-    lineHeight: 19,
+-  },
++  keyboardContainer: { flex: 1, backgroundColor: colors.background },
++  scrollContainer: { flexGrow: 1, alignItems: 'center', paddingVertical: 8 },
++  card: { width: '100%', maxWidth: 430, paddingHorizontal: 24, paddingBottom: 24 },
++  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
++  backButton: { minWidth: 48, minHeight: 48, justifyContent: 'center' },
++  heroImage: { width: '78%', aspectRatio: 1, maxHeight: 245, alignSelf: 'center', marginTop: 8, marginBottom: 20 },
++  headerTitle: { fontSize: 28, fontWeight: '700', lineHeight: 38, color: colors.foreground, marginBottom: 8 },
++  subtitle: { fontSize: 15, color: colors.mutedText, marginBottom: 24, lineHeight: 24 },
+   errorBanner: {
+-    backgroundColor: '#FEF2F2',
+-    borderWidth: 1,
+-    borderColor: '#FECACA',
+-    borderRadius: 12,
+-    paddingHorizontal: 14,
+-    paddingVertical: 10,
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    gap: 8,
+-    marginBottom: 16,
++    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.error, borderRadius: 12,
++    padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 20,
+   },
+-  errorText: {
+-    fontSize: 13,
+-    color: colors.error,
+-    flex: 1,
+-    lineHeight: 18,
+-  },
+-  formGroup: {
+-    marginBottom: 16,
+-  },
+-  label: {
+-    fontSize: 13,
+-    fontWeight: '600',
+-    color: colors.foreground,
+-    marginBottom: 6,
+-  },
+-  input: {
+-    height: 48,
+-    borderWidth: 1,
+-    borderColor: colors.border,
+-    borderRadius: 12,
+-    paddingHorizontal: 14,
+-    fontSize: 14,
+-    color: colors.foreground,
+-    backgroundColor: '#FAFAFA',
++  errorText: { fontSize: 14, color: colors.error, flex: 1, lineHeight: 20 },
++  formGroup: { marginBottom: 16 },
++  label: { fontSize: 14, fontWeight: '600', color: colors.foreground, marginBottom: 8 },
++  inputShell: {
++    minHeight: 54, borderWidth: 1, borderColor: colors.border, borderRadius: 14,
++    paddingLeft: 14, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center',
+   },
++  input: { flex: 1, minWidth: 0, minHeight: 54, paddingHorizontal: 12, paddingVertical: 14, fontSize: 16, color: colors.foreground },
+   submitButton: {
+-    backgroundColor: colors.primary,
+-    height: 48,
+-    borderRadius: 12,
+-    alignItems: 'center',
+-    justifyContent: 'center',
+-    marginTop: 6,
+-  },
+-  submitButtonDisabled: {
+-    opacity: 0.5,
+-  },
+-  buttonLoadingRow: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    gap: 8,
+-  },
+-  submitButtonText: {
+-    fontSize: 15,
+-    fontWeight: '700',
+-    color: colors.foreground,
+-  },
+-  backLink: {
+-    marginTop: 20,
+-    alignItems: 'center',
+-    paddingVertical: 4,
+-  },
+-  backLinkText: {
+-    fontSize: 13,
+-    fontWeight: '600',
+-    color: colors.mutedText,
+-  },
++    backgroundColor: colors.primary, minHeight: 52, borderRadius: 26, paddingHorizontal: 20,
++    paddingVertical: 14, alignItems: 'center', justifyContent: 'center', marginTop: 8,
++  },
++  submitButtonDisabled: { opacity: 0.5 },
++  buttonLoadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 8 },
++  submitButtonText: { fontSize: 16, fontWeight: '700', color: colors.foreground, textAlign: 'center' },
++  backLink: { marginTop: 16, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingVertical: 12 },
++  backLinkText: { fontSize: 14, fontWeight: '600', color: colors.foreground, textAlign: 'center' },
+ });
+diff --git a/mobile/assets/images/auth/forget-password.jpg b/mobile/assets/images/auth/forget-password.jpg
+new file mode 100644
+index 0000000..19763c2
+Binary files /dev/null and b/mobile/assets/images/auth/forget-password.jpg differ

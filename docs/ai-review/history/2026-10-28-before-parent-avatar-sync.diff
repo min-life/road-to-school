@@ -1,0 +1,208 @@
+diff --git a/mobile/app/_layout.tsx b/mobile/app/_layout.tsx
+index 34f9204..28935e5 100644
+--- a/mobile/app/_layout.tsx
++++ b/mobile/app/_layout.tsx
+@@ -5 +5 @@ import { useEffect } from 'react';
+-import { View, Text, StyleSheet, ActivityIndicator, Alert } from 'react-native';
++import { View, Alert } from 'react-native';
+@@ -10 +10 @@ import { AuthProvider, useAuth } from '@/context/auth-context';
+-import { BusLogo } from '@/components/BusLogo';
++import { AppLoadingSplash } from '@/components/app-loading-splash';
+@@ -104,11 +104 @@ function RootNavigation() {
+-    return (
+-      <View style={styles.appSplashContainer}>
+-        <BusLogo size={76} />
+-        <Text style={styles.appSplashTitle}>RoadToSchool</Text>
+-        <ActivityIndicator
+-          size="small"
+-          color={colors.primary}
+-          style={{ marginTop: 24 }}
+-        />
+-      </View>
+-    );
++    return <AppLoadingSplash />;
+@@ -174,16 +163,0 @@ export default function RootLayout() {
+-
+-const styles = StyleSheet.create({
+-  appSplashContainer: {
+-    flex: 1,
+-    backgroundColor: colors.background,
+-    alignItems: 'center',
+-    justifyContent: 'center',
+-  },
+-  appSplashTitle: {
+-    fontSize: 26,
+-    fontWeight: '800',
+-    color: colors.foreground,
+-    marginTop: 16,
+-    letterSpacing: -0.5,
+-  },
+-});
+diff --git a/mobile/components/parent/login-splash.tsx b/mobile/components/parent/login-splash.tsx
+index 9e635a0..06d287e 100644
+--- a/mobile/components/parent/login-splash.tsx
++++ b/mobile/components/parent/login-splash.tsx
+@@ -1,3 +1,2 @@
+-import { ActivityIndicator, Animated, Image, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+-import { SafeAreaView } from 'react-native-safe-area-context';
+-import { colors } from '@/constants/theme';
++import { Animated } from 'react-native';
++import { AppLoadingSplash } from '@/components/app-loading-splash';
+@@ -7,21 +6 @@ export function ParentLoginSplash({ progressWidth }: { progressWidth: Animated.A
+-  const { height } = useWindowDimensions();
+-  return <SafeAreaView style={styles.overlay}>
+-    <ScrollView contentContainerStyle={styles.scroll} bounces={false}>
+-      <View style={styles.frame} accessibilityViewIsModal>
+-        <Text style={styles.brand}>RoadToSchool</Text>
+-        <View style={styles.card}>
+-          <Image source={require('../../assets/images/onboarding/slide2.jpg')}
+-            resizeMode="contain" accessible={false}
+-            style={[styles.illustration, { height: Math.min(260, Math.max(140, height * 0.3)) }]} />
+-          <Text accessibilityRole="header" style={styles.title}>Phụ huynh học sinh</Text>
+-          <View style={styles.loading} accessibilityRole="progressbar" accessibilityLabel="Đang mở trang chủ">
+-            <ActivityIndicator size="small" color={colors.navigationActive} />
+-            <Text style={styles.subtitle}>Đang mở trang chủ...</Text>
+-          </View>
+-          <View style={styles.track} accessible={false}>
+-            <Animated.View style={[styles.fill, { width: progressWidth }]} />
+-          </View>
+-        </View>
+-      </View>
+-    </ScrollView>
+-  </SafeAreaView>;
++  return <AppLoadingSplash message="Đang mở trang chủ..." progressWidth={progressWidth} />;
+@@ -29,17 +7,0 @@ export function ParentLoginSplash({ progressWidth }: { progressWidth: Animated.A
+-
+-const styles = StyleSheet.create({
+-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999, backgroundColor: colors.background },
+-  scroll: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+-  frame: { width: '100%', maxWidth: 420, alignItems: 'center', gap: 20 },
+-  brand: { color: colors.foreground, fontSize: 16, lineHeight: 24, fontWeight: '700', letterSpacing: 0.4 },
+-  card: { width: '100%', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 28, borderRadius: 28,
+-    backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
+-    alignItems: 'center', shadowColor: colors.navigationShadow, shadowOffset: { width: 0, height: 6 },
+-    shadowOpacity: 0.06, shadowRadius: 16, elevation: 2 },
+-  illustration: { width: '100%', marginBottom: 12 },
+-  title: { fontSize: 22, lineHeight: 30, fontWeight: '700', color: colors.foreground, textAlign: 'center' },
+-  loading: { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, alignSelf: 'stretch' },
+-  subtitle: { flexShrink: 1, fontSize: 13, lineHeight: 20, color: colors.mutedText, textAlign: 'center' },
+-  track: { marginTop: 24, width: '100%', height: 5, borderRadius: 3, overflow: 'hidden', backgroundColor: colors.navigationHighlight },
+-  fill: { height: '100%', borderRadius: 3, backgroundColor: colors.primary },
+-});
+diff --git a/mobile/components/brand-logo.tsx b/mobile/components/brand-logo.tsx
+new file mode 100644
+index 0000000..c2909fc
+--- /dev/null
++++ b/mobile/components/brand-logo.tsx
+@@ -0,0 +1,22 @@
++import { Image, StyleSheet, View } from 'react-native';
++
++/** User-supplied samples 3 + 1, bundled locally for native and web. */
++export function BrandLogo() {
++  return (
++    <View style={styles.logo} accessible accessibilityRole="image" accessibilityLabel="Road To School">
++      <Image source={require('../assets/images/brand/road-to-school-symbol.png')}
++        style={styles.symbol} resizeMode="contain" accessible={false} />
++      <View style={styles.wordmarkFrame}>
++        <Image source={require('../assets/images/brand/road-to-school-wordmark.png')}
++          style={styles.wordmark} resizeMode="contain" accessible={false} />
++      </View>
++    </View>
++  );
++}
++
++const styles = StyleSheet.create({
++  logo: { width: '100%', maxWidth: 260, alignItems: 'center', gap: 16 },
++  symbol: { width: 128, height: 128 * 109 / 176 },
++  wordmarkFrame: { width: '100%', aspectRatio: 440 / 92 },
++  wordmark: { width: '100%', height: '100%' },
++});
+diff --git a/mobile/components/app-loading-splash.tsx b/mobile/components/app-loading-splash.tsx
+new file mode 100644
+index 0000000..21e9ec5
+--- /dev/null
++++ b/mobile/components/app-loading-splash.tsx
+@@ -0,0 +1,41 @@
++import { ActivityIndicator, Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
++import { SafeAreaView } from 'react-native-safe-area-context';
++import { BrandLogo } from '@/components/brand-logo';
++import { colors } from '@/constants/theme';
++
++type AppLoadingSplashProps = {
++  message?: string;
++  progressWidth?: Animated.AnimatedInterpolation<string>;
++};
++
++/** Presentation only; auth and RoleSplash own readiness and transition timing. */
++export function AppLoadingSplash({ message = 'Đang tải...', progressWidth }: AppLoadingSplashProps) {
++  return (
++    <SafeAreaView style={styles.overlay}>
++      <ScrollView contentContainerStyle={styles.content} bounces={false}>
++        <View style={styles.frame} accessibilityViewIsModal>
++          <BrandLogo />
++          <View style={styles.loading} accessible accessibilityRole="progressbar" accessibilityLabel={message}
++            accessibilityState={{ busy: true }}>
++            <Text style={styles.message}>{message}</Text>
++            {progressWidth ? (
++              <View style={styles.track} accessible={false}>
++                <Animated.View style={[styles.fill, { width: progressWidth }]} />
++              </View>
++            ) : <ActivityIndicator size="small" color={colors.navigationActive} accessible={false} />}
++          </View>
++        </View>
++      </ScrollView>
++    </SafeAreaView>
++  );
++}
++
++const styles = StyleSheet.create({
++  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999, backgroundColor: colors.background },
++  content: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
++  frame: { width: '100%', maxWidth: 320, alignItems: 'center', gap: 32 },
++  loading: { width: '100%', maxWidth: 180, alignItems: 'center', gap: 16 },
++  message: { fontSize: 13, lineHeight: 20, color: colors.mutedText, textAlign: 'center' },
++  track: { width: '100%', height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: colors.navigationHighlight },
++  fill: { height: '100%', borderRadius: 2, backgroundColor: colors.primary },
++});
+diff --git a/mobile/assets/images/brand/road-to-school-symbol.png b/mobile/assets/images/brand/road-to-school-symbol.png
+new file mode 100644
+index 0000000..96c96fb
+Binary files /dev/null and b/mobile/assets/images/brand/road-to-school-symbol.png differ
+diff --git a/mobile/assets/images/brand/road-to-school-symbol.svg b/mobile/assets/images/brand/road-to-school-symbol.svg
+new file mode 100644
+index 0000000..c260e21
+--- /dev/null
++++ b/mobile/assets/images/brand/road-to-school-symbol.svg
+@@ -0,0 +1,17 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 176 109" role="img" aria-labelledby="title desc">
++  <title id="title">Biểu tượng Road To School</title>
++  <desc id="desc">Xe buýt tối giản trên tuyến đường lượn sóng với hai điểm đầu và cuối.</desc>
++  <path d="M28 20h91c14 0 23 5 30 16l15 25v18H16V35c0-9 4-15 12-15Z" fill="#17243B"/>
++  <path d="M34 34h27v25H34V34Zm35 0h29v25H69V34Zm37 0h13c8 0 13 3 17 10l9 15h-39V34Z" fill="#FFFDF6"/>
++  <path d="M16 64h148v15H16V64Z" fill="#17243B"/>
++  <path d="M20 79h140" stroke="#FFFDF6" stroke-width="4"/>
++  <circle cx="47" cy="79" r="16" fill="#17243B"/>
++  <circle cx="47" cy="79" r="7" fill="#FFFDF6"/>
++  <circle cx="132" cy="79" r="16" fill="#17243B"/>
++  <circle cx="132" cy="79" r="7" fill="#FFFDF6"/>
++  <g transform="translate(0 -8)">
++    <path d="M8 105c16-9 34 9 52 0s36-9 54 0 36 9 54 0" fill="none" stroke="#FFCB56" stroke-width="6" stroke-linecap="round"/>
++    <circle cx="8" cy="105" r="6" fill="#FFCB56"/>
++    <circle cx="168" cy="105" r="6" fill="#FFCB56"/>
++  </g>
++</svg>
+diff --git a/mobile/assets/images/brand/road-to-school-wordmark.png b/mobile/assets/images/brand/road-to-school-wordmark.png
+new file mode 100644
+index 0000000..d6aa622
+Binary files /dev/null and b/mobile/assets/images/brand/road-to-school-wordmark.png differ
+diff --git a/mobile/assets/images/brand/road-to-school-wordmark.svg b/mobile/assets/images/brand/road-to-school-wordmark.svg
+new file mode 100644
+index 0000000..5c10b85
+--- /dev/null
++++ b/mobile/assets/images/brand/road-to-school-wordmark.svg
+@@ -0,0 +1,5 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 92" role="img" aria-labelledby="title desc">
++  <title id="title">Wordmark Road To School</title>
++  <desc id="desc">Tên thương hiệu Road To School độc lập, với chữ To được giảm sắc độ.</desc>
++  <text x="8" y="68" fill="#17243B" font-family="Manrope, Arial, sans-serif" font-weight="800" font-size="60" letter-spacing="-3.9" xml:space="preserve">Road <tspan opacity=".55">To</tspan> School</text>
++</svg>

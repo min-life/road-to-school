@@ -1,3 +1,5 @@
+import { AppHeader } from '@/components/navigation/app-header';
+import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
@@ -230,17 +232,11 @@ export default function CreateLeaveNoticeScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#1E293B" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tạo báo nghỉ</Text>
-        <View style={{ width: 36 }} />
-      </View>
+      <AppHeader title="Tạo báo nghỉ" onBack={() => router.back()} />
 
-      <ScrollView
+      <KeyboardScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
       >
@@ -511,7 +507,7 @@ export default function CreateLeaveNoticeScreen() {
             </>
           )}
         </TouchableOpacity>
-      </ScrollView>
+      </KeyboardScrollView>
 
       {/* Student Selection Modal */}
       <Modal
@@ -661,24 +657,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFDF6',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
-  },
-  backBtn: {
-    padding: 6,
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1E293B',
   },
   content: {
     padding: 16,

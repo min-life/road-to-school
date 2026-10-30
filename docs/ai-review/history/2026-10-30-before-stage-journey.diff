@@ -1,0 +1,329 @@
+--- a/mobile/components/parent/student-journey.tsx
++++ b/mobile/components/parent/student-journey.tsx
+@@ -8 +8 @@
+-import { observedJourneyProgress, studentJourneyMilestone, studentJourneyPath } from '@/utils/parent-journey';
++import { journeyDiagramPosition, observedJourneyProgress, studentJourneyMilestone, studentJourneyPath, studentJourneyTimes, type JourneyTime } from '@/utils/parent-journey';
+@@ -58 +58,2 @@
+-    homeFraction={path?.homeFraction} signal={signal} retained={retained} active={active} />;
++    homeFraction={path?.homeFraction} signal={signal} retained={retained} active={active}
++    {...studentJourneyTimes(card, detail)} />;
+@@ -68,0 +70,2 @@
++  departure: JourneyTime;
++  arrival: JourneyTime;
+@@ -72 +75 @@
+-export function StudentJourneyDiagram({ label, progress, outbound, homeFraction, signal, retained, active }: DiagramProps) {
++export function StudentJourneyDiagram({ label, progress, outbound, homeFraction, signal, retained, active, departure, arrival }: DiagramProps) {
+@@ -76,0 +80 @@
++  const diagramPosition = journeyDiagramPosition(progress, homeFraction, outbound);
+@@ -80 +84 @@
+-    const target = progress ?? 0;
++    const target = diagramPosition ?? 0;
+@@ -83 +87 @@
+-    initialized.current = progress !== null;
++    initialized.current = diagramPosition !== null;
+@@ -85 +89 @@
+-  }, [progress, position, reduced, active]);
++  }, [diagramPosition, position, reduced, active]);
+@@ -100,4 +104,9 @@
+-      accessibilityLabel={`${outbound ? 'Chiều đến trường' : 'Chiều về điểm trả'}. ${label}${signal ? `. ${signal}` : ''}`}>
+-      <View style={styles.heading}>
+-        <View style={styles.headingIcon}><Ionicons name="bus-outline" size={18} color={colors.navigationActive} accessible={false} /></View>
+-        <Text style={styles.title}>{label}</Text>
++      accessibilityLabel={`${outbound ? 'Chiều đến trường, qua điểm đón của con' : 'Chiều về điểm trả'}. ${label}. Khởi hành ${timeDescription(departure)}. Đến nơi ${timeDescription(arrival)}${signal ? `. ${signal}` : ''}`}>
++      <View style={styles.timeRow} aria-hidden>
++        <JourneyTimeBadge title="Khởi hành" time={departure} returnLeg={!outbound} />
++        {outbound && <View style={styles.timeColumn} />}
++        <JourneyTimeBadge title="Đến nơi" time={arrival} returnLeg={!outbound} />
++        {signal && <View style={styles.qualityIcon}>
++          <Ionicons name={signal === 'Vị trí GPS' ? 'locate-outline' : signal.includes('thử nghiệm') ? 'flask-outline' : signal === 'Đang tải vị trí' ? 'ellipsis-horizontal' : 'cloud-offline-outline'}
++            size={16} color={colors.mutedText} accessible={false} />
++        </View>}
+@@ -105 +114,2 @@
+-      <View style={styles.rail} aria-hidden accessible={false} importantForAccessibility="no-hide-descendants" onLayout={e => setWidth(e.nativeEvent.layout.width)}>
++      <View style={[styles.rail, { marginHorizontal: outbound ? '16.666667%' : '25%' }]} aria-hidden accessible={false}
++        importantForAccessibility="no-hide-descendants" onLayout={e => setWidth(e.nativeEvent.layout.width)}>
+@@ -107 +117 @@
+-        {progress !== null && width > 0 && <Animated.View style={[styles.completed, {
++        {diagramPosition !== null && width > 0 && <Animated.View style={[styles.completed, {
+@@ -110,7 +120,11 @@
+-        <View style={[styles.node, styles.start]}><Ionicons name={outbound ? 'car-outline' : 'school-outline'} size={18} color={colors.mutedText} /></View>
+-        {/* The middle stop is placed only when its actual distance along the route is known. */}
+-        {outbound && homeFraction !== undefined && homeFraction > 0 && homeFraction < 1 && <View style={[styles.middle, { left: `${homeFraction * 100}%` }]}>
+-          <Ionicons name="home-outline" size={16} color={colors.mutedText} />
+-        </View>}
+-        <View style={[styles.node, styles.end]}><Ionicons name={outbound ? 'school-outline' : 'home-outline'} size={18} color={colors.mutedText} /></View>
+-        {progress !== null && <Animated.View style={[styles.bus, { opacity: pulse, transform: [{ translateX: position.interpolate({ inputRange: [0, 1], outputRange: [0, width] }) }] }]}>
++        {diagramPosition !== null && <Animated.View style={[styles.busStem, { opacity: pulse,
++          transform: [{ translateX: position.interpolate({ inputRange: [0, 1], outputRange: [0, width] }) }] }]} />}
++        <View style={[styles.node, styles.start]}>
++          <View style={styles.nodeStem} /><Ionicons name={outbound ? 'car-outline' : 'school-outline'} size={17} color={colors.mutedText} />
++        </View>
++        {/* Three ordinal milestones stay legible even without geometry. No GPS percentage is inferred. */}
++        {outbound && <View style={[styles.node, styles.home]}><Ionicons name="home-outline" size={18} color={colors.navigationActive} /></View>}
++        <View style={[styles.node, styles.end]}>
++          <View style={styles.nodeStem} /><Ionicons name={outbound ? 'school-outline' : 'home-outline'} size={17} color={colors.mutedText} />
++        </View>
++        {diagramPosition !== null && <Animated.View style={[styles.bus, { opacity: pulse, transform: [{ translateX: position.interpolate({ inputRange: [0, 1], outputRange: [0, width] }) }] }]}>
+@@ -120,3 +134,4 @@
+-      <View style={styles.labels} accessible={false}>
+-        <Text style={styles.endpoint}>{outbound ? 'Điểm xuất phát' : 'Trường học'}</Text>
+-        <Text style={[styles.endpoint, styles.endLabel]}>{outbound ? 'Trường học' : 'Điểm trả của con'}</Text>
++      <View style={styles.labels} aria-hidden accessible={false}>
++        <Text style={styles.endpoint}>{outbound ? 'Xuất phát' : 'Trường học'}</Text>
++        {outbound && <Text style={[styles.endpoint, styles.homeLabel]}>Điểm đón{ '\n' }của con</Text>}
++        <Text style={styles.endpoint}>{outbound ? 'Trường học' : 'Điểm trả của con'}</Text>
+@@ -124,2 +138,0 @@
+-      {outbound && homeFraction === undefined && <View style={styles.legend}><Ionicons name="home-outline" size={14} color={colors.mutedText} accessible={false} /><Text style={styles.signal}>Điểm đón của con</Text></View>}
+-      {signal && <Text style={styles.signal}>{signal}</Text>}
+@@ -129,0 +143,15 @@
++function timeDescription(time: JourneyTime) {
++  return time.value ? `${time.value}, ${time.kind === 'actual' ? 'thực tế' : 'dự kiến'}` : 'chưa có giờ';
++}
++
++function JourneyTimeBadge({ title, time, returnLeg }: { title: string; time: JourneyTime; returnLeg: boolean }) {
++  return <View style={[styles.timeColumn, returnLeg && styles.returnTimeColumn]}>
++    <View style={[styles.timeBadge, time.kind === 'actual' && styles.actualTimeBadge]}>
++      <Text style={styles.timeTitle}>{title}</Text>
++      <Text style={styles.timeValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{time.value ?? '—:—'}</Text>
++      <Text style={styles.timeKind}>{time.value ? time.kind === 'actual' ? 'Thực tế' : 'Dự kiến' : 'Chưa có giờ'}</Text>
++    </View>
++    <View style={styles.timeStem} />
++  </View>;
++}
++
+@@ -131,5 +159,13 @@
+-  container: { padding: 14, borderRadius: 16, backgroundColor: colors.background, gap: 8, borderWidth: 1, borderColor: colors.navigationHighlight },
+-  heading: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+-  headingIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.navigationHighlight },
+-  title: { flex: 1, minWidth: 0, fontSize: 14, lineHeight: 21, fontWeight: '700', color: colors.foreground },
+-  rail: { marginHorizontal: 16, height: 46, justifyContent: 'center' },
++  container: { padding: 12, borderRadius: 16, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.navigationHighlight },
++  timeRow: { flexDirection: 'row', alignItems: 'flex-end', position: 'relative' },
++  timeColumn: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: 2 },
++  returnTimeColumn: { paddingHorizontal: 8 },
++  timeBadge: { width: '100%', maxWidth: 110, alignItems: 'center', gap: 2, paddingHorizontal: 4, paddingVertical: 8,
++    borderRadius: 12, borderWidth: 1, borderColor: colors.navigationHighlight, backgroundColor: colors.surface },
++  actualTimeBadge: { borderColor: colors.primary, backgroundColor: colors.navigationHighlight },
++  timeTitle: { fontSize: 10, lineHeight: 15, color: colors.mutedText, textAlign: 'center' },
++  timeValue: { alignSelf: 'stretch', fontSize: 18, lineHeight: 24, fontWeight: '800', fontVariant: ['tabular-nums'], color: colors.foreground, textAlign: 'center' },
++  timeKind: { fontSize: 9, lineHeight: 14, color: colors.navigationActive, textAlign: 'center' },
++  timeStem: { width: 1, height: 36, backgroundColor: colors.border },
++  qualityIcon: { position: 'absolute', left: '50%', top: 10, marginLeft: -8, width: 16, height: 16, alignItems: 'center', justifyContent: 'center' },
++  rail: { height: 36, justifyContent: 'center' },
+@@ -138,9 +174,11 @@
+-  node: { position: 'absolute', width: 30, height: 30, borderRadius: 15, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+-  start: { left: -15 }, end: { right: -15 },
+-  middle: { position: 'absolute', marginLeft: -12, top: -2, width: 24, height: 22, alignItems: 'center', backgroundColor: colors.background },
+-  bus: { position: 'absolute', left: -16, width: 32, height: 32, borderRadius: 12, borderWidth: 2, borderColor: colors.surface, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+-  labels: { flexDirection: 'row', justifyContent: 'space-between', gap: 16 },
+-  endpoint: { flex: 1, fontSize: 11, lineHeight: 17, color: colors.mutedText },
+-  endLabel: { textAlign: 'right' },
+-  signal: { color: colors.mutedText, fontSize: 11, lineHeight: 17 },
+-  legend: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
++  node: { position: 'absolute', top: 4, zIndex: 2, width: 28, height: 28, borderRadius: 14, backgroundColor: colors.surface,
++    borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
++  nodeStem: { position: 'absolute', top: -5, width: 1, height: 4, backgroundColor: colors.border },
++  start: { left: -14 }, end: { right: -14 },
++  home: { left: '50%', marginLeft: -14, borderColor: colors.navigationActive, backgroundColor: colors.navigationHighlight },
++  busStem: { position: 'absolute', left: -1, top: 0, width: 2, height: 18, backgroundColor: colors.navigationActive, zIndex: 1 },
++  bus: { position: 'absolute', left: -16, top: -30, zIndex: 3, width: 32, height: 32, borderRadius: 12, borderWidth: 2,
++    borderColor: colors.surface, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
++  labels: { flexDirection: 'row', alignItems: 'flex-start', paddingTop: 4 },
++  endpoint: { flex: 1, minWidth: 0, paddingHorizontal: 2, fontSize: 10, lineHeight: 16, color: colors.mutedText, textAlign: 'center' },
++  homeLabel: { color: colors.navigationActive, fontWeight: '600' },
+--- a/mobile/hooks/use-parent-journey-telemetry.ts
++++ b/mobile/hooks/use-parent-journey-telemetry.ts
+@@ -24 +24,2 @@
+-  const ids = [...new Set(cards.filter(c => c.tripStatus === 'IN_PROGRESS' && c.attendanceStatus !== 'ABSENT'
++  const ids = [...new Set(cards.map(c => c.tripId))].sort();
++  const gpsIds = [...new Set(cards.filter(c => c.tripStatus === 'IN_PROGRESS' && c.attendanceStatus !== 'ABSENT'
+@@ -26 +27 @@
+-  const scope = JSON.stringify([identity, ids]);
++  const scope = JSON.stringify([identity, ids, gpsIds]);
+@@ -36 +37 @@
+-  useActiveRefresh(scope, async ({ isCurrent }) => {
++  useActiveRefresh(scope, async ({ isCurrent, immediate }) => {
+@@ -40,0 +42,8 @@
++        if (!gpsIds.includes(id)) {
++          if (previous?.detail && !immediate) return [id, previous] as const;
++          // Scheduled/finished student journeys still need their real stops and planned times.
++          const detail = await mobileApiClient.getMobileTripDetail(id);
++          if (!isCurrent()) return null;
++          return [id, { ...previous, detail, unavailable: false, navigation: previous?.navigation
++            ? { ...previous.navigation, freshness: 'STALE' as const } : undefined }] as const;
++        }
+@@ -69,0 +79,2 @@
++    // Metadata-only journeys stop polling after a successful load; focus retries them.
++    return gpsIds.length > 0 || Object.values(trips).some(t => t.unavailable && !t.detail);
+--- a/mobile/utils/parent-journey.ts
++++ b/mobile/utils/parent-journey.ts
+@@ -8,0 +9,46 @@
++
++export type JourneyTime = { value: string | null; kind: 'scheduled' | 'actual' };
++
++export function journeyClock(value?: string | null): string | null {
++  const match = value?.trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
++  if (!match || Number(match[1]) > 23 || Number(match[2]) > 59 || Number(match[3] ?? 0) > 59) return null;
++  return `${match[1].padStart(2, '0')}:${match[2]}`;
++}
++
++export function journeyScheduleRange(value: string) {
++  const parts = value.split(/\s*[-–—]\s*/);
++  return { start: parts.length === 2 ? journeyClock(parts[0]) : null, end: parts.length === 2 ? journeyClock(parts[1]) : null };
++}
++
++export function journeyArrivalClock(direction: Direction, stopTime?: string | null, routeEndTime?: string | null) {
++  // The return trip ends at the parking lot, after this child's drop-off.
++  return journeyClock(stopTime) ?? (direction === 'TO_SCHOOL' ? journeyClock(routeEndTime) : null);
++}
++
++export function journeyRecordedClock(value?: string | null): string | null {
++  if (!value || !Number.isFinite(Date.parse(value))) return null;
++  try {
++    return new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(value));
++  } catch { return null; }
++}
++
++export function studentJourneyTimes(card: ParentHomeCardItem, detail?: MobileTripDetail) {
++  const validDetail = detail?.id === card.tripId && detail.direction === card.direction ? detail : undefined;
++  const range = journeyScheduleRange(card.scheduledTime);
++  const destination = validDetail?.stops.find(s => card.direction === 'TO_SCHOOL' ? s.stopType === 'SCHOOL_ARRIVAL'
++    : s.stopType === 'DROPOFF' && s.studentId === card.studentId && s.isMyChild === true);
++  const actualArrival = card.attendanceStatus === 'PRESENT' && card.childIsAlighted ? journeyRecordedClock(card.childAlightedAt) : null;
++  return {
++    departure: { value: range.start ?? journeyClock(validDetail?.scheduledStartTime), kind: 'scheduled' } as JourneyTime,
++    arrival: { value: actualArrival ?? journeyArrivalClock(card.direction, destination?.plannedArrivalTime,
++      journeyClock(validDetail?.scheduledEndTime) ?? range.end), kind: actualArrival ? 'actual' : 'scheduled' } as JourneyTime,
++  };
++}
++
++/** Equal visual legs are schematic, not equal distances. GPS still determines progress within each leg. */
++export function journeyDiagramPosition(progress: number | null, homeFraction: number | undefined, outbound: boolean): number | null {
++  if (progress === null || !Number.isFinite(progress) || progress < 0 || progress > 1) return null;
++  if (!outbound || progress === 0 || progress === 1) return progress;
++  if (homeFraction === undefined || !Number.isFinite(homeFraction) || homeFraction <= 0 || homeFraction >= 1) return null;
++  return progress <= homeFraction ? (progress / homeFraction) / 2 : 0.5 + (progress - homeFraction) / (1 - homeFraction) / 2;
++}
+--- a/mobile/scripts/parent-journey.test.ts
++++ b/mobile/scripts/parent-journey.test.ts
+@@ -3 +3,2 @@
+-import { locateOnJourney, progressForJourneyFix, studentJourneyMilestone, validCoordinate, type JourneyPath } from '../utils/parent-journey.ts';
++import { journeyArrivalClock, journeyClock, journeyDiagramPosition, journeyRecordedClock, journeyScheduleRange,
++  locateOnJourney, progressForJourneyFix, studentJourneyMilestone, validCoordinate, type JourneyPath } from '../utils/parent-journey.ts';
+@@ -58,0 +60,39 @@
++
++describe('milestone clocks and schematic layout (no API data)', () => {
++  it('normalizes valid clocks and refuses invalid or missing values', () => {
++    assert.equal(journeyClock('6:05:00'), '06:05');
++    for (const value of ['', '24:00', '10:60', '08:30:99', 'not a time']) assert.equal(journeyClock(value), null);
++    assert.equal(journeyClock(undefined), null);
++  });
++  it('reads the existing schedule range without inventing missing endpoints', () => {
++    assert.deepEqual(journeyScheduleRange('06:30 - 07:15'), { start: '06:30', end: '07:15' });
++    assert.deepEqual(journeyScheduleRange(' - 07:15'), { start: null, end: '07:15' });
++    assert.deepEqual(journeyScheduleRange('unavailable'), { start: null, end: null });
++  });
++  it('never presents parking-lot arrival as the return drop-off time', () => {
++    assert.equal(journeyArrivalClock('TO_PARKING', null, '18:00'), null);
++    assert.equal(journeyArrivalClock('TO_PARKING', '17:25', '18:00'), '17:25');
++    assert.equal(journeyArrivalClock('TO_SCHOOL', null, '07:15'), '07:15');
++  });
++  it('formats recorded arrival in Vietnam and refuses an invalid timestamp', () => {
++    assert.equal(journeyRecordedClock('2026-01-01T00:15:00Z'), '07:15');
++    assert.equal(journeyRecordedClock('invalid'), null);
++  });
++  it('anchors pickup to the middle schematic node without treating it as half the distance', () => {
++    for (const home of [0.02, 0.15, 0.98]) {
++      assert.equal(journeyDiagramPosition(0, home, true), 0);
++      assert.equal(journeyDiagramPosition(home, home, true), 0.5);
++      assert.equal(journeyDiagramPosition(1, home, true), 1);
++      assert.equal(journeyDiagramPosition(home / 2, home, true), 0.25);
++      assert.ok(Math.abs(journeyDiagramPosition(home + (1 - home) / 2, home, true)! - 0.75) < 1e-12);
++    }
++  });
++  it('preserves neutral/missing data rather than assuming an intermediate bus position', () => {
++    assert.equal(journeyDiagramPosition(0.3, undefined, true), null);
++    assert.equal(journeyDiagramPosition(null, 0.4, true), null);
++    assert.equal(journeyDiagramPosition(NaN, 0.4, true), null);
++    assert.equal(journeyDiagramPosition(0, undefined, true), 0);
++    assert.equal(journeyDiagramPosition(1, undefined, true), 1);
++    assert.equal(journeyDiagramPosition(0.3, undefined, false), 0.3);
++  });
++});
+--- a/docs/architecture/mobile-parent-student-journey.md
++++ b/docs/architecture/mobile-parent-student-journey.md
+@@ -3,0 +4,17 @@
++
++## Cập nhật mốc hành trình và giờ — 30/10/2026
++
++Theo yêu cầu tiếp theo của PO, bỏ toàn bộ heading/dòng trạng thái hiển thị trong khối hành trình; tag chuyến ở summary và tag điểm danh trong phần chi tiết giữ nguyên. Ngữ nghĩa trạng thái vẫn có trong accessibilityLabel để người dùng trình đọc màn hình hiểu sơ đồ. Chất lượng GPS chỉ còn icon nhỏ (định vị/thử nghiệm/mất tín hiệu), không thêm dòng text trạng thái lặp.
++
++Điểm đón của con nay là node nhà có tâm nằm đúng trên rail, luôn có cả khi metadata/GPS chưa tải. Sơ đồ chiều đi gồm3 mốc theo thứ tự: xuất phát → điểm đón con → trường; chiều về gồm trường → điểm trả con. Khoảng cách node là bố cục schematic để nhãn không chồng khi điểm đón thực ở2% hoặc98% quãng đường, **không phải khoảng cách địa lý hoặc tiến độ50% giả**. Vị trí xe trong mỗi chặng vẫn lấy phép chiếu GPS đã kiểm chứng; không đủ dữ liệu xác định chặng thì không đặt marker trung gian.
++
++Hai time badge trắng bo12 nổi phía trên mốc đầu/cuối, có stem nối thẳng xuống node; nhãn Khởi hành/Đến nơi, giờ nổi bật với tabular numerals, chú thích Dự kiến/Thực tế. Bus là pin nổi phía trên đường, stem gắn xuống vị trí hiện tại để không che icon nhà trên rail. Số giờ đủ5 ký tự, auto-fit khi font lớn; nhãn khác wrap, không ellipsis nội dung nghiệp vụ.
++
++Nguồn giờ:
++- Xuất phát: phần đầu scheduledTime của home-cards, fallback detail.scheduledStartTime; luôn ghi Dự kiến vì nguồn hiện dùng không cung cấp actualStartTime.
++- Đến trường: plannedArrivalTime của SCHOOL_ARRIVAL, fallback scheduledEndTime/phần cuối scheduledTime (chiều đi).
++- Đến điểm trả chiều về: **chỉ** plannedArrivalTime của DROPOFF trùng studentId + isMyChild; không lấy giờ xe về bãi làm giờ trả con.
++- Khi PRESENT + childIsAlighted và childAlightedAt hợp lệ: dùng mốc xuống xe thực tế, hiển thị Thực tế; format Asia/Ho_Chi_Minh. Không dùng GPS để tự suy ra giờ đến.
++- Thiếu/không hợp lệ: —:— / Chưa có giờ, không nội suy hoặc tạo ETA. Khối lịch cũ vẫn giữ nguyên toàn bộ giờ/ngày V2, kể cả giờ kết thúc tuyến về bãi.
++
++Metadata detail được đọc cho mọi tripId có card, một lần và khi focus; navigation vẫn chỉ poll5s với chuyến IN_PROGRESS còn cần GPS. Metadata-only ngừng polling sau khi tải thành công, lỗi thiếu metadata retry theo loop hiện có. Nhiều con cùng trip dùng chung GET, controller Home và poll8s không đổi.
+@@ -22,4 +39,4 @@
+-[Bus] Nhãn hành trình riêng của học sinh
+-Điểm xuất phát ─── điểm đón ─── Trường (chiều đi)
+-Trường ─────────────────── Điểm trả con (chiều về)
+-Vị trí GPS / gần nhất / thiếu dữ liệu (nếu cần)
++[Khởi hành · giờ · Dự kiến]       [Đến nơi · giờ · Dự kiến/Thực tế]
++              │                                   │
++Xuất phát ─────── [Nhà: điểm đón con] ─────────── Trường
++Trường ─────────────────────────────────────── Điểm trả (chiều về)
+@@ -41 +58 @@
+-Tag tóm tắt luôn là **trạng thái chung của chuyến** qua mapping Home V2, bổ sung nhãn tiếng Việt Đã hủy cho CANCELLED trong nhánh Parent. Nhãn hành trình và tag điểm danh là hai phần riêng.
++Tag tóm tắt luôn là **trạng thái chung của chuyến** qua mapping Home V2, bổ sung nhãn tiếng Việt Đã hủy cho CANCELLED trong nhánh Parent. Không hiển thị nhãn trạng thái thứ hai trong khối hành trình; helper chỉ còn phục vụ ngữ nghĩa accessibility. Tag điểm danh vẫn giữ ở phần chi tiết.
+@@ -43 +60 @@
+-| Dữ liệu thực | Nhãn hành trình / hình thức |
++| Dữ liệu thực | Ngữ nghĩa accessibility / hình thức |
+@@ -54 +71 @@
+-| Chưa từng có vị trí hợp lệ/không có geometry/điểm con mơ hồ | Đường xám, không đặt xe ở vị trí đoán; nhãn ngắn Đang tải vị trí / Chưa có GPS / Chưa tải được vị trí / Chưa xác định tiến độ |
++| Chưa từng có vị trí hợp lệ/không có geometry/điểm con mơ hồ | Đường xám, không đặt xe ở vị trí đoán; icon chất lượng dữ liệu; accessibility mô tả Đang tải vị trí / Chưa có GPS / Chưa tải được vị trí / Chưa xác định tiến độ |
+@@ -57 +74 @@
+-Các nhãn hành trình là text trình bày, không enum nghiệp vụ mới. CANCELLED/ABSENT ưu tiên hơn kết luận xuống xe để không hiển thị thành công với dữ liệu mâu thuẫn. Parent Home hiện không phát sinh card COMPLETED/CANCELLED theo bộ lọc API; mapping phòng vệ không thay bộ lọc đó.
++Các nhãn hành trình là text ngữ nghĩa accessibility, không hiển thị lặp trên UI và không enum nghiệp vụ mới. CANCELLED/ABSENT ưu tiên hơn kết luận xuống xe để không hiển thị thành công với dữ liệu mâu thuẫn. Parent Home hiện không phát sinh card COMPLETED/CANCELLED theo bộ lọc API; mapping phòng vệ không thay bộ lọc đó.
+@@ -63 +80 @@
+-- TO_SCHOOL: xác định PARKING_START → PICKUP của studentId → SCHOOL_ARRIVAL. Vị trí marker và điểm nhà lấy tỷ lệ **độ dài tích lũy dọc polyline**, không đặt nhà/xe ở50% cố định. Phần origin→nhà và nhà→trường nằm trên cùng rail; vàng là phần đã quan sát hoàn thành, xám là phần còn lại.
++- TO_SCHOOL: xác định PARKING_START → PICKUP của studentId → SCHOOL_ARRIVAL. Tỷ lệ GPS và mốc nhà lấy từ **độ dài tích lũy dọc polyline**. Diagram ánh xạ mỗi chặng trước/sau điểm nhà sang một nửa rail để dành chỗ cho nhãn; node nhà ở giữa sơ đồ không hàm ý50% quãng đường. Không tự gán xe vào giữa khi thiếu hình học. Phần origin→nhà và nhà→trường nằm trên cùng rail; vàng là phần đã quan sát hoàn thành, xám là phần còn lại.
+@@ -76 +93 @@
+-- [useParentJourneyTelemetry](../../mobile/hooks/use-parent-journey-telemetry.ts): readonly viewer, deduplicate tripId IN_PROGRESS còn cần GPS (không vắng/đã xuống), navigation5s; metadata chỉ đọc lại khi chưa có/routeVersion đổi. Tái sử dụng useActiveRefresh (focus/AppState/no-overlap/isCurrent). Một lượt cho nhiều con cùng chuyến. Không dùng useTripNavigation vì hook đó có engine publisher của tài xế.
++- [useParentJourneyTelemetry](../../mobile/hooks/use-parent-journey-telemetry.ts): readonly viewer, deduplicate mọi tripId để đọc metadata; navigation5s chỉ cho IN_PROGRESS còn cần GPS (không vắng/đã xuống). Metadata đọc lần đầu/focus/routeVersion đổi; metadata-only ngừng poll sau thành công. Tái sử dụng useActiveRefresh (focus/AppState/no-overlap/isCurrent). Một lượt cho nhiều con cùng chuyến. Không dùng useTripNavigation vì hook đó có engine publisher của tài xế.
+@@ -78 +95 @@
+-- [ParentStudentJourney / StudentJourneyDiagram](../../mobile/components/parent/student-journey.tsx): lớp đầu derive theo card thực, lớp sau chỉ vẽ. Props diagram: label, progress:number|null, outbound:boolean, homeFraction?, signal:string|null, retained:boolean, active:boolean. Không truyền tỷ lệ đoán; caller phải cung cấp phép chiếu hợp lệ hoặc mốc endpoint đã xác nhận.
++- [ParentStudentJourney / StudentJourneyDiagram](../../mobile/components/parent/student-journey.tsx): lớp đầu derive theo card thực, lớp sau chỉ vẽ. Props diagram: label, progress:number|null, outbound:boolean, homeFraction?, signal:string|null, retained:boolean, active:boolean, departure:JourneyTime, arrival:JourneyTime. JourneyTime là {value:string|null; kind: scheduled|actual}; label/signal phục vụ accessibility, không render dòng trạng thái. Không truyền tỷ lệ đoán; caller phải cung cấp phép chiếu hợp lệ hoặc mốc endpoint đã xác nhận.
+@@ -87 +104 @@
+-- PASS8 unit tests độc lập DB:48 tổ hợp enum/hướng/alighted, sibling independence, hoàn thành chung không đồng nghĩa trả con, return boarding trước start, phép chiếu/tuổi mẫu/off-route/giao cắt/boarding anchor. Test chỉ enum primitives và tọa độ toán học; không tạo records/DTO giả hoặc fake API response.
++- PASS14 unit tests độc lập DB:8 kiểm tra trạng thái/hình học có sẵn và6 kiểm tra mới về parse giờ, thiếu mốc, giờ điểm trả khác giờ về bãi, timezone Việt Nam, mapping các chặng và không giả định tiến độ trung gian. Test chỉ enum primitives và tọa độ toán học; không tạo records/DTO giả hoặc fake API response.
+@@ -89 +106 @@
+-- PASS Chromium IAB presentation-only: collapsed/expanded và nhãn dài320/390/844/1440px không tràn ngang, hai card độc lập, Enter/Space, nút trong panel không đóng card, panel cao bằng nội dung sau resize. Diagram trung tính không đặt marker giả. Diagram riêng kiểm tra phép vẽ bằng tỷ lệ từ đoạn thẳng toán học, có nhãn không phải GPS, không Student/Trip/auth/API.
++- PASS Chromium IAB presentation-only cho lần cập nhật mốc:3 diagram ×4 kích thước320/390/844/1440px không tràn ngang; mọi node có tâm cùng y với rail, time badge thẳng node đầu/cuối (sai số tối đa0.016px). Điểm đón nằm trên rail khi thiếu geometry/GPS; không có dòng text trạng thái lặp. Kiểm tra hình học điểm đón2%/98% và pin bus không che node. Nhãn giờ chỉ là typography preview, không Student/Trip/auth/API hoặc chứng nhận giờ thực tế. Kết quả disclosure/Enter/Space/hai card độc lập đã chạy ở task trước, không chạy lại trong task chỉ sửa diagram.
+--- a/docs/architecture/mobile-ui-implementation-status.md
++++ b/docs/architecture/mobile-ui-implementation-status.md
+@@ -3,0 +4,4 @@
++
++## Mốc điểm đón và giờ hành trình — 30/10/2026, local
++
++Điểm đón của con nay nằm trực tiếp trên rail, time badge nổi phía trên và nối đúng mốc xuất phát/đích đến; không còn dòng text trạng thái lặp trong diagram. Giữ tag chuyến/điểm danh và đầy đủ thông tin/action V2. Lấy giờ dự kiến từ schedule/stop, mốc xuống xe thực tế của con khi có; không nhầm giờ về bãi với giờ trả con. Sơ đồ chia chặng để nhãn luôn rõ; GPS thật quyết định vị trí trong chặng, thiếu dữ liệu không tạo tiến độ. [Component/nguồn giờ/kiểm chứng/giới hạn](mobile-parent-student-journey.md). Tsc/export all,14 pure tests và diagram preview320/390/844/1440 PASS; native/authenticated GPS NOT_VERIFIED. Chưa commit/push.
+--- a/docs/ai-handoff/CURRENT_STATE.md
++++ b/docs/ai-handoff/CURRENT_STATE.md
+@@ -8,0 +9,4 @@
++
++## Cập nhật 30/10/2026 — Mốc điểm đón và giờ trên rail
++
++Điểm đón nằm trên rail schematic, giờ dự kiến/thực tế gắn bằng time badge + stem với mốc đầu/cuối; bỏ dòng trạng thái lặp, giữ tags V2. Metadata detail đọc cả card chờ để lấy điểm/giờ, không gọi GPS publisher. Chiều về dùng giờ DROPOFF riêng của con, không giờ về bãi; thiếu giờ để trống có nhãn. Hình học GPS, điểm danh, controller/actions Home giữ nguyên. [Spec và verification](../architecture/mobile-parent-student-journey.md). Typecheck/export all,14 pure tests và layout preview PASS; native/auth runtime NOT_VERIFIED. Chưa commit/push.
+--- a/docs/ai-handoff/CODEX_HANDOFF.md
++++ b/docs/ai-handoff/CODEX_HANDOFF.md
+@@ -11,0 +12,4 @@
++
++## Cập nhật 30/10/2026 — Mốc điểm đón và giờ trên rail
++
++Điểm đón nằm trên rail schematic, giờ dự kiến/thực tế gắn bằng time badge + stem với mốc đầu/cuối; bỏ dòng trạng thái lặp, giữ tags V2. Metadata detail đọc cả card chờ để lấy điểm/giờ, không gọi GPS publisher. Chiều về dùng giờ DROPOFF riêng của con, không giờ về bãi; thiếu giờ để trống có nhãn. Hình học GPS, điểm danh, controller/actions Home giữ nguyên. [Spec và verification](../architecture/mobile-parent-student-journey.md). Typecheck/export all,14 pure tests và layout preview PASS; native/auth runtime NOT_VERIFIED. Chưa commit/push.

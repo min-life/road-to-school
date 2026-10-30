@@ -1,3 +1,4 @@
+import { AppHeader, HeaderAction } from '@/components/navigation/app-header';
 import { useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,7 +12,7 @@ import { useActiveRefresh } from '@/hooks/use-active-refresh';
 
 export default function NotificationsScreen() {
   const { user } = useAuth();
-  const { open, refresh: refreshSummary, enablePush, disablePush, pushStatus } = useNotifications();
+  const { open, refresh: refreshSummary } = useNotifications();
   const router = useRouter(), insets = useSafeAreaInsets();
   const [filter, setFilter] = useState('ALL'), [cursor, setCursor] = useState<string | undefined>();
   const identity = `${user?.id}:${filter}:${cursor ?? ''}`;
@@ -31,10 +32,9 @@ export default function NotificationsScreen() {
     catch { Alert.alert('Thông báo', 'Không thể đánh dấu đã đọc'); }
     finally { setBusy(false); }
   }
-  return <View style={[styles.container, { paddingTop: insets.top }]}>
-    <View style={styles.header}><TouchableOpacity accessibilityLabel="Quay lại" onPress={() => router.back()}><Ionicons name="arrow-back" size={24} color={colors.foreground} /></TouchableOpacity><Text style={styles.title}>Thông báo</Text><TouchableOpacity accessibilityLabel="Đánh dấu tất cả đã đọc" disabled={busy} onPress={() => { void readAll(); }}><Ionicons name="checkmark-done" size={23} color={colors.foreground} /></TouchableOpacity></View>
+  return <View style={styles.container}>
+    <AppHeader title="Thông báo" onBack={() => router.back()} actions={<HeaderAction icon="checkmark-done" label="Đánh dấu tất cả đã đọc" disabled={busy} onPress={() => { void readAll(); }} />} />
     <View style={styles.filters}>{[['ALL', 'Tất cả'], ['UNREAD', 'Chưa đọc']].map(([value, label]) => <TouchableOpacity key={value} onPress={() => { setFilter(value); setCursor(undefined); }} style={[styles.filter, filter === value && styles.selected]}><Text style={styles.text}>{label}</Text></TouchableOpacity>)}</View>
-    <View style={styles.push}><Text style={styles.muted}>{pushStatus || 'Thông báo ngoài ứng dụng'}</Text><View style={styles.filters}><TouchableOpacity onPress={() => { void enablePush(); }}><Text style={styles.link}>Bật</Text></TouchableOpacity><TouchableOpacity onPress={() => { void disablePush().catch(() => Alert.alert('Thông báo', 'Chưa thể tắt thông báo đẩy')); }}><Text style={styles.muted}>Tắt trên thiết bị</Text></TouchableOpacity></View></View>
     {error && <TouchableOpacity onPress={refresh} style={styles.error}><Text style={{ color: colors.error }}>{error} · Thử lại</Text></TouchableOpacity>}
     {!data && !error && <ActivityIndicator color={colors.primary} style={{ margin: 32 }} />}
     {data && <FlatList data={data.items} keyExtractor={item => item.id} contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
@@ -46,7 +46,7 @@ export default function NotificationsScreen() {
   </View>;
 }
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background }, header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, backgroundColor: colors.surface }, title: { fontSize: 18, fontWeight: '700', color: colors.foreground },
-  filters: { flexDirection: 'row', gap: 18, padding: 12, alignItems: 'center' }, filter: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.surface }, selected: { backgroundColor: colors.primary }, text: { fontSize: 14, color: colors.foreground }, muted: { color: colors.mutedText, fontSize: 12, marginTop: 4 }, link: { color: colors.foreground, fontWeight: '700', fontSize: 13 }, push: { paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: colors.border },
+  container: { flex: 1, backgroundColor: colors.background },
+  filters: { flexDirection: 'row', gap: 18, padding: 12, alignItems: 'center' }, filter: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.surface }, selected: { backgroundColor: colors.primary }, text: { fontSize: 14, color: colors.foreground }, muted: { color: colors.mutedText, fontSize: 12, marginTop: 4 }, link: { color: colors.foreground, fontWeight: '700', fontSize: 13 },
   row: { padding: 18, flexDirection: 'row', gap: 12, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }, unread: { backgroundColor: colors.background }, time: { color: colors.mutedText, marginTop: 6, fontSize: 11 }, dot: { height: 7, width: 7, borderRadius: 4, backgroundColor: colors.error, marginTop: 5 }, error: { padding: 16 },
 });

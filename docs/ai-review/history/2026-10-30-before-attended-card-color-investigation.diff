@@ -1,0 +1,38 @@
+--- a/mobile/components/parent/trip-card.tsx
++++ b/mobile/components/parent/trip-card.tsx
+@@ -33,0 +34 @@
++  const cardTone = studentStatus ? journeyTones[studentStatus.tone] : attention ? journeyTones.warning : undefined;
+@@ -51 +52 @@
+-    <View style={[parentHomeStyles.tripCard, styles.card, expanded && styles.expandedCard, attention && styles.attentionCard]}>
++    <View style={[parentHomeStyles.tripCard, styles.card, expanded && styles.expandedCard, cardTone && { borderColor: cardTone.border }]}>
+@@ -59 +60 @@
+-        style={({ pressed }) => [styles.summary, attention && styles.attentionSummary, pressed && styles.pressed]}
++        style={({ pressed }) => [styles.summary, cardTone && { backgroundColor: cardTone.bg }, pressed && styles.pressed]}
+@@ -119,2 +119,0 @@
+-  attentionCard: { borderColor: journeyTones.warning.border, borderLeftWidth: 4 },
+-  attentionSummary: { backgroundColor: journeyTones.warning.bg },
+--- a/docs/architecture/mobile-parent-student-journey.md
++++ b/docs/architecture/mobile-parent-student-journey.md
+@@ -119,0 +120,14 @@
++### Màu card đồng bộ với tag học sinh
++
++[ParentTripCard](../../mobile/components/parent/trip-card.tsx) lấy `journeyTones[studentStatus.tone]` làm nguồn chung với tag: `border` cho viền card (kể cả viền trái4px), `bg` cho nền header. Áp dụng cả khi thu gọn và mở rộng; màu vàng mặc định khi mở không ghi đè màu trạng thái. Phần chi tiết giữ nền trắng, chữ/icon/nhãn và các nút giữ nguyên.
++
++| Tag học sinh | Viền và nền header |
++| --- | --- |
++| Chưa điểm danh | Vàng/amber |
++| Đã điểm danh | Xanh dương/info |
++| Chưa xuống xe | Tím/purple |
++| Đã xuống xe | Xanh lá/success |
++| Đã báo nghỉ hoặc Vắng mặt | Đỏ/danger |
++
++Màu theo trạng thái của riêng con, không theo tag trạng thái chung của chuyến hoặc tag sự cố. Các tag đó vẫn giữ màu và ý nghĩa riêng. Nếu không truyền studentStatus, giữ tương thích attention=true dùng warning; không có cả hai thì dùng màu mặc định trước đây. Không sửa mapping trạng thái, vị trí bus, API hoặc nghiệp vụ. Font/spacing/border width/animation giữ nguyên nên đổi trạng thái không làm nhảy bố cục.
++
+@@ -137 +151 @@
+-- [ParentTripCard](../../mobile/components/parent/trip-card.tsx): giữ studentName/avatarUrl/schoolName/status/children/journey(active). Thêm optional studentStatus, hasIncident, attention, stale. Chỉ giữ disclosure; không gọi API hoặc đổi permissions. accessibilityLabel gồm status con/sự cố và aria-expanded. CTA là sibling của summary, không đóng card.
++- [ParentTripCard](../../mobile/components/parent/trip-card.tsx): giữ studentName/avatarUrl/schoolName/status/children/journey(active). Optional studentStatus vừa hiển thị tag vừa chọn tone viền/nền header; hasIncident/stale giữ tag riêng, attention là fallback warning khi thiếu studentStatus. Chỉ giữ disclosure; không gọi API hoặc đổi permissions. accessibilityLabel gồm status con/sự cố và aria-expanded. CTA là sibling của summary, không đóng card.
+--- a/docs/architecture/mobile-parent-home-ui.md
++++ b/docs/architecture/mobile-parent-home-ui.md
+@@ -5,0 +6,2 @@
++
++Màu viền card và nền header đồng bộ theo tag trạng thái của con qua journeyTones: Chưa điểm danh vàng, Đã điểm danh xanh dương, Chưa xuống xe tím, Đã xuống xe xanh lá, Đã báo nghỉ/Vắng mặt đỏ. Giữ màu khi mở/đóng, không bị viền vàng mặc định khi mở ghi đè. Phần chi tiết vẫn nền trắng; tag chuyến và sự cố giữ màu riêng. Không đổi dữ liệu, vị trí bus hoặc nghiệp vụ.

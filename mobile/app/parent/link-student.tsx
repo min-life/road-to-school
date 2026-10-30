@@ -1,3 +1,5 @@
+import { AppHeader } from '@/components/navigation/app-header';
+import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState, useRef, useCallback } from 'react';
 import {
   StyleSheet,
@@ -6,13 +8,10 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  ScrollView,
-  KeyboardAvoidingView,
   Platform,
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { colors } from '@/constants/theme';
@@ -43,7 +42,6 @@ function validateStudentCode(code: string): string | null {
 
 export default function LinkStudentScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
 
   const [mode, setMode] = useState<'MANUAL' | 'QR'>('MANUAL');
   const [studentCode, setStudentCode] = useState('');
@@ -108,22 +106,11 @@ export default function LinkStudentScreen() {
   );
 
   return (
-    <KeyboardAvoidingView
+    <View
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* Top Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-          disabled={isSubmitting}
-        >
-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Liên kết học sinh</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <AppHeader title="Liên kết học sinh" onBack={() => router.back()} backDisabled={isSubmitting} />
 
       {/* Mode Switcher */}
       <View style={styles.tabSwitcher}>
@@ -181,7 +168,7 @@ export default function LinkStudentScreen() {
 
       {/* Content based on mode */}
       {mode === 'MANUAL' ? (
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <KeyboardScrollView contentContainerStyle={styles.scrollContent}>
           {errorMessage && (
             <View style={styles.errorBox}>
               <Ionicons name="alert-circle" size={18} color="#DC2626" />
@@ -249,7 +236,7 @@ export default function LinkStudentScreen() {
               Sau khi xác nhận mã, một tin nhắn chứa mã OTP 6 chữ số sẽ được gửi tới số điện thoại người giám hộ đã đăng ký với nhà trường.
             </Text>
           </View>
-        </ScrollView>
+        </KeyboardScrollView>
       ) : (
         <View style={styles.cameraWrapper}>
           {!permission?.granted ? (
@@ -299,7 +286,7 @@ export default function LinkStudentScreen() {
           )}
         </View>
       )}
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -307,28 +294,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.foreground,
   },
   tabSwitcher: {
     flexDirection: 'row',

@@ -34,6 +34,7 @@ interface ContextValue {
   enablePush: () => Promise<void>;
   disablePush: () => Promise<void>;
   pushStatus: string;
+  pushEnabled: boolean;
   open: (id: string) => Promise<void>;
   navigationPending: boolean;
 }
@@ -52,6 +53,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
   const [stored, setStored] = useState<{ identity: string; value: NotificationSummary } | null>(null);
   const [pushStatus, setPushStatus] = useState('');
+  const [enabledIdentity, setEnabledIdentity] = useState<string | null>(null);
+  useEffect(() => { setEnabledIdentity(null); setPushStatus(''); }, [identity]);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [pushInitialized, setPushInitialized] = useState(!nativePush);
   const sdk = useRef<PushModule | null>(null);
@@ -109,7 +112,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       const token = await module.getExpoPushTokenAsync({ projectId });
       if (identityRef.current !== scope || (await SecureStore.getItemAsync(preferenceKey(userId))) === '1') return;
       const task = notificationApi.register(token.data, userId).then(() => {
-        if (identityRef.current === scope) setPushStatus('Đã bật thông báo đẩy');
+        if (identityRef.current === scope) {
+          setPushStatus('Đã bật thông báo đẩy');
+          setEnabledIdentity(scope);
+        }
       });
       registration.current = task;
       try {
@@ -185,6 +191,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         if (typeof module.getPermissionsAsync === 'function') {
           const perm = await module.getPermissionsAsync();
           if (perm?.granted && !cancelled) await registerToken(module, scope, userId);
+          else if (!cancelled && identityRef.current === scope) setEnabledIdentity(null);
         }
       } catch {
         if (!cancelled) setPushStatus('Chưa thể bật thông báo đẩy');
@@ -285,6 +292,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       const permission = await sdk.current.requestPermissionsAsync();
       if (!permission.granted) {
         setPushStatus('Chưa cho phép thông báo đẩy');
+        if (identityRef.current === identity) setEnabledIdentity(null);
         return;
       }
       await SecureStore.deleteItemAsync(preferenceKey(user.id));
@@ -299,8 +307,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     await SecureStore.setItemAsync(preferenceKey(user.id), '1');
     await registration.current?.catch(() => {});
     await notificationApi.unregister();
+    if (identityRef.current === identity) setEnabledIdentity(null);
     setPushStatus('Đã tắt thông báo đẩy trên thiết bị');
-  }, [user?.id]);
+  }, [user?.id, identity]);
 
   return (
     <Context.Provider
@@ -310,6 +319,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         enablePush,
         disablePush,
         pushStatus,
+        pushEnabled: nativePush && enabledIdentity === identity,
         open,
         navigationPending: !pushInitialized || !!pendingId,
       }}

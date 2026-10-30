@@ -1,3 +1,4 @@
+import { AppHeader } from '@/components/navigation/app-header';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
@@ -9,7 +10,6 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
@@ -39,7 +39,6 @@ const STATUS_OPTIONS: { label: string; value: string }[] = [
 
 export default function IncidentsHistoryScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { user } = useAuth();
 
   const [selectedType, setSelectedType] = useState<string>('ALL');
@@ -109,19 +108,9 @@ export default function IncidentsHistoryScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       {/* Top Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="arrow-back" size={24} color="#1E293B" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Lịch sử sự cố</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <AppHeader title="Lịch sử sự cố" onBack={() => router.back()} />
 
       {/* Filter Horizontal Scroll - Types */}
       <View style={styles.filterSection}>
@@ -288,27 +277,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFDF6',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1E293B',
   },
   filterSection: {
     backgroundColor: '#FFFFFF',

@@ -11,7 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppHeader } from '@/components/navigation/app-header';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors } from '@/constants/theme';
 import {
@@ -19,10 +19,10 @@ import {
   ParentLinkedStudentItem,
 } from '@/services/api-client';
 import { StudentCard } from '@/components/StudentCard';
+import { TrackingEmptyState } from '@/components/parent/tracking-empty-state';
 
 export default function ParentTrackingScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
 
   const [students, setStudents] = useState<ParentLinkedStudentItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -78,17 +78,9 @@ export default function ParentTrackingScreen() {
   return (
     <View style={styles.container}>
       {/* Header Bar */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle}>Học sinh theo dõi</Text>
-          <Text style={styles.headerSubtitle}>
-            {students.length > 0
+      <AppHeader title="Học sinh theo dõi" subtitle={students.length > 0
               ? `${students.length} học sinh đang được liên kết`
-              : 'Quản lý thông tin đưa đón học sinh'}
-          </Text>
-        </View>
-        <NotificationBell />
-      </View>
+              : 'Quản lý thông tin đưa đón học sinh'} actions={<NotificationBell />} />
 
       {/* Main Content */}
       {isLoading && !isRefreshing ? (
@@ -111,6 +103,7 @@ export default function ParentTrackingScreen() {
         </View>
       ) : students.length === 0 ? (
         <ScrollView
+          style={[styles.listContainer, styles.emptyViewport]}
           contentContainerStyle={styles.emptyContainer}
           refreshControl={
             <RefreshControl
@@ -120,26 +113,12 @@ export default function ParentTrackingScreen() {
             />
           }
         >
-          <View style={styles.emptyIconCircle}>
-            <Ionicons name="people-outline" size={44} color="#D97706" />
-          </View>
-          <Text style={styles.emptyTitle}>Chưa có học sinh nào</Text>
-          <Text style={styles.emptySubtitle}>
-            Nhấn vào nút bên dưới để liên kết với học sinh bằng mã định danh hoặc quét mã QR.
-          </Text>
-          <TouchableOpacity
-            style={styles.emptyButton}
-            onPress={handleAddPress}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="add" size={20} color={colors.foreground} />
-            <Text style={styles.emptyButtonText}>Liên kết học sinh</Text>
-          </TouchableOpacity>
+          <TrackingEmptyState onLink={handleAddPress} />
         </ScrollView>
       ) : (
         <ScrollView
           style={styles.listContainer}
-          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 90 }]}
+          contentContainerStyle={[styles.listContent, { paddingBottom: 90 }]}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
@@ -161,7 +140,7 @@ export default function ParentTrackingScreen() {
 
       {/* Floating Action Button (+) */}
       <TouchableOpacity
-        style={[styles.fab, { bottom: insets.bottom + 16 }]}
+        style={[styles.fab, { bottom: 16 }]}
         onPress={handleAddPress}
         activeOpacity={0.85}
         accessibilityLabel="Thêm liên kết học sinh"
@@ -176,31 +155,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  headerTitleWrap: {
-    flex: 1,
-    paddingRight: 12,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: colors.foreground,
-    letterSpacing: -0.5,
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: colors.mutedText,
-    marginTop: 2,
   },
   listContainer: {
     flex: 1,
@@ -244,52 +198,14 @@ const styles = StyleSheet.create({
     color: colors.foreground,
   },
   emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
+    flexGrow: 1,
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    padding: 32,
+    padding: 16,
+    paddingBottom: 16,
   },
-  emptyIconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#FEF3C7',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.foreground,
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    color: colors.mutedText,
-    textAlign: 'center',
-    lineHeight: 18,
-    marginBottom: 20,
-  },
-  emptyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  emptyButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.foreground,
-  },
+  // Keep both V2 link controls reachable without the floating + covering the card.
+  emptyViewport: { marginBottom: 90 },
   fab: {
     position: 'absolute',
     right: 20,

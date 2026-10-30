@@ -8,6 +8,92 @@
 
 ---
 
+Bộ tài liệu hệ thống theo source (28/10/2026): [implementation/README.md](../implementation/README.md), gồm local runbook, feature map, backend route catalog, schema và environment references. Chưa commit/push phần docs mới.
+
+## Cập nhật 30/10/2026 — Tiến trình theo mốc nghiệp vụ (mới nhất)
+
+PO đổi rail sang minh họa nhảy2/3 từng chặng theo start/attendance/school arrival/alighting, không phụ thuộc GPS. Bus nằm trên rail, thay node khi ở mốc; collapsed có tag điểm danh nổi bật và sự cố cấp chuyến, ngày ngang heading, tên tuyến/giờ chuyển khỏi khối cũ. Đọc GET operational-state/incidents5s + detail20s/focus, không sửa backend/contract. ActualStartTime/arrivedAtSchoolAt/children hỗ trợ giờ thực và sớm/trễ; ETA động và event đến/rời pickup vẫn thiếu, bubble chỉ “theo lịch”; nhịp pickup1600ms là hiệu ứng sau điểm danh, không event rời điểm mới. [Spec/API audit/source map/verification](../architecture/mobile-parent-student-journey.md). Tsc/export all,24 pure tests và presenter checks PASS; native/auth end-to-end NOT_VERIFIED. Không DB/dependency/commit/push. Các mục GPS/pin ở dưới là lịch sử đã thay thế.
+
+## Cập nhật 30/10/2026 — Mốc điểm đón và giờ trên rail
+
+Điểm đón nằm trên rail schematic, giờ dự kiến/thực tế gắn bằng time badge + stem với mốc đầu/cuối; bỏ dòng trạng thái lặp, giữ tags V2. Metadata detail đọc cả card chờ để lấy điểm/giờ, không gọi GPS publisher. Chiều về dùng giờ DROPOFF riêng của con, không giờ về bãi; thiếu giờ để trống có nhãn. Hình học GPS, điểm danh, controller/actions Home giữ nguyên. [Spec và verification](../architecture/mobile-parent-student-journey.md). Typecheck/export all,14 pure tests và layout preview PASS; native/auth runtime NOT_VERIFIED. Chưa commit/push.
+
+## Cập nhật 30/10/2026 — Card học sinh / hành trình Parent
+
+Frontend đã thêm disclosure đo chiều cao, trạng thái riêng theo attendance/alighting từng con, GPS readonly dedup tripId qua navigation5s + detail khi routeVersion đổi. Không tạo enum/ETA/tiến độ giả; thiếu dữ liệu giữ fix gần nhất hoặc trung tính. Giữ Home8s, API/actions/nhánh staff. Reduced motion, focus/background và thông tin xe/tài xế/giờ xuống xe đã xử lý. [Mapping, source, component contract, kiểm chứng và giới hạn](../architecture/mobile-parent-student-journey.md). Tsc/export all,8 pure tests và layout browser PASS; native/authenticated GPS chưa nghiệm thu. Không backend/DB/package/commit/push.
+
+## Cập nhật 29/10/2026 — Thẻ Chuyến xe của con mở rộng
+
+Trang chủ PARENT dùng ParentTripCard: avatar studentAvatar, tên và trạng thái cùng hàng, trường bên dưới; nhấn header mở/đóng toàn bộ chi tiết/action V2. Mỗi studentId:tripId có state UI độc lập, giữ qua rerender/polling cùng thẻ. Giữ nguyên subtree tuyến/giờ/ngày/điểm danh/lý do vắng/xe/tài xế/Theo dõi/Báo nghỉ, controller và API. [Component contract, mapping field, kiểm chứng và giới hạn](../architecture/mobile-parent-home-ui.md). Typecheck/export all và browser preview320/390/1440 PASS; native và runtime có xác thực chưa nghiệm thu. Không backend/DB/dependency hoặc commit/push.
+
+## Cập nhật 29/10/2026 — Toàn bộ màn OTP (local)
+
+Đã thêm ảnh verify-phone nguyên bản V1 và restyle cả 5 màn: đăng ký, đặt lại mật khẩu, liên kết học sinh, xác nhận cập nhật thông tin/địa chỉ, xác nhận báo nghỉ. Dùng OtpHero/otpStyles, nền kem, input trắng bo góc, CTA vàng, form tối đa430px và safe area/cuộn hiện có. Giữ text, API/router, validation, countdown/resend, loading/error/success, hai trường password và autoFocus V2; link vẫn nhập4–8/max8, các màn khác6. Không backend/DB/dependency/env/Git writes. Typecheck/export all và preview15 lượt320/390/1440 PASS; native iPhone/Android, bàn phím thật và OTP qua backend NOT_VERIFIED. [Source map, component API và giới hạn](../architecture/mobile-otp-ui.md).
+
+## Cập nhật — Bootstrap SQL khi thiếu tài nguyên/ID
+
+29/10/2026: thêm bootstrap-parent-ui.sql hoàn chỉnh để PO tự chạy pgAdmin roadtoschool, không cần ID. Tạo school/vehicle/2 students/4 staff test và DRAFT hai chiều/links, tự gán driver/attendant; reuse PARENT duy nhất và giữ mật khẩu cũ, không có parent thì cần phone để tạo test parent. Chọn mật khẩu test mới, pgcrypto hash bcrypt; không hardcode password thật. Không agent DB execution, không fake approval/Trip/GPS. [Hướng dẫn và file](../implementation/pgadmin-parent-ui-data.md). Prisma static/tsc PASS; SQL runtime/UI NOT_VERIFIED, chưa commit/push.
+
+## Cập nhật — SQL local để PO tự chuẩn bị dữ liệu UI
+
+28/10/2026: đã soạn preflight/create/verify SQL cho pgAdmin, tạo DRAFT hai chiều và links trên các học sinh có sẵn do PO chọn; không chạy database. Không tự ACTIVE hoặc tạo Trip/GPS; duyệt/phân công/sinh chuyến theo Web v2 để Home có roster/chuyến hợp lệ. [Hướng dẫn/file](../implementation/pgadmin-parent-ui-data.md). Static Prisma columns/required fields và delimiter checks PASS; PostgreSQL execution/UI NOT_VERIFIED. Chỉ SQL/docs, application code/schema không đổi; chưa commit/push.
+
+## Cập nhật — Login đổi phông sau logout: mitigation
+
+28/10/2026: khoanh vùng khả năng iOS Fabric recycle TextInput giữ thuộc tính chữ; chưa tái hiện trên iPhone. Login thêm inputTypography chung (native system font, weight400/normal/letterSpacing0), giữ font15/JSX/handlers/autofocus false. AuthContext/Settings/Root byte-identical; không remount hoặc reset credential. Tsc/export all PASS, native symptom/fix NOT_VERIFIED. [Chi tiết/bằng chứng/UAT](../architecture/mobile-ui-implementation-status.md#login--ổn-định-chữ-sau-đăng-xuất-28102026). Không backend/DB/dependency/Git writes.
+
+## Cập nhật — Đồng bộ avatar Trang chủ phụ huynh/Cá nhân
+
+28/10/2026: dùng UserAvatar chung, cùng user.avatarUrl và fallback chữ đầu nền vàng; giữ Home48/compact38.4, Profile72/camera badge. URL đổi reset lỗi tải qua keyed content; upload handler, HomeScreen và AuthProvider giữ nguyên. [Chi tiết](../architecture/mobile-parent-home-ui.md#avatar-đồng-bộ-với-cá-nhân--28102026). Tsc/export all/parity và browser320/390 PASS (ảnh local/missing/recovery); chưa upload hoặc nghiệm thu iPhone thật. Không thêm API/DB/package/asset, chưa commit/push.
+
+## Cập nhật — Loading tối giản bằng logo PO cung cấp
+
+28/10/2026: mẫu3 xe buýt + mẫu1 wordmark thay ảnh/card PARENT, dùng chung AppLoadingSplash cho startup RootNavigation. SVG gốc và PNG local trong assets/images/brand, không thêm thư viện/font. ParentLoginSplash vẫn truyền progressWidth, RoleSplash byte-identical (1200ms/onFinish/roles khác); auth/navigation root giữ nguyên. [Chi tiết](../architecture/mobile-ui-implementation-status.md#loading-đơn-giản-với-logo-app-28102026). Tsc/export all/parity và isolated browser320/390/landscape/desktop PASS; native/auth UAT chưa xác minh. Giao diện ảnh/card loading ở addendum cũ là lịch sử đã thay thế. Không DB/API/Git writes.
+
+## Cập nhật — Đổi điểm: chưa có học sinh liên kết
+
+28/10/2026: ListEmptyComponent của /parent/change-stop dùng TrackingEmptyState theo cùng mẫu V1 ở Theo dõi; giữ title/link/back/retry, GET, guard AVAILABLE, route address-request và safe-area padding. Shared component thêm title/description tùy chọn; mặc định Theo dõi giữ nguyên. [Chi tiết/checks](../architecture/mobile-ui-implementation-status.md). Tsc/export all, source parity và isolated browser320/390/1440 PASS; native/auth runtime chưa xác minh. Không thêm asset/package, không backend/DB, chưa commit/push.
+
+## Cập nhật — Trạng thái chưa có học sinh ở Theo dõi
+
+28/10/2026: card/ảnh/CTA theo phong cách V1; giữ Liên kết học sinh, FAB +, refresh và route V2. Component TrackingEmptyState thuần hiển thị; ScrollView dành vùng riêng cho FAB. [Chi tiết và kiểm chứng](../architecture/mobile-ui-implementation-status.md#theo-dõi--chưa-liên-kết-học-sinh-28102026). Tsc/export all và isolated browser320/390/1440 PASS; native/auth UAT chưa xác minh. Không sửa backend/dữ liệu/dependencies; chưa commit/push.
+
+## Cập nhật — Switch thông báo trong nhóm tài khoản
+
+Profile: Thông báo thiết bị + Switch cùng hàng ngay trên Đăng xuất, không còn thẻ/two buttons riêng. Provider bổ sung pushEnabled theo đăng ký token đã xác nhận và identity; permission/storage/API calls giữ nguyên, không suy từ status text. Busy/failed handling ở Profile. [Chi tiết](../ai-review/notifications-push-setup.md). Tsc/export all và isolated Switch320px PASS; native permissions/runtime chưa nghiệm thu. Không commit/push.
+
+## Cập nhật — Cài đặt thông báo thiết bị ở Profile
+
+Đã chuyển enablePush/disablePush/pushStatus từ Inbox Mobile sang Cá nhân → Thông báo thiết bị; provider/permission/token logic giữ nguyên. Inbox chỉ giữ phần inbox/filter/read actions. [Tài liệu push](../ai-review/notifications-push-setup.md). Tsc/export all và handler parity PASS; chưa thao tác push thật/iPhone UAT. Chưa commit/push.
+
+## Cập nhật — Restyle loading sau đăng nhập PARENT
+
+RoleSplash nhánh PARENT dùng ParentLoginSplash với ảnh mẹ/con/xe buýt slide2 V1 đã có trong V2, nền kem/card trắng/bar vàng. Giữ timer1200ms, onFinish và auth/navigation; role khác không đổi. [Chi tiết/checks](../architecture/mobile-ui-implementation-status.md). Tsc/export all và browser320/390 PASS; iPhone/login UAT chưa xác minh. Local chưa commit/push.
+
+## Cập nhật — Tiện ích Đổi điểm
+
+Đã thêm Đổi điểm giữa Báo nghỉ/Làm mới, cả expanded/compact. Home mở /parent/change-stop, chọn con liên kết AVAILABLE rồi vào address-request list hiện có; không đổi backend/DB/OTP. [Chi tiết](../architecture/mobile-parent-home-ui.md). Tsc/export all và isolated320px control test PASS; dữ liệu thật/iPhone chưa nghiệm thu. Local chưa commit/push.
+
+## Cập nhật — Header phụ huynh thu gọn theo scroll
+
+Home PARENT có avatar/tên/chuông và tiện ích Báo nghỉ/Làm mới như phong cách V1; cuộn đưa tiện ích ngang avatar. ParentHomeScrollView sở hữu safe area/scroll/header; Tabs ẩn header riêng index/PARENT, body/logic giữ nguyên. Xem [Parent Home UI](../architecture/mobile-parent-home-ui.md). Tsc/export all PASS, preview Chromium375/320 có scroll/click/restore PASS; native/iPhone UAT còn NOT_VERIFIED. Local, không commit/push.
+
+## Cập nhật 28/10/2026 — Trang chủ phụ huynh theo V1 (local)
+
+Restyle riêng PARENT tại mobile/app/(tabs)/index.tsx bằng mobile/components/parent/home-styles.ts; giữ đủ nội dung/handler/polling và nhánh nhân sự. Nền kem, card20, icon/nút tròn, status xuống dòng, wrap thông tin, CTA vàng, maxWidth560. Header/tab Phase2 không đổi. [Tài liệu Parent Home](../architecture/mobile-parent-home-ui.md) ghi kiểm chứng tsc/export, preview empty/error/loading và giới hạn thẻ có dữ liệu/iPhone. Read-only xác nhận tài khoản PO chưa liên kết học sinh; không tạo test data, không thay backend/DB/dependency hoặc commit/push. Có route rỗng Xem lịch tuần của con trỏ schedule nhân sự từ source cũ, chưa đổi trong task style. Các thay đổi Phase2/NetworkBanner cũ được giữ.
+
+## Cập nhật 28/10/2026 — Phase 2 header/tab Mobile (local)
+
+Đã restyle header điều hướng và tab bar theo V1 bằng AppHeader/HeaderAction/TabButton; giữ callback API/router, tab theo role, phase 1 và thay đổi NetworkBanner chưa commit. Có safe area, header trong flow, tab cao theo inset/fontScale, native hide-on-keyboard và Web VisualViewport. [Tài liệu Phase 2](../architecture/mobile-navigation-phase2.md) ghi đủ source map, cách dùng component và phạm vi. Tsc, 22 pure tests, iOS/Android/Web export PASS; browser component preview kiểm tra 320/375/390/1440px. Runtime có xác thực, keyboard native/Safari/Chrome điện thoại còn NOT_VERIFIED; Expo Web local thử direct schedule vẫn ở SSR splash. Không thay backend/DB/dependencies, không tạo test data, không commit/push. Các snapshot Phase 1 bên dưới giữ giá trị lịch sử.
+
+## Cập nhật 28/10/2026 — Giao diện Mobile theo V1
+
+Nguồn implementation hiện tại của đợt UI là commit `db02de6` trên `dongnnp/mobile/refactor-ui`, sau các commit `113c249`, `579ccaf`, `d228c1d`. Đã có onboarding 4 trang, restyle Login/Quên mật khẩu/Đăng ký phụ huynh và `KeyboardScrollView` native/Web. API/auth context/validation/OTP và nghiệp vụ V2 giữ nguyên; không thêm dependencies, schema hoặc dữ liệu.
+
+Đọc [hiện trạng UI](../architecture/mobile-ui-implementation-status.md) và [hiện trạng source](CURRENT_STATE.md) trước khi tiếp tục. Tài liệu UI ghi rõ asset, completion marker, manual focus, nhãn/placeholder cuối cùng và phạm vi chưa làm. Quy tắc bàn phím ở [WORKING_RULES mục 3.5](../WORKING_RULES.md#35-mobile-keyboard--focus-visibility), chi tiết tại [mobile-keyboard-behavior.md](../architecture/mobile-keyboard-behavior.md).
+
+Đã push các commit source theo yêu cầu PO, chưa có bằng chứng merge main hoặc nghiệm thu thiết bị. Tsc/unit/bundle PASS không thay cho Expo iPhone/Android, Safari/Chrome mobile, VoiceOver hoặc OTP runtime; các phần đó còn NOT_VERIFIED trong đợt UI. Các snapshot, số lượng migration và trạng thái Git ở các mục lịch sử bên dưới chỉ áp dụng tại mốc ghi nhận, không được dùng để phủ nhận source/addendum mới.
+
 ## MỤC LỤC
 1. [A. Project Overview (Tổng quan Dự án)](#a-project-overview)
 2. [B. Repository Structure (Cấu trúc Repository)](#b-repository-structure)
@@ -409,16 +495,16 @@ Codex phải tuân thủ nghiêm ngặt phong cách làm việc 3 vòng:
 
 | Tài liệu | Đường dẫn | Mục đích sử dụng |
 |---|---|---|
-| **Agent Instructions** | [AGENTS.md](AGENTS.md) | Chỉ dẫn cốt lõi, reading order & operational protocol cho Agent tại root |
-| **Working Rules** | [docs/WORKING_RULES.md](docs/WORKING_RULES.md) | Quy chuẩn kỹ thuật, Test Data Policy, AI Review 13 mục |
-| **Business Context** | [docs/BUSINESS_CONTEXT.md](docs/BUSINESS_CONTEXT.md) | Ngữ cảnh nghiệp vụ nền tảng, 5 vai trò, mô hình nhà xe tập trung |
-| **Codex Handoff** | [docs/ai-handoff/CODEX_HANDOFF.md](docs/ai-handoff/CODEX_HANDOFF.md) | *Tài liệu này*: Tổng hợp kiến trúc, domain model, approved decisions |
-| **Current State** | [docs/ai-handoff/CURRENT_STATE.md](docs/ai-handoff/CURRENT_STATE.md) | Snapshot trạng thái code, migrations, tính năng đã/đang làm tại thời điểm bàn giao |
-| **Latest AI Review** | [docs/ai-review/LATEST.md](docs/ai-review/LATEST.md) | Báo cáo chi tiết của task triển khai gần nhất (Trip Operation V2) |
-| **Latest Diff** | [docs/ai-review/LATEST.diff](docs/ai-review/LATEST.diff) | Git diff của task triển khai gần nhất |
-| **Trip Operation Plan** | [docs/ai-review/trip-operation-business-architecture-plan.md](docs/ai-review/trip-operation-business-architecture-plan.md) | Thiết kế chi tiết luồng vận hành chuyến xe 4 chặng V2 |
-| **Trip Management Plan**| [docs/ai-review/trip-management-architecture-plan.md](docs/ai-review/trip-management-architecture-plan.md) | Thiết kế phê duyệt RoutePlan, sinh chuyến tự động, phân công nguồn lực |
-| **RoutePlan-First Plan**| [docs/ai-review/routeplan-first-management-plan.md](docs/ai-review/routeplan-first-management-plan.md) | Thiết kế chuyển đổi Aggregate Root sang RoutePlan |
+| **Agent Instructions** | [AGENTS.md](../../AGENTS.md) | Chỉ dẫn cốt lõi, reading order & operational protocol cho Agent tại root |
+| **Working Rules** | [docs/WORKING_RULES.md](../WORKING_RULES.md) | Quy chuẩn kỹ thuật, Test Data Policy, AI Review 13 mục |
+| **Business Context** | [docs/BUSINESS_CONTEXT.md](../BUSINESS_CONTEXT.md) | Ngữ cảnh nghiệp vụ nền tảng, 5 vai trò, mô hình nhà xe tập trung |
+| **Codex Handoff** | [docs/ai-handoff/CODEX_HANDOFF.md](CODEX_HANDOFF.md) | *Tài liệu này*: Tổng hợp kiến trúc, domain model, approved decisions |
+| **Current State** | [docs/ai-handoff/CURRENT_STATE.md](CURRENT_STATE.md) | Snapshot trạng thái code, migrations, tính năng đã/đang làm tại thời điểm bàn giao |
+| **Latest AI Review** | [docs/ai-review/LATEST.md](../ai-review/LATEST.md) | Báo cáo chi tiết của task triển khai gần nhất (Trip Operation V2) |
+| **Latest Diff** | [docs/ai-review/LATEST.diff](../ai-review/LATEST.diff) | Git diff của task triển khai gần nhất |
+| **Trip Operation Plan** | [docs/ai-review/trip-operation-business-architecture-plan.md](../ai-review/trip-operation-business-architecture-plan.md) | Thiết kế chi tiết luồng vận hành chuyến xe 4 chặng V2 |
+| **Trip Management Plan**| [docs/ai-review/trip-management-architecture-plan.md](../ai-review/trip-management-architecture-plan.md) | Thiết kế phê duyệt RoutePlan, sinh chuyến tự động, phân công nguồn lực |
+| **RoutePlan-First Plan**| [docs/ai-review/routeplan-first-management-plan.md](../ai-review/routeplan-first-management-plan.md) | Thiết kế chuyển đổi Aggregate Root sang RoutePlan |
 
 ---
 

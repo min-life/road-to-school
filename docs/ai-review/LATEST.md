@@ -1,44 +1,46 @@
-# AI Review — Preview checkpoint
+# AI Review — Publish mobile UI to GitHub
 
 ## 1. Task Information
-Date: 2026-10-27 (Asia/Saigon). Scope: repository checkpoint. Type: Implementation. Status: checks completed; commit/push performed after saving this report.
+Task: Publish accumulated mobile UI work to GitHub. Date: 30/10/2026, Asia/Saigon. Scope: Mobile / Documentation / Git. Type: Delivery. Status: COMPLETED. Code commit 497af424362a0a36f485bd4d9f6213895f3bfc83 pushed successfully to origin/dongnnp/mobile/refactor-ui and verified with git ls-remote. This report update is delivered in a subsequent documentation-only commit.
 
 ## 2. Original Request
-Commit current project code with the exact message "preview" before proceeding.
+PO: “đẩy code lên giúp tôi”.
 
 ## 3. Approved Scope
-Snapshot all current project changes and push the current main branch to origin. No UI redesign or additional feature development.
+Explicit authorization to commit and push the session’s accumulated mobile UI and related docs/SQL scripts to the existing dongnnp/mobile/refactor-ui branch on origin. No main merge, force push, rebase, dependency changes, or database execution. Preserve local mobile/.env.example accidental trailing character and Python __pycache__ outside the delivery.
 
 ## 4. Analysis & Decisions
-Preserve existing API, web, mobile, documentation and project-local skill changes in one checkpoint. Remote: https://github.com/min-life/road-to-school.git. No history rewriting.
+HEAD initially 17fda49; branch dongnnp/mobile/refactor-ui. Origin is https://github.com/min-life/road-to-school.git. git fetch succeeded; HEAD and origin branch had 0/0 divergence. Existing pending work belongs to the UI tasks in this session: safe-area NetworkBanner, phase2 header/tab, parent Home/cards/journey, avatar/map markers, OTP/auth/empty/loading/profile styling and docs/manual SQL. Publish them together so new imports/components/assets are included. No functional application changes in this delivery task; normalize excess blank lines at EOF in mobile/constants/navigation.ts and mobile/constants/otp-styles.ts after the staged whitespace check flagged them. mobile/.env.example diff is only an unrelated trailing character; exclude without overwriting the local file.
 
 ## 5. Implementation Details
-Stage existing project changes, archive prior review artifacts and update this report. Commit message: preview. No application code edits made by this checkpoint task.
+Commit pending mobile/ and docs/ files, including new components/hooks/utils/assets/pure tests, module specs and archived reports/manual PostgreSQL scripts. Exclude .agents/skills/ui-ux-pro-max/scripts/__pycache__/ and mobile/.env.example. Archive the previous contact-phone review/diff at history/2026-10-30-before-publish-mobile-ui.md/.diff. Update LATEST.md/LATEST.diff for this delivery. Delivery code commit: 497af42 (187 files). Exact committed file list is available with git show --stat 497af42; no backend or Web files are part of this change set.
 
 ## 6. Database Changes
-Checkpoint includes previously existing schema/migration changes; no migration or database mutation executed in this task.
+None in this task. Existing SQL files are included only as PO-requested scripts for manual local pgAdmin use. No SQL was executed, no records were generated/updated and no migrations applied during publication.
 
 ## 7. API & Swagger Changes
-Checkpoint includes existing API work. Live Swagger verification not repeated during checkpoint.
+None. Backend, API contracts and Swagger unchanged by the delivery task.
 
 ## 8. UI/UX Changes
-Checkpoint includes existing web/mobile changes and project-local agent skills. No additional UI implementation.
+No new UI modifications in this task (only two EOF whitespace normalizations); publish existing approved UI work. Current phone contact view uses the assigned driver and attendant phone fields in the expanded Information tab. Preserve prior phase1/phase2 and student journey/avatar implementations; their module docs and historical review limitations remain applicable.
 
 ## 9. Verification & Testing
-PASS: api, web and mobile local TypeScript checks with --noEmit --incremental false (all exit 0).
-PASS: staged path check found no private key or actual .env files; api/.env.example is the tracked example.
-NOTE: diff whitespace check reports trailing whitespace in bundled third-party skill assets; retained publisher content.
-NOT_VERIFIED: full application runtime, business workflows, database migrations and skill Python search. No DB-mutating tests run.
-Commit/push receipt is reported in chat after execution; this file does not claim remote success in advance.
+PASS: git fetch origin; initial divergence 0/0.
+PASS: mobile npx --no-install tsc --noEmit, exit0, run for this delivery.
+PASS: 36 pure tests /7 suites /0 failed via installed TypeScript transpilation into TEMP and node --test --test-reporter=tap: marker script3, navigation layout7, journey stage12, journey geometry/labels14. No DB or fake business/API fixtures.
+PASS: git -c core.safecrlf=false diff --check -- mobile docs. Initial staged diff check found extra EOF blank lines in two new constants files; removed those blank lines and reran the staged check.
+PASS: scan of 186 candidate mobile/docs files for private keys, GitHub/AWS tokens, JWTs, credential URLs and known session passwords: no findings. Separate new-literal credential scan: no findings. Only file/category counts were printed, no secret values. This is a targeted scan, not a claim of exhaustive security audit.
+PASS (previous immediately preceding implementation task, not rerun): Expo export all iOS/Android/Web/server; only EOF whitespace changes since that successful export; no functional application edits.
+NOT_VERIFIED: real-device iPhone/Android, native copy selection/map/profile/GPS and authenticated end-to-end acceptance. Mobile has no configured lint script. No test data or mutation APIs used. PASS: git push origin HEAD:refs/heads/dongnnp/mobile/refactor-ui, exit0; remote advanced 17fda49 → 497af42. git ls-remote --heads origin refs/heads/dongnnp/mobile/refactor-ui returned the exact local HEAD SHA 497af424362a0a36f485bd4d9f6213895f3bfc83. Only excluded local .env.example/cache remained afterwards.
 
 ## 10. Issues & Risks
-This is a preview snapshot, not certification of all previously implemented functionality. Python search prerequisite remains unresolved.
+Large cumulative delivery covers several approved session tasks. Device acceptance remains incomplete as recorded in the implementation reports. Local unrelated .env.example character/cache remain deliberately unstaged. Do not interpret historical “not committed/pushed” statements as current Git status; they describe their review snapshot.
 
 ## 11. Reviewer Focus
-Review the checkpoint diff by module. Confirm project-local skill scope and existing application behavior separately from static checks.
+Check that all imported new modules and local assets are committed; inspect parent journey enum/attendance mapping, own-child avatar privacy, map-source stability, header/safe-area/keyboard and staff contact mapping. Ensure no real .env files, cache/generated artifacts or credential values are staged. Retain all per-task native/UAT limitations.
 
 ## 12. Suggested Next Step
-Reload Antigravity in this project and verify ui-ux-pro-max discovery.
+Review the delivered branch on GitHub and verify the updated Parent App on Expo Go iPhone.
 
 ## 13. Approval Status
-User explicitly authorized commit "preview". No approval for further UI implementation inferred.
+Commit/push explicitly authorized by the latest PO message. Implementation acceptance remains WAITING FOR USER REVIEW / APPROVAL. Code publication was remotely verified; no claim of device acceptance or main merge.

@@ -1,9 +1,10 @@
+import { AppHeader } from '@/components/navigation/app-header';
+import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
   View,
-  ScrollView,
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
@@ -168,13 +169,7 @@ export default function CreateAddressRequestScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Đổi địa chỉ đón trả</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <AppHeader title="Đổi địa chỉ đón trả" onBack={() => router.back()} />
 
       {isLoadingStudent ? (
         <View style={styles.centerBox}>
@@ -182,7 +177,7 @@ export default function CreateAddressRequestScreen() {
           <Text style={styles.loadingText}>Đang tải thông tin...</Text>
         </View>
       ) : (
-        <ScrollView
+        <KeyboardScrollView
           contentContainerStyle={[
             styles.content,
             { paddingBottom: insets.bottom + 24 },
@@ -301,7 +296,7 @@ export default function CreateAddressRequestScreen() {
               </View>
             )}
           </TouchableOpacity>
-        </ScrollView>
+        </KeyboardScrollView>
       )}
     </View>
   );
@@ -311,28 +306,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.foreground,
   },
   content: {
     padding: 16,

@@ -1,3 +1,4 @@
+import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   StyleSheet,
@@ -8,13 +9,11 @@ import {
   ActivityIndicator,
   Animated,
   Dimensions,
-  Platform,
   PanResponder,
   TextInput,
   Modal,
   Alert,
   Keyboard,
-  KeyboardAvoidingView,
   Pressable,
   Image,
 } from 'react-native';
@@ -41,6 +40,8 @@ import {
 import { useActiveRefresh } from '@/hooks/use-active-refresh';
 import type { RefreshContext } from '@/utils/refresh-loop';
 import { getTripMapSnapshot } from '@/utils/trip-map-data';
+import { childMapPinCss, childMapPinScript, childMapPinSize, serializeMapScriptValue } from '@/utils/child-map-marker';
+import { useParentMapAvatars } from '@/hooks/use-parent-map-avatars';
 import { decodePolyline } from '@/utils/polyline';
 import { useTripNavigation } from '@/hooks/use-trip-navigation';
 import { TripNavigationControls } from '@/components/trip-navigation-controls';
@@ -215,6 +216,7 @@ export default function MobileTripDetailScreen() {
   const accessAllowed = useRef(true);
   const metadataAt = useRef(0);
   const identity = JSON.stringify([user?.id, user?.role, tripId]);
+  const { children: linkedMapChildren, revision: mapAvatarRevision } = useParentMapAvatars(identity, isParent);
   const [navigation, setNavigation] = useState<NavigationState | null>(null);
   const [history, setHistory] = useState<LocationPoint[] | null>(null);
   const [showPlanned, setShowPlanned] = useState(false);
@@ -379,7 +381,7 @@ export default function MobileTripDetailScreen() {
     const data = JSON.parse(mapData);
     if (!data) return '';
     const coordsJson = JSON.stringify(data.polylineGeometry ? decodePolyline(data.polylineGeometry) : []);
-    const stopsJson = JSON.stringify(data.stops);
+    const stopsJson = serializeMapScriptValue(data.stops);
 
     return `
       <!DOCTYPE html>
@@ -394,7 +396,7 @@ export default function MobileTripDetailScreen() {
           .depot-marker { background: #2563EB; color: white; border: 2px solid white; border-radius: 50%; font-weight: bold; width: 28px; height: 28px; line-height: 24px; text-align: center; font-size: 13px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
           .school-marker { background: #FFCB56; color: #1E293B; border: 2px solid white; border-radius: 50%; font-weight: bold; width: 30px; height: 30px; line-height: 26px; text-align: center; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
           .student-marker { background: #059669; color: white; border: 2px solid white; border-radius: 50%; font-weight: bold; width: 26px; height: 26px; line-height: 22px; text-align: center; font-size: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
-          .mychild-marker { background: #D97706; color: white; border: 2.5px solid white; border-radius: 50%; font-weight: bold; width: 30px; height: 30px; line-height: 25px; text-align: center; font-size: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.4); }
+          ${childMapPinCss}
         </style>
       </head>
       <body>
@@ -408,19 +410,27 @@ export default function MobileTripDetailScreen() {
 
           var bounds = L.latLngBounds();
           var stops = ${stopsJson};
+          ${childMapPinScript}
 
           stops.forEach(function(s) {
             var iconHtml = '<div class="student-marker">' + s.order + '</div>';
+            var ownChildPin = s.isMyChild && s.studentId && (s.type === 'PICKUP' || s.type === 'DROPOFF');
             if (s.type === 'PARKING_START' || s.type === 'PARKING_END') {
               iconHtml = '<div class="depot-marker">P</div>';
             } else if (s.type === 'SCHOOL_ARRIVAL' || s.type === 'SCHOOL_DEPARTURE') {
               iconHtml = '<div class="school-marker">🏫</div>';
-            } else if (s.isMyChild) {
-              iconHtml = '<div class="mychild-marker">★</div>';
+            } else if (ownChildPin) {
+              iconHtml = window.createChildMapPin(s.studentId, s.name);
             }
 
-            var icon = L.divIcon({ className: '', html: iconHtml, iconSize: [28, 28], iconAnchor: [14, 14] });
+            var icon = L.divIcon({ className: '', html: iconHtml,
+              iconSize: ownChildPin ? [${childMapPinSize.width}, ${childMapPinSize.height}] : [28, 28],
+              iconAnchor: ownChildPin ? [${childMapPinSize.width / 2}, ${childMapPinSize.height * 65 / 66}] : [14, 14],
+              popupAnchor: ownChildPin ? [0, -${childMapPinSize.height - 5}] : [0, 0] });
             var marker = L.marker([s.lat, s.lng], { icon: icon }).addTo(map);
+            if (ownChildPin && marker.getElement()) {
+              marker.getElement().setAttribute('aria-label', (s.type === 'PICKUP' ? 'Điểm đón: ' : 'Điểm trả: ') + s.name);
+            }
             marker.bindPopup('<b>' + s.name + '</b><br/>' + (s.eta ? 'Dự kiến: ' + s.eta + '<br/>' : '') + s.address);
             bounds.extend([s.lat, s.lng]);
           });
@@ -556,6 +566,14 @@ export default function MobileTripDetailScreen() {
     webView.current?.injectJavaScript('window.setNavigation && window.setNavigation(' + mapUpdate + '); true;');
   }, [mapUpdate]);
   useEffect(updateMap, [updateMap]);
+  const mapAvatars = serializeMapScriptValue(isParent ? linkedMapChildren.filter(child =>
+    trip?.stops.some(stop => stop.isMyChild && stop.studentId === child.id)) : []);
+  // A fresh successful read also retries an image that failed at the same URL.
+  const updateMapAvatars = useCallback(() => {
+    webView.current?.injectJavaScript('window.setChildMapAvatars && window.setChildMapAvatars(' + mapAvatars + '); true;');
+  }, [mapAvatars, mapAvatarRevision]);
+  useEffect(updateMapAvatars, [updateMapAvatars]);
+  const handleMapLoad = useCallback(() => { updateMap(); updateMapAvatars(); }, [updateMap, updateMapAvatars]);
 
   // Operational Actions
   const handleMarkReady = () => {
@@ -784,14 +802,8 @@ export default function MobileTripDetailScreen() {
 
   if (error || !trip) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.iconButton}>
-            <Ionicons name="arrow-back" size={24} color="#0F172A" />
-          </TouchableOpacity>
-          <Text style={styles.topBarTitle}>Chi tiết chuyến xe</Text>
-          <View style={{ width: 40 }} />
-        </View>
+      <View style={styles.container}>
+        <AppHeader title="Chi tiết chuyến xe" onBack={() => router.back()} />
 
         <View style={styles.centerContainer}>
           <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
@@ -879,7 +891,7 @@ export default function MobileTripDetailScreen() {
           javaScriptEnabled={true}
           domStorageEnabled={true}
           scrollEnabled={false}
-          onLoadEnd={updateMap}
+          onLoadEnd={handleMapLoad}
           onMessage={(event) => {
             try {
               const msg = JSON.parse(event.nativeEvent.data);
@@ -970,13 +982,7 @@ export default function MobileTripDetailScreen() {
           },
         ]}
       >
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.floatingBackButton}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="arrow-back" size={22} color="#0F172A" />
-        </TouchableOpacity>
+        <HeaderAction icon="arrow-back" label="Quay lại" onPress={() => router.back()} />
 
         {/* Báo sự cố Button (Only for assigned staff on SCHEDULED trips) */}
         {isDriverOrAttendant && (trip?.status === 'SCHEDULED' || incidentOptions?.canReport) && (
@@ -1378,7 +1384,17 @@ export default function MobileTripDetailScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.infoLabel}>Tài xế phụ trách</Text>
                     <Text style={styles.infoTitle}>{trip.driverName || 'Chưa gán tài xế'}</Text>
-                    <Text style={styles.infoSubtext}>{trip.driverPhone || '—'}</Text>
+                    <View style={styles.contactPhoneRow}>
+                      <Ionicons name="call-outline" size={14} color={colors.mutedText} accessible={false} />
+                      <Text style={styles.contactPhoneLabel}>Số điện thoại</Text>
+                      <Text
+                        selectable
+                        accessibilityLabel={`Số điện thoại tài xế: ${trip.driverPhone?.trim() || 'Chưa cập nhật'}`}
+                        style={styles.contactPhoneValue}
+                      >
+                        {trip.driverPhone?.trim() || 'Chưa cập nhật'}
+                      </Text>
+                    </View>
                   </View>
                 </View>
 
@@ -1392,7 +1408,17 @@ export default function MobileTripDetailScreen() {
                     <Text style={styles.infoTitle}>
                       {trip.busAttendantName || 'Chưa gán giáo viên'}
                     </Text>
-                    <Text style={styles.infoSubtext}>{trip.busAttendantPhone || '—'}</Text>
+                    <View style={styles.contactPhoneRow}>
+                      <Ionicons name="call-outline" size={14} color={colors.mutedText} accessible={false} />
+                      <Text style={styles.contactPhoneLabel}>Số điện thoại</Text>
+                      <Text
+                        selectable
+                        accessibilityLabel={`Số điện thoại giáo viên phụ xe: ${trip.busAttendantPhone?.trim() || 'Chưa cập nhật'}`}
+                        style={styles.contactPhoneValue}
+                      >
+                        {trip.busAttendantPhone?.trim() || 'Chưa cập nhật'}
+                      </Text>
+                    </View>
                   </View>
                 </View>
               </ScrollView>
@@ -1579,25 +1605,24 @@ export default function MobileTripDetailScreen() {
                       )}
                     </View>
 
-                    {/* Search Box */}
-                    <View style={styles.searchBox}>
-                      <Ionicons name="search" size={16} color="#94A3B8" />
-                      <TextInput
-                        style={styles.searchInput}
-                        placeholder="Tìm theo tên hoặc mã học sinh..."
-                        placeholderTextColor="#94A3B8"
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                      />
-                      {searchQuery ? (
-                        <TouchableOpacity onPress={() => setSearchQuery('')}>
-                          <Ionicons name="close-circle" size={16} color="#94A3B8" />
-                        </TouchableOpacity>
-                      ) : null}
-                    </View>
-
                     {/* Roster Scroll List */}
-                    <ScrollView style={styles.tabContentScroll} showsVerticalScrollIndicator={false}>
+                    <KeyboardScrollView style={styles.tabContentScroll} showsVerticalScrollIndicator={false}>
+                      {/* Search Box */}
+                      <View style={styles.searchBox}>
+                        <Ionicons name="search" size={16} color="#94A3B8" />
+                        <TextInput
+                          style={styles.searchInput}
+                          placeholder="Tìm theo tên hoặc mã học sinh..."
+                          placeholderTextColor="#94A3B8"
+                          value={searchQuery}
+                          onChangeText={setSearchQuery}
+                        />
+                        {searchQuery ? (
+                          <TouchableOpacity onPress={() => setSearchQuery('')}>
+                            <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
                       {filteredRoster.length > 0 ? (
                         filteredRoster.map((student) => {
                           const isUnmarked = student.status === 'UNMARKED';
@@ -1749,7 +1774,7 @@ export default function MobileTripDetailScreen() {
                       ) : (
                         <Text style={styles.emptyStopsText}>Không tìm thấy học sinh</Text>
                       )}
-                    </ScrollView>
+                    </KeyboardScrollView>
                   </View>
                 )}
 
@@ -2147,7 +2172,10 @@ export default function MobileTripDetailScreen() {
       {/* Absence Reason Modal */}
       {absenceModalStudent && (
         <Modal transparent animationType="fade" visible={Boolean(absenceModalStudent)}>
-          <View style={styles.modalOverlay}>
+          <KeyboardScrollView
+            style={[styles.modalOverlay, { alignItems: undefined, justifyContent: undefined }]}
+            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+          >
             <View style={styles.modalCard}>
               <Text style={styles.modalTitle}>Lý do vắng mặt</Text>
               <Text style={styles.modalSubtitle}>
@@ -2180,13 +2208,13 @@ export default function MobileTripDetailScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
+          </KeyboardScrollView>
         </Modal>
       )}
 
       {/* QR Scanner Modal (D08: Student.code QR scanner) */}
       <Modal transparent animationType="slide" visible={qrModalVisible}>
-        <View style={styles.qrModalContainer}>
+        <KeyboardScrollView style={styles.qrModalContainer} contentContainerStyle={{ flexGrow: 1 }}>
           <View style={[styles.qrModalHeader, { paddingTop: insets.top + 10 }]}>
             <Text style={styles.qrModalTitle}>Quét thẻ học sinh</Text>
             <TouchableOpacity
@@ -2262,7 +2290,7 @@ export default function MobileTripDetailScreen() {
               </View>
             </View>
           )}
-        </View>
+        </KeyboardScrollView>
       </Modal>
 
       {/* Report Incident Modal */}
@@ -2276,9 +2304,9 @@ export default function MobileTripDetailScreen() {
           setIncidentNote('');
         }}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.modalOverlay}
+        <KeyboardScrollView
+          style={[styles.modalOverlay, { alignItems: undefined, justifyContent: undefined }]}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
         >
           <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.modalCard}>
@@ -2376,7 +2404,7 @@ export default function MobileTripDetailScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardScrollView>
       </Modal>
 
       {/* Bus Attendant Auto Incident Confirmation Popup */}
@@ -2390,9 +2418,9 @@ export default function MobileTripDetailScreen() {
           setConfirmReason('');
         }}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.modalOverlay}
+        <KeyboardScrollView
+          style={[styles.modalOverlay, { alignItems: undefined, justifyContent: undefined }]}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
         >
           <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.modalCard}>
@@ -2482,7 +2510,7 @@ export default function MobileTripDetailScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardScrollView>
       </Modal>
     </View>
   );
@@ -2504,24 +2532,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#64748B',
     marginTop: 10,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
-  },
-  topBarTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  iconButton: {
-    padding: 6,
   },
   errorTitle: {
     fontSize: 16,
@@ -2556,19 +2566,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     zIndex: 10,
-  },
-  floatingBackButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 4,
   },
   reportIncidentFloatingBtn: {
     flexDirection: 'row',
@@ -3041,6 +3038,24 @@ const styles = StyleSheet.create({
   infoSubtext: {
     fontSize: 12,
     color: '#64748B',
+  },
+  contactPhoneRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: 6,
+    rowGap: 2,
+    marginTop: 6,
+  },
+  contactPhoneLabel: {
+    fontSize: 12,
+    color: colors.mutedText,
+  },
+  contactPhoneValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.foreground,
+    flexShrink: 1,
   },
   stopCard: {
     flexDirection: 'row',
@@ -3632,3 +3647,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+import { AppHeader, HeaderAction } from '@/components/navigation/app-header';

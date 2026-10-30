@@ -1,3 +1,4 @@
+import { AppHeader, HeaderAction } from '@/components/navigation/app-header';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
@@ -174,26 +175,14 @@ export default function LeaveNoticesHistoryScreen() {
       ];
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#1E293B" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Báo nghỉ</Text>
-        <TouchableOpacity
-          style={styles.addBtn}
-          onPress={() =>
+      <AppHeader title="Báo nghỉ" onBack={() => router.back()} actions={<HeaderAction icon="add" label="Tạo báo nghỉ" onPress={() =>
             router.push({
               pathname: '/leave-notices/create',
               params: selectedStudentId ? { studentId: selectedStudentId } : {},
             } as any)
-          }
-          activeOpacity={0.8}
-        >
-          <Ionicons name="add" size={22} color="#1E293B" />
-        </TouchableOpacity>
-      </View>
+          } />} />
 
       {/* Status Filter Row */}
       <View style={styles.statusFilterRow}>
@@ -327,32 +316,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFDF6',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
-  },
-  backBtn: {
-    padding: 6,
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1E293B',
-  },
-  addBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: '#FFCB56',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   chipsRow: {
     backgroundColor: '#FFFFFF',

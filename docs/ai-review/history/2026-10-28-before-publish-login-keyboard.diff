@@ -1,0 +1,20 @@
+diff --git a/mobile/app/(auth)/login.tsx b/mobile/app/(auth)/login.tsx
+index 54570ad..820dabc 100644
+--- a/mobile/app/(auth)/login.tsx
++++ b/mobile/app/(auth)/login.tsx
+@@ -90,6 +90,7 @@ export default function LoginScreen() {
+                 <Ionicons name="person-outline" size={20} color={colors.mutedText} accessible={false} />
+                 <TextInput
+                   style={styles.input}
++                  autoFocus={false}
+                   accessibilityLabel="Email hoặc Số điện thoại"
+                   placeholder="Email hoặc số điện thoại"
+                   placeholderTextColor={colors.mutedText}
+@@ -112,6 +113,7 @@ export default function LoginScreen() {
+                 <Ionicons name="lock-closed-outline" size={20} color={colors.mutedText} accessible={false} />
+                 <TextInput
+                   style={styles.passwordInput}
++                  autoFocus={false}
+                   accessibilityLabel="Mật khẩu"
+                   placeholder="Mật khẩu"
+                   placeholderTextColor={colors.mutedText}
