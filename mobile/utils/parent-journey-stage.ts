@@ -1,6 +1,6 @@
 import type { OperationalStateResponse, ParentHomeCardItem, TripIncident, TripIncidentStatus } from '../services/api-client';
 import type { JourneyTone } from '../constants/parent-journey';
-import { journeyClock } from './parent-journey';
+import { journeyClock, journeyRecordedClock } from './parent-journey';
 
 export type StudentJourneyBadge = { label: string; tone: JourneyTone; icon: 'alert-circle-outline' | 'checkmark-circle-outline' | 'time-outline' | 'log-out-outline' | 'close-circle-outline' };
 
@@ -14,27 +14,45 @@ export function parentJourneyCard(card: ParentHomeCardItem, operation?: Operatio
 }
 
 export function studentJourneyBadge(attendance: ParentHomeCardItem['attendanceStatus'], alighted: boolean, schoolArrived: boolean,
-  hasLeaveNotice: boolean, direction?: ParentHomeCardItem['direction']): StudentJourneyBadge {
+  hasLeaveNotice: boolean, direction?: ParentHomeCardItem['direction'], status?: ParentHomeCardItem['tripStatus']): StudentJourneyBadge {
   if (attendance === 'ABSENT') return { label: hasLeaveNotice ? 'Đã báo nghỉ' : 'Vắng mặt', tone: 'danger', icon: 'close-circle-outline' };
-  if (attendance === 'UNMARKED') return { label: 'Chưa điểm danh', tone: 'warning', icon: 'alert-circle-outline' };
+  if (attendance === 'UNMARKED') return { label: 'Chưa điểm danh lên', tone: 'warning', icon: 'alert-circle-outline' };
   if (alighted) return { label: 'Đã xuống xe', tone: 'success', icon: 'checkmark-circle-outline' };
-  if (schoolArrived || direction === 'TO_PARKING') return { label: 'Chưa xuống xe', tone: 'purple', icon: 'log-out-outline' };
-  return { label: 'Đã điểm danh', tone: 'info', icon: 'checkmark-circle-outline' };
+  if (schoolArrived || status === 'COMPLETED' || (direction === 'TO_PARKING' && status === 'IN_PROGRESS')) {
+    return { label: 'Chưa xuống xe', tone: 'purple', icon: 'log-out-outline' };
+  }
+  return { label: 'Đã điểm danh lên', tone: 'info', icon: 'checkmark-circle-outline' };
+}
+
+export function journeyReadinessBadge(status: ParentHomeCardItem['tripStatus'], ready?: boolean, readyAt?: string | null): StudentJourneyBadge | undefined {
+  if (status !== 'SCHEDULED') return undefined;
+  if (ready === false || (ready === undefined && readyAt === null)) return { label: 'Chờ giáo viên', tone: 'neutral', icon: 'time-outline' };
+  const clock = journeyRecordedClock(readyAt);
+  if (ready === true || clock) return { label: 'Giáo viên sẵn sàng' + (clock ? ' · ' + clock : ''), tone: 'success', icon: 'checkmark-circle-outline' };
+  return { label: 'Chưa cập nhật GV', tone: 'neutral', icon: 'time-outline' };
+}
+
+export function journeyTripLabel(status: ParentHomeCardItem['tripStatus'], direction: ParentHomeCardItem['direction'], schoolArrived: boolean) {
+  if (status === 'CANCELLED') return 'Đã hủy';
+  if (status === 'COMPLETED') return 'Kết thúc chuyến';
+  if (status === 'SCHEDULED') return 'Chờ khởi hành';
+  return direction === 'TO_SCHOOL' && schoolArrived ? 'Đã đến trường' : 'Đang di chuyển';
 }
 
 /** PO-approved illustration: these fractions represent workflow stages, never GPS or distance. */
 export function journeyStagePosition(status: ParentHomeCardItem['tripStatus'], direction: ParentHomeCardItem['direction'],
-  attendance: ParentHomeCardItem['attendanceStatus'], alighted: boolean, schoolArrived: boolean, boardingFrame = false) {
+  attendance: ParentHomeCardItem['attendanceStatus'], alighted: boolean, schoolArrived: boolean) {
   if (status === 'CANCELLED' || attendance === 'ABSENT') return null;
-  if ((attendance === 'PRESENT' && alighted) || (direction === 'TO_SCHOOL' && schoolArrived)) return 1;
   if (status === 'SCHEDULED') return 0;
-  if (status === 'COMPLETED') return null; // No invented child-arrival milestone.
+  // Trip completion places the bus at the route endpoint; attendance stays independent.
+  if (status === 'COMPLETED') return 1;
   if (direction === 'TO_PARKING') {
     // Keep a visible origin fallback until this child's boarding is confirmed.
-    return attendance === 'PRESENT' ? 2 / 3 : 0;
+    return attendance === 'PRESENT' ? alighted ? 1 / 2 : 1 / 3 : 0;
   }
+  if (schoolArrived || (attendance === 'PRESENT' && alighted)) return 1;
   if (attendance === 'UNMARKED') return 1 / 3; // 2/3 of the departure → pickup leg.
-  return boardingFrame ? 1 / 2 : 5 / 6; // Pickup, then 2/3 of the pickup → school leg.
+  return 5 / 6; // Two-thirds of the pickup → school leg, without a timer-generated event.
 }
 
 export function journeySchoolArrived(operation?: OperationalStateResponse, tripId?: string) {

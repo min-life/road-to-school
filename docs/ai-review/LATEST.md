@@ -1,46 +1,53 @@
-# AI Review — Publish mobile UI to GitHub
+# AI Review — Popup theo theme RoadToSchool và bàn giao Git
 
 ## 1. Task Information
-Task: Publish accumulated mobile UI work to GitHub. Date: 30/10/2026, Asia/Saigon. Scope: Mobile / Documentation / Git. Type: Delivery. Status: COMPLETED. Code commit 497af424362a0a36f485bd4d9f6213895f3bfc83 pushed successfully to origin/dongnnp/mobile/refactor-ui and verified with git ls-remote. This report update is delivered in a subsequent documentation-only commit.
+Task: Thay popup mặc định do app gọi bằng giao diện riêng. Date:01/11/2026, Asia/Saigon. Mode IMPLEMENTATION. Branch dongnnp/mobile/refactor-ui. Frontend completed; native acceptance NOT_VERIFIED. PO đã xác nhận “Commit và push lên GitHub”; delivery gồm code/docs UI đã hoàn tất đang chờ từ các task trước và task popup này. File env/cache không thuộc delivery.
 
 ## 2. Original Request
-PO: “đẩy code lên giúp tôi”.
+PO yêu cầu style tất cả popup mặc định của điện thoại mà app đang sử dụng, ví dụ lỗi thiếu số điện thoại khi gọi tài xế/phụ xe, theo phong cách riêng app. Trong lúc thực hiện, PO yêu cầu commit và xác nhận push GitHub qua câu hỏi làm rõ.
 
 ## 3. Approved Scope
-Explicit authorization to commit and push the session’s accumulated mobile UI and related docs/SQL scripts to the existing dongnnp/mobile/refactor-ui branch on origin. No main merge, force push, rebase, dependency changes, or database execution. Preserve local mobile/.env.example accidental trailing character and Python __pycache__ outside the delivery.
+78Alert.alert trong23files (screens/components/hooks/notification context/root),10modal tại5files cần host để popup hiển thị bên trong form/QR/picker. Giữ title/message/button args/callbacks/navigation/API/validation/busy guards; không nghiệp vụ/backend/schema/DB/dependencies changes. Đã mô tả wireframe card trắng bo24, icon trạng thái, CTA vàng/cancel viền/destructive đỏ trước code theo yêu cầu style trực tiếp. Các lựa chọn trình bày thường lệ tự xử lý theo yêu cầu kế thừa; không có lượt duyệt wireframe riêng. Native OS permission/dialer/photo-picker UI nằm ngoài quyền theme của app và được nêu rõ.
 
 ## 4. Analysis & Decisions
-HEAD initially 17fda49; branch dongnnp/mobile/refactor-ui. Origin is https://github.com/min-life/road-to-school.git. git fetch succeeded; HEAD and origin branch had 0/0 divergence. Existing pending work belongs to the UI tasks in this session: safe-area NetworkBanner, phase2 header/tab, parent Home/cards/journey, avatar/map markers, OTP/auth/empty/loading/profile styling and docs/manual SQL. Publish them together so new imports/components/assets are included. No functional application changes in this delivery task; normalize excess blank lines at EOF in mobile/constants/navigation.ts and mobile/constants/otp-styles.ts after the staged whitespace check flagged them. mobile/.env.example diff is only an unrelated trailing character; exclude without overwriting the local file.
+Rà soát named RN Alert/Modal imports và tất cả call sites. Không có Alert.prompt/ActionSheetIOS/ToastAndroid hoặc window.confirm production cần migrate. App-owned errors/success/confirmation khác với system permission/call confirmation. Một global native Modal mới có thể xung đột khi form native Modal đang mở/đóng trên iOS, nên dùng root JS overlay và scoped host trong AppModal hiện có; chỉ host visible trên cùng render cùng một queue. Store nhận cùng signature Alert, không monkey-patch RN. Targeted ui-ux-pro-max guidance dùng visible focus/destructive confirmation/success feedback, tái sử dụng colors/journeyTones; không install libraries.
 
 ## 5. Implementation Details
-Commit pending mobile/ and docs/ files, including new components/hooks/utils/assets/pure tests, module specs and archived reports/manual PostgreSQL scripts. Exclude .agents/skills/ui-ux-pro-max/scripts/__pycache__/ and mobile/.env.example. Archive the previous contact-phone review/diff at history/2026-10-30-before-publish-mobile-ui.md/.diff. Update LATEST.md/LATEST.diff for this delivery. Delivery code commit: 497af42 (187 files). Exact committed file list is available with git show --stat 497af42; no backend or Web files are part of this change set.
+- mobile/utils/app-alert-store.ts: factory FIFO/exact duplicate coalescing, immutable request copy, requestId/once guards, separate press/dismiss, visible-modal host stack và decorative tone.
+- mobile/services/app-alert.ts: singleton AppAlert.alert và appAlertStore, không API/data work.
+- mobile/components/app-alert.tsx: AppAlertRoot, AppModal, popup surface/responsive/scroll/safe-area/a11y/focus/Back/Escape. Root giữ providers/navigation subtree, wrapper modal giữ props/children/animation hiện có.
+-23files chỉ đổi native imports sang AppAlert as Alert / AppModal as Modal; RootLayout thêm đúng AppAlertRoot wrapper. Toàn bộ78call args và10Modal JSX còn nguyên. Gồm call button, logout/profile, link/OTP/student, leave/stop requests, notification/session và trip/incidents.
+- mobile/scripts/app-alert-store.test.ts:13tests pure presentation, không fixtures nghiệp vụ.
+- docs/architecture/mobile-app-alerts.md: source map, component/API/queue/hosts/defaults/cancel semantics/focus/responsive/system limits/verification; mobile-ui-implementation-status.md cập nhật và liên kết.
+- Archive review trước history/2026-11-01-before-app-alerts.md/.diff. LATEST.diff chỉ29files so với task baseline, giữ nguyên các pending UI trước. Delivery commit cũng chứa các phần UI trước đã được PO yêu cầu commit, không coi task-only diff là toàn bộ commit diff.
 
 ## 6. Database Changes
-None in this task. Existing SQL files are included only as PO-requested scripts for manual local pgAdmin use. No SQL was executed, no records were generated/updated and no migrations applied during publication.
+None. Không DB query/seed/mutation, không giả User/Student/Trip/challenge/API responses. Unit tests chỉ queue UI/text/enums/math; preview dùng presentation counters/blank form và real missing-phone branch. Không thực hiện cuộc gọi, OTP, logout, password/image update, boarding/alighting/unlink/cancel request để kiểm thử.
 
 ## 7. API & Swagger Changes
-None. Backend, API contracts and Swagger unchanged by the delivery task.
+None. Call sites chỉ alias import; AST non-import parity bảo toàn tất cả controllers/payloads/routes/callbacks. Runtime API client và backend/schema protected hashes không đổi. OS permissions/Linking.openURL/image picker APIs giữ nguyên; vẫn mở system UI khi hợp lệ. Swagger không áp dụng cho task frontend này.
 
 ## 8. UI/UX Changes
-No new UI modifications in this task (only two EOF whitespace normalizations); publish existing approved UI work. Current phone contact view uses the assigned driver and attendant phone fields in the expanded Information tab. Preserve prior phase1/phase2 and student journey/avatar implementations; their module docs and historical review limitations remain applicable.
+Backdrop navy48%, card trắng bo24/max420/padding24, trạng thái icon60; message wrap đầy đủ, CTA vàng/cancel viền/destructive đỏ đậm, touch48. Dưới360/fontScale>=1.4/>2buttons xếp dọc. Card có ScrollView/maxHeight theo viewport-safeArea; popup dài mở từ tiêu đề, không tự cuộn tới nút. Không animation mới (reduced-motion friendly). Single-button không truyền labels dùng Đã hiểu; explicit labels giữ nguyên. Queue không ghi đè popup trước, đồng nhất callback cả inside modal/root. Overlay và underlay a11y isolation, safe-area, Tab/Shift+Tab trap/focus restore/web Escape, native heading focus/Android Back; noncancelable không dismiss ngoài nút. Form value không reset, không auto-focus input mới. AppModal chỉ hosting, không restyle form/calendar/QR/picker đã custom.
 
 ## 9. Verification & Testing
-PASS: git fetch origin; initial divergence 0/0.
-PASS: mobile npx --no-install tsc --noEmit, exit0, run for this delivery.
-PASS: 36 pure tests /7 suites /0 failed via installed TypeScript transpilation into TEMP and node --test --test-reporter=tap: marker script3, navigation layout7, journey stage12, journey geometry/labels14. No DB or fake business/API fixtures.
-PASS: git -c core.safecrlf=false diff --check -- mobile docs. Initial staged diff check found extra EOF blank lines in two new constants files; removed those blank lines and reran the staged check.
-PASS: scan of 186 candidate mobile/docs files for private keys, GitHub/AWS tokens, JWTs, credential URLs and known session passwords: no findings. Separate new-literal credential scan: no findings. Only file/category counts were printed, no secret values. This is a targeted scan, not a claim of exhaustive security audit.
-PASS (previous immediately preceding implementation task, not rerun): Expo export all iOS/Android/Web/server; only EOF whitespace changes since that successful export; no functional application edits.
-NOT_VERIFIED: real-device iPhone/Android, native copy selection/map/profile/GPS and authenticated end-to-end acceptance. Mobile has no configured lint script. No test data or mutation APIs used. PASS: git push origin HEAD:refs/heads/dongnnp/mobile/refactor-ui, exit0; remote advanced 17fda49 → 497af42. git ls-remote --heads origin refs/heads/dongnnp/mobile/refactor-ui returned the exact local HEAD SHA 497af424362a0a36f485bd4d9f6213895f3bfc83. Only excluded local .env.example/cache remained afterwards.
+PASS Mobile npx --no-install tsc --noEmit exit0 sau functional app edits cuối. First typecheck chỉ ra ref/Pressable-focused/StyleSheet API khác React Native0.88; đã sửa theo installed types rồi kiểm tra đạt, không suppress types.
+PASS Expo export --platform all exit0 tại TEMP/rts-app-alert-export-a30a5320391d43fb8fe79f551a1ea8ec; web/iOS/Android JS bundles, không native app runtime.
+PASS13new store tests; PASS73tests/12suites delivery tổng hợp:13popup+31journey+9search+5OTP summary+7phone URL+8keyboard geometry. Runner TypeScript đã cài, không package mới/API/DB.
+PASS AST source parity23files: sau bỏ imports và đúng RootLayout wrapper, toàn bộ non-import code như baseline,78alert args/callbacks và10Modal JSX giữ nguyên.8protected hashes gồm env/package/lock/API/backend/schema/Home snap/journey status giữ nguyên. No native Alert imports còn lại ngoài type-only AlertButton/AlertOptions; native Modal chỉ ở reusable wrapper.
+PASS Chromium IAB interactive presentation preview: missing-phone từ TripContactCallButton thật; cancel/confirm callbacks mỗi1lần, preferred focus Hủy cho destructive, forced Escape không dismiss, FIFO2popup. Error trong AppModal có đúng1alert, AX không lộ nội dung dưới; field giữ value sau đóng error; đóng form+success handoff về root đúng.
+PASS320×568 long message initial scroll0/focus card, cuộn tới nút48px, Escape đóng cancelable.390×844,844×390 và1440×900 không overflow ngang; desktop card420. Phone screenshot TEMP/rts-app-alert-phone-preview.png ở390×600. Focus Tab giữ trong popup, callbacks không gọi nghiệp vụ thật. Native permission/dialer không được mở để test.
+Preview copied actual components chỉ thay icon-font import và notification-free UI harness, không mount auth/API hooks. Đã xóa4entry/component tạm ở ignored .expo, tab cuối đóng/viewport reset/server51614 dừng; Metro8081 giữ nguyên. Preview root flex được điều chỉnh trong harness để khớp Expo AppContainer; không sửa app để ép ảnh. Một tab mất kết nối khi user steer đã được thay tab cùng browser, không ảnh hưởng source. Cleanup command tổng hợp bị auto-review chặn; đã xóa đúng4file preview bằng apply_patch an toàn, không cần thay quyền.
+NOT_VERIFIED native Expo iPhone/Android, VoiceOver/TalkBack/font scale lớn, keyboard/back/controller dismissal thật, integration/authenticated routes và API mutations. Lint không có script, không cài tool. Policy không cho tạo test records; các verification cần dữ liệu/mutation mới vẫn chưa làm.
 
 ## 10. Issues & Risks
-Large cumulative delivery covers several approved session tasks. Device acceptance remains incomplete as recorded in the implementation reports. Local unrelated .env.example character/cache remain deliberately unstaged. Do not interpret historical “not committed/pushed” statements as current Git status; they describe their review snapshot.
+OS permission/photo-picker/dialer confirmation giữ thiết kế hệ điều hành. Native host/Back/screen-reader behavior cần UAT iPhone/Android; web/static bundle không chứng minh iOS modal presentation. Custom default Đã hiểu thay native default OK, explicit text không đổi. Default cancelablefalse và separate button/onDismiss bảo vệ callbacks; duplicate thông báo chỉ coalesce khi callbacks/options trùng. Snapshot queue trong memory, không persistence hoặc fake business state. Trước commit/push loại mobile/.env.example (ký tự á có từ đầu session) và .agents cache; không discard chúng.
 
 ## 11. Reviewer Focus
-Check that all imported new modules and local assets are committed; inspect parent journey enum/attendance mapping, own-child avatar privacy, map-source stability, header/safe-area/keyboard and staff contact mapping. Ensure no real .env files, cache/generated artifacts or credential values are staged. Retain all per-task native/UAT limitations.
+Rà missing/invalid phone và dialer-error; destructive logout/unlink/cancel không chạy khi Hủy/Back, callback đúng1lần. Thông báo bắt buộc/session expiry không bị backdrop/Escape đóng. Form modal/QR nhập liệu giữ nội dung, overlay nằm đúng host, handoff khi close, safe-area/tall content/focus. Alias migration không thay nghiệp vụ. Delivery broader pending parent UI cần đối chiếu các report history tương ứng; không backend/dependency/env ngoài phạm vi.
 
 ## 12. Suggested Next Step
-Review the delivered branch on GitHub and verify the updated Parent App on Expo Go iPhone.
+Trên Expo Go iPhone, kiểm tra popup thiếu số điện thoại và một popup lỗi trong form đang mở để nghiệm thu lớp hiển thị thực tế.
 
 ## 13. Approval Status
-Commit/push explicitly authorized by the latest PO message. Implementation acceptance remains WAITING FOR USER REVIEW / APPROVAL. Code publication was remotely verified; no claim of device acceptance or main merge.
+PO đã yêu cầu commit và xác nhận push GitHub trên nhánh hiện tại. Implementation ready for delivery; native UI acceptance vẫn WAITING FOR USER REVIEW. Commit hash/push result được báo trong chat sau thao tác Git, không ghi tự tham chiếu hash vào chính commit. Không tự cấp quyền sửa backend/DB hoặc tạo dữ liệu test.

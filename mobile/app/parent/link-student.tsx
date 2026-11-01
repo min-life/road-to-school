@@ -1,3 +1,4 @@
+import { AppAlert as Alert } from '@/services/app-alert';
 import { AppHeader } from '@/components/navigation/app-header';
 import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState, useRef, useCallback } from 'react';
@@ -9,8 +10,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
-  Alert,
-} from 'react-native';
+  } from 'react-native';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { CameraView, useCameraPermissions } from 'expo-camera';

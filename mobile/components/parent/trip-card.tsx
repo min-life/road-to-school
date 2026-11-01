@@ -16,13 +16,14 @@ type Props = {
   children: ReactNode;
   journey?: (active: boolean) => ReactNode;
   studentStatus?: StudentJourneyBadge;
+  readiness?: StudentJourneyBadge;
   hasIncident?: boolean;
   attention?: boolean;
   stale?: boolean;
 };
 
 /** Owns disclosure only; the parent keeps trip data, permissions and action handlers. */
-export function ParentTripCard({ studentName, avatarUrl, schoolName, status, children, journey, studentStatus, hasIncident, attention, stale }: Props) {
+export function ParentTripCard({ studentName, avatarUrl, schoolName, status, children, journey, studentStatus, readiness, hasIncident, attention, stale }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [visible, setVisible] = useState(false);
   const [contentHeight, setContentHeight] = useState(0);
@@ -52,7 +53,7 @@ export function ParentTripCard({ studentName, avatarUrl, schoolName, status, chi
     <View style={[parentHomeStyles.tripCard, styles.card, expanded && styles.expandedCard, cardTone && { borderColor: cardTone.border }]}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${studentName}, ${schoolName}, ${status.label}${studentStatus ? ', ' + studentStatus.label : ''}${hasIncident ? ', Chuyến có sự cố' : ''}${stale ? ', Chưa cập nhật đầy đủ' : ''}`}
+        accessibilityLabel={`${studentName}, ${schoolName}, ${status.label}${studentStatus ? ', ' + studentStatus.label : ''}${readiness ? ', ' + readiness.label : ''}${hasIncident ? ', Chuyến có sự cố' : ''}${stale ? ', Chưa cập nhật đầy đủ' : ''}`}
         accessibilityHint={expanded ? 'Thu gọn thông tin chuyến xe' : 'Mở rộng thông tin chuyến xe'}
         accessibilityState={{ expanded }}
         aria-expanded={expanded}
@@ -78,10 +79,14 @@ export function ParentTripCard({ studentName, avatarUrl, schoolName, status, chi
               <Ionicons name="chevron-down" size={16} color={colors.navigationActive} accessible={false} />
             </Animated.View>
           </View>
-          {(studentStatus || hasIncident || stale) && <View style={styles.studentTags}>
+          {(studentStatus || readiness || hasIncident || stale) && <View style={styles.studentTags}>
             {studentStatus && <View style={[styles.studentBadge, { backgroundColor: journeyTones[studentStatus.tone].bg, borderColor: journeyTones[studentStatus.tone].border }]}>
               <Ionicons name={studentStatus.icon} size={14} color={journeyTones[studentStatus.tone].text} accessible={false} />
               <Text style={[styles.studentBadgeText, { color: journeyTones[studentStatus.tone].text }]}>{studentStatus.label}</Text>
+            </View>}
+            {readiness && <View style={[styles.studentBadge, { backgroundColor: journeyTones[readiness.tone].bg, borderColor: journeyTones[readiness.tone].border }]}>
+              <Ionicons name={readiness.icon} size={14} color={journeyTones[readiness.tone].text} accessible={false} />
+              <Text style={[styles.studentBadgeText, { color: journeyTones[readiness.tone].text }]}>{readiness.label}</Text>
             </View>}
             {hasIncident && <View style={[styles.studentBadge, styles.incidentBadge]}>
               <Ionicons name="warning-outline" size={14} color={journeyTones.danger.text} accessible={false} />

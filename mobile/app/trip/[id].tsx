@@ -1,3 +1,5 @@
+import { AppAlert as Alert } from '@/services/app-alert';
+import { AppModal as Modal } from '@/components/app-alert';
 import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
@@ -11,8 +13,6 @@ import {
   Dimensions,
   PanResponder,
   TextInput,
-  Modal,
-  Alert,
   Keyboard,
   Pressable,
   Image,
@@ -45,6 +45,7 @@ import { useParentMapAvatars } from '@/hooks/use-parent-map-avatars';
 import { decodePolyline } from '@/utils/polyline';
 import { useTripNavigation } from '@/hooks/use-trip-navigation';
 import { TripNavigationControls } from '@/components/trip-navigation-controls';
+import { TripContactCallButton } from '@/components/trip-contact-call-button';
 import { loadLocationHistory, navigationApi, type LocationPoint, type LocationSource, type NavigationState } from '@/services/trip-navigation';
 import { cumulativeDistances, projectProgress, recordedParts, splitSegment, type Coordinate } from '@/utils/trip-navigation';
 
@@ -1381,21 +1382,11 @@ export default function MobileTripDetailScreen() {
                   <View style={styles.infoIconCircle}>
                     <Ionicons name="person-outline" size={20} color="#2563EB" />
                   </View>
-                  <View style={{ flex: 1 }}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={styles.infoLabel}>Tài xế phụ trách</Text>
                     <Text style={styles.infoTitle}>{trip.driverName || 'Chưa gán tài xế'}</Text>
-                    <View style={styles.contactPhoneRow}>
-                      <Ionicons name="call-outline" size={14} color={colors.mutedText} accessible={false} />
-                      <Text style={styles.contactPhoneLabel}>Số điện thoại</Text>
-                      <Text
-                        selectable
-                        accessibilityLabel={`Số điện thoại tài xế: ${trip.driverPhone?.trim() || 'Chưa cập nhật'}`}
-                        style={styles.contactPhoneValue}
-                      >
-                        {trip.driverPhone?.trim() || 'Chưa cập nhật'}
-                      </Text>
-                    </View>
                   </View>
+                  <TripContactCallButton phone={trip.driverPhone} contactLabel="tài xế phụ trách" />
                 </View>
 
                 {/* Giáo viên */}
@@ -1403,23 +1394,13 @@ export default function MobileTripDetailScreen() {
                   <View style={styles.infoIconCircle}>
                     <Ionicons name="school-outline" size={20} color="#059669" />
                   </View>
-                  <View style={{ flex: 1 }}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={styles.infoLabel}>Giáo viên phụ xe</Text>
                     <Text style={styles.infoTitle}>
                       {trip.busAttendantName || 'Chưa gán giáo viên'}
                     </Text>
-                    <View style={styles.contactPhoneRow}>
-                      <Ionicons name="call-outline" size={14} color={colors.mutedText} accessible={false} />
-                      <Text style={styles.contactPhoneLabel}>Số điện thoại</Text>
-                      <Text
-                        selectable
-                        accessibilityLabel={`Số điện thoại giáo viên phụ xe: ${trip.busAttendantPhone?.trim() || 'Chưa cập nhật'}`}
-                        style={styles.contactPhoneValue}
-                      >
-                        {trip.busAttendantPhone?.trim() || 'Chưa cập nhật'}
-                      </Text>
-                    </View>
                   </View>
+                  <TripContactCallButton phone={trip.busAttendantPhone} contactLabel="giáo viên phụ xe" />
                 </View>
               </ScrollView>
             )}
@@ -1435,14 +1416,18 @@ export default function MobileTripDetailScreen() {
                       stop.stopType === 'SCHOOL_ARRIVAL' || stop.stopType === 'SCHOOL_DEPARTURE';
 
                     return (
-                      <View key={stop.id || idx} style={styles.stopCard}>
-                        <View style={styles.stopOrderCircle}>
-                          <Text style={styles.stopOrderText}>{stop.stopOrder}</Text>
+                      <View key={stop.id || idx} style={[styles.stopTimelineRow,
+                        idx === visibleStops.length - 1 && styles.stopTimelineLastRow]}>
+                        <View style={styles.stopTimelineRail}>
+                          {idx < visibleStops.length - 1 && <View style={styles.stopTimelineConnector} />}
+                          <View style={styles.stopOrderCircle}>
+                            <Text style={styles.stopOrderText}>{stop.stopOrder}</Text>
+                          </View>
                         </View>
 
-                        <View style={{ flex: 1 }}>
+                        <View style={styles.stopCard}>
                           <View style={styles.stopHeaderRow}>
-                            <Text style={styles.stopName} numberOfLines={1}>
+                            <Text style={styles.stopName}>
                               {isParking
                                 ? 'Bãi xe trung tâm'
                                 : isSchool
@@ -1455,7 +1440,7 @@ export default function MobileTripDetailScreen() {
                             ) : null}
                           </View>
 
-                          <Text style={styles.stopAddress} numberOfLines={2}>
+                          <Text style={styles.stopAddress}>
                             {stop.addressText}
                           </Text>
 
@@ -3039,33 +3024,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#64748B',
   },
-  contactPhoneRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    columnGap: 6,
-    rowGap: 2,
-    marginTop: 6,
-  },
-  contactPhoneLabel: {
-    fontSize: 12,
-    color: colors.mutedText,
-  },
-  contactPhoneValue: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.foreground,
-    flexShrink: 1,
-  },
+  stopTimelineRow: { flexDirection: 'row', alignItems: 'stretch', gap: 12, paddingBottom: 16 },
+  stopTimelineLastRow: { paddingBottom: 0 },
+  stopTimelineRail: { width: 26, alignItems: 'center', paddingTop: 12 },
+  // Extend through the row gap; card height can grow with its content.
+  stopTimelineConnector: { position: 'absolute', top: 42, bottom: -24, width: 2, backgroundColor: colors.border },
   stopCard: {
-    flexDirection: 'row',
-    gap: 12,
+    flex: 1,
+    minWidth: 0,
     padding: 12,
     backgroundColor: '#F8FAFC',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginBottom: 8,
   },
   stopOrderCircle: {
     width: 26,
@@ -3083,23 +3054,32 @@ const styles = StyleSheet.create({
   stopHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+    gap: 6,
   },
   stopName: {
     fontSize: 13,
     fontWeight: '700',
     color: '#0F172A',
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 120,
+    lineHeight: 19,
   },
   stopEta: {
     fontSize: 12,
     fontWeight: '600',
     color: '#2563EB',
+    lineHeight: 19,
+    flexShrink: 0,
+    maxWidth: '100%',
   },
   stopAddress: {
     fontSize: 12,
     color: '#64748B',
     marginTop: 2,
+    lineHeight: 18,
   },
   childAttendanceStatusBox: {
     flexDirection: 'row',
@@ -3111,12 +3091,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 6,
     alignSelf: 'flex-start',
+    maxWidth: '100%',
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
   childAttendanceStatusText: {
     fontSize: 11,
     fontWeight: '600',
+    lineHeight: 16,
+    flexShrink: 1,
   },
   emptyStopsText: {
     textAlign: 'center',

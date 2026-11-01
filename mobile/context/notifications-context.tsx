@@ -1,5 +1,6 @@
+import { AppAlert as Alert } from '@/services/app-alert';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, AppState, Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { isRunningInExpoGo } from 'expo';
 import * as SecureStore from 'expo-secure-store';

@@ -1,5 +1,6 @@
+import { AppAlert as Alert } from '@/services/app-alert';
 import { useState, useCallback } from 'react';
-import { Alert } from 'react-native';
+
 import { useRouter } from 'expo-router';
 import { mobileApiClient } from '@/services/api-client';
 

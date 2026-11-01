@@ -2,13 +2,34 @@
 
 28/10/2026. Đã implement local; chưa commit/push. Chỉ trình bày PARENT, không đổi API/nghiệp vụ hoặc Trang chủ nhân sự. [Header/tab Phase 2](mobile-navigation-phase2.md) được giữ.
 
-## Hiện hành30/10/2026 — rail theo mốc và tag con
+## Hiện hành01/11/2026 — tiện ích thu gọn ngay khi kéo nhẹ
+
+[ParentHomeScrollView](../../mobile/components/parent/home-scroll-view.tsx) chuyển sang **hai bố cục cố định** theo yêu cầu PO, thay cơ chế nội suy từng pixel trong mục Header/tiện ích lịch sử bên dưới. Không đổi vị trí cuối, nội dung hoặc callbacks Báo nghỉ/Đổi điểm/Thông báo.
+
+| Thao tác | Kết quả |
+| --- | --- |
+| Đầu trang hoặc kéo xuống để refresh | Header mở: avatar48, lời chào, chuông; thẻ tiện ích trắng có icon và nhãn bên dưới |
+| Kéo lên quá8đơn vị cuộn | Thu gọn ngay trong một lần cập nhật: avatar scale0.8, ẩn lời chào/nhãn, hai nút lên cùng hàng avatar/chuông; bỏ nền trắng và shadow của thẻ |
+| Đang thu gọn và kéo lùi nhẹ, vẫn y>0 | Giữ thu gọn, tránh nhấp nháy quanh ngưỡng8 |
+| Quay về y<=0 | Mở lại toàn bộ header và tiện ích |
+
+Không còn Animated.Value/interpolation theo offset, không trạng thái nền thẻ đi từ từ qua avatar. Không ép scrollTo hoặc chặn cuộn nội dung. Header và paddingTop nội dung dùng cùng headerHeight của trạng thái để không còn khoảng trống chiều cao expanded khi compact. Trang ngắn/empty có minHeight viewport+9, vừa đủ vượt ngưỡng, không cần cuộn hết chiều cao thẻ tiện ích như trước. Threshold8 là dead zone cho thao tác cuộn, không khoảng bù bàn phím/chiều cao thiết bị.
+
+Giữ safe-area top/left/right, frame max560, row/label onLayout theo font, controls48 và props/notification slot. Greeting ẩn khỏi accessibility khi compact, các nút giữ label và một instance. Chuyển trạng thái tức thì cho mọi thiết bị, không animation kéo dài nên không phát sinh chuyển động khi bật reduced motion. RefreshControl giữ handler/props, progressViewOffset dùng expandedHeight ở đầu trang; onScroll/onLayout và các ScrollViewProps khác tiếp tục chuyển tiếp. Không ảnh hưởng API/cards/nhánh Home nhân sự.
+
+Kiểm chứng: tsc và Expo export all PASS. Chromium IAB preview component thực với presentation notification/icon-font adapter, không auth/API/records giả:390×844 scroll y4/8 vẫn expanded, y11 compact, quay y8 vẫn compact, y0 mở lại; nút từ top120 chuyển thẳng44, bounding boxes nền tiện ích/avatar không giao nhau ở các điểm quan sát. Callback Báo nghỉ/Đổi điểm mỗi nút nhận2lần (expanded+compact), chuông nhận1lần. Trang ngắn320×568 scroll range9 vẫn thu gọn/mở lại, không tràn ngang;1440×900 cũng đạt. Inset30 trong preview chỉ là kiểm tra geometry, không notch native UAT. NOT_VERIFIED: thao tác kéo tay trên Expo Go iPhone/Android, Safari/Chrome mobile, native pull-to-refresh, Dynamic Type và tích hợp có phiên đăng nhập. Không tạo test records. Chưa commit/push.
+
+## Hiện hành01/11/2026 — đúng luồng đi/về
+
+[Spec/mapping mới nhất](mobile-parent-student-journey.md) thay thế các mô tả30/10 bên dưới: thêm readiness từ GET detail có sẵn; chiều về đã boarding trước start dùng Đã điểm danh lên, khi chạy dùng Chưa xuống xe. Rail về có3mốc trường→điểm trả của con→bãi; con xuống chỉ đưa bus tới midpoint, chưa hoàn thành cả tuyến. Chiều đi tách đến trường/xuống xe/kết thúc. Bỏ nhịp boarding1600ms và bubble đếm phút theo lịch, giữ đầy đủ actual/planned time và actions V2. Detail refresh5s lúc chờ,20s lúc chạy; không API/backend/DB changes. Home API vẫn lọc bỏ COMPLETED sau refresh, không tự giữ card lịch sử.31tests/typecheck/export all PASS; native/auth acceptance chưa xác minh. Các mục30/10 là lịch sử, ưu tiên spec01/11.
+
+## Lịch sử30/10/2026 — rail theo mốc và tag con
 
 Từ card → Theo dõi lộ trình, điểm đón/trả riêng của mỗi con trên `/trip/[id]` dùng ghim giọt nước24×30 có avatar18px theo ảnh PO cung cấp, thay marker ngôi sao. Ảnh ghép theo studentId từ cùng hồ sơ học sinh như Theo dõi/chi tiết/Home, đọc lại20s lúc active và khi focus, thử lại ảnh lỗi cùng URL. Fallback chữ đầu tên giống các view khác; không đổi dữ liệu chuyến và không reload bản đồ khi ảnh cập nhật. [Nguồn ảnh, privacy, component/lifecycle và kiểm chứng](mobile-parent-map-markers.md).
 
 Màu viền card và nền header đồng bộ theo tag trạng thái của con qua journeyTones: Chưa điểm danh vàng, Đã điểm danh xanh dương, Chưa xuống xe tím, Đã xuống xe xanh lá, Đã báo nghỉ/Vắng mặt đỏ. Giữ màu khi mở/đóng, không bị viền vàng mặc định khi mở ghi đè. Phần chi tiết vẫn nền trắng; tag chuyến và sự cố giữ màu riêng. Không đổi dữ liệu, vị trí bus hoặc nghiệp vụ.
 
-Chiều về: PRESENT chưa xác nhận xuống dùng tag Chưa xuống xe màu tím; đã xác nhận xuống dùng Đã xuống xe màu xanh lá, cùng chữ/icon/tone như chiều đi. Chưa điểm danh/ABSENT giữ nhãn riêng. Tag không xác nhận xe đã đến điểm trả; vị trí bus không đổi, xem [bảng đầy đủ chiều về](mobile-parent-student-journey.md#vị-trí-minh-họa-và-icon-trên-rail).
+Chiều về: PRESENT chưa xác nhận xuống dùng tag Chưa xuống xe màu tím; đã xác nhận xuống dùng Đã xuống xe màu xanh lá, cùng chữ/icon/tone như chiều đi. Chưa điểm danh/ABSENT giữ nhãn riêng. Tag không xác nhận xe đã đến điểm trả; vị trí bus không đổi, xem [bảng đầy đủ chiều về](mobile-parent-student-journey.md#mapping-chiều-về).
 
 Tag điểm danh chỉ giữ ở header card. Đã bỏ tag trạng thái lặp dưới rail/dòng kết thúc tuyến theo lịch; phần mở rộng vẫn giữ giờ điểm danh, giờ xuống xe và lý do vắng khi có. Không hiển thị hộp chi tiết rỗng. Quy tắc này thay thế mô tả hiển thị tag chi tiết trong các mục lịch sử bên dưới.
 
@@ -104,7 +125,15 @@ Luồng dữ liệu giữ nguyên: Settings upload hiện có → setUser với 
 
 PASS TypeScript, Expo export iOS/Android/Web/server, HomeScreen/AuthContext byte-identical, handler upload và API/context/push/logout call parity, khai báo collapse/actions giữ nguyên. Chromium IAB isolated preview320/390 dùng ParentHomeScrollView và UserAvatar thật: fallback hai vị trí cùng màu/font, size48/72; URL ảnh A cùng tải natural528px, URL lỗi404 về fallback cả hai, đổi sang ảnh B natural1320px phục hồi cả hai, bỏ URL về fallback. Dùng PNG logo local sẵn có để kiểm tra tải/crop, không giả lập API hoặc tài khoản/ảnh hồ sơ thật. Compact đo38.4px và không tràn ngang ở320. Preview không chứng nhận upload/auth runtime. NOT_VERIFIED Expo Go iPhone/Android, Safari iOS/Chrome Android, VoiceOver và đổi ảnh thật trên tài khoản; không gọi mutation để test. Entry/server/tab tạm đã dọn; không thêm package/asset, chưa commit/push.
 
-## Cập nhật mới: tiện ích Đổi điểm
+## Hiện hành30/10/2026 — Đổi điểm mở lịch sử trước khi tạo
+
+Home giữ callback `/parent/change-stop`; route này dùng `RequestListView` hiển thị yêu cầu `ADDRESS_UPDATE` của tất cả con đang liên kết. Mỗi card có tên con, trạng thái, địa chỉ đề xuất, kết quả xử lý và thời gian như view yêu cầu hiện có. Nhấn **Tạo mới** hoặc CTA rỗng → `/parent/change-stop/create`: chọn con AVAILABLE ở thẻ đầu form, nhập địa chỉ/bản đồ và OTP trên cùng luồng. Không còn navigate tới màn chọn con riêng. Route select-student cũ redirect về form mới. Báo nghỉ không đổi. [Luồng, API/pagination, component contract, kiểm chứng và giới hạn](mobile-parent-stop-requests.md).
+
+Restyle30/10 tiếp theo: lịch sử Đổi điểm bật appearance leave-history, cùng AppHeader/dấu +, status pills và card style Báo nghỉ. CTA **Tạo yêu cầu đổi điểm** ở khối empty phía trên, cùng vị trí tương đối với **Tạo báo nghỉ mới**, thay căn giữa toàn màn hình. Giữ toàn bộ dữ liệu/filter/Chi tiết/phân trang và luồng chọn con; per-student views mặc định không restyle. [Style/nguồn/verification](mobile-parent-stop-requests.md#style-đồng-bộ-báo-nghỉ--30102026).
+
+Không thêm endpoint hoặc sửa nghiệp vụ: frontend đọc linked students rồi gộp các GET yêu cầu theo từng con, lọc đúng ADDRESS_UPDATE/trạng thái, phân trang10 và ưu tiên mới nhất. Bộ chọn nay là dropdown/modal đầu form dùng chung, giữ empty/link/retry/disabled; đổi con xóa draft và chặn response cũ. API OTP/duyệt/hủy giữ nguyên, điểm vào từ Hồ sơ học sinh dùng cùng form nhưng cố định con đã chọn. Các mô tả28/10 ngay dưới đây là lịch sử trước thay đổi luồng mới này. Thay đổi30/10 này local, chưa commit/push.
+
+## Lịch sử28/10/2026: tiện ích Đổi điểm
 
 PO yêu cầu bổ sung nút Đổi điểm: header nay có Báo nghỉ / Đổi điểm / Làm mới, cả expanded và compact, icon location-outline. Prop onChangeStop nối từ Home tới [parent/change-stop.tsx](../../mobile/app/parent/change-stop.tsx). Các mô tả hai nút/không có Đổi điểm bên dưới là mốc trước yêu cầu này.
 

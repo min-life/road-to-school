@@ -1,3 +1,4 @@
+import { AppAlert as Alert } from '@/services/app-alert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { OtpHero } from '@/components/auth/otp-hero';
 import { otpStyles } from '@/constants/otp-styles';
@@ -11,12 +12,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   TextInput,
-  Alert,
-} from 'react-native';
+  } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors } from '@/constants/theme';
 import { mobileApiClient, MaskedContactChannel } from '@/services/api-client';
+import { OtpRequestSummary } from '@/components/auth/otp-request-summary';
+import { summaryDate, summaryText, summaryTimeRange } from '@/utils/otp-summary';
 
 export default function LeaveNoticeOtpScreen() {
   const insets = useSafeAreaInsets();
@@ -32,6 +34,8 @@ export default function LeaveNoticeOtpScreen() {
     routeName?: string;
     serviceDate?: string;
     direction?: string;
+    scheduledStartTime?: string;
+    scheduledEndTime?: string;
   }>();
 
   const [challengeId, setChallengeId] = useState(params.challengeId || '');
@@ -164,6 +168,17 @@ export default function LeaveNoticeOtpScreen() {
             Mã OTP gồm 6 chữ số đã được gửi tới thông tin liên hệ trên. Vui lòng nhập để hoàn tất báo nghỉ.
           </Text>
         </View>
+
+        <OtpRequestSummary title="Thông tin báo nghỉ"
+          subjectLabel={params.studentId ? 'Học sinh' : 'Người báo nghỉ'} subjectName={params.subjectName}
+          rows={[
+            { label: 'Ngày', value: summaryDate(params.serviceDate) },
+            { label: 'Chiều', value: params.direction === 'TO_SCHOOL' ? 'Chiều đi (Đến trường)'
+              : params.direction === 'TO_PARKING' ? 'Chiều về (Về nhà)' : 'Chưa có thông tin' },
+            { label: 'Chuyến xe', value: summaryText(params.routeName), stacked: true },
+            { label: 'Giờ dự kiến', value: summaryTimeRange(params.scheduledStartTime, params.scheduledEndTime) },
+            { label: 'Lý do', value: summaryText(params.reason, 'Không nhập'), stacked: true },
+          ]} />
 
         {/* OTP Input */}
         <View style={styles.inputContainer}>

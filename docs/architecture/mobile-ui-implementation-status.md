@@ -2,7 +2,63 @@
 
 Ngày cập nhật: **29/10/2026 (Asia/Saigon)**. Commit `db02de6` là mốc Phase1 trên nhánh `dongnnp/mobile/refactor-ui`; các cập nhật local được ghi riêng bên dưới. Tài liệu này ghi nhận phần đã triển khai trong đợt chuyển phong cách V1 sang V2; không phải phê duyệt toàn bộ kế hoạch chuyển giao diện hoặc chứng nhận nghiệm thu thiết bị.
 
-## Rail theo trạng thái nghiệp vụ — 30/10/2026, mới nhất
+## Popup thông báo/xác nhận dùng theme app (01/11/2026)
+
+78Alert.alert tại23files đã chuyển sang AppAlert: backdrop tối, card trắng bo24/icon trạng thái, CTA vàng/cancel viền/destructive đỏ; giữ arguments/callbacks/busy guards. AppAlertRoot + AppModal hosts cho10modal trong5files để thông báo trong form không nằm sau native modal, queue FIFO/double-press guard, safe-area/scroll/focus/back/escape. Không đổi backend/API/data; OS permission/dialer/photo-picker prompts vẫn do hệ điều hành. [Component API, source map, hành vi và giới hạn](mobile-app-alerts.md).13popup tests/73pure tests delivery, tsc/export all và Chromium preview320/390/landscape/desktop PASS; native acceptance chưa xác minh. PO đã yêu cầu commit+push nhánh hiện tại sau checks.
+
+## Trang chủ — tiện ích thu gọn khi kéo nhẹ (01/11/2026, local)
+
+Header tiện ích Báo nghỉ/Đổi điểm có hai bố cục cố định thay nội suy theo từng pixel: kéo y>8 thu gọn ngay, chỉ mở lại khi y<=0, không còn nền card chạy qua avatar. Content padding đổi cùng header, trang ngắn chỉ cần9đơn vị cuộn; safe-area/layout/controls/callbacks/refresh giữ nguyên, không scrollTo cưỡng bức hoặc animation. [Cơ chế và kiểm chứng](mobile-parent-home-ui.md#hiện-hành01112026--tiện-ích-thu-gọn-ngay-khi-kéo-nhẹ). Tsc/export all và Chromium preview390/320/desktop PASS; native iPhone/Android và pull-to-refresh chưa xác minh. Chưa commit/push.
+
+## Trang chủ — thanh hành trình đúng luồng đi/về (01/11/2026, local)
+
+Đã thêm readiness giáo viên từ detail hiện có; tách tag chuyến/điểm danh lên/xuống theo từng con. Chiều đi: xuất phát→đón→trường, đến trường không tự xác nhận xuống. Chiều về: trường→điểm trả→bãi, boarding trước start giữ Đã điểm danh lên; xuống xe riêng con không kết thúc cả chuyến. Bỏ timer1600ms và bubble lịch, tách giờ trả con/actualEndTime; giữ mọi actions V2. Home chỉ lấy SCHEDULED/IN_PROGRESS nên không đảm bảo hiển thị lịch sử COMPLETED sau refresh. [Mapping/API/props/giới hạn](mobile-parent-student-journey.md).31tests, typecheck và export all PASS; preview320/390/desktop không overflow; native/auth chưa xác minh. Không backend/DB/dependency/commit/push.
+
+## Lịch học & Xe đưa đón — giờ đến dự kiến (01/11/2026, local)
+
+Thẻ lịch học sinh thêm dòng giờ đến sau tuyến/trường. Chiều đi dùng scheduledEndTime → Đến trường dự kiến; chiều về thật đọc đúng DROPOFF của con từ GET detail → Đến điểm trả dự kiến, không lấy giờ xe về bãi. Virtual chiều về/thiếu stop/time ghi Chưa có giờ dự kiến; lỗi có retry, không ảnh hưởng các thông tin/thao tác cũ. Nhánh return thật dùng refresh focus/foreground12s theo scope, chỉ các card ngày đang chọn. [Mapping/component/source/giới hạn](mobile-parent-schedule-arrival.md). Chưa commit/push, native/auth acceptance chưa xác minh.
+
+## Theo dõi lộ trình — timeline Điểm đón dọc (01/11/2026, local)
+
+Tab STOPS tại `/trip/[id]` chuyển thành rail số thứ tự bên trái, connector dọc và card thông tin bên phải. Giữ màu xanh/gray/card/tag, toàn bộ thứ tự/tên/giờ/địa chỉ/trạng thái/lý do vắng và privacy/role conditions. Bỏ truncation tên/địa chỉ, cho giờ/tag dài wrap, không thêm tiến độ GPS hoặc thao tác mới. Source ngoài STOPS JSX/style giữ nguyên; không sửa API/backend. [Bố cục/mapping/source/kiểm chứng](mobile-trip-stop-timeline.md). Chưa commit/push; native/auth acceptance chưa xác minh.
+
+## Báo nghỉ/Đổi điểm — nút + nổi giống Theo dõi (01/11/2026, local)
+
+FloatingAddButton chung: tròn vàng58, icon+32, bo29/shadow như Theo dõi. Báo nghỉ và lịch sử Đổi điểm dùng nút góc dưới bên phải thay dấu+ header và CTA chữ trong empty; giữ handler/routes/selectedStudentId/disabled guard. Safe-area bottom/right và list clearance90, loading/error/empty/list đều có nút. Theo dõi chỉ tái sử dụng component, giữ hành vi liên kết cũ. Các RequestListView mặc định riêng từng con không đổi. [Scope/component/offset/source](mobile-parent-stop-requests.md#hiện-hành01112026--tạo-bằng-nút--nổi). Chưa commit/push; native acceptance chưa xác minh.
+
+## OTP Báo nghỉ/Đổi điểm — thẻ tóm tắt (01/11/2026, local)
+
+Hai trang nhập OTP có OtpRequestSummary chung phía trên ô mã. Báo nghỉ hiển thị đối tượng/ngày/chiều/chuyến/giờ dự kiến/lý do; Đổi điểm hiển thị tên con/địa chỉ mới/tọa độ. Dùng snapshot params và proposedDataJson từ form, chỉ thêm tên con/giờ chuyến cho trình bày, không thêm GET/endpoint hoặc đổi payload xác nhận. INFORMATION_UPDATE không hiện thẻ Đổi điểm. Card wrap/cuộn cùng KeyboardScrollView, giữ autofocus/OTP/resend/countdown. [Component/fields/source/kiểm chứng](mobile-otp-ui.md#thẻ-tóm-tắt-báo-nghỉ-và-đổi-điểm--01112026). Chưa commit/push, native/OTP runtime chưa xác minh.
+
+## Popup chọn học sinh — card và tìm kiếm (01/11/2026, local)
+
+LinkedStudentPicker dùng StudentPickerDialog chung cho Báo nghỉ/Đổi điểm. Popup bo24, card avatar48/tên/mã/trường, viền/nền vàng nhạt + dấu tích/Đang chọn. Search theo tên/mã/trường ngay trên linked list, bỏ dấu/hoa thường, có số kết quả, xóa query và trạng thái không tìm thấy; giữ policy/selectedId và không có API search mới. Khung ổn định theo viewport/safe area, KeyboardScrollView riêng, không autoFocus. [Component/search/keyboard/giới hạn](mobile-leave-student-card.md#popup-card-và-tìm-kiếm--01112026). Chưa commit/push; native acceptance chưa xác minh.
+
+Điều chỉnh search01/11 theo phản hồi: khớp chuỗi con liên tiếp trong từng trường thay vì tách từ rồi tìm rải trên nhiều trường. `ăn`/`ĂN` khớp `Nguyễn Văn A`; ký tự sai như `ăx` không khớp text đó. Vẫn tìm trên tên, mã hoặc trường, không fuzzy/khớp từng chữ rời. [Quy tắc và tests](../../mobile/scripts/search-text.test.ts).
+
+## Tạo báo nghỉ — chọn học sinh giống Đổi điểm (01/11/2026, local)
+
+Form tổng quát bắt đầu với **Học sinh → Chọn học sinh**, không tự chọn con đầu như trước. Nhấn mở popup card tất cả con liên kết bằng cùng LinkedStudentPicker của Đổi điểm; chọn card mới hiện avatar/tên/mã/trường và đọc chuyến phù hợp. Điểm vào có studentId vẫn giữ con cố định. Chưa chọn con hiển thị nhắc chọn ở vùng chuyến, nút OTP tiếp tục khóa. Không sửa API/countdown hoặc code Đổi điểm. Typecheck/build và giới hạn kiểm chứng tại [AI Review](../ai-review/LATEST.md).
+
+Yêu cầu mới nhất: phần chọn Học sinh dùng chung **LinkedStudentPicker** với Tạo yêu cầu đổi điểm (dropdown bo12, label Học sinh, popup cùng style). Giữ avatar40, tên/mã/trường, Cố định/chevron và checkmark; metadata wrap đầy đủ. Loại component card riêng LeaveStudentCard đã được thay thế, không giữ hai bộ UI. Dùng Student.avatarUrl qua UserAvatar, thiếu/lỗi ảnh dùng chữ đầu tên. Chính sách chọn của từng form/API, OTP/countdown giữ nguyên; thêm loading/error/retry cho GET danh sách trong Báo nghỉ. [Component/source/verification](mobile-leave-student-card.md). Chưa commit/push; native/photo UAT chưa xác minh.
+
+## Tạo báo nghỉ — countdown trên nút OTP (31/10/2026, local)
+
+Khi gửi OTP lại quá sớm, dùng số giây từ thông báo backend để hiện **Gửi lại OTP sau Ns** ngay trên nút và khóa nút đến khi hết chờ, thay popup/banner chờ. Các lỗi khác giữ nguyên; hết giờ không tự gửi. Deadline theo actor/con, tính theo đồng hồ và cleanup focus/AppState, không hardcode60giây. Không sửa API/OTP screen hoặc luồng thành công. [Hook/contract, scope, source và kiểm chứng](mobile-leave-otp-cooldown.md). Chưa commit/push; native/live OTP còn NOT_VERIFIED.
+
+## Tạo báo nghỉ — bỏ thẻ Xác nhận thông tin (31/10/2026, local)
+
+[leave-notices/create.tsx](../../mobile/app/leave-notices/create.tsx) bỏ toàn bộ thẻ **Xác nhận thông tin** và dòng kênh OTP nằm trong thẻ đó. Xóa các style/state trình bày chỉ dùng cho thẻ. Giữ học sinh, ngày, chiều, chọn chuyến, lý do, lỗi và nút **Gửi mã xác thực OTP**; request OTP, validation, params và màn xác thực không đổi. Nút gửi nằm sau phần lý do/lỗi, không để khoảng trống của thẻ cũ. Kiểm chứng/giới hạn ở [AI Review](../ai-review/LATEST.md). Chưa commit/push.
+
+## Đổi điểm — lịch sử trước, tạo mới mới chọn con (30/10/2026, local)
+
+Tiện ích Home giữ route `/parent/change-stop`, nay mở lịch sử yêu cầu đổi điểm của các con đang liên kết bằng RequestListView. **Tạo mới** → `/parent/change-stop/select-student` (bộ chọn cũ được chuyển vị trí) → form địa chỉ/OTP V2. Không bắt chọn con để xem lịch sử; mỗi card có tên học sinh, các bộ lọc/trạng thái/detail/phân trang được giữ. [Component/API và kiểm chứng](mobile-parent-stop-requests.md). Backend, API client, dữ liệu và trang Báo nghỉ không đổi; local chưa commit/push.
+
+## Hồ sơ học sinh — nút thao tác gọn (30/10/2026, local)
+
+[student-detail/[id].tsx](<../../mobile/app/parent/student-detail/[id].tsx>) bỏ mô tả phụ trong cả sáu nút: Cập nhật thông tin học sinh, Cập nhật địa chỉ đón trả, Tuyến đường đưa đón, Lịch học & Xe đưa đón, Báo nghỉ, Hủy liên kết học sinh. Giữ tên nút, icon, chevron, padding và vùng nhấn; các tiêu đề vẫn được xuống dòng. Xóa style `actionSubtext` không còn dùng. Không đổi route/params, điều kiện vô hiệu hóa, loading hủy liên kết hoặc hộp thoại xác nhận; thông tin hồ sơ và badge trạng thái giữ nguyên. Chỉ tinh gọn copy theo chỉ thị trực tiếp của PO, không refactor màn hình. Kiểm chứng và giới hạn ở [AI Review](../ai-review/LATEST.md). Thay đổi này chưa commit/push.
+
+## Rail theo trạng thái nghiệp vụ — 30/10/2026
 
 Bus trên rail và nhảy theo mốc PO chỉ định, không cần GPS. Dùng operational-state/incident API có sẵn cho actual departure, school arrival và trạng thái từng child;3 icon ở node,4 giữa chặng. Thêm tag điểm danh/sự cố khi card đóng, ngày ngang heading, route/giờ chuyển sang vị trí mới, bỏ khối lịch cũ. Bubble số phút theo lịch, sớm/trễ từ timestamp thực; không tạo ETA hoặc event rời pickup. [Spec và API thiếu/đủ](mobile-parent-student-journey.md). Typecheck/export all,24 pure tests và presenter responsive PASS; native/API runtime NOT_VERIFIED. Chưa commit/push. Mô tả GPS-only/pin ở các phần trước đã được thay thế bởi mục này.
 
@@ -70,7 +126,9 @@ PASS TypeScript, Expo export iOS/Android/Web/server, so sánh RoleSplash byte-id
 
 ## Đổi điểm đón/trả — Chưa liên kết học sinh (28/10/2026)
 
-[change-stop.tsx](../../mobile/app/parent/change-stop.tsx) dùng lại [TrackingEmptyState](../../mobile/components/parent/tracking-empty-state.tsx) tại `FlatList.ListEmptyComponent`, sau nhánh loading/error. Giữ title **Chưa có học sinh liên kết**, CTA **Liên kết học sinh** tới `/parent/link-student`, header/back, Thử lại, GET linked students, guard AVAILABLE và route address-request khi có học sinh. Không thêm FAB/refresh hoặc thao tác của màn Theo dõi vào màn này.
+**Vị trí hiện hành30/10:** bộ chọn đã chuyển sang [change-stop/select-student.tsx](../../mobile/app/parent/change-stop/select-student.tsx), chỉ mở sau **Tạo mới** ở lịch sử. Chọn con nay vào form tạo địa chỉ trực tiếp. Thiết kế empty và kiểm chứng28/10 bên dưới là lịch sử; không coi là kiểm chứng runtime của luồng mới.
+
+Bộ chọn dùng lại [TrackingEmptyState](../../mobile/components/parent/tracking-empty-state.tsx) tại `FlatList.ListEmptyComponent`, sau nhánh loading/error. Giữ title **Chưa có học sinh liên kết**, CTA **Liên kết học sinh** tới `/parent/link-student`, header/back, Thử lại, GET linked students và guard AVAILABLE. Không thêm FAB/refresh hoặc thao tác của màn Theo dõi vào màn này.
 
 Component hiện dùng chung cho hai màn: `onLink: () => void` bắt buộc; `title?: string` mặc định **Chưa có học sinh nào**; `description?: string | null` mặc định nội dung liên kết mã định danh/QR của Theo dõi. Truyền `description={null}` để giữ màn Đổi điểm không có mô tả như trước; khi thiếu mô tả, CTA cách title20px. Cách dùng: `<TrackingEmptyState title="Chưa có học sinh liên kết" description={null} onLink={() => router.push('/parent/link-student')} />`. Không có effect/data/router bên trong component; đổi copy qua props, giữ nghiệp vụ tại màn hình.
 

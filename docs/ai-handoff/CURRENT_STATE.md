@@ -7,7 +7,11 @@
 
 Bộ tài liệu hệ thống theo source (28/10/2026): [implementation/README.md](../implementation/README.md), gồm local runbook, feature map, backend route catalog, schema và environment references. Chưa commit/push phần docs mới.
 
-## Cập nhật 30/10/2026 — Tiến trình theo mốc nghiệp vụ (mới nhất)
+## Cập nhật01/11/2026 — Luồng hành trình đi/về của phụ huynh (hiện hành)
+
+PO đã chốt luồng đi: chờ→GV sẵn sàng→chạy→điểm danh lên→đến trường→xuống→kết thúc; về: chờ→GV sẵn sàng→điểm danh trước start→chạy→xuống từng con→kết thúc. Frontend mapping từ enums/fields hiện có, readiness đọc GET detail (PARENT operational không trả), refresh detail5s khi chờ/20s khi chạy. Rail về3mốc trường/điểm trả/bãi; con xuống dừng bus ở midpoint, không đồng nhất kết thúc tuyến. Bỏ timer boarding1600ms và bubble đếm phút theo lịch; tag/time/a11y/tone đồng bộ, bảo toàn Home actions/nhánh staff. Thêm optional type readiness đã có trong API, không sửa backend/DB/schema/dependencies. Home API vẫn loại COMPLETED sau refresh nên lịch sử kết thúc còn giới hạn. [Spec hiện hành, bảng từng bước, dữ liệu và verification](../architecture/mobile-parent-student-journey.md).31pure tests/tsc/export all và preview320/390/desktop PASS; native/auth transitions chưa xác minh, không tạo test records. Chưa commit/push. Các mô tả30/10 (hai mốc về/timer/bubble) bên dưới là lịch sử, đã được thay thế.
+
+## Lịch sử30/10/2026 — Tiến trình theo mốc nghiệp vụ
 
 PO đổi rail sang minh họa nhảy2/3 từng chặng theo start/attendance/school arrival/alighting, không phụ thuộc GPS. Bus nằm trên rail, thay node khi ở mốc; collapsed có tag điểm danh nổi bật và sự cố cấp chuyến, ngày ngang heading, tên tuyến/giờ chuyển khỏi khối cũ. Đọc GET operational-state/incidents5s + detail20s/focus, không sửa backend/contract. ActualStartTime/arrivedAtSchoolAt/children hỗ trợ giờ thực và sớm/trễ; ETA động và event đến/rời pickup vẫn thiếu, bubble chỉ “theo lịch”; nhịp pickup1600ms là hiệu ứng sau điểm danh, không event rời điểm mới. [Spec/API audit/source map/verification](../architecture/mobile-parent-student-journey.md). Tsc/export all,24 pure tests và presenter checks PASS; native/auth end-to-end NOT_VERIFIED. Không DB/dependency/commit/push. Các mục GPS/pin ở dưới là lịch sử đã thay thế.
 

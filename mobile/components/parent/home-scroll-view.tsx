@@ -1,10 +1,12 @@
-import { cloneElement, type ReactNode, useRef, useState } from 'react';
-import { Animated, Pressable, ScrollViewProps, StyleSheet, Text, View } from 'react-native';
+import { cloneElement, type ReactNode, useState } from 'react';
+import { Pressable, ScrollView, ScrollViewProps, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors } from '@/constants/theme';
 import { NotificationBell } from '@/components/notification-bell';
 import { UserAvatar } from '@/components/user-avatar';
+
+const COLLAPSE_THRESHOLD = 8;
 
 type Props = ScrollViewProps & {
   fullName?: string;
@@ -19,7 +21,6 @@ type Props = ScrollViewProps & {
 export function ParentHomeScrollView({ fullName, avatarUrl, onOpenLeave, onChangeStop,
   notification, refreshControl, style, contentContainerStyle, onScroll, onLayout, children, ...props }: Props) {
   const insets = useSafeAreaInsets();
-  const offset = useRef(new Animated.Value(0)).current;
   const [rowHeight, setRowHeight] = useState(48);
   const [labelHeight, setLabelHeight] = useState(22);
   const [viewport, setViewport] = useState(0);
@@ -27,76 +28,71 @@ export function ParentHomeScrollView({ fullName, avatarUrl, onOpenLeave, onChang
   const collapsedHeight = insets.top + rowHeight + 24;
   const cardHeight = 12 + 48 + 8 + labelHeight + 12;
   const expandedHeight = collapsedHeight + 16 + cardHeight + 16;
-  const distance = expandedHeight - collapsedHeight;
-  const interpolate = (from: number, to: number) => offset.interpolate({
-    inputRange: [0, distance], outputRange: [from, to], extrapolate: 'clamp',
-  });
-  const fade = offset.interpolate({ inputRange: [0, distance * 0.55, distance], outputRange: [1, 0, 0], extrapolate: 'clamp' });
+  const headerHeight = compact ? collapsedHeight : expandedHeight;
   const actions = [
     { label: 'Báo nghỉ', icon: 'calendar-outline' as const, onPress: onOpenLeave },
     { label: 'Đổi điểm', icon: 'location-outline' as const, onPress: onChangeStop },
   ];
 
   return <View style={[style, styles.screen]} onLayout={event => setViewport(event.nativeEvent.layout.height)}>
-    <Animated.ScrollView {...props} style={styles.scroll}
+    <ScrollView {...props} style={styles.scroll}
       refreshControl={refreshControl ? cloneElement(refreshControl, { progressViewOffset: expandedHeight }) : undefined}
       contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false}
       scrollEventThrottle={16}
-      contentContainerStyle={[contentContainerStyle, { paddingTop: expandedHeight + 8,
-        // Short/empty pages still have enough scroll travel to reach the compact header.
-        minHeight: viewport + distance }]}
+      contentContainerStyle={[contentContainerStyle, { paddingTop: headerHeight + 8,
+        // A short/empty page needs only enough travel to cross the snap threshold.
+        minHeight: viewport + COLLAPSE_THRESHOLD + 1 }]}
       onLayout={onLayout}
-      onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: offset } } }], {
-        useNativeDriver: false,
-        listener: event => {
-          const y = (event as { nativeEvent: { contentOffset: { y: number } } }).nativeEvent.contentOffset.y;
-          setCompact(previous => previous === (y >= distance * 0.55) ? previous : y >= distance * 0.55);
-          onScroll?.(event as Parameters<NonNullable<ScrollViewProps['onScroll']>>[0]);
-        },
-      })}>
+      onScroll={event => {
+        const y = event.nativeEvent.contentOffset.y;
+        // Commit the whole header at once; never drag the utility background across the avatar.
+        // Reopen only at the top so small movements around the collapse threshold cannot flicker.
+        setCompact(previous => previous ? y > 0 : y > COLLAPSE_THRESHOLD);
+        onScroll?.(event);
+      }}>
       {children}
-    </Animated.ScrollView>
+    </ScrollView>
 
-    <Animated.View style={[styles.header, { height: interpolate(expandedHeight, collapsedHeight),
+    <View style={[styles.header, { height: headerHeight,
       paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right }]}>
       <View style={styles.frame}>
         <View style={styles.row} onLayout={event => setRowHeight(event.nativeEvent.layout.height)}>
-          <Animated.View style={[styles.avatar, { transform: [{ scale: interpolate(1, 0.8) }] }]}>
+          <View style={[styles.avatar, { transform: [{ scale: compact ? 0.8 : 1 }] }]}>
             <UserAvatar avatarUrl={avatarUrl} fullName={fullName} size={48} />
-          </Animated.View>
-          <Animated.View pointerEvents="none" accessibilityElementsHidden={compact}
+          </View>
+          <View pointerEvents="none" accessibilityElementsHidden={compact}
             importantForAccessibility={compact ? 'no-hide-descendants' : 'auto'} aria-hidden={compact}
-            style={[styles.greeting, { opacity: fade }]}>
+            style={[styles.greeting, { opacity: compact ? 0 : 1 }]}>
             <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>Xin chào{fullName ? `, ${fullName}` : ''}</Text>
             <Text numberOfLines={1} style={styles.subtitle}>Đồng hành cùng con mỗi ngày</Text>
-          </Animated.View>
+          </View>
           {notification ?? <NotificationBell />}
         </View>
-        <Animated.View style={[styles.actions, {
-          top: interpolate(rowHeight + 30, 14 + (rowHeight - 48) / 2),
-          left: interpolate(16, 76), right: interpolate(16, 76),
-          height: interpolate(cardHeight, 48),
-          paddingTop: interpolate(12, 0),
-          backgroundColor: offset.interpolate({ inputRange: [0, distance], outputRange: [colors.surface, colors.background], extrapolate: 'clamp' }),
-          shadowOpacity: interpolate(0.07, 0), elevation: interpolate(3, 0),
+        <View style={[styles.actions, {
+          top: compact ? 14 + (rowHeight - 48) / 2 : rowHeight + 30,
+          left: compact ? 76 : 16, right: compact ? 76 : 16,
+          height: compact ? 48 : cardHeight,
+          paddingTop: compact ? 0 : 12,
+          backgroundColor: compact ? colors.background : colors.surface,
+          shadowOpacity: compact ? 0 : 0.07, elevation: compact ? 0 : 3,
         }]}>
           {actions.map(action => <View key={action.label} style={styles.actionSlot}>
             <Pressable accessibilityRole="button" accessibilityLabel={action.label} onPress={action.onPress}
               style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
               <Ionicons name={action.icon} size={22} color={colors.navigationActive} accessible={false} />
             </Pressable>
-            <Animated.View pointerEvents="none" aria-hidden accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants" style={{ opacity: fade }}>
+            <View pointerEvents="none" aria-hidden accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants" style={{ opacity: compact ? 0 : 1 }}>
               <Text style={styles.label} numberOfLines={2}
                 onLayout={event => {
                   const measuredHeight = event.nativeEvent.layout.height;
                   setLabelHeight(height => Math.max(height, measuredHeight));
                 }}>{action.label}</Text>
-            </Animated.View>
+            </View>
           </View>)}
-        </Animated.View>
+        </View>
       </View>
-    </Animated.View>
+    </View>
   </View>;
 }
 

@@ -23,7 +23,7 @@ import { StaffHomeScrollView } from '@/components/staff/staff-home-scroll-view';
 import { StaffTripCard } from '@/components/staff/staff-trip-card';
 import { ParentStudentJourney } from '@/components/parent/student-journey';
 import { useParentJourneyTelemetry } from '@/hooks/use-parent-journey-telemetry';
-import { activeJourneyIncident, journeySchoolArrived, journeyServiceDate, parentJourneyCard, studentJourneyBadge } from '@/utils/parent-journey-stage';
+import { activeJourneyIncident, journeySchoolArrived, journeyServiceDate, parentJourneyCard, studentJourneyBadge, journeyReadinessBadge, journeyTripLabel } from '@/utils/parent-journey-stage';
 import { journeyRecordedClock } from '@/utils/parent-journey';
 import { useAuth } from '@/context/auth-context';
 import { useQuickLeaveNotice } from '@/hooks/use-quick-leave-notice';
@@ -223,9 +223,15 @@ export default function HomeScreen() {
             </View>
             {parentCards.map((card) => {
               const tripTelemetry = journeyTelemetry.trips[card.tripId];
-              const student = parentJourneyCard(card, tripTelemetry?.unavailable || tripTelemetry?.operationUnavailable ? undefined : tripTelemetry?.operation);
-              const schoolArrived = card.direction === 'TO_SCHOOL' && journeySchoolArrived(tripTelemetry?.operation, card.tripId);
-              const studentStatus = studentJourneyBadge(student.attendanceStatus, Boolean(student.childIsAlighted), schoolArrived, Boolean(card.hasLeaveNotice), card.direction);
+              const rawOperation = tripTelemetry?.unavailable || tripTelemetry?.operationUnavailable ? undefined : tripTelemetry?.operation;
+              const operation = rawOperation?.tripId === card.tripId && (!rawOperation.direction || rawOperation.direction === card.direction) ? rawOperation : undefined;
+              const student = parentJourneyCard(card, operation);
+              const schoolArrived = card.direction === 'TO_SCHOOL' && journeySchoolArrived(operation, card.tripId);
+              const studentStatus = studentJourneyBadge(student.attendanceStatus, Boolean(student.childIsAlighted), schoolArrived, Boolean(card.hasLeaveNotice), card.direction, student.tripStatus);
+              const detail = !tripTelemetry?.unavailable && !tripTelemetry?.detailUnavailable && tripTelemetry?.detail?.id === card.tripId
+                && tripTelemetry.detail.direction === card.direction ? tripTelemetry.detail : undefined;
+              const readySource = operation?.isAttendantReady !== undefined || operation?.attendantReadyAt !== undefined ? operation : detail;
+              const readiness = journeyReadinessBadge(student.tripStatus, readySource?.isAttendantReady, readySource?.attendantReadyAt);
               const att = getAttendanceBadge(student.attendanceStatus, student.childIsAlighted);
               return (
                 <ParentTripCard
@@ -233,8 +239,10 @@ export default function HomeScreen() {
                   studentName={card.studentName}
                   avatarUrl={card.studentAvatar}
                   schoolName={card.schoolName}
-                  status={student.tripStatus === 'CANCELLED' ? { label: 'Đã hủy', bg: journeyTones.danger.bg, text: journeyTones.danger.text } : getStatusBadge(student.tripStatus)}
+                  status={student.tripStatus === 'CANCELLED' ? { label: 'Đã hủy', bg: journeyTones.danger.bg, text: journeyTones.danger.text }
+                    : { ...getStatusBadge(student.tripStatus), label: journeyTripLabel(student.tripStatus, student.direction, schoolArrived) }}
                   studentStatus={studentStatus}
+                  readiness={readiness}
                   hasIncident={tripTelemetry?.incidents?.some(i => activeJourneyIncident(i.status))}
                   attention={student.attendanceStatus === 'UNMARKED' && student.tripStatus !== 'CANCELLED' && student.tripStatus !== 'COMPLETED'}
                   stale={tripTelemetry?.operationUnavailable || tripTelemetry?.incidentsUnavailable}

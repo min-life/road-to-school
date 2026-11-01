@@ -19,6 +19,7 @@ import { useAuth } from '@/context/auth-context';
 import { colors } from '@/constants/theme';
 import { mobileApiClient, MobileScheduleItem } from '@/services/api-client';
 import { useQuickLeaveNotice } from '@/hooks/use-quick-leave-notice';
+import { ScheduleArrivalTime } from '@/components/parent/schedule-arrival-time';
 import {
   getVietnamToday,
   getMondayOfDateStr,
@@ -236,6 +237,8 @@ export default function ParentStudentScheduleScreen() {
                 {/* Route Name & School */}
                 <Text style={styles.routeName}>{trip.routeName}</Text>
                 <Text style={styles.schoolName}>{trip.schoolName}</Text>
+
+                <ScheduleArrivalTime trip={trip} studentId={studentId} identity={identity} />
 
                 {/* Footer: Vehicle Plate & Action */}
                 <View style={styles.cardFooter}>

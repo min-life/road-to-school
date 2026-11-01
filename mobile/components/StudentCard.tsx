@@ -1,3 +1,4 @@
+import { AppAlert as Alert } from '@/services/app-alert';
 import React, { useRef } from 'react';
 import {
   StyleSheet,
@@ -7,8 +8,7 @@ import {
   Animated,
   PanResponder,
   Image,
-  Alert,
-} from 'react-native';
+  } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors } from '@/constants/theme';
 import type { ParentLinkedStudentItem } from '@/services/api-client';

@@ -1,6 +1,29 @@
 # Mobile OTP — kế thừa giao diện V1
 
-Cập nhật 29/10/2026 (Asia/Saigon). Implementation local trên V2, chưa commit/push. Tài liệu này ghi nhận phần trình bày của **cả 5 màn nhập/xác nhận OTP**; không thay đổi contract xác thực hoặc chứng nhận gửi mã thực tế.
+Giao diện nền29/10/2026; cập nhật thẻ tóm tắt01/11/2026 (Asia/Saigon), local chưa commit/push lần cập nhật này. Tài liệu ghi nhận phần trình bày của **cả 5 màn nhập/xác nhận OTP**; không thay đổi contract xác thực hoặc chứng nhận gửi mã thực tế.
+
+## Thẻ tóm tắt Báo nghỉ và Đổi điểm — 01/11/2026
+
+Ở `/leave-notices/otp` và nhánh `ADDRESS_UPDATE` của `/parent/create-request/verify-otp`, bổ sung thẻ đọc lại thông tin **sau phần giới thiệu/kênh nhận mã, trước ô nhập OTP**. Thẻ không có input hoặc thao tác gửi riêng; không đưa thẻ Xác nhận thông tin đã bỏ trở lại trang Tạo báo nghỉ.
+
+| Màn | Thông tin trong thẻ | Nguồn snapshot |
+| --- | --- | --- |
+| Báo nghỉ | Học sinh/người báo nghỉ, ngày, chiều, tên chuyến, giờ dự kiến, lý do hoặc Không nhập | Các params subjectName/serviceDate/direction/routeName/reason đã có; thêm scheduledStartTime/scheduledEndTime từ chuyến đang chọn |
+| Đổi điểm | Tên học sinh, địa chỉ mới, tọa độ đã chọn | Thêm studentName từ detail con đang chọn; đọc addressText/latitude/longitude từ proposedDataJson đã có |
+
+Nhánh `INFORMATION_UPDATE` dùng cùng route OTP được giữ nguyên, không render thẻ Đổi điểm. Không fetch hồ sơ/chuyến mới trên OTP và không gọi search/map lại; thông tin là snapshot của form đã gửi mã, không thay bằng data mới sau đó. Tên bị thiếu trên deep link/URL cũ hiển thị Chưa có thông tin, không tự lấy tên con đầu tiên hoặc hiển thị ID kỹ thuật.
+
+### Component và cách mở rộng
+
+[OtpRequestSummary](../../mobile/components/auth/otp-request-summary.tsx) nhận `title`, `subjectLabel`, `subjectName?`, `rows: readonly { label: string; value: string; stacked?: boolean }[]`. Không sở hữu API/router/OTP state. `stacked` dành cho tên chuyến, địa chỉ, lý do dài: label trên value; dòng gọn như ngày/chiều/giờ có label34%, value flex. Muốn thêm thông tin chỉ bổ sung row từ dữ liệu form thực, không chuyển request payload vào component hoặc sinh dữ liệu khi thiếu.
+
+Nền trắng/viền theme/bo20/padding16; header icon nền vàng nhạt, tên đối tượng đậm, divider phân nhóm. Text wrap toàn bộ, không numberOfLines/ellipsis, không hardcode chiều cao card. Thẻ nằm trong KeyboardScrollView hiện có, cùng vùng form max430/safe area và cơ chế cuộn tới OTP; giữ autofocus của ô mã, không thêm KeyboardAvoidingView hoặc offset bàn phím.
+
+[otp-summary.ts](../../mobile/utils/otp-summary.ts) chỉ format presentation: JSON object guard/catch, string fallback, ngày lịch DD/MM/YYYY không dịch timezone, giờ HH:mm, tọa độ6decimals cùng form. Query JSON sai/missing/array/null không làm render throw hoặc thành dữ liệu giả. Không sửa proposedDataJson ban đầu: handleVerify vẫn parse và gửi payload như trước; helper không thay API validation. Không hiển thị OTP/challengeId hoặc dữ liệu liên hệ chưa che trong thẻ.
+
+### Kiểm chứng cập nhật thẻ
+
+5 pure tests tại [otp-summary.test.ts](../../mobile/scripts/otp-summary.test.ts): JSON/text/date/time/coordinates, không fake business DTO/OTP request. Typecheck và AST comparison xác minh handlers OTP/resend/confirm, trường nhập và toàn bộ creator handlers giữ nguyên trừ route metadata hiển thị. Kết quả build và giới hạn thực tế tại [AI Review](../ai-review/LATEST.md); các kiểm chứng29/10 phía dưới là lịch sử, không chứng nhận thẻ mới trên điện thoại. Chưa gửi/xác nhận OTP hoặc tạo challenge để thử UI.
 
 ## Phạm vi và source map
 
@@ -12,7 +35,7 @@ Cập nhật 29/10/2026 (Asia/Saigon). Implementation local trên V2, chưa comm
 | `/parent/create-request/verify-otp` | [verify-otp.tsx](../../mobile/app/parent/create-request/verify-otp.tsx) | Dùng chung cho yêu cầu cập nhật thông tin/địa chỉ, người giám hộ, thông báo hiệu lực mã, lỗi và xác nhận/gửi yêu cầu |
 | `/leave-notices/otp` | [otp.tsx](../../mobile/app/leave-notices/otp.tsx) | Toàn bộ kênh nhận mã, nhãn SMS console khi có, countdown, gửi lại, lỗi và xác nhận báo nghỉ |
 
-Các màn yêu cầu gửi mã như Đăng ký, Quên mật khẩu, Liên kết học sinh, tạo yêu cầu và tạo báo nghỉ không phải màn nhập OTP, không được sửa trong task này. Màn cập nhật học sinh không có resend trước đây nên không thêm nút resend.
+Trong task giao diện29/10, các màn yêu cầu gửi mã như Đăng ký, Quên mật khẩu, Liên kết học sinh, tạo yêu cầu và tạo báo nghỉ không thuộc phạm vi chỉnh sửa. Riêng cập nhật01/11 ở trên bổ sung display route metadata từ form Báo nghỉ/Đổi điểm, không đổi API gửi mã. Màn cập nhật học sinh không có resend trước đây nên không thêm nút resend.
 
 ## Nguồn thiết kế V1
 

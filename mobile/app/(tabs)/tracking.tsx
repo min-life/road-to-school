@@ -1,3 +1,4 @@
+import { AppAlert as Alert } from '@/services/app-alert';
 import { NotificationBell } from '@/components/notification-bell';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -8,8 +9,7 @@ import {
   RefreshControl,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
-} from 'react-native';
+  } from 'react-native';
 import { useRouter } from 'expo-router';
 import { AppHeader } from '@/components/navigation/app-header';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -20,6 +20,7 @@ import {
 } from '@/services/api-client';
 import { StudentCard } from '@/components/StudentCard';
 import { TrackingEmptyState } from '@/components/parent/tracking-empty-state';
+import { FloatingAddButton, FLOATING_ADD_CONTENT_INSET } from '@/components/navigation/floating-add-button';
 
 export default function ParentTrackingScreen() {
   const router = useRouter();
@@ -118,7 +119,7 @@ export default function ParentTrackingScreen() {
       ) : (
         <ScrollView
           style={styles.listContainer}
-          contentContainerStyle={[styles.listContent, { paddingBottom: 90 }]}
+          contentContainerStyle={[styles.listContent, { paddingBottom: FLOATING_ADD_CONTENT_INSET }]}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
@@ -139,14 +140,7 @@ export default function ParentTrackingScreen() {
       )}
 
       {/* Floating Action Button (+) */}
-      <TouchableOpacity
-        style={[styles.fab, { bottom: 16 }]}
-        onPress={handleAddPress}
-        activeOpacity={0.85}
-        accessibilityLabel="Thêm liên kết học sinh"
-      >
-        <Ionicons name="add" size={32} color={colors.foreground} />
-      </TouchableOpacity>
+      <FloatingAddButton label="Thêm liên kết học sinh" onPress={handleAddPress} />
     </View>
   );
 }
@@ -205,20 +199,5 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   // Keep both V2 link controls reachable without the floating + covering the card.
-  emptyViewport: { marginBottom: 90 },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 6,
-  },
+  emptyViewport: { marginBottom: FLOATING_ADD_CONTENT_INSET },
 });

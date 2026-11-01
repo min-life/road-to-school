@@ -1,8 +1,10 @@
+import { AppAlert as Alert } from '@/services/app-alert';
+import { AppAlertRoot } from '@/components/app-alert';
 import { useFonts } from 'expo-font';
 import { DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { View, Alert } from 'react-native';
+import { View } from 'react-native';
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 import { colors } from '@/constants/theme';
@@ -153,11 +155,11 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={RoadToSchoolTheme}>
-      <AuthProvider>
+      <AppAlertRoot><AuthProvider>
         <OnboardingProvider>
           <NotificationsProvider><RootNavigation /></NotificationsProvider>
         </OnboardingProvider>
-      </AuthProvider>
+      </AuthProvider></AppAlertRoot>
     </ThemeProvider>
   );
 }
