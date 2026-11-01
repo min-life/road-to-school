@@ -18,6 +18,9 @@ import { journeyTones } from '@/constants/parent-journey';
 import { parentHomeStyles } from '@/components/parent/home-styles';
 import { ParentHomeScrollView } from '@/components/parent/home-scroll-view';
 import { ParentTripCard } from '@/components/parent/trip-card';
+import { staffHomeStyles } from '@/components/staff/staff-home-styles';
+import { StaffHomeScrollView } from '@/components/staff/staff-home-scroll-view';
+import { StaffTripCard } from '@/components/staff/staff-trip-card';
 import { ParentStudentJourney } from '@/components/parent/student-journey';
 import { useParentJourneyTelemetry } from '@/hooks/use-parent-journey-telemetry';
 import { activeJourneyIncident, journeySchoolArrived, journeyServiceDate, parentJourneyCard, studentJourneyBadge } from '@/utils/parent-journey-stage';
@@ -34,6 +37,9 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const isParent = user?.role === 'PARENT';
+  const isDriverOrAttendant = user?.role === 'DRIVER' || user?.role === 'BUS_ATTENDANT';
+  const isDriver = user?.role === 'DRIVER';
+  const isAttendant = user?.role === 'BUS_ATTENDANT';
   const { triggerQuickLeaveNotice, isRequesting } = useQuickLeaveNotice();
 
   const [loading, setLoading] = useState(true);
@@ -123,7 +129,11 @@ export default function HomeScreen() {
     }
   };
 
-  const HomeScrollView = isParent ? ParentHomeScrollView : ScrollView;
+  const HomeScrollView = isParent
+    ? ParentHomeScrollView
+    : isDriverOrAttendant
+    ? StaffHomeScrollView
+    : ScrollView;
   const serviceDates = [...new Set(parentCards.map(card => card.serviceDate))];
   return (
     <HomeScrollView
@@ -131,266 +141,75 @@ export default function HomeScreen() {
         fullName: user?.fullName, avatarUrl: user?.avatarUrl,
         onOpenLeave: () => router.push('/leave-notices' as any),
         onChangeStop: () => router.push('/parent/change-stop')
+      } : isDriverOrAttendant ? {
+        fullName: user?.fullName,
+        avatarUrl: user?.avatarUrl,
+        userRole: user?.role,
+        subTitle: homeTrip?.schoolName,
+        onOpenLeave: () => router.push('/leave-notices' as any),
+        onOpenIncident: () => router.push('/incidents' as any),
       } : {})}
-      style={[styles.container, isParent && parentHomeStyles.container]}
-      contentContainerStyle={[styles.content, isParent && parentHomeStyles.content]}
+      style={[styles.container, isParent && parentHomeStyles.container, isDriverOrAttendant && staffHomeStyles.container]}
+      contentContainerStyle={[styles.content, isParent && parentHomeStyles.content, isDriverOrAttendant && staffHomeStyles.content]}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
       }
     >
-      {/* Tiện ích Card (Wireframe 6.1) */}
-      {!isParent && <View style={[styles.utilityCard, isParent && parentHomeStyles.utilityCard]}>
-        <View style={[styles.utilityHeader, isParent && parentHomeStyles.utilityHeader]}>
-          <Text style={[styles.utilityCardTitle, isParent && parentHomeStyles.utilityCardTitle]}>Tiện ích</Text>
-          <TouchableOpacity
-            accessibilityRole={isParent ? "button" : undefined}
-            accessibilityLabel={isParent ? "Làm mới trang chủ" : undefined}
-            style={[styles.refreshIconBtn, isParent && parentHomeStyles.refreshIconBtn]}
-            onPress={onRefresh}
-            hitSlop={isParent ? undefined : { top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="refresh" size={18} color="#64748B" />
-          </TouchableOpacity>
-        </View>
-
-        <View style={[styles.utilityCenter, isParent && parentHomeStyles.utilityCenter]}>
-          <TouchableOpacity
-            style={[styles.utilityActionBtn, isParent && parentHomeStyles.utilityActionBtn]}
-            accessibilityRole={isParent ? 'button' : undefined}
-            accessibilityLabel={isParent ? 'Báo nghỉ' : undefined}
-            onPress={() => router.push('/leave-notices' as any)}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.utilityIconWrap, isParent && parentHomeStyles.utilityIconWrap]}>
-              <Ionicons name="calendar-outline" size={24} color="#1E293B" />
-            </View>
-            <Text style={[styles.utilityActionText, isParent && parentHomeStyles.utilityActionText]}>Báo nghỉ</Text>
-          </TouchableOpacity>
-
-          {(user?.role === 'DRIVER' || user?.role === 'BUS_ATTENDANT') && (
-            <TouchableOpacity
-              style={[styles.utilityActionBtn, isParent && parentHomeStyles.utilityActionBtn]}
-              onPress={() => router.push('/incidents' as any)}
-              activeOpacity={0.8}
-            >
-              <View style={styles.utilityIconWrap}>
-                <Image source={require('@/assets/driver/Incident.png')} style={{ width: 36, height: 36 }} />
-              </View>
-              <Text style={[styles.utilityActionText, isParent && parentHomeStyles.utilityActionText]}>Sự cố</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>}
-
       {/* Main Content Area */}
       {loading ? (
-        <View style={[styles.loadingContainer, isParent && parentHomeStyles.loadingContainer]}>
+        <View style={isParent ? parentHomeStyles.loadingContainer : staffHomeStyles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, isParent && parentHomeStyles.loadingText]}>Đang cập nhật chuyến xe...</Text>
+          <Text style={isParent ? parentHomeStyles.loadingText : staffHomeStyles.loadingText}>
+            Đang cập nhật chuyến xe...
+          </Text>
         </View>
       ) : error ? (
-        <View style={[styles.emptyContainer, isParent && parentHomeStyles.emptyContainer]}>
+        <View style={isParent ? parentHomeStyles.emptyContainer : staffHomeStyles.emptyContainer}>
           <Ionicons name="alert-circle-outline" size={40} color="#EF4444" />
-          <Text style={[styles.emptyTitle, isParent && parentHomeStyles.emptyTitle]}>Lỗi kết nối</Text>
-          <Text style={[styles.emptySubtitle, isParent && parentHomeStyles.emptySubtitle]}>{error}</Text>
-          <TouchableOpacity accessibilityRole={isParent ? 'button' : undefined} style={[styles.actionBtn, isParent && parentHomeStyles.actionBtn]} onPress={loadHomeData}>
-            <Text style={[styles.actionBtnText, isParent && parentHomeStyles.actionBtnText]}>Thử lại</Text>
+          <Text style={isParent ? parentHomeStyles.emptyTitle : staffHomeStyles.emptyTitle}>Lỗi kết nối</Text>
+          <Text style={isParent ? parentHomeStyles.emptySubtitle : staffHomeStyles.emptySubtitle}>{error}</Text>
+          <TouchableOpacity
+            accessibilityRole={isParent ? 'button' : undefined}
+            style={isParent ? parentHomeStyles.actionBtn : staffHomeStyles.primaryBtn}
+            onPress={loadHomeData}
+          >
+            <Text style={isParent ? parentHomeStyles.actionBtnText : staffHomeStyles.primaryBtnText}>Thử lại</Text>
           </TouchableOpacity>
         </View>
-      ) : (user?.role === 'DRIVER' || user?.role === 'BUS_ATTENDANT') ? (
+      ) : isDriverOrAttendant ? (
         /* ================= DRIVER & ATTENDANT HOME (D06: Single Trip) ================= */
         hasHomeTrip && homeTrip ? (
-          <View style={styles.tripCard}>
-            {/* Header: Direction & Status */}
-            <View style={styles.tripCardHeader}>
-              <View
-                style={[
-                  styles.directionPill,
-                  homeTrip.direction === 'TO_SCHOOL' ? styles.dirSchool : styles.dirReturn,
-                ]}
-              >
-                <Ionicons
-                  name={homeTrip.direction === 'TO_SCHOOL' ? 'arrow-forward' : 'arrow-back'}
-                  size={14}
-                  color={homeTrip.direction === 'TO_SCHOOL' ? '#2563EB' : '#D97706'}
-                />
-                <Text
-                  style={[
-                    styles.directionPillText,
-                    homeTrip.direction === 'TO_SCHOOL' ? styles.dirTextSchool : styles.dirTextReturn,
-                  ]}
-                >
-                  {homeTrip.direction === 'TO_SCHOOL' ? 'Đến trường' : 'Về trạm'}
-                </Text>
-              </View>
-
-              <View
-                style={[
-                  styles.statusPill,
-                  homeTrip.assignmentStatus === 'WAITING_ASSIGNMENT'
-                    ? { backgroundColor: '#FEF3C7' }
-                    : { backgroundColor: getStatusBadge(homeTrip.status).bg },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.statusPillText,
-                    homeTrip.assignmentStatus === 'WAITING_ASSIGNMENT'
-                      ? { color: '#B45309' }
-                      : { color: getStatusBadge(homeTrip.status).text },
-                  ]}
-                >
-                  {homeTrip.assignmentStatus === 'WAITING_ASSIGNMENT'
-                    ? 'Chờ phân công'
-                    : getStatusBadge(homeTrip.status).label}
-                </Text>
-              </View>
-            </View>
-
-            {/* Route Name & School */}
-            <Text style={styles.tripRouteName}>{homeTrip.routeName}</Text>
-            <View style={styles.metaRow}>
-              <Image source={require('@/assets/driver/School-icon.png')} style={{ width: 18, height: 18 }} />
-              <Text style={styles.metaText}>{homeTrip.schoolName}</Text>
-            </View>
-
-            {/* Scheduled Time & Service Date */}
-            <View style={styles.timeBadgeContainer}>
-              <View style={styles.timeBadge}>
-                <Image source={require('@/assets/driver/Clock.png')} style={{ width: 16, height: 16 }} />
-                <Text style={styles.timeBadgeText}>{homeTrip.scheduledTime}</Text>
-              </View>
-              <Text style={styles.dateText}>{homeTrip.serviceDate}</Text>
-            </View>
-
-            {/* Info Grid */}
-            <View style={styles.infoGrid}>
-              <View style={styles.infoCol}>
-                <View style={[styles.infoColHeader, { justifyContent: 'center' }]}>
-                  <Image source={require('@/assets/driver/Bus.png')} style={{ width: 16, height: 16 }} />
-                </View>
-                <Text style={[styles.infoColMain, { textAlign: 'center' }]}>{homeTrip.vehiclePlate}</Text>
-                <Text style={[styles.infoColSub, { textAlign: 'center' }]}>
-                  {homeTrip.vehicleSeats} chỗ • {homeTrip.studentCount} HS
-                </Text>
-              </View>
-
-              <View style={styles.infoColDivider} />
-
-              <View style={styles.infoCol}>
-                <View style={[styles.infoColHeader, { justifyContent: 'center' }]}>
-                  <Image source={require('@/assets/driver/Personal-charge.png')} style={{ width: 36, height: 16 }} />
-                </View>
-                <Text style={styles.infoColMain} numberOfLines={1}>
-                  TX: {homeTrip.driver.fullName}
-                  {homeTrip.driver.isCurrentUser ? ' (Bạn)' : ''}
-                </Text>
-                <Text style={styles.infoColSub} numberOfLines={1}>
-                  GV: {homeTrip.busAttendant.fullName}
-                  {homeTrip.busAttendant.isCurrentUser ? ' (Bạn)' : ''}
-                </Text>
-              </View>
-            </View>
-
-            {/* Operational Highlight */}
-            {homeTrip.status === 'SCHEDULED' ? (
-              <View
-                style={[
-                  styles.opsHighlight,
-                  homeTrip.operationalState.isAttendantReady
-                    ? styles.opsHighlightSuccess
-                    : styles.opsHighlightPending,
-                ]}
-              >
-                <Ionicons
-                  name={
-                    homeTrip.operationalState.isAttendantReady
-                      ? 'checkmark-circle-outline'
-                      : 'alert-circle-outline'
-                  }
-                  size={18}
-                  color={homeTrip.operationalState.isAttendantReady ? '#15803D' : '#B45309'}
-                />
-                <Text
-                  style={[
-                    styles.opsHighlightText,
-                    {
-                      color: homeTrip.operationalState.isAttendantReady ? '#15803D' : '#B45309',
-                    },
-                  ]}
-                >
-                  {homeTrip.operationalState.isAttendantReady
-                    ? 'Giáo viên đã xác nhận sẵn sàng khởi hành'
-                    : user?.role === 'BUS_ATTENDANT'
-                      ? 'Vui lòng xác nhận sẵn sàng trước khi xe chạy'
-                      : 'Chờ giáo viên giám sát xác nhận sẵn sàng'}
-                </Text>
-              </View>
-            ) : homeTrip.status === 'IN_PROGRESS' ? (
-              <View style={[styles.opsHighlight, styles.opsHighlightProgress]}>
-                <Ionicons name="radio-button-on" size={18} color="#2563EB" />
-                <Text style={[styles.opsHighlightText, { color: '#1E40AF' }]}>
-                  Điểm danh: {homeTrip.operationalState.markedCount}/
-                  {homeTrip.operationalState.totalStudents} học sinh (
-                  {homeTrip.operationalState.presentCount} có mặt,{' '}
-                  {homeTrip.operationalState.absentCount} vắng)
-                </Text>
-              </View>
-            ) : null}
-
-            {/* View Detail Action Button & Báo nghỉ Button */}
-            <View style={{ gap: 8 }}>
-              <TouchableOpacity
-                style={styles.primaryBtn}
-                onPress={() => router.push(`/trip/${homeTrip.id}` as any)}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.primaryBtnText}>Xem chi tiết & Vận hành</Text>
-                <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-              </TouchableOpacity>
-
-              {homeTrip.canReportLeave && (
-                <TouchableOpacity
-                  style={styles.leaveNoticeCardBtn}
-                  disabled={isRequesting(homeTrip.id)}
-                  onPress={() =>
-                    triggerQuickLeaveNotice({
-                      tripId: homeTrip.id,
-                      subjectName: user?.fullName || 'Nhân sự',
-                      routeName: homeTrip.routeName,
-                      serviceDate: homeTrip.serviceDate,
-                      direction: homeTrip.direction,
-                      onSuccess: () => loadHomeData(),
-                    })
-                  }
-                  activeOpacity={0.8}
-                >
-                  {isRequesting(homeTrip.id) ? (
-                    <ActivityIndicator size="small" color="#D97706" />
-                  ) : (
-                    <>
-                      <Image source={require('@/assets/driver/leave.png')} style={{ width: 26, height: 26 }} />
-
-                      <Text style={styles.leaveNoticeCardBtnText}>Báo nghỉ chuyến này</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
+          <StaffTripCard
+            role={user?.role}
+            trip={homeTrip}
+            onViewDetail={() => router.push(`/trip/${homeTrip.id}` as any)}
+            onReportLeave={() =>
+              triggerQuickLeaveNotice({
+                tripId: homeTrip.id,
+                subjectName: user?.fullName || 'Nhân sự',
+                routeName: homeTrip.routeName,
+                serviceDate: homeTrip.serviceDate,
+                direction: homeTrip.direction,
+                onSuccess: () => loadHomeData(),
+              })
+            }
+            isReportingLeave={isRequesting(homeTrip.id)}
+            canReportLeave={Boolean(homeTrip.canReportLeave)}
+            getStatusBadge={getStatusBadge}
+          />
         ) : (
-          <View style={styles.emptyContainer}>
+          <View style={staffHomeStyles.emptyContainer}>
             <Ionicons name="bus-outline" size={48} color="#94A3B8" />
-            <Text style={styles.emptyTitle}>Không có chuyến xe cần vận hành</Text>
-            <Text style={styles.emptySubtitle}>
+            <Text style={staffHomeStyles.emptyTitle}>Không có chuyến xe cần vận hành</Text>
+            <Text style={staffHomeStyles.emptySubtitle}>
               Hiện không có chuyến xe nào trong khung giờ hoạt động hoặc chuyến xe hôm nay đã hoàn thành.
             </Text>
             <TouchableOpacity
-              style={styles.secondaryBtn}
+              style={staffHomeStyles.secondaryBtn}
               onPress={() => router.push('/(tabs)/schedule' as any)}
             >
               <Ionicons name="calendar-outline" size={16} color="#1E293B" />
-              <Text style={styles.secondaryBtnText}>Xem toàn bộ lịch trình</Text>
+              <Text style={staffHomeStyles.secondaryBtnText}>Xem toàn bộ lịch trình</Text>
             </TouchableOpacity>
           </View>
         )
