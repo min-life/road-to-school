@@ -1,3 +1,5 @@
+import { AppAlert as Alert } from '@/services/app-alert';
+import { AppModal as Modal } from '@/components/app-alert';
 import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
@@ -11,8 +13,6 @@ import {
   Dimensions,
   PanResponder,
   TextInput,
-  Modal,
-  Alert,
   Keyboard,
   Pressable,
 } from 'react-native';
@@ -1411,14 +1411,18 @@ export default function MobileTripDetailScreen() {
                       stop.stopType === 'SCHOOL_ARRIVAL' || stop.stopType === 'SCHOOL_DEPARTURE';
 
                     return (
-                      <View key={stop.id || idx} style={styles.stopCard}>
-                        <View style={styles.stopOrderCircle}>
-                          <Text style={styles.stopOrderText}>{stop.stopOrder}</Text>
+                      <View key={stop.id || idx} style={[styles.stopTimelineRow,
+                        idx === visibleStops.length - 1 && styles.stopTimelineLastRow]}>
+                        <View style={styles.stopTimelineRail}>
+                          {idx < visibleStops.length - 1 && <View style={styles.stopTimelineConnector} />}
+                          <View style={styles.stopOrderCircle}>
+                            <Text style={styles.stopOrderText}>{stop.stopOrder}</Text>
+                          </View>
                         </View>
 
-                        <View style={{ flex: 1 }}>
+                        <View style={styles.stopCard}>
                           <View style={styles.stopHeaderRow}>
-                            <Text style={styles.stopName} numberOfLines={1}>
+                            <Text style={styles.stopName}>
                               {isParking
                                 ? 'Bãi xe trung tâm'
                                 : isSchool
@@ -1431,7 +1435,7 @@ export default function MobileTripDetailScreen() {
                             ) : null}
                           </View>
 
-                          <Text style={styles.stopAddress} numberOfLines={2}>
+                          <Text style={styles.stopAddress}>
                             {stop.addressText}
                           </Text>
 
@@ -3015,15 +3019,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#64748B',
   },
+  stopTimelineRow: { flexDirection: 'row', alignItems: 'stretch', gap: 12, paddingBottom: 16 },
+  stopTimelineLastRow: { paddingBottom: 0 },
+  stopTimelineRail: { width: 26, alignItems: 'center', paddingTop: 12 },
+  // Extend through the row gap; card height can grow with its content.
+  stopTimelineConnector: { position: 'absolute', top: 42, bottom: -24, width: 2, backgroundColor: colors.border },
   stopCard: {
-    flexDirection: 'row',
-    gap: 12,
+    flex: 1,
+    minWidth: 0,
     padding: 12,
     backgroundColor: '#F8FAFC',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginBottom: 8,
   },
   stopOrderCircle: {
     width: 26,
@@ -3041,23 +3049,32 @@ const styles = StyleSheet.create({
   stopHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+    gap: 6,
   },
   stopName: {
     fontSize: 13,
     fontWeight: '700',
     color: '#0F172A',
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 120,
+    lineHeight: 19,
   },
   stopEta: {
     fontSize: 12,
     fontWeight: '600',
     color: '#2563EB',
+    lineHeight: 19,
+    flexShrink: 0,
+    maxWidth: '100%',
   },
   stopAddress: {
     fontSize: 12,
     color: '#64748B',
     marginTop: 2,
+    lineHeight: 18,
   },
   childAttendanceStatusBox: {
     flexDirection: 'row',
@@ -3069,12 +3086,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 6,
     alignSelf: 'flex-start',
+    maxWidth: '100%',
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
   childAttendanceStatusText: {
     fontSize: 11,
     fontWeight: '600',
+    lineHeight: 16,
+    flexShrink: 1,
   },
   emptyStopsText: {
     textAlign: 'center',

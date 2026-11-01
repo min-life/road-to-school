@@ -38,7 +38,9 @@ export function useParentJourneyTelemetry(identity: string, cards: ParentHomeCar
     if (!ids.length) return false;
     const entries = await Promise.all(ids.map(async id => {
       const previous = cache.current.identity === identity ? cache.current.trips[id] : undefined;
-      const readDetail = immediate || !previous?.detail || Date.now() - (previous.metadataAt ?? 0) >= 20000;
+      // PARENT operational-state omits readiness; refresh its detail source while waiting.
+      const waiting = (previous?.operation?.status ?? cards.find(card => card.tripId === id)?.tripStatus) === 'SCHEDULED';
+      const readDetail = immediate || !previous?.detail || Date.now() - (previous.metadataAt ?? 0) >= (waiting ? 5000 : 20000);
       const [operation, incidents, detail] = await Promise.allSettled([
         mobileApiClient.getOperationalState(id),
         mobileApiClient.getTripIncidents(id),

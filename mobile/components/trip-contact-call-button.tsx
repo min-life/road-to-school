@@ -1,5 +1,6 @@
+import { AppAlert as Alert } from '@/services/app-alert';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors } from '@/constants/theme';
 import { phoneDialUrl } from '@/utils/phone-link';

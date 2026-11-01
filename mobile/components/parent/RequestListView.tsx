@@ -1,3 +1,4 @@
+import { AppAlert as Alert } from '@/services/app-alert';
 import React, { useState, useCallback, useRef } from 'react';
 import {
   StyleSheet,
@@ -8,14 +9,14 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Alert,
   useWindowDimensions,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors } from '@/constants/theme';
-import { AppHeader, HeaderAction } from '@/components/navigation/app-header';
+import { AppHeader } from '@/components/navigation/app-header';
+import { FloatingAddButton, FLOATING_ADD_CONTENT_INSET } from '@/components/navigation/floating-add-button';
 import { requestHistoryStyles as historyStyles } from '@/constants/request-history-styles';
 import { listLinkedStudentRequests } from '@/services/parent-request-history';
 import {
@@ -276,16 +277,16 @@ export function RequestListView({
       <Text style={[styles.emptyTitle, isHistoryAppearance && historyStyles.emptyTitle]}>Chưa có yêu cầu nào</Text>
       <Text style={[styles.emptySubtitle, isHistoryAppearance && historyStyles.emptySubtitle,
         isHistoryAppearance && { minHeight: historyStyles.emptySubtitle.lineHeight * 2 * fontScale }]}>{emptyMessage}</Text>
-      <TouchableOpacity
+      {!isHistoryAppearance && <TouchableOpacity
         accessibilityRole="button"
         accessibilityLabel={createButtonLabel}
-        style={[styles.createFirstButton, isHistoryAppearance && student?.status === 'DISABLED' && historyStyles.disabled]}
+        style={styles.createFirstButton}
         onPress={handleCreateRequest}
         disabled={student?.status === 'DISABLED'}
       >
         <Ionicons name="add-circle-outline" size={18} color="#1E293B" />
         <Text style={styles.createFirstButtonText}>{createButtonLabel}</Text>
-      </TouchableOpacity>
+      </TouchableOpacity>}
     </View>
   );
 
@@ -293,9 +294,7 @@ export function RequestListView({
     <View style={styles.container}>
       {/* Header */}
       {isHistoryAppearance ? (
-        <AppHeader title={title} subtitle={student?.fullName} onBack={() => router.back()}
-          actions={<HeaderAction icon="add" label={createButtonLabel}
-            onPress={handleCreateRequest} disabled={student?.status === 'DISABLED'} />} />
+        <AppHeader title={title} subtitle={student?.fullName} onBack={() => router.back()} />
       ) : (
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
@@ -367,7 +366,7 @@ export function RequestListView({
       {/* Main Content / Vertical List */}
       {isLoading || error || requests.length === 0 ? (
         isHistoryAppearance ? (
-          <ScrollView contentContainerStyle={[historyStyles.content, { paddingBottom: insets.bottom + 24 }]}
+          <ScrollView contentContainerStyle={[historyStyles.content, { paddingBottom: insets.bottom + FLOATING_ADD_CONTENT_INSET }]}
             refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => fetchRequests(1, true)} tintColor={colors.primary} />}>
             {stateContent}
           </ScrollView>
@@ -379,7 +378,7 @@ export function RequestListView({
           renderItem={renderRequestItem}
           contentContainerStyle={[
             styles.listContent,
-            { paddingBottom: insets.bottom + 24 },
+            { paddingBottom: insets.bottom + (isHistoryAppearance ? FLOATING_ADD_CONTENT_INSET : 24) },
           ]}
           refreshControl={
             <RefreshControl
@@ -423,6 +422,8 @@ export function RequestListView({
           }
         />
       )}
+      {isHistoryAppearance && <FloatingAddButton label={createButtonLabel} onPress={handleCreateRequest}
+        disabled={student?.status === 'DISABLED'} bottom={insets.bottom + 16} right={insets.right + 20} />}
     </View>
   );
 }

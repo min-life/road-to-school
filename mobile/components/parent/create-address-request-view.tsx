@@ -1,3 +1,4 @@
+import { AppAlert as Alert } from '@/services/app-alert';
 import { AppHeader } from '@/components/navigation/app-header';
 import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
@@ -8,8 +9,7 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
-} from 'react-native';
+  } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -206,6 +206,7 @@ export function CreateAddressRequestView({ fixedStudentId }: { fixedStudentId?: 
           challengeId: otpRes.challengeId,
           maskedPhone: otpRes.maskedPhone,
           proposedDataJson: JSON.stringify(proposedData),
+          studentName: student.fullName,
         },
       });
     } catch (err: any) {
@@ -243,14 +244,6 @@ export function CreateAddressRequestView({ fixedStudentId }: { fixedStudentId?: 
               <Text style={styles.retryText}>Thử lại</Text>
             </TouchableOpacity>
           </View> : isStudentUnavailable ? <Text style={styles.errorText}>Học sinh đã bị vô hiệu hóa</Text> : null}
-
-          {/* Notice Card */}
-          <View style={styles.noticeCard}>
-            <Ionicons name="information-circle-outline" size={18} color="#1D4ED8" />
-            <Text style={styles.noticeText}>
-              Địa chỉ mới sẽ được kiểm tra và tích hợp vào tuyến xe buýt của học sinh sau khi được phê duyệt.
-            </Text>
-          </View>
 
           {/* 1. Current Address Card */}
           <View style={styles.card}>

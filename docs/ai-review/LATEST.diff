@@ -1,1 +1,816 @@
-No code changes for this task. This delivery commits previously implemented application changes and their documentation; see archived task diffs and the resulting Git commit.
+--- a/mobile/context/notifications-context.tsx
++++ b/mobile/context/notifications-context.tsx
+@@ -1,5 +1,6 @@
++import { AppAlert as Alert } from '@/services/app-alert';
+ import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+-import { Alert, AppState, Platform } from 'react-native';
++import { AppState, Platform } from 'react-native';
+ import Constants from 'expo-constants';
+ import { isRunningInExpoGo } from 'expo';
+ import * as SecureStore from 'expo-secure-store';
+--- a/mobile/hooks/use-quick-leave-notice.ts
++++ b/mobile/hooks/use-quick-leave-notice.ts
+@@ -1,5 +1,6 @@
++import { AppAlert as Alert } from '@/services/app-alert';
+ import { useState, useCallback } from 'react';
+-import { Alert } from 'react-native';
++
+ import { useRouter } from 'expo-router';
+ import { mobileApiClient } from '@/services/api-client';
+ 
+--- a/mobile/components/trip-contact-call-button.tsx
++++ b/mobile/components/trip-contact-call-button.tsx
+@@ -1,5 +1,6 @@
++import { AppAlert as Alert } from '@/services/app-alert';
+ import { useRef, useState } from 'react';
+-import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet } from 'react-native';
++import { ActivityIndicator, Linking, Pressable, StyleSheet } from 'react-native';
+ import Ionicons from '@expo/vector-icons/Ionicons';
+ import { colors } from '@/constants/theme';
+ import { phoneDialUrl } from '@/utils/phone-link';
+--- a/mobile/components/StudentCard.tsx
++++ b/mobile/components/StudentCard.tsx
+@@ -1,3 +1,4 @@
++import { AppAlert as Alert } from '@/services/app-alert';
+ import React, { useRef } from 'react';
+ import {
+   StyleSheet,
+@@ -7,8 +8,7 @@
+   Animated,
+   PanResponder,
+   Image,
+-  Alert,
+-} from 'react-native';
++  } from 'react-native';
+ import Ionicons from '@expo/vector-icons/Ionicons';
+ import { colors } from '@/constants/theme';
+ import type { ParentLinkedStudentItem } from '@/services/api-client';
+--- a/mobile/components/parent/student-picker-dialog.tsx
++++ b/mobile/components/parent/student-picker-dialog.tsx
+@@ -1,5 +1,6 @@
++import { AppModal as Modal } from '@/components/app-alert';
+ import { useState } from 'react';
+-import { ActivityIndicator, Keyboard, Modal, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
++import { ActivityIndicator, Keyboard, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+ import { useSafeAreaInsets } from 'react-native-safe-area-context';
+ import Ionicons from '@expo/vector-icons/Ionicons';
+ import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+--- a/mobile/components/parent/RequestListView.tsx
++++ b/mobile/components/parent/RequestListView.tsx
+@@ -1,3 +1,4 @@
++import { AppAlert as Alert } from '@/services/app-alert';
+ import React, { useState, useCallback, useRef } from 'react';
+ import {
+   StyleSheet,
+@@ -8,7 +9,6 @@
+   TouchableOpacity,
+   ActivityIndicator,
+   RefreshControl,
+-  Alert,
+   useWindowDimensions,
+ } from 'react-native';
+ import { useFocusEffect, useRouter } from 'expo-router';
+--- a/mobile/components/parent/create-address-request-view.tsx
++++ b/mobile/components/parent/create-address-request-view.tsx
+@@ -1,3 +1,4 @@
++import { AppAlert as Alert } from '@/services/app-alert';
+ import { AppHeader } from '@/components/navigation/app-header';
+ import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+ import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+@@ -8,8 +9,7 @@
+   TextInput,
+   TouchableOpacity,
+   ActivityIndicator,
+-  Alert,
+-} from 'react-native';
++  } from 'react-native';
+ import { useRouter } from 'expo-router';
+ import { useSafeAreaInsets } from 'react-native-safe-area-context';
+ import Ionicons from '@expo/vector-icons/Ionicons';
+--- a/mobile/app/_layout.tsx
++++ b/mobile/app/_layout.tsx
+@@ -1,8 +1,10 @@
++import { AppAlert as Alert } from '@/services/app-alert';
++import { AppAlertRoot } from '@/components/app-alert';
+ import { useFonts } from 'expo-font';
+ import { DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
+ import * as SplashScreen from 'expo-splash-screen';
+ import { useEffect } from 'react';
+-import { View, Alert } from 'react-native';
++import { View } from 'react-native';
+ import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
+ import 'react-native-reanimated';
+ import { colors } from '@/constants/theme';
+@@ -153,11 +155,11 @@
+ 
+   return (
+     <ThemeProvider value={RoadToSchoolTheme}>
+-      <AuthProvider>
++      <AppAlertRoot><AuthProvider>
+         <OnboardingProvider>
+           <NotificationsProvider><RootNavigation /></NotificationsProvider>
+         </OnboardingProvider>
+-      </AuthProvider>
++      </AuthProvider></AppAlertRoot>
+     </ThemeProvider>
+   );
+ }
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -1,3 +1,5 @@
++import { AppAlert as Alert } from '@/services/app-alert';
++import { AppModal as Modal } from '@/components/app-alert';
+ import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+ import {
+@@ -11,8 +13,6 @@
+   Dimensions,
+   PanResponder,
+   TextInput,
+-  Modal,
+-  Alert,
+   Keyboard,
+   Pressable,
+ } from 'react-native';
+--- a/mobile/app/parent/verify-otp.tsx
++++ b/mobile/app/parent/verify-otp.tsx
+@@ -1,3 +1,4 @@
++import { AppAlert as Alert } from '@/services/app-alert';
+ import { useSafeAreaInsets } from 'react-native-safe-area-context';
+ import { OtpHero } from '@/components/auth/otp-hero';
+ import { otpStyles } from '@/constants/otp-styles';
+@@ -11,8 +12,7 @@
+   TextInput,
+   TouchableOpacity,
+   ActivityIndicator,
+-  Alert,
+-} from 'react-native';
++  } from 'react-native';
+ import { useRouter, useLocalSearchParams } from 'expo-router';
+ import Ionicons from '@expo/vector-icons/Ionicons';
+ import { colors } from '@/constants/theme';
+--- a/mobile/app/notifications.tsx
++++ b/mobile/app/notifications.tsx
+@@ -1,6 +1,7 @@
++import { AppAlert as Alert } from '@/services/app-alert';
+ import { AppHeader, HeaderAction } from '@/components/navigation/app-header';
+ import { useState } from 'react';
+-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, Alert } from 'react-native';
++import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, } from 'react-native';
+ import { useSafeAreaInsets } from 'react-native-safe-area-context';
+ import { useRouter } from 'expo-router';
+ import Ionicons from '@expo/vector-icons/Ionicons';
+--- a/mobile/app/parent/update-requests/detail/[requestId].tsx
++++ b/mobile/app/parent/update-requests/detail/[requestId].tsx
+@@ -1,3 +1,4 @@
++import { AppAlert as Alert } from '@/services/app-alert';
+ import { AppHeader } from '@/components/navigation/app-header';
+ import React, { useState, useEffect } from 'react';
+ import {
+@@ -7,8 +8,7 @@
+   ScrollView,
+   TouchableOpacity,
+   ActivityIndicator,
+-  Alert,
+-} from 'react-native';
++  } from 'react-native';
+ import { useRouter, useLocalSearchParams } from 'expo-router';
+ import { useSafeAreaInsets } from 'react-native-safe-area-context';
+ import Ionicons from '@expo/vector-icons/Ionicons';
+--- a/mobile/app/leave-notices/[id].tsx
++++ b/mobile/app/leave-notices/[id].tsx
+@@ -1,3 +1,4 @@
++import { AppAlert as Alert } from '@/services/app-alert';
+ import { AppHeader } from '@/components/navigation/app-header';
+ import React, { useState, useEffect, useCallback } from 'react';
+ import {
+@@ -7,8 +8,7 @@
+   ScrollView,
+   TouchableOpacity,
+   ActivityIndicator,
+-  Alert,
+-} from 'react-native';
++  } from 'react-native';
+ import { useRouter, useLocalSearchParams } from 'expo-router';
+ import { useSafeAreaInsets } from 'react-native-safe-area-context';
+ import Ionicons from '@expo/vector-icons/Ionicons';
+--- a/mobile/app/leave-notices/otp.tsx
++++ b/mobile/app/leave-notices/otp.tsx
+@@ -1,3 +1,4 @@
++import { AppAlert as Alert } from '@/services/app-alert';
+ import { useSafeAreaInsets } from 'react-native-safe-area-context';
+ import { OtpHero } from '@/components/auth/otp-hero';
+ import { otpStyles } from '@/constants/otp-styles';
+@@ -11,8 +12,7 @@
+   TouchableOpacity,
+   ActivityIndicator,
+   TextInput,
+-  Alert,
+-} from 'react-native';
++  } from 'react-native';
+ import { useRouter, useLocalSearchParams } from 'expo-router';
+ import Ionicons from '@expo/vector-icons/Ionicons';
+ import { colors } from '@/constants/theme';
+--- a/mobile/app/leave-notices/index.tsx
++++ b/mobile/app/leave-notices/index.tsx
+@@ -1,3 +1,4 @@
++import { AppAlert as Alert } from '@/services/app-alert';
+ import { AppHeader } from '@/components/navigation/app-header';
+ import { FloatingAddButton, FLOATING_ADD_CONTENT_INSET } from '@/components/navigation/floating-add-button';
+ import React, { useState, useEffect, useCallback } from 'react';
+@@ -9,8 +10,7 @@
+   TouchableOpacity,
+   ActivityIndicator,
+   RefreshControl,
+-  Alert,
+-} from 'react-native';
++  } from 'react-native';
+ import { useRouter, useLocalSearchParams } from 'expo-router';
+ import { useSafeAreaInsets } from 'react-native-safe-area-context';
+ import Ionicons from '@expo/vector-icons/Ionicons';
+--- a/mobile/app/leave-notices/create.tsx
++++ b/mobile/app/leave-notices/create.tsx
+@@ -1,3 +1,5 @@
++import { AppAlert as Alert } from '@/services/app-alert';
++import { AppModal as Modal } from '@/components/app-alert';
+ import { AppHeader } from '@/components/navigation/app-header';
+ import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+ import React, { useState, useEffect, useMemo, useRef } from 'react';
+@@ -8,9 +10,7 @@
+   TouchableOpacity,
+   ActivityIndicator,
+   TextInput,
+-  Alert,
+-  Modal,
+-} from 'react-native';
++  } from 'react-native';
+ import { useRouter, useLocalSearchParams } from 'expo-router';
+ import { useSafeAreaInsets } from 'react-native-safe-area-context';
+ import Ionicons from '@expo/vector-icons/Ionicons';
+--- a/mobile/app/incidents/[id].tsx
++++ b/mobile/app/incidents/[id].tsx
+@@ -1,3 +1,5 @@
++import { AppAlert as Alert } from '@/services/app-alert';
++import { AppModal as Modal } from '@/components/app-alert';
+ import { AppHeader } from '@/components/navigation/app-header';
+ import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+ import React, { useState, useEffect, useCallback } from 'react';
+@@ -8,8 +10,6 @@
+   ScrollView,
+   TouchableOpacity,
+   ActivityIndicator,
+-  Alert,
+-  Modal,
+   TextInput,
+   Keyboard,
+   Pressable,
+--- a/mobile/app/parent/student-detail/[id].tsx
++++ b/mobile/app/parent/student-detail/[id].tsx
+@@ -1,3 +1,4 @@
++import { AppAlert as Alert } from '@/services/app-alert';
+ import { AppHeader } from '@/components/navigation/app-header';
+ import React, { useState, useEffect, useCallback } from 'react';
+ import {
+@@ -8,8 +9,7 @@
+   TouchableOpacity,
+   ActivityIndicator,
+   Image,
+-  Alert,
+-} from 'react-native';
++  } from 'react-native';
+ import { useRouter, useLocalSearchParams } from 'expo-router';
+ import { useSafeAreaInsets } from 'react-native-safe-area-context';
+ import Ionicons from '@expo/vector-icons/Ionicons';
+--- a/mobile/app/parent/link-student.tsx
++++ b/mobile/app/parent/link-student.tsx
+@@ -1,3 +1,4 @@
++import { AppAlert as Alert } from '@/services/app-alert';
+ import { AppHeader } from '@/components/navigation/app-header';
+ import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+ import React, { useState, useRef, useCallback } from 'react';
+@@ -9,8 +10,7 @@
+   TouchableOpacity,
+   ActivityIndicator,
+   Platform,
+-  Alert,
+-} from 'react-native';
++  } from 'react-native';
+ import { useRouter } from 'expo-router';
+ import Ionicons from '@expo/vector-icons/Ionicons';
+ import { CameraView, useCameraPermissions } from 'expo-camera';
+--- a/mobile/app/(tabs)/tracking.tsx
++++ b/mobile/app/(tabs)/tracking.tsx
+@@ -1,3 +1,4 @@
++import { AppAlert as Alert } from '@/services/app-alert';
+ import { NotificationBell } from '@/components/notification-bell';
+ import React, { useState, useEffect, useCallback } from 'react';
+ import {
+@@ -8,8 +9,7 @@
+   RefreshControl,
+   TouchableOpacity,
+   ActivityIndicator,
+-  Alert,
+-} from 'react-native';
++  } from 'react-native';
+ import { useRouter } from 'expo-router';
+ import { AppHeader } from '@/components/navigation/app-header';
+ import Ionicons from '@expo/vector-icons/Ionicons';
+--- a/mobile/app/(tabs)/settings.tsx
++++ b/mobile/app/(tabs)/settings.tsx
+@@ -1,3 +1,5 @@
++import { AppAlert as Alert } from '@/services/app-alert';
++import { AppModal as Modal } from '@/components/app-alert';
+ import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+ import React, { useRef, useState } from 'react';
+ import {
+@@ -7,8 +9,6 @@
+   ScrollView,
+   TouchableOpacity,
+   ActivityIndicator,
+-  Alert,
+-  Modal,
+   TextInput,
+   Platform,
+   Switch,
+--- a/mobile/app/parent/create-request/verify-otp.tsx
++++ b/mobile/app/parent/create-request/verify-otp.tsx
+@@ -1,3 +1,4 @@
++import { AppAlert as Alert } from '@/services/app-alert';
+ import { OtpHero } from '@/components/auth/otp-hero';
+ import { otpStyles } from '@/constants/otp-styles';
+ import { AppHeader } from '@/components/navigation/app-header';
+@@ -10,8 +11,7 @@
+   TextInput,
+   TouchableOpacity,
+   ActivityIndicator,
+-  Alert,
+-} from 'react-native';
++  } from 'react-native';
+ import { useRouter, useLocalSearchParams } from 'expo-router';
+ import { useSafeAreaInsets } from 'react-native-safe-area-context';
+ import Ionicons from '@expo/vector-icons/Ionicons';
+--- a/mobile/app/parent/create-request/information/[studentId].tsx
++++ b/mobile/app/parent/create-request/information/[studentId].tsx
+@@ -1,3 +1,4 @@
++import { AppAlert as Alert } from '@/services/app-alert';
+ import { AppHeader } from '@/components/navigation/app-header';
+ import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+ import React, { useState, useEffect } from 'react';
+@@ -8,8 +9,7 @@
+   TextInput,
+   TouchableOpacity,
+   ActivityIndicator,
+-  Alert,
+-} from 'react-native';
++  } from 'react-native';
+ import { useRouter, useLocalSearchParams } from 'expo-router';
+ import { useSafeAreaInsets } from 'react-native-safe-area-context';
+ import Ionicons from '@expo/vector-icons/Ionicons';
+--- /dev/null
++++ b/mobile/utils/app-alert-store.ts
+@@ -0,0 +1,65 @@
++import type { AlertButton, AlertOptions } from 'react-native';
++
++export type AppAlertRequest = {
++  id: number;
++  title: string;
++  message?: string;
++  buttons: readonly AlertButton[];
++  options: AlertOptions;
++};
++
++/** Presentation queue only. Dismissing never confirms an action. */
++export function createAppAlertStore() {
++  let nextId = 0;
++  let snapshot: { queue: readonly AppAlertRequest[]; hosts: readonly string[] } = { queue: [], hosts: [] };
++  const listeners = new Set<() => void>();
++  const publish = (next: typeof snapshot) => {
++    snapshot = next;
++    listeners.forEach(listener => listener());
++  };
++  const current = (id: number) => snapshot.queue[0]?.id === id ? snapshot.queue[0] : undefined;
++  return {
++    getSnapshot: () => snapshot,
++    subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
++    alert(title: string, message?: string, buttons?: AlertButton[], options?: AlertOptions) {
++      // Camera/polling callbacks may repeat the same alert before it is acknowledged.
++      if (snapshot.queue.some(item => item.title === title && item.message === message
++        && item.options.onDismiss === options?.onDismiss && item.options.cancelable === options?.cancelable
++        && item.buttons.length === (buttons?.length || 1)
++        && item.buttons.every((button, index) => buttons?.length
++          ? button.text === buttons[index].text && button.style === buttons[index].style && button.onPress === buttons[index].onPress
++          : button.text === 'Đã hiểu' && !button.onPress))) return;
++      const request: AppAlertRequest = { id: ++nextId, title, message,
++        buttons: buttons?.length ? buttons.map(button => ({ ...button })) : [{ text: 'Đã hiểu' }],
++        options: { ...options } };
++      publish({ ...snapshot, queue: [...snapshot.queue, request] });
++    },
++    press(id: number, index: number) {
++      const request = current(id), button = request?.buttons[index];
++      if (!request || !button) return;
++      publish({ ...snapshot, queue: snapshot.queue.slice(1) });
++      button.onPress?.();
++    },
++    dismiss(id: number) {
++      const request = current(id);
++      if (!request || request.options.cancelable !== true) return;
++      publish({ ...snapshot, queue: snapshot.queue.slice(1) });
++      request.options.onDismiss?.();
++    },
++    registerHost(id: string) {
++      publish({ ...snapshot, hosts: [...snapshot.hosts, id] });
++      return () => publish({ ...snapshot, hosts: snapshot.hosts.filter(host => host !== id) });
++    },
++  };
++}
++
++export type AppAlertTone = 'info' | 'success' | 'danger' | 'warning';
++
++/** Chooses decoration only; no title, message, callback or business state is changed. */
++export function appAlertTone(title: string, destructive: boolean): AppAlertTone {
++  if (destructive) return 'warning';
++  if (/thành công|đã gửi|đã hoàn tất|đã hủy/iu.test(title)) return 'success';
++  if (/lỗi|không|thất bại|hết hạn/iu.test(title)) return 'danger';
++  if (/lưu ý|bắt buộc|quá lớn/iu.test(title)) return 'warning';
++  return 'info';
++}
+--- /dev/null
++++ b/mobile/services/app-alert.ts
+@@ -0,0 +1,5 @@
++import { createAppAlertStore } from '@/utils/app-alert-store';
++
++export const appAlertStore = createAppAlertStore();
++/** Explicit replacement for app-owned Alert.alert calls; native APIs are never patched. */
++export const AppAlert = { alert: appAlertStore.alert };
+--- /dev/null
++++ b/mobile/components/app-alert.tsx
+@@ -0,0 +1,153 @@
++import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ComponentRef, type ReactNode } from 'react';
++import { AccessibilityInfo, BackHandler, Keyboard, Modal as NativeModal, Platform, Pressable,
++  ScrollView, StyleSheet, Text, View, findNodeHandle, useWindowDimensions, type ModalProps } from 'react-native';
++import { useSafeAreaInsets } from 'react-native-safe-area-context';
++import Ionicons from '@expo/vector-icons/Ionicons';
++import { colors } from '@/constants/theme';
++import { journeyTones } from '@/constants/parent-journey';
++import { appAlertStore } from '@/services/app-alert';
++import { appAlertTone, type AppAlertRequest } from '@/utils/app-alert-store';
++
++function useHostRequest(host?: string) {
++  const snapshot = useSyncExternalStore(appAlertStore.subscribe, appAlertStore.getSnapshot, appAlertStore.getSnapshot);
++  return { request: snapshot.hosts.at(-1) === host ? snapshot.queue[0] : undefined,
++    hasAlert: snapshot.queue.length > 0 };
++}
++
++/** Root JS overlay avoids presenting a second native modal during a form's dismissal. */
++export function AppAlertRoot({ children }: { children: ReactNode }) {
++  const { request, hasAlert } = useHostRequest();
++  return <View style={styles.scope}>
++    <View style={styles.scope} accessibilityElementsHidden={hasAlert}
++      importantForAccessibility={hasAlert ? 'no-hide-descendants' : 'auto'} aria-hidden={hasAlert}>
++      {children}
++    </View>
++    {request && <AppAlertSurface key={request.id} request={request} />}
++  </View>;
++}
++
++/** Hosts app alerts inside the currently visible native form/QR/picker modal. */
++export function AppModal({ children, visible = true, onRequestClose, ...props }: ModalProps) {
++  const host = useId();
++  const { request, hasAlert } = useHostRequest(host);
++  useLayoutEffect(() => visible ? appAlertStore.registerHost(host) : undefined, [host, visible]);
++  return <NativeModal {...props} visible={visible} onRequestClose={event => {
++    if (request) { appAlertStore.dismiss(request.id); return; }
++    onRequestClose?.(event);
++  }}>
++    <View style={styles.scope}>
++      <View style={styles.scope} accessibilityElementsHidden={hasAlert}
++        importantForAccessibility={hasAlert ? 'no-hide-descendants' : 'auto'} aria-hidden={hasAlert}>
++        {children}
++      </View>
++      {request && <AppAlertSurface key={request.id} request={request} />}
++    </View>
++  </NativeModal>;
++}
++
++function AppAlertSurface({ request }: { request: AppAlertRequest }) {
++  const insets = useSafeAreaInsets();
++  const { height, width, fontScale } = useWindowDimensions();
++  const card = useRef<ComponentRef<typeof View>>(null);
++  const heading = useRef<ComponentRef<typeof Text>>(null);
++  const actions = useRef<(ComponentRef<typeof View> | null)[]>([]);
++  const [focused, setFocused] = useState<number | null>(null);
++  const destructive = request.buttons.some(button => button.style === 'destructive');
++  const tone = appAlertTone(request.title, destructive);
++  const palette = tone === 'info' || tone === 'warning' ? journeyTones.warning : journeyTones[tone];
++  const icon = tone === 'success' ? 'checkmark-circle-outline' : tone === 'danger' ? 'alert-circle-outline'
++    : tone === 'warning' ? 'warning-outline' : 'information-circle-outline';
++  const preferred = Math.max(0, request.buttons.findIndex(button => destructive ? button.style === 'cancel' : button.style !== 'cancel'));
++  const stacked = request.buttons.length > 2 || width < 360 || fontScale >= 1.4;
++
++  useEffect(() => {
++    const previous = Platform.OS === 'web' ? document.activeElement as HTMLElement | null : null;
++    Keyboard.dismiss();
++    const frame = requestAnimationFrame(() => {
++      if (Platform.OS === 'web') {
++        const button = actions.current[preferred] as unknown as HTMLElement | null;
++        const container = card.current as unknown as HTMLElement | null;
++        const bounds = container?.getBoundingClientRect(), actionBounds = button?.getBoundingClientRect();
++        // Long messages open at their heading instead of auto-scrolling to the last button.
++        if (bounds && actionBounds && actionBounds.top >= bounds.top && actionBounds.bottom <= bounds.bottom) button?.focus();
++        else container?.focus();
++      } else {
++        const target = findNodeHandle(heading.current);
++        if (target) AccessibilityInfo.setAccessibilityFocus(target);
++      }
++    });
++    const back = BackHandler.addEventListener('hardwareBackPress', () => { appAlertStore.dismiss(request.id); return true; });
++    const keydown = (event: KeyboardEvent) => {
++      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); appAlertStore.dismiss(request.id); }
++      if (event.key !== 'Tab') return;
++      const container = card.current as unknown as HTMLElement | null;
++      const focusable = Array.from(container?.querySelectorAll<HTMLElement>('[tabindex="0"],button') ?? []);
++      if (!focusable.length) return;
++      event.preventDefault();
++      const current = focusable.indexOf(document.activeElement as HTMLElement);
++      focusable[(current + (event.shiftKey ? -1 : 1) + focusable.length) % focusable.length].focus();
++    };
++    if (Platform.OS === 'web') document.addEventListener('keydown', keydown, true);
++    return () => {
++      cancelAnimationFrame(frame); back.remove();
++      if (Platform.OS === 'web') {
++        document.removeEventListener('keydown', keydown, true);
++        if (previous && document.contains(previous)) previous.focus?.();
++      }
++    };
++  }, [request.id, preferred]);
++
++  return <View style={[styles.overlay, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16,
++    paddingLeft: insets.left + 16, paddingRight: insets.right + 16 }]}>
++    <Pressable accessible={false} style={StyleSheet.absoluteFill} onPress={() => appAlertStore.dismiss(request.id)} />
++    <View ref={card} role="alertdialog" aria-modal accessibilityViewIsModal tabIndex={Platform.OS === 'web' ? -1 : undefined}
++      accessibilityLabel={request.title} accessibilityHint={request.message}
++      onAccessibilityEscape={() => appAlertStore.dismiss(request.id)}
++      style={[styles.card, { maxHeight: Math.max(0, height - insets.top - insets.bottom - 32) }]}>
++      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" bounces={false}>
++        <View style={[styles.icon, { backgroundColor: palette.bg }]}>
++          <Ionicons name={icon} size={30} color={palette.text} accessible={false} />
++        </View>
++        <Text ref={heading} accessibilityRole="header" style={styles.title}>{request.title}</Text>
++        {!!request.message && <Text style={styles.message}>{request.message}</Text>}
++        <View style={[styles.actions, stacked && styles.stacked]}>
++          {request.buttons.map((button, index) => <Pressable key={index} ref={node => { actions.current[index] = node; }}
++            accessibilityRole="button" onPress={() => appAlertStore.press(request.id, index)}
++            onFocus={() => setFocused(index)} onBlur={() => setFocused(null)}
++            style={({ pressed }) => [styles.button, stacked && styles.stackedButton,
++              button.style === 'cancel' && styles.cancel, button.style === 'destructive' && styles.destructive,
++              focused === index && styles.focused, pressed && styles.pressed]}>
++            <Text style={[styles.buttonText, button.style === 'cancel' && styles.cancelText,
++              button.style === 'destructive' && styles.destructiveText]}>{button.text || 'Đã hiểu'}</Text>
++          </Pressable>)}
++        </View>
++      </ScrollView>
++    </View>
++  </View>;
++}
++
++const styles = StyleSheet.create({
++  scope: { flex: 1 },
++  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000, elevation: 1000,
++    backgroundColor: 'rgba(15,23,42,0.48)', alignItems: 'center', justifyContent: 'center' },
++  card: { width: '100%', maxWidth: 420, borderRadius: 24, backgroundColor: colors.surface, overflow: 'hidden',
++    borderWidth: 1, borderColor: colors.border, shadowColor: colors.navigationShadow,
++    shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.16, shadowRadius: 24, elevation: 12 },
++  scroll: { flexGrow: 0, flexShrink: 1 },
++  content: { padding: 24, alignItems: 'center', gap: 16 },
++  icon: { width: 60, height: 60, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
++  title: { color: colors.foreground, fontSize: 20, lineHeight: 28, fontWeight: '800', textAlign: 'center' },
++  message: { color: colors.mutedText, fontSize: 14, lineHeight: 22, textAlign: 'center', alignSelf: 'stretch' },
++  actions: { flexDirection: 'row', gap: 10, alignSelf: 'stretch', marginTop: 4 },
++  stacked: { flexDirection: 'column' },
++  button: { flex: 1, minHeight: 48, paddingHorizontal: 14, paddingVertical: 13, borderRadius: 16,
++    borderWidth: 2, borderColor: 'transparent', backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
++  stackedButton: { flex: 0 },
++  buttonText: { color: colors.foreground, fontSize: 14, lineHeight: 20, fontWeight: '700', textAlign: 'center' },
++  cancel: { backgroundColor: colors.surface, borderColor: colors.border },
++  cancelText: { color: colors.mutedText },
++  destructive: { backgroundColor: journeyTones.danger.text },
++  destructiveText: { color: colors.surface },
++  focused: { borderColor: colors.navigationActive },
++  pressed: { opacity: 0.75 },
++});
+--- /dev/null
++++ b/mobile/scripts/app-alert-store.test.ts
+@@ -0,0 +1,116 @@
++import { describe, it } from 'node:test';
++import assert from 'node:assert/strict';
++import { appAlertTone, createAppAlertStore } from '../utils/app-alert-store';
++
++describe('app alert presentation queue (no API or business records)', () => {
++  it('provides a Vietnamese acknowledgement without changing explicit buttons', () => {
++    const store = createAppAlertStore();
++    store.alert('Thông báo', 'Nội dung');
++    assert.equal(store.getSnapshot().queue[0].buttons[0].text, 'Đã hiểu');
++    store.press(store.getSnapshot().queue[0].id, 0);
++    const buttons = [{ text: 'Giữ nguyên' }];
++    store.alert('Tiêu đề', 'Nội dung', buttons);
++    buttons[0].text = 'Đã thay ở caller';
++    assert.equal(store.getSnapshot().queue[0].buttons[0].text, 'Giữ nguyên');
++  });
++
++  it('keeps distinct dialogs in FIFO order', () => {
++    const store = createAppAlertStore();
++    store.alert('Một'); store.alert('Hai');
++    assert.deepEqual(store.getSnapshot().queue.map(item => item.title), ['Một', 'Hai']);
++    store.press(store.getSnapshot().queue[0].id, 0);
++    assert.equal(store.getSnapshot().queue[0].title, 'Hai');
++  });
++
++  it('removes a dialog before a callback opens another dialog', () => {
++    const store = createAppAlertStore();
++    store.alert('Xác nhận', '', [{ text: 'Tiếp tục', onPress: () => store.alert('Kết quả') }]);
++    store.press(store.getSnapshot().queue[0].id, 0);
++    assert.equal(store.getSnapshot().queue.length, 1);
++    assert.equal(store.getSnapshot().queue[0].title, 'Kết quả');
++  });
++
++  it('executes a destructive callback once despite duplicate or stale presses', () => {
++    const store = createAppAlertStore(); let count = 0;
++    store.alert('Xác nhận', '', [{ text: 'Hủy', style: 'cancel' },
++      { text: 'Xác nhận', style: 'destructive', onPress: () => { count++; } }]);
++    const id = store.getSnapshot().queue[0].id;
++    store.press(id, 1); store.press(id, 1);
++    store.alert('Tiếp theo', '', [{ text: 'Đồng ý', onPress: () => { count += 10; } }]);
++    store.press(id, 0);
++    assert.equal(count, 1);
++    assert.equal(store.getSnapshot().queue[0].title, 'Tiếp theo');
++  });
++
++  it('cancel button invokes only its own callback, never confirmation or onDismiss', () => {
++    const store = createAppAlertStore(); let cancel = 0, confirm = 0, dismiss = 0;
++    store.alert('Xác nhận', '', [{ text: 'Hủy', style: 'cancel', onPress: () => { cancel++; } },
++      { text: 'Đồng ý', onPress: () => { confirm++; } }], { onDismiss: () => { dismiss++; } });
++    store.press(store.getSnapshot().queue[0].id, 0);
++    assert.deepEqual([cancel, confirm, dismiss], [1, 0, 0]);
++  });
++
++  it('backdrop/back/escape cannot dismiss a noncancelable request', () => {
++    for (const options of [undefined, { cancelable: false }]) {
++      const store = createAppAlertStore(); store.alert('Bắt buộc', '', undefined, options);
++      store.dismiss(store.getSnapshot().queue[0].id);
++      assert.equal(store.getSnapshot().queue.length, 1);
++    }
++  });
++
++  it('explicit dismissal calls onDismiss exactly once and never a button', () => {
++    const store = createAppAlertStore(); let dismissed = 0, pressed = 0;
++    store.alert('Thông báo', '', [{ text: 'Đồng ý', onPress: () => { pressed++; } }],
++      { cancelable: true, onDismiss: () => { dismissed++; } });
++    const id = store.getSnapshot().queue[0].id;
++    store.dismiss(id); store.dismiss(id);
++    assert.deepEqual([dismissed, pressed, store.getSnapshot().queue.length], [1, 0, 0]);
++  });
++
++  it('does not accumulate identical informational alerts from repeated events', () => {
++    const store = createAppAlertStore();
++    store.alert('Thông báo', 'Nội dung'); store.alert('Thông báo', 'Nội dung');
++    assert.equal(store.getSnapshot().queue.length, 1);
++    store.alert('Thông báo', 'Nội dung khác');
++    assert.equal(store.getSnapshot().queue.length, 2);
++  });
++
++  it('preserves separate callbacks even when visible copy matches', () => {
++    const store = createAppAlertStore();
++    store.alert('Thông báo', '', [{ text: 'OK', onPress: () => {} }]);
++    store.alert('Thông báo', '', [{ text: 'OK', onPress: () => {} }]);
++    assert.equal(store.getSnapshot().queue.length, 2);
++  });
++
++  it('hands pending content between modal hosts and root without losing it', () => {
++    const store = createAppAlertStore(); store.alert('Nội dung đang mở');
++    const request = store.getSnapshot().queue[0];
++    const closeForm = store.registerHost('form'), closePicker = store.registerHost('picker');
++    assert.equal(store.getSnapshot().hosts.at(-1), 'picker');
++    closePicker(); assert.equal(store.getSnapshot().hosts.at(-1), 'form');
++    closeForm(); assert.equal(store.getSnapshot().hosts.at(-1), undefined);
++    assert.equal(store.getSnapshot().queue[0], request);
++  });
++
++  it('can unsubscribe and keeps snapshots stable until a real change', () => {
++    const store = createAppAlertStore(); let events = 0;
++    const before = store.getSnapshot(), unsubscribe = store.subscribe(() => { events++; });
++    assert.equal(store.getSnapshot(), before);
++    store.alert('Thông báo'); unsubscribe(); store.alert('Khác');
++    assert.equal(events, 1);
++  });
++
++  it('cannot keep a closed confirmation alive when its callback throws', () => {
++    const store = createAppAlertStore();
++    store.alert('Thông báo', '', [{ text: 'OK', onPress: () => { throw new Error('callback'); } }]);
++    assert.throws(() => store.press(store.getSnapshot().queue[0].id, 0), /callback/);
++    assert.equal(store.getSnapshot().queue.length, 0);
++  });
++
++  it('infers decorative tones without adding a business status', () => {
++    assert.equal(appAlertTone('Thành công', false), 'success');
++    assert.equal(appAlertTone('Không có số điện thoại', false), 'danger');
++    assert.equal(appAlertTone('Thông báo', false), 'info');
++    assert.equal(appAlertTone('Xác nhận', true), 'warning');
++  });
++});
+--- /dev/null
++++ b/docs/architecture/mobile-app-alerts.md
+@@ -0,0 +1,81 @@
++# Mobile — popup thông báo/xác nhận của RoadToSchool
++
++01/11/2026. Thay toàn bộ **78 Alert.alert tại23files** bằng popup theo theme app; **10 modal tại5files** có host dùng chung để thông báo trong form/QR/picker không bị nằm sau native modal. PO đã yêu cầu commit và push nhánh dongnnp/mobile/refactor-ui sau verification. Không backend/DB/dependencies changes.
++
++## Thiết kế
++
++```text
++[Nền navy mờ toàn vùng hiển thị]
++┌──────────── card trắng, bo24 ─────────────┐
++│          [Icon trạng thái]              │
++│               Tiêu đề                   │
++│         Nội dung đầy đủ, wrap           │
++│ [Hủy / viền]  [Xác nhận / vàng hoặc đỏ] │
++└─────────────────────────────────────────┘
++```
++
++Card max420, padding24; nền surface trắng, chữ foreground navy, message mutedText, icon trong ô60/bo20. Info/warning nền vàng nhạt, success xanh lá, lỗi đỏ nhạt; dùng colors và journeyTones hiện có. Nút mặc định vàng, cancel viền, destructive đỏ đậm/chữ trắng. Chỉ popup không truyền nút mới dùng mặc định **Đã hiểu**; các nhãn/nội dung/nút của78call sites giữ nguyên.
++
++Chiều rộng dưới360, fontScale>=1.4 hoặc hơn2nút xếp dọc; trường hợp khác xếp ngang. Nút tối thiểu48, chữ wrap, không ellipsis. Card giới hạn theo viewport trừ safe-area top/bottom và32; toàn bộ nội dung có ScrollView, kể cả actions khi màn hình thấp. Không animation popup nên reduced motion không bị thêm chuyển động. Không thay animationType của form/modal hiện có.
++
++## Phạm vi chuyển đổi
++
++| Nhóm | File liên quan |
++| --- | --- |
++| Gọi tài xế/phụ xe | [trip-contact-call-button](../../mobile/components/trip-contact-call-button.tsx): thiếu số, số không hợp lệ, lỗi mở dialer |
++| Phiên đăng nhập/notification | [_layout](../../mobile/app/_layout.tsx), [notifications-context](../../mobile/context/notifications-context.tsx), [notifications](../../mobile/app/notifications.tsx) |
++| Cá nhân | [settings](<../../mobile/app/(tabs)/settings.tsx>): ảnh/tên/mật khẩu, thông báo thiết bị, đăng xuất |
++| Học sinh/liên kết | [StudentCard](../../mobile/components/StudentCard.tsx), [tracking](<../../mobile/app/(tabs)/tracking.tsx>), [link-student](../../mobile/app/parent/link-student.tsx), [verify-otp](../../mobile/app/parent/verify-otp.tsx), [student-detail](../../mobile/app/parent/student-detail/[id].tsx) |
++| Báo nghỉ | [quick-leave hook](../../mobile/hooks/use-quick-leave-notice.ts), [create](../../mobile/app/leave-notices/create.tsx), [otp](../../mobile/app/leave-notices/otp.tsx), [index](../../mobile/app/leave-notices/index.tsx), [detail](../../mobile/app/leave-notices/[id].tsx) |
++| Đổi điểm/cập nhật học sinh | [CreateAddressRequestView](../../mobile/components/parent/create-address-request-view.tsx), [RequestListView](../../mobile/components/parent/RequestListView.tsx), [information](../../mobile/app/parent/create-request/information/[studentId].tsx), [OTP](../../mobile/app/parent/create-request/verify-otp.tsx), [detail](../../mobile/app/parent/update-requests/detail/[requestId].tsx) |
++| Vận hành chuyến/sự cố | [trip](../../mobile/app/trip/[id].tsx), [incident](../../mobile/app/incidents/[id].tsx) |
++| Hosts cho modal hiện có | Trip5, Settings2, Incident1, Leave create calendar1, [StudentPickerDialog](../../mobile/components/parent/student-picker-dialog.tsx)1 |
++
++Không đổi nội dung/style các form, calendar, QR hoặc picker đã custom; AppModal chỉ bổ sung host lớp popup. Không thay OS permission prompts, photo library/camera picker, bàn phím hay xác nhận mở cuộc gọi do iOS/Android quản lý. App kiểm soát các thông báo trước/sau những thao tác đó, không theme được giao diện hệ điều hành.
++
++## API component và cách sử dụng
++
++- [app-alert-store.ts](../../mobile/utils/app-alert-store.ts): createAppAlertStore, AppAlertRequest, appAlertTone. Pure presentation state; không API/router/auth.
++- [app-alert.ts service](../../mobile/services/app-alert.ts): singleton appAlertStore và AppAlert.alert có cùng signature title/message/buttons/options đang dùng của React Native Alert.
++- [app-alert.tsx component](../../mobile/components/app-alert.tsx): AppAlertRoot và AppModal, dùng native RN Modal nội bộ chỉ cho form/modal container hiện có. Root popup là JS overlay, không present thêm native modal.
++
++```tsx
++import { AppAlert } from '@/services/app-alert';
++
++AppAlert.alert('Không có số điện thoại', 'Chưa có số điện thoại của tài xế.');
++AppAlert.alert('Xác nhận', 'Nội dung hiện có', [
++  { text: 'Hủy', style: 'cancel' },
++  { text: 'Xác nhận', style: 'destructive', onPress: existingHandler },
++]);
++```
++
++Call sites cũ alias AppAlert as Alert để giữ toàn bộ arguments/callbacks. Không monkey-patch React Native Alert hoặc window.alert. Screens mới phải import AppAlert; không import Alert từ react-native. Form/modal mới dùng `AppModal as Modal` từ components/app-alert, giữ props và children. RootLayout chỉ bọc providers hiện có bằng AppAlertRoot, không sửa auth/navigation effects.
++
++## Thứ tự, xác nhận và lifecycle
++
++Store dùng useSyncExternalStore, snapshot ổn định, FIFO để các thông báo liên tiếp không ghi đè nhau. Thông báo cùng title/message/buttons/options và callback identity được gộp khi còn pending (hữu ích cho scan QR lặp); khác callbacks vẫn giữ riêng. Sao chép buttons/options tránh caller mutate presentation sau khi mở.
++
++Nhấn nút lấy đúng requestId hiện tại, bỏ khỏi queue **trước** khi gọi onPress; double/stale press không chạy callback hoặc thao tác request kế tiếp. Callback có thể mở popup mới mà không mất thông báo. Các promise/API/busy guards ở caller giữ nguyên, store không gọi API hay xác nhận tự động.
++
++Backdrop, Android Back và Escape chỉ dismiss khi options.cancelable===true, gọi onDismiss; không gọi callback xác nhận hoặc callback nút Hủy. Mặc định không dismiss ngoài nút (tương ứng hành vi Android Alert trước đây). Nút Hủy chạy chính onPress của nó nếu có. Phiên hết hạn cancelable:false buộc nhấn Đồng ý như trước.
++
++AppModal đăng ký host trong lúc visible; modal cuối cùng đang mở nhận popup, không tạo native modal thứ hai. Khi form đóng/unmount, request còn pending chuyển sang host còn lại/root; không bị xóa. Root popup là overlay trong cây JS nên không phải chờ native presentation/dismissal để present controller mới. Host là trạng thái hiển thị, không quyền truy cập hoặc nguồn dữ liệu nghiệp vụ.
++
++## Accessibility và bàn phím
++
++Popup có role alertdialog/aria-modal, accessibilityViewIsModal, heading và labels thật. Khi queue có popup, root và nội dung modal phía dưới ẩn khỏi accessibility; chỉ host trên cùng render popup. Android Back được chặn trong thời gian mở; AppModal onRequestClose ưu tiên popup trước khi gọi handler đóng form.
++
++Web giữ Tab/Shift+Tab trong card, Escape tôn trọng cancelable; focus mặc định vào Hủy với destructive hoặc nút chính với popup thường. Message dài khiến nút ngoài viewport thì focus card để mở từ tiêu đề, không auto-scroll xuống cuối. Đóng popup trả focus về phần tử trước đó nếu còn trong document. Native đưa accessibility focus tới heading. Focus ring nâu vàng rõ, buttons48. Keyboard.dismiss khi mở popup nhưng không reset TextInput/value/form; sau đóng vẫn giữ nội dung. Native VoiceOver/TalkBack và bàn phím thực cần UAT.
++
++## Kiểm chứng
++
++- PASS: Mobile npx --no-install tsc --noEmit; Expo export --platform all (web/iOS/Android bundles, không native runtime).
++- PASS13tests store: FIFO, default/explicit buttons, nested popup, destructive/cancel callback riêng, duplicate press, cancelable/onDismiss, duplicate info, callback identity, host handoff, subscribe và decorative tones. Không requests/records nghiệp vụ.
++- PASS73pure tests tổng hợp trước delivery gồm13popup +31journey +9search +5OTP summary +7phone URL +8keyboard geometry; không DB/OTP/mutations.
++- PASS AST parity:23files migrated giữ toàn bộ non-import code sau bỏ đúng RootLayout wrapper;78Alert args/callbacks và10Modal JSX giữ nguyên. Source/backend/dependency/env và Home snap/rail được bảo vệ bằng hashes.
++- PASS Chromium IAB interactive preview component thực + icon font adapter/presentation counters: popup thiếu số từ TripContactCallButton thật; Hủy/Xác nhận mỗi callback1lần, forced Escape không đóng, hai thông báo FIFO; error trong AppModal không lộ nền qua AX, input giữ value, đóng form rồi success chuyển root đúng.
++- PASS320×568 message dài ban đầu scroll0/focus card, cuộn tới Đã hiểu48px, Escape đóng popup cancelable;390×844 và844×390 không tràn ngang;1440×900 card420. Screenshot TEMP/rts-app-alert-phone-preview.png là preview390×600, không ảnh iPhone thật.
++- Preview không mount auth/API hooks, không mở dialer/thực hiện cuộc gọi/đăng xuất/đổi mật khẩu/OTP hoặc tạo data. Temporary .expo entry/components đã xóa; server/tab riêng đã dừng, viewport reset. Metro của PO giữ nguyên.
++- NOT_VERIFIED: native Expo iPhone/Android, VoiceOver/TalkBack/font scale lớn, keyboard/Back/presentation lúc form đang đóng, route/API end-to-end. Các thao tác cần mutation/dữ liệu mới chưa thử theo TEST DATA POLICY. OS permission/dialer/picker dialogs giữ thiết kế hệ điều hành.
++
++[Review và diff riêng task](../ai-review/LATEST.md). Không mô tả native UAT là đã hoàn thành từ preview web/static build.
+--- a/docs/architecture/mobile-ui-implementation-status.md
++++ b/docs/architecture/mobile-ui-implementation-status.md
+@@ -1,6 +1,10 @@
+ # Hiện trạng giao diện Mobile — Onboarding, xác thực và điều hướng
+ 
+ Ngày cập nhật: **29/10/2026 (Asia/Saigon)**. Commit `db02de6` là mốc Phase1 trên nhánh `dongnnp/mobile/refactor-ui`; các cập nhật local được ghi riêng bên dưới. Tài liệu này ghi nhận phần đã triển khai trong đợt chuyển phong cách V1 sang V2; không phải phê duyệt toàn bộ kế hoạch chuyển giao diện hoặc chứng nhận nghiệm thu thiết bị.
++
++## Popup thông báo/xác nhận dùng theme app (01/11/2026)
++
++78Alert.alert tại23files đã chuyển sang AppAlert: backdrop tối, card trắng bo24/icon trạng thái, CTA vàng/cancel viền/destructive đỏ; giữ arguments/callbacks/busy guards. AppAlertRoot + AppModal hosts cho10modal trong5files để thông báo trong form không nằm sau native modal, queue FIFO/double-press guard, safe-area/scroll/focus/back/escape. Không đổi backend/API/data; OS permission/dialer/photo-picker prompts vẫn do hệ điều hành. [Component API, source map, hành vi và giới hạn](mobile-app-alerts.md).13popup tests/73pure tests delivery, tsc/export all và Chromium preview320/390/landscape/desktop PASS; native acceptance chưa xác minh. PO đã yêu cầu commit+push nhánh hiện tại sau checks.
+ 
+ ## Trang chủ — tiện ích thu gọn khi kéo nhẹ (01/11/2026, local)
+ 

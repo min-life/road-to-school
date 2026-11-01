@@ -4,6 +4,14 @@
 
 ## Luồng và bố cục
 
+### Hiện hành01/11/2026 — tạo bằng nút + nổi
+
+Trang lịch sử `/parent/change-stop` dùng [FloatingAddButton](../../mobile/components/navigation/floating-add-button.tsx) màu vàng,58×58/bo29, icon add32 và shadow giống hệt Theo dõi. Đây là điểm tạo duy nhất của trang này: bỏ dấu+ ở header và bỏ CTA chữ Tạo yêu cầu đổi điểm trong trạng thái rỗng. Callback `handleCreateRequest` không đổi; vẫn mở `/parent/change-stop/create`, giữ disabled guard/fixed student params khi áp dụng. Nút có accessibilityLabel Tạo yêu cầu đổi điểm dù không hiển thị chữ.
+
+Báo nghỉ `/leave-notices` cũng dùng cùng nút nổi, bỏ dấu+ header và Tạo báo nghỉ mới trong empty. Giữ route `/leave-notices/create` và selectedStudentId nếu có. Theo dõi chuyển sang shared component nhưng giữ handleAddPress/bottom16/right20 và toàn bộ chức năng liên kết cũ.
+
+Hai trang không có tab bar đặt FAB ở `bottom=insets.bottom+16`, `right=insets.right+20`; content/list/footer chừa `insets.bottom+90` để không bị che. Nút luôn hiện ở loading/error/empty/list. RequestListView chỉ bật FAB và bỏ CTA khi `appearance=leave-history`; các lịch sử riêng từng con/default (thông tin/địa chỉ) giữ header/CTA như trước. Chỉ đổi presentation, không API hoặc data hooks. Các đoạn về CTA/header30/10 dưới đây là lịch sử đã được thay thế về vị trí nút tạo.
+
 ```text
 Trang chủ → Đổi điểm → Đổi điểm đón/trả (lịch sử)
   [Quay lại] [Đổi điểm đón/trả] [+]
@@ -24,7 +32,8 @@ Tái sử dụng RequestListView; sau thao tác tạo mới mở thẳng `/paren
 ## Hiện hành — chọn con ngay trên form (30/10/2026)
 
 - [change-stop/create.tsx](../../mobile/app/parent/change-stop/create.tsx) mở [CreateAddressRequestView](../../mobile/components/parent/create-address-request-view.tsx) ở chế độ chọn con. Giữ đầy đủ notice phê duyệt, địa chỉ hiện tại, tìm kiếm/gợi ý VietMap, bản đồ270px, địa chỉ/tọa độ đề xuất và nút OTP.
-- [LinkedStudentPicker](../../mobile/components/parent/linked-student-picker.tsx) nay dùng chung trực tiếp với Tạo báo nghỉ, nhận danh sách/thông tin chọn/loading/error/callback. Dropdown bo12, padding14×12, label uppercase; avatar40, tên và metadata mã/trường wrap đầy đủ. Modal cùng avatar/mã/trường/checkmark, đóng/backdrop/Android Back, cuộn theo viewport/safe area. `fixed` hiện Cố định và không mở popup, dùng cho cả hai điểm vào từ hồ sơ. `canSelectStudent?` là policy của caller; Đổi điểm không truyền nên giữ AVAILABLE, không đổi guard. Không có TextInput trong modal, không tự focus. Mở modal đóng bàn phím bằng Keyboard.dismiss; chưa nghiệm thu thiết bị.
+- [LinkedStudentPicker](../../mobile/components/parent/linked-student-picker.tsx) dùng chung trực tiếp với Tạo báo nghỉ, nhận danh sách/thông tin chọn/loading/error/callback. Dropdown bo12, padding14×12, label uppercase; avatar40, tên và metadata mã/trường wrap đầy đủ. Popup [StudentPickerDialog](../../mobile/components/parent/student-picker-dialog.tsx) bo24, card riêng có avatar48/mã/trường/checkmark, có tìm kiếm tên/mã/trường không phân biệt dấu. Đóng/backdrop/Android Back và KeyboardScrollView theo viewport/safe area; search không autoFocus. `fixed` hiện Cố định và không mở popup. `canSelectStudent?` vẫn do caller quyết định; Đổi điểm giữ AVAILABLE, không đổi guard. Tìm kiếm chỉ lọc linked list, không GET mới hoặc đổi lựa chọn khi query đổi. [Props, search, layout và kiểm chứng](mobile-leave-student-card.md#popup-card-và-tìm-kiếm--01112026).
+- Đồng bộ01/11/2026: Tạo báo nghỉ không còn tự chọn con đầu; cả hai form tổng quát đều bắt đầu bằng Học sinh → Chọn học sinh → popup card các con. Chế độ cố định khi vào từ hồ sơ giữ nguyên. Không sửa code/guard hoặc cách chọn của Đổi điểm trong lần này.
 - Chưa chọn con: form vẫn hiển thị toàn bộ các phần, nhưng input/bản đồ/OTP chưa được bật. Bản đồ dùng placeholder trung tính thay vì tải tile khi chưa biết con. Chưa có con: có Liên kết học sinh ở thẻ và TrackingEmptyState hiện có trong modal; không tự tạo dữ liệu. Lỗi danh sách/detail có Thử lại, không coi lỗi mạng như danh sách rỗng.
 - [useAddressRequestStudent](../../mobile/hooks/use-address-request-student.ts) đọc GET linked students/focus và detail của ID đã chọn; response scope cũ bị bỏ qua. Không tự chọn con đầu. Nếu con không còn liên kết sau refresh, bỏ lựa chọn; lỗi danh sách khóa thao tác gửi cho tới khi đọc được danh sách hợp lệ.
 - Đổi con xóa search/suggestions/địa chỉ/tọa độ nháp, hủy debounce; draft/search/lookup generation, mounted và activeStudentId guards chặn kết quả trả chậm hoặc message map của con trước. Reset trước paint, map keyed theo studentId để marker cũ không còn. Chọn lại đúng cùng con giữ nháp. Tạm khóa đổi con/input/map khi đang gửi OTP; không có draft địa chỉ con A gửi cho con B.
@@ -34,7 +43,7 @@ Tái sử dụng RequestListView; sau thao tác tạo mới mở thẳng `/paren
 
 Nội dung/điểm chọn con trong các mục trước được thay bởi cập nhật này. Bộ gộp lịch sử, appearance và các callback lịch sử không đổi trong task form này.
 
-## Style đồng bộ Báo nghỉ — 30/10/2026
+## Style đồng bộ Báo nghỉ — 30/10/2026 (lịch sử vị trí CTA)
 
 Route Đổi điểm bật `appearance="leave-history"` trong RequestListView. Các route yêu cầu riêng từ Hồ sơ học sinh giữ appearance mặc định. Đây là biến thể trình bày, không thêm loader, filter/status nghiệp vụ hoặc callback điều hướng.
 

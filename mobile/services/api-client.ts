@@ -1224,6 +1224,9 @@ export interface MobileTripDetail {
   busAttendantName: string;
   busAttendantPhone: string;
   polylineGeometry: string;
+  /** Existing detail-response fields; the PARENT operational projection omits readiness. */
+  isAttendantReady?: boolean;
+  attendantReadyAt?: string | null;
   stops: MobileTripDetailStop[];
 }
 

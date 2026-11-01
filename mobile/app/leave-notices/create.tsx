@@ -1,3 +1,5 @@
+import { AppAlert as Alert } from '@/services/app-alert';
+import { AppModal as Modal } from '@/components/app-alert';
 import { AppHeader } from '@/components/navigation/app-header';
 import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -8,9 +10,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   TextInput,
-  Alert,
-  Modal,
-} from 'react-native';
+  } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -90,9 +90,6 @@ export default function CreateLeaveNoticeScreen() {
         .then((res) => {
           if (!current) return;
           setStudents(res || []);
-          if (!selectedStudentId && res && res.length > 0) {
-            setSelectedStudentId(res[0].id);
-          }
         })
         .catch((failure: unknown) => {
           if (!current) return;
@@ -102,7 +99,7 @@ export default function CreateLeaveNoticeScreen() {
         .finally(() => { if (current) setStudentsLoading(false); });
     }
     return () => { current = false; };
-  }, [isParent, selectedStudentId, studentsAttempt]);
+  }, [isParent, studentsAttempt]);
 
   // Fetch available trips options whenever Student, Date, or Direction changes
   useEffect(() => {
@@ -234,6 +231,8 @@ export default function CreateLeaveNoticeScreen() {
           routeName: currentTrip.routeName,
           serviceDate: currentTrip.serviceDate,
           direction: currentTrip.direction,
+          scheduledStartTime: currentTrip.scheduledStartTime || '',
+          scheduledEndTime: currentTrip.scheduledEndTime || '',
         },
       } as any);
     } catch (err: any) {
@@ -365,7 +364,9 @@ export default function CreateLeaveNoticeScreen() {
             <View style={styles.emptyTripsBox}>
               <Ionicons name="information-circle-outline" size={24} color="#94A3B8" />
               <Text style={styles.emptyTripsText}>
-                Không có chuyến xe đã lập lịch nào phù hợp trong ngày và chiều đã chọn.
+                {isParent && !selectedStudentId
+                  ? 'Chọn học sinh để xem chuyến xe phù hợp.'
+                  : 'Không có chuyến xe đã lập lịch nào phù hợp trong ngày và chiều đã chọn.'}
               </Text>
             </View>
           ) : (

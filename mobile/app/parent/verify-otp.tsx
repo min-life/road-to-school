@@ -1,3 +1,4 @@
+import { AppAlert as Alert } from '@/services/app-alert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { OtpHero } from '@/components/auth/otp-hero';
 import { otpStyles } from '@/constants/otp-styles';
@@ -11,8 +12,7 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
-} from 'react-native';
+  } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors } from '@/constants/theme';

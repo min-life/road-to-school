@@ -1,0 +1,99 @@
+diff --git a/docs/architecture/mobile-leave-student-card.md b/docs/architecture/mobile-leave-student-card.md
+index 77b5c17..85987c5 100644
+--- a/docs/architecture/mobile-leave-student-card.md
++++ b/docs/architecture/mobile-leave-student-card.md
+@@ -1,6 +1,6 @@
+ # Tạo báo nghỉ — chọn học sinh đồng bộ Đổi điểm
+ 
+-Cập nhật31/10/2026, local chưa commit/push. Yêu cầu mới thay card riêng bằng cùng dropdown/modal đang dùng ở Tạo yêu cầu đổi điểm; giữ avatar và toàn bộ thông tin của task trước.
++Cập nhật01/11/2026. Hai form dùng cùng dropdown/modal; lần sửa này đồng bộ thêm trạng thái ban đầu: không tự chọn học sinh đầu tiên khi vào Tạo báo nghỉ không có studentId. Chưa commit/push lần sửa này.
+ 
+ ## Component dùng chung và bố cục
+ 
+@@ -8,6 +8,10 @@ Cả [Tạo báo nghỉ](../../mobile/app/leave-notices/create.tsx) và [Form đ
+ 
+ ```text
+ HỌC SINH
++[Chọn học sinh                              v]
++                   ↓ nhấn để mở popup
++[Avatar40] Tên · Mã học sinh · Trường         [✓ nếu chọn]
++                   ↓ chọn một card
+ [Avatar40] Tên học sinh                  [v / Cố định]
+            Mã học sinh · Trường
+ ```
+@@ -24,11 +28,12 @@ LinkedStudentPicker giữ các props students/selectedId/loading/error/disabled/
+ - `fixed?: boolean`, mặc định false: readonly dropdown có Cố định; không mở modal hoặc cho đổi con. Hai form dùng cùng mode khi vào từ hồ sơ con.
+ - `canSelectStudent?: (student: ParentLinkedStudentItem) => boolean`: caller quyết định khả năng chọn. Mặc định theo AVAILABLE như Đổi điểm trước đây. Báo nghỉ truyền predicate cho toàn bộ linked list để giữ chính sách chọn vốn có của màn này; backend/GET options vẫn quyết định điều kiện báo nghỉ, không mở rộng quyền API. Không dùng chính sách Đổi điểm áp ngầm sang Báo nghỉ.
+ 
+-Dropdown và modal sở hữu state visible tại component; data/API/selection nghiệp vụ vẫn ở từng form. Báo nghỉ chọn con vẫn setSelectedStudentId và xóa selectedTripId; Shared Picker đóng popup. isParent/isFixedStudent và cơ chế tự chọn con đầu của Báo nghỉ giữ như source trước. Đổi điểm vẫn không tự chọn con và chỉ AVAILABLE.
++Dropdown và modal sở hữu state visible tại component; data/API/selection nghiệp vụ vẫn ở từng form. Cả hai form tổng quát bắt đầu với nhãn Chọn học sinh, không tự chọn con đầu, kể cả chỉ có một con liên kết. Nhấn dropdown mở popup tất cả con đang liên kết; chọn card đóng popup và hiển thị avatar/tên/mã/trường của con trên dropdown. Báo nghỉ chọn con vẫn setSelectedStudentId và xóa selectedTripId. Nếu vào từ hồ sơ/chuyến có studentId, giữ con đó cùng nhãn Cố định, không cho đổi con. Đổi điểm vẫn chỉ chọn AVAILABLE; Báo nghỉ giữ policy/API của riêng màn này.
+ 
+ ## Tích hợp và trạng thái
+ 
+-- Báo nghỉ giữ GET linked students và dependency chọn con hiện có; bổ sung loading/error/retry và active guard cho response sau unmount/scope change. Lỗi không bị coi là danh sách rỗng; retry chỉ gọi lại GET. Không có con có Liên kết học sinh/empty component như Shared Picker.
++- Báo nghỉ đọc GET linked students khi vào màn hình hoặc nhấn Thử lại, không gọi lại danh sách chỉ vì vừa chọn con. Giữ loading/error/retry và active guard cho response sau unmount. Lỗi không bị coi là danh sách rỗng; không có con có Liên kết học sinh/empty component như Shared Picker.
++- Khi chưa chọn con, không gọi GET chuyến/options; vùng chuyến nhắc ngắn Chọn học sinh để xem chuyến xe phù hợp thay vì báo không có chuyến. Chọn con mới bắt đầu đọc options theo ngày/chiều hiện có. Nút OTP vẫn khóa khi chưa có chuyến hợp lệ, không tự gửi OTP.
+ - Form Đổi điểm global/fixed đều dùng Shared Picker; fixed nhận trực tiếp profile detail hiện có, không GET mới. Error/loading detail được hiện một lần thay vì lặp dưới thẻ.
+ - Giữ calendar modal và overlay riêng của Báo nghỉ; chỉ xóa modal/styles chọn con riêng hết dùng. Không đổi chuyến/ngày/chiều/lý do/OTP/cooldown, reset địa chỉ/guards của Đổi điểm hoặc API contracts.
+ - Không backend, schema, packages hoặc assets mới. Thay đổi của card bo20/LeaveStudentCard trong review cũ là lịch sử đã được thay thế.
+diff --git a/docs/architecture/mobile-parent-stop-requests.md b/docs/architecture/mobile-parent-stop-requests.md
+index 51e34db..8e80523 100644
+--- a/docs/architecture/mobile-parent-stop-requests.md
++++ b/docs/architecture/mobile-parent-stop-requests.md
+@@ -25,6 +25,7 @@ Tái sử dụng RequestListView; sau thao tác tạo mới mở thẳng `/paren
+ 
+ - [change-stop/create.tsx](../../mobile/app/parent/change-stop/create.tsx) mở [CreateAddressRequestView](../../mobile/components/parent/create-address-request-view.tsx) ở chế độ chọn con. Giữ đầy đủ notice phê duyệt, địa chỉ hiện tại, tìm kiếm/gợi ý VietMap, bản đồ270px, địa chỉ/tọa độ đề xuất và nút OTP.
+ - [LinkedStudentPicker](../../mobile/components/parent/linked-student-picker.tsx) nay dùng chung trực tiếp với Tạo báo nghỉ, nhận danh sách/thông tin chọn/loading/error/callback. Dropdown bo12, padding14×12, label uppercase; avatar40, tên và metadata mã/trường wrap đầy đủ. Modal cùng avatar/mã/trường/checkmark, đóng/backdrop/Android Back, cuộn theo viewport/safe area. `fixed` hiện Cố định và không mở popup, dùng cho cả hai điểm vào từ hồ sơ. `canSelectStudent?` là policy của caller; Đổi điểm không truyền nên giữ AVAILABLE, không đổi guard. Không có TextInput trong modal, không tự focus. Mở modal đóng bàn phím bằng Keyboard.dismiss; chưa nghiệm thu thiết bị.
++- Đồng bộ01/11/2026: Tạo báo nghỉ không còn tự chọn con đầu; cả hai form tổng quát đều bắt đầu bằng Học sinh → Chọn học sinh → popup card các con. Chế độ cố định khi vào từ hồ sơ giữ nguyên. Không sửa code/guard hoặc cách chọn của Đổi điểm trong lần này.
+ - Chưa chọn con: form vẫn hiển thị toàn bộ các phần, nhưng input/bản đồ/OTP chưa được bật. Bản đồ dùng placeholder trung tính thay vì tải tile khi chưa biết con. Chưa có con: có Liên kết học sinh ở thẻ và TrackingEmptyState hiện có trong modal; không tự tạo dữ liệu. Lỗi danh sách/detail có Thử lại, không coi lỗi mạng như danh sách rỗng.
+ - [useAddressRequestStudent](../../mobile/hooks/use-address-request-student.ts) đọc GET linked students/focus và detail của ID đã chọn; response scope cũ bị bỏ qua. Không tự chọn con đầu. Nếu con không còn liên kết sau refresh, bỏ lựa chọn; lỗi danh sách khóa thao tác gửi cho tới khi đọc được danh sách hợp lệ.
+ - Đổi con xóa search/suggestions/địa chỉ/tọa độ nháp, hủy debounce; draft/search/lookup generation, mounted và activeStudentId guards chặn kết quả trả chậm hoặc message map của con trước. Reset trước paint, map keyed theo studentId để marker cũ không còn. Chọn lại đúng cùng con giữ nháp. Tạm khóa đổi con/input/map khi đang gửi OTP; không có draft địa chỉ con A gửi cho con B.
+diff --git a/docs/architecture/mobile-ui-implementation-status.md b/docs/architecture/mobile-ui-implementation-status.md
+index c9831fe..c1027f7 100644
+--- a/docs/architecture/mobile-ui-implementation-status.md
++++ b/docs/architecture/mobile-ui-implementation-status.md
+@@ -2,7 +2,9 @@
+ 
+ Ngày cập nhật: **29/10/2026 (Asia/Saigon)**. Commit `db02de6` là mốc Phase1 trên nhánh `dongnnp/mobile/refactor-ui`; các cập nhật local được ghi riêng bên dưới. Tài liệu này ghi nhận phần đã triển khai trong đợt chuyển phong cách V1 sang V2; không phải phê duyệt toàn bộ kế hoạch chuyển giao diện hoặc chứng nhận nghiệm thu thiết bị.
+ 
+-## Tạo báo nghỉ — card học sinh có avatar (31/10/2026, local)
++## Tạo báo nghỉ — chọn học sinh giống Đổi điểm (01/11/2026, local)
++
++Form tổng quát bắt đầu với **Học sinh → Chọn học sinh**, không tự chọn con đầu như trước. Nhấn mở popup card tất cả con liên kết bằng cùng LinkedStudentPicker của Đổi điểm; chọn card mới hiện avatar/tên/mã/trường và đọc chuyến phù hợp. Điểm vào có studentId vẫn giữ con cố định. Chưa chọn con hiển thị nhắc chọn ở vùng chuyến, nút OTP tiếp tục khóa. Không sửa API/countdown hoặc code Đổi điểm. Typecheck/build và giới hạn kiểm chứng tại [AI Review](../ai-review/LATEST.md).
+ 
+ Yêu cầu mới nhất: phần chọn Học sinh dùng chung **LinkedStudentPicker** với Tạo yêu cầu đổi điểm (dropdown bo12, label Học sinh, popup cùng style). Giữ avatar40, tên/mã/trường, Cố định/chevron và checkmark; metadata wrap đầy đủ. Loại component card riêng LeaveStudentCard đã được thay thế, không giữ hai bộ UI. Dùng Student.avatarUrl qua UserAvatar, thiếu/lỗi ảnh dùng chữ đầu tên. Chính sách chọn của từng form/API, OTP/countdown giữ nguyên; thêm loading/error/retry cho GET danh sách trong Báo nghỉ. [Component/source/verification](mobile-leave-student-card.md). Chưa commit/push; native/photo UAT chưa xác minh.
+ 
+diff --git a/mobile/app/leave-notices/create.tsx b/mobile/app/leave-notices/create.tsx
+index e40ce4c..0c4305c 100644
+--- a/mobile/app/leave-notices/create.tsx
++++ b/mobile/app/leave-notices/create.tsx
+@@ -90,9 +90,6 @@ export default function CreateLeaveNoticeScreen() {
+         .then((res) => {
+           if (!current) return;
+           setStudents(res || []);
+-          if (!selectedStudentId && res && res.length > 0) {
+-            setSelectedStudentId(res[0].id);
+-          }
+         })
+         .catch((failure: unknown) => {
+           if (!current) return;
+@@ -102,7 +99,7 @@ export default function CreateLeaveNoticeScreen() {
+         .finally(() => { if (current) setStudentsLoading(false); });
+     }
+     return () => { current = false; };
+-  }, [isParent, selectedStudentId, studentsAttempt]);
++  }, [isParent, studentsAttempt]);
+ 
+   // Fetch available trips options whenever Student, Date, or Direction changes
+   useEffect(() => {
+@@ -365,7 +362,9 @@ export default function CreateLeaveNoticeScreen() {
+             <View style={styles.emptyTripsBox}>
+               <Ionicons name="information-circle-outline" size={24} color="#94A3B8" />
+               <Text style={styles.emptyTripsText}>
+-                Không có chuyến xe đã lập lịch nào phù hợp trong ngày và chiều đã chọn.
++                {isParent && !selectedStudentId
++                  ? 'Chọn học sinh để xem chuyến xe phù hợp.'
++                  : 'Không có chuyến xe đã lập lịch nào phù hợp trong ngày và chiều đã chọn.'}
+               </Text>
+             </View>
+           ) : (

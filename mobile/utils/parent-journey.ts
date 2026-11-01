@@ -32,6 +32,12 @@ export function journeyRecordedClock(value?: string | null): string | null {
   } catch { return null; }
 }
 
+export function journeyEventTime(confirmed: boolean, planned?: string | null, actual?: string | null): JourneyTime {
+  const scheduled = journeyClock(planned);
+  return { value: confirmed ? journeyRecordedClock(actual) : scheduled,
+    kind: confirmed ? 'actual' : 'scheduled', scheduledValue: scheduled };
+}
+
 export function studentJourneyTimes(card: ParentHomeCardItem, detail?: MobileTripDetail, operation?: OperationalStateResponse) {
   const validDetail = detail?.id === card.tripId && detail.direction === card.direction ? detail : undefined;
   const range = journeyScheduleRange(card.scheduledTime);
@@ -45,18 +51,23 @@ export function studentJourneyTimes(card: ParentHomeCardItem, detail?: MobileTri
   const downAt = card.attendanceStatus === 'PRESENT' && card.childIsAlighted ? card.childAlightedAt : null;
   const arrivalAt = card.direction === 'TO_SCHOOL' ? schoolAt ?? downAt : downAt;
   const actualArrival = journeyRecordedClock(arrivalAt);
-  const arrived = Boolean(actualArrival || (card.direction === 'TO_SCHOOL' && validOperation?.isSchoolArrived));
+  const arrived = Boolean(actualArrival || (card.direction === 'TO_SCHOOL' && validOperation?.isSchoolArrived)
+    || (card.attendanceStatus === 'PRESENT' && card.childIsAlighted));
   const pickupStop = validDetail?.stops.find(s => s.stopType === 'PICKUP' && s.studentId === card.studentId && s.isMyChild === true);
   const pickupActual = card.attendanceStatus !== 'UNMARKED' ? journeyRecordedClock(card.markedAt) : null;
+  const pickupMarked = card.attendanceStatus !== 'UNMARKED';
+  const departed = Boolean(start) || card.tripStatus === 'IN_PROGRESS' || card.tripStatus === 'COMPLETED';
   return {
-    departure: { value: start ?? scheduledDeparture, kind: start ? 'actual' : 'scheduled', scheduledValue: scheduledDeparture } as JourneyTime,
+    departure: journeyEventTime(departed, scheduledDeparture, validOperation?.actualStartTime),
     arrival: { value: arrived ? actualArrival : plannedArrival, kind: arrived ? 'actual' : 'scheduled', scheduledValue: plannedArrival } as JourneyTime,
-    pickup: { value: pickupActual ?? journeyClock(pickupStop?.plannedArrivalTime), kind: pickupActual ? 'actual' : 'scheduled' } as JourneyTime,
-    pickupTitle: pickupActual ? card.attendanceStatus === 'ABSENT' ? card.hasLeaveNotice ? 'Báo nghỉ' : 'Báo vắng' : 'Điểm danh' : 'Đón con',
+    pickup: { value: pickupMarked ? pickupActual : journeyClock(pickupStop?.plannedArrivalTime), kind: pickupMarked ? 'actual' : 'scheduled',
+      scheduledValue: journeyClock(pickupStop?.plannedArrivalTime) } as JourneyTime,
+    pickupTitle: pickupMarked ? card.attendanceStatus === 'ABSENT' ? card.hasLeaveNotice ? 'Báo nghỉ' : 'Báo vắng' : 'Điểm danh lên' : 'Đón con',
     arrivalTitle: card.direction === 'TO_SCHOOL' ? (!schoolAt && actualArrival ? 'Xuống xe' : 'Đến trường') : 'Đến điểm trả',
     comparisonArrivalAt: card.direction === 'TO_SCHOOL' ? schoolAt : downAt,
     plannedArrival,
     routeScheduledEnd: range.end,
+    completion: journeyEventTime(card.tripStatus === 'COMPLETED', journeyClock(validDetail?.scheduledEndTime) ?? range.end, validOperation?.actualEndTime),
   };
 }
 

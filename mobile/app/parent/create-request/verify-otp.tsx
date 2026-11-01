@@ -1,3 +1,4 @@
+import { AppAlert as Alert } from '@/services/app-alert';
 import { OtpHero } from '@/components/auth/otp-hero';
 import { otpStyles } from '@/constants/otp-styles';
 import { AppHeader } from '@/components/navigation/app-header';
@@ -10,8 +11,7 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
-} from 'react-native';
+  } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -20,6 +20,8 @@ import {
   mobileApiClient,
   RequestType,
 } from '@/services/api-client';
+import { OtpRequestSummary } from '@/components/auth/otp-request-summary';
+import { readSummaryObject, summaryCoordinates, summaryText } from '@/utils/otp-summary';
 
 export default function VerifyOtpRequestScreen() {
   const router = useRouter();
@@ -30,9 +32,12 @@ export default function VerifyOtpRequestScreen() {
     challengeId: string;
     maskedPhone: string;
     proposedDataJson: string;
+    studentName?: string;
   }>();
 
   const { studentId, type, challengeId, maskedPhone, proposedDataJson } = params;
+  const addressSummary = React.useMemo(() => type === 'ADDRESS_UPDATE'
+    ? readSummaryObject(proposedDataJson) : null, [type, proposedDataJson]);
 
   const [otp, setOtp] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
@@ -112,6 +117,13 @@ export default function VerifyOtpRequestScreen() {
           Mã xác thực 6 chữ số đã được gửi đến số điện thoại người giám hộ{' '}
           <Text style={styles.phoneHighlight}>{maskedPhone || 'của bạn'}</Text>.
         </Text>
+
+        {type === 'ADDRESS_UPDATE' && <OtpRequestSummary title="Thông tin đổi điểm đón/trả"
+          subjectLabel="Học sinh" subjectName={params.studentName}
+          rows={[
+            { label: 'Địa chỉ mới', value: summaryText(addressSummary?.addressText), stacked: true },
+            { label: 'Tọa độ đã chọn', value: summaryCoordinates(addressSummary?.latitude, addressSummary?.longitude), stacked: true },
+          ]} />}
 
         {/* Error banner */}
         {errorMessage && (

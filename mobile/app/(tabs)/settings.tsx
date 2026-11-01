@@ -1,3 +1,5 @@
+import { AppAlert as Alert } from '@/services/app-alert';
+import { AppModal as Modal } from '@/components/app-alert';
 import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useRef, useState } from 'react';
 import {
@@ -7,8 +9,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
-  Modal,
   TextInput,
   Platform,
   Switch,

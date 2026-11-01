@@ -1,178 +1,134 @@
-# Parent Home — tiến trình theo mốc nghiệp vụ
+# Parent Home — thanh hành trình theo nghiệp vụ đi/về
 
-30/10/2026, local, chưa commit/push. Mục “Con của bạn” PO đề cập là **Chuyến xe của con** trên [HomeScreen](<../../mobile/app/(tabs)/index.tsx>). Đây là spec hiện hành, thay thế thiết kế GPS-only và bus pin nổi ở các task trước; báo cáo cũ vẫn lưu trong ai-review/history.
+Cập nhật **01/11/2026**, local, chưa commit/push. Đây là spec hiện hành của **Chuyến xe của con** trong [HomeScreen](<../../mobile/app/(tabs)/index.tsx>), thay thế mapping ngày30/10 (nhịp điểm danh1600ms, chiều về hai mốc và bong bóng đếm phút theo lịch).
 
-## Quyết định mới nhất của PO
+## Nguồn nghiệp vụ và phạm vi
 
-PO yêu cầu icon bus nằm trên rail, nhảy cóc theo xuất phát/điểm danh/đến trường/xuống xe, dùng vị trí minh họa2/3 từng chặng. Đây là thay đổi đã được PO chỉ định, thay thế quy tắc cũ bắt buộc progress GPS. Không sửa enum, record hoặc luồng vận hành backend. Bản đồ ở nút Theo dõi lộ trình vẫn dùng cơ chế định vị hiện có; Home rail là **Minh họa theo trạng thái**, không phải vị trí địa lý.
+Theo quyết định mới nhất của PO:
 
-## Kiểm tra API trước triển khai
+- Chiều đi: chờ khởi hành → giáo viên sẵn sàng → đang di chuyển → đã điểm danh lên → đến trường → đã điểm danh xuống → kết thúc chuyến.
+- Chiều về: chờ khởi hành → giáo viên sẵn sàng → điểm danh lên trước xuất phát → đang di chuyển → xuống xe riêng từng con → kết thúc chuyến.
 
-| Thông tin cần | Nguồn thực tế | Kết quả |
+Chỉ sửa trình bày frontend và khai báo hai field detail API đã có. Không tạo enum, endpoint, sự kiện đến điểm đón, xác nhận điểm danh hoặc bản ghi mới. Trạng thái chuyến, sẵn sàng và điểm danh là các dữ kiện độc lập; không gộp cả chuyến để suy ra trạng thái của một con. Các nhánh nhân sự, API permissions và toàn bộ thao tác V2 được giữ.
+
+## API và dữ liệu thực có
+
+| Dữ kiện | Nguồn có sẵn | Cách dùng/giới hạn |
 | --- | --- | --- |
-| Học sinh, avatar, trường, trip/route/direction, serviceDate, lịch tuyến, attendance, markedAt, alighting, notice/canReportLeave | GET /trips/mobile/parent/home-cards; ParentHomeCardItem | Có, theo từng studentId; không dùng aggregate của chuyến làm trạng thái con |
-| Giờ điểm đón/trả dự kiến, trường, geometry, dấu isMyChild | GET /trips/mobile/:id; MobileTripDetail/stops | Có; điểm riêng trùng studentId + isMyChild; giữ Privacy Masking |
-| Giờ xuất phát thực tế | GET /trips/:id/operational-state, actualStartTime | Có trong projection PARENT hiện có |
-| Xe đến trường, giờ đến trường | Cùng operational-state, isSchoolArrived/arrivedAtSchoolAt | Có; độc lập với việc từng con đã xuống xe |
-| Điểm danh/giờ điểm danh, xuống xe/giờ xuống của từng con | Cùng operational-state, children[] | Có; chọn bằng studentId, không children[0] hoặc tổng PRESENT/alighted |
-| Sự cố loại/trạng thái/thời điểm | GET /trips/:id/incidents; getTripIncidents hiện có | Có cấp chuyến; PARENT bị ẩn context/description/người báo/người xử lý, không suy ra LATE_STOP thuộc con nào |
-| ETA cập nhật theo vận hành/quãng đường còn lại | Các response viewer đã kiểm tra | **Chưa có**; bubble chỉ đếm đến lịch công bố và ghi “theo lịch”, không ETA trực tiếp |
-| Sự kiện độc lập xe đến/rời điểm đón, pickupArrivedAt/pickupDepartedAt | Các response đã kiểm tra | **Chưa có**; chỉ có markedAt. Không tự tạo sự kiện đó |
-| Danh sách card lịch sử COMPLETED/CANCELLED trên Home | getParentHomeCards server filter | Hiện chỉ SCHEDULED/IN_PROGRESS theo roster/time window; task không thay filter hoặc tự giữ card lịch sử |
+| Con, avatar, trường, trip/route/direction, serviceDate, lịch, attendance/markedAt, xuống xe, báo nghỉ/canReportLeave | GET /trips/mobile/parent/home-cards | Một card ưu tiên mỗi con; kiểm tra đúng studentId |
+| Trạng thái mới nhất, actualStartTime/actualEndTime, isSchoolArrived/arrivedAtSchoolAt, children[] | GET /trips/:id/operational-state | Projection PARENT có thời điểm vận hành và chỉ con được phép xem; **không trả readiness** |
+| isAttendantReady, attendantReadyAt | GET /trips/mobile/:id | Đã có trong backend/Swagger; thêm optional type tương ứng trong MobileTripDetail, không đổi contract |
+| Giờ điểm đón/trả, trường, bãi, scheduledStartTime/scheduledEndTime | Cùng MobileTripDetail/stops | Chọn đúng stop/studentId/isMyChild; giờ về bãi khác giờ trả con |
+| Sự cố cấp chuyến | GET /trips/:id/incidents | Giữ privacy masking; không suy ra sự cố thuộc một con cụ thể |
+| Sự kiện riêng xe đến/rời điểm đón; GPS ETA mới | Chưa có trong các response trên | Không tạo trạng thái/giờ hoặc tính ETA giả |
+| Card đã kết thúc/hủy | getParentHomeCards lọc SCHEDULED/IN_PROGRESS | Không tự giữ lịch sử hoặc mở rộng backend trong task này |
 
-Bằng chứng: [TripsService](../../api/src/trips/trips.service.ts), [IncidentsService.listByTrip](../../api/src/incidents/incidents.service.ts), [mobile client/types](../../mobile/services/api-client.ts), [Prisma enums](../../api/prisma/schema.prisma). Không đổi backend/API contract hoặc gọi publisher/segment để lấy ETA.
+Bằng chứng: [TripsService](../../api/src/trips/trips.service.ts), [response DTO/Swagger](../../api/src/trips/dto/trip-response.dto.ts), [mobile types/client](../../mobile/services/api-client.ts), [schema](../../api/prisma/schema.prisma), [IncidentsService](../../api/src/incidents/incidents.service.ts).
 
-TripStatus thực: SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED. AttendanceStatus: UNMARKED, PRESENT, ABSENT. Incident types: ATTENDANT_MISSING, DRIVER_MISSING, OFF_ROUTE, LATE_STOP; incident statuses thực: WAITING_ASSIGNMENT, WAITING_CONFIRMATION, RESOLVED, CONFIRMED, CLOSED. Không tạo enum nghiệp vụ mới.
+Enum thực: TripStatus = SCHEDULED / IN_PROGRESS / COMPLETED / CANCELLED; AttendanceStatus = UNMARKED / PRESENT / ABSENT. Các nhãn “Giáo viên sẵn sàng”, “Đã đến trường”, “Chưa xuống xe” là trình bày từ field có sẵn, không phải enum mới.
 
-## Wireframe và thông tin được chuyển vị trí
+**Giới hạn kết thúc chuyến:** Home refresh8s loại card hoàn thành theo API hiện tại; operational refresh5s có thể cập nhật COMPLETED trong thời gian card còn được chọn. Mapping COMPLETED được xử lý đúng nhưng không đảm bảo có card lịch sử sau refresh/reload. Muốn luôn xem chuyến đã kết thúc cần thay nguồn/chính sách chọn chuyến riêng, ngoài phạm vi frontend này.
 
-Bố cục đã trình bày trước code theo yêu cầu triển khai trực tiếp của PO, không có lượt duyệt wireframe riêng hoặc nghiệm thu thành phẩm.
+## Bố cục và thông tin được giữ
 
 ```text
-Chuyến xe của con                              DD/MM/YYYY
-[Avatar] Tên học sinh                          [Tag chuyến]
-         Trường học                                  [˅]
-         [Tag điểm danh] [Chuyến có sự cố nếu có]
-──────────── khi mở rộng ─────────────────────────────────
-Tên tuyến đầy đủ
-Chiều đi/về (ngày riêng nếu các card có nhiều serviceDate)
-[Khởi hành]             [Đón con/Điểm danh]     [Đến trường]
-[Giờ thực/dự kiến]      [Giờ thực/dự kiến]      [Giờ thực/dự kiến]
-[Lịch cũ nếu đã có giờ thực tế]
-     │                        │                      │
- Xuất phát ───────────────── Nhà ───────────────── Trường
-              Bus ở vị trí mốc được PO chỉ định
-                         [Np / theo lịch] trên bus khi phù hợp
-[Sớm/Trễ N phút nếu đủ giờ]
-[Giờ điểm danh / giờ xuống xe / lý do vắng V2 nếu có]
-[Biển số] [Tài xế]
+Chuyến xe của con                                 DD/MM/YYYY
+[Avatar] Tên con                               [Tag chuyến]
+         Trường học                                   [˅]
+         [Tag điểm danh của con] [Readiness khi chờ] [Sự cố]
+──────────── mở rộng ──────────────────────────────────────
+Tên tuyến đầy đủ · Chiều đi/về
+[Khởi hành]            [Đón/Điểm danh lên]       [Đến trường]
+[Giờ thực/dự kiến]     [Giờ thực/dự kiến]        [Giờ thực/dự kiến]
+      │                         │                     │
+Xuất phát ───────────────── Điểm đón ────────────── Trường học
+
+Chiều về:
+[Khởi hành]            [Trả con/Xuống xe]       [Kết thúc chuyến]
+      │                         │                     │
+Trường học ─────────────── Điểm trả của con ───────── Bãi xe
+
+[So sánh sớm/trễ nếu có actual và lịch cùng mốc]
+[Giờ điểm danh/xuống xe/lý do vắng V2 nếu có]
+[Biển số · Tài xế]
 [Theo dõi lộ trình]
-[Báo nghỉ chuyến này — đúng canReportLeave/busy cũ]
+[Báo nghỉ chuyến này — giữ canReportLeave và busy guard]
 ```
 
-Đã bỏ khối card cũ chứa routeName/scheduledTime/serviceDate. RouteName chuyển thành dòng riêng ở đầu panel, đầy đủ/wrap; direction có chữ. Ngày lấy từ **serviceDate API**, DD/MM/YYYY, ngang tiêu đề; nhiều ngày thì hiển thị đủ ở header và gắn thêm ngày cho từng route để không nhầm. Không thay ngày API bằng hôm nay.
+Không lặp tag điểm danh dưới rail; không thêm dòng trạng thái hoặc “Minh họa theo trạng thái” trong thanh hành trình. Tên tuyến vẫn wrap đầy đủ ở đầu panel, ngày từ serviceDate ngang heading; nhiều ngày có thêm ngày riêng từng route. Không loại bỏ giờ điểm danh chiều về: vẫn nằm trong phần chi tiết V2 bên dưới rail.
 
-Theo yêu cầu PO, bỏ dòng chữ hiển thị “Minh họa theo trạng thái”. Footer chỉ xuất hiện khi có thông tin sớm/trễ, không giữ khoảng trống cho caption. Cách xác định vị trí bus theo mốc và mô tả accessibility giữ nguyên.
+## Mapping chiều đi
 
-Tag điểm danh chỉ hiển thị ở header card, bỏ nhãn và icon trạng thái lặp bên dưới thanh hành trình/dòng kết thúc tuyến theo lịch. Phần mở rộng giữ giờ điểm danh, giờ xuống xe và lý do vắng nếu có; không render hộp chi tiết rỗng khi thiếu cả ba thông tin. Logic xác định trạng thái và hành vi các nút giữ nguyên.
+Mốc0 = xuất phát,0.5 = điểm đón,1 = trường. Phân số là vị trí bố cục theo nghiệp vụ PO, không phần trăm quãng đường/GPS.
 
-Giờ tuyến cũ không bị mất: giờ khởi hành dự kiến ở time badge (hoặc dòng Lịch khi đã có actualStartTime); giờ đến trường dự kiến ở destination badge; chiều về giờ kết thúc tuyến ở bãi được giữ thành dòng “Kết thúc tuyến theo lịch HH:mm”, tách khỏi giờ trả con.
+| Bước | Field thực | Tag chuyến / tag con | Bus |
+| --- | --- | --- | --- |
+| Chờ khởi hành | SCHEDULED, UNMARKED, ready=false | Chờ khởi hành / Chưa điểm danh lên; Chờ giáo viên |0 |
+| Giáo viên sẵn sàng | SCHEDULED, ready=true | Chờ khởi hành / Chưa điểm danh lên; Giáo viên sẵn sàng |0 |
+| Đang đi đón | IN_PROGRESS, UNMARKED | Đang di chuyển / Chưa điểm danh lên |1/3 =2/3 chặng xuất phát→điểm đón |
+| Đã điểm danh lên | IN_PROGRESS, PRESENT, chưa đến trường/chưa xuống | Đang di chuyển / Đã điểm danh lên |5/6 =2/3 chặng điểm đón→trường |
+| Đến trường | IN_PROGRESS, isSchoolArrived, PRESENT, chưa xuống | Đã đến trường / Chưa xuống xe |1 |
+| Đã điểm danh xuống | IN_PROGRESS, PRESENT, isAlighted | Đã đến trường nếu school arrival đã có / Đã xuống xe |1 |
+| Kết thúc | COMPLETED | Kết thúc chuyến / vẫn theo điểm danh riêng |1; giờ actualEndTime riêng dưới rail |
 
-## Vị trí minh họa và icon trên rail
+Không còn tự tạo nhịp1600ms đặt bus tại điểm đón rồi tự chuyển đi. API chưa có sự kiện đến/rời pickup độc lập; PRESENT đang di chuyển thể hiện chặng sau boarding, không xác nhận GPS tại nhà. Xác nhận đến trường không tự xác nhận từng con đã xuống.
 
-Chiều đi có mốc0 xuất phát,0.5 điểm đón,1 trường. Chiều về có mốc0 trường,1 điểm trả của con. Khoảng cách là layout, không km hoặc phần trăm hành trình thực.
+## Mapping chiều về
 
-| Dữ liệu | Vị trí bus trên sơ đồ |
+Mốc0 = trường,0.5 = điểm trả của con,1 = kết thúc tuyến/bãi. Điểm trả không còn là điểm kết thúc chung của chuyến.
+
+| Bước | Field thực | Tag chuyến / tag con | Bus |
+| --- | --- | --- | --- |
+| Chờ khởi hành | SCHEDULED, UNMARKED, ready=false | Chờ khởi hành / Chưa điểm danh lên; Chờ giáo viên |0 |
+| Giáo viên sẵn sàng | SCHEDULED, ready=true | Chờ khởi hành / Chưa điểm danh lên; Giáo viên sẵn sàng |0 |
+| Đã điểm danh trước xuất phát | SCHEDULED, PRESENT, chưa xuống | Chờ khởi hành / **Đã điểm danh lên**; readiness giữ riêng |0 tại trường |
+| Đang di chuyển | IN_PROGRESS, PRESENT, chưa xuống | Đang di chuyển / Chưa xuống xe |1/3 =2/3 chặng trường→điểm trả |
+| Con đã xuống xe, chuyến vẫn chạy | IN_PROGRESS, PRESENT, isAlighted | Đang di chuyển / Đã xuống xe |0.5 tại điểm trả, bus thay nhà; chưa tô hết tuyến |
+| Kết thúc chuyến | COMPLETED | Kết thúc chuyến / theo xác nhận của con |1 tại bãi; actualEndTime ở mốc cuối |
+
+Việc từng con xuống xe không kết thúc cả chuyến và không xác nhận các con khác đã xuống. Khi còn PRESENT chưa xuống, không khẳng định xe đã đến điểm trả vì không có event arrival độc lập.
+
+## Thiếu dữ liệu, ngoại lệ và màu
+
+- IN_PROGRESS + UNMARKED chiều về: giữ bus tại trường0 (fallback), đường xám, tag **Chưa điểm danh lên**; không ẩn bus, không tự đánh dấu boarding.
+- UNMARKED vẫn giữ warning ngay cả khi chuyến đã đến/kết thúc. PRESENT chưa xuống khi COMPLETED vẫn **Chưa xuống xe**; hoàn thành chuyến chỉ đặt bus ở điểm cuối, không đổi xác nhận của con. Phù hợp cả dữ liệu bị sửa tay không nhất quán.
+- ABSENT + notice hiệu lực: Đã báo nghỉ; ABSENT khác: Vắng mặt. Không vẽ bus cho hành trình con không tham gia. CANCELLED: tag Đã hủy, không bus.
+- Readiness chỉ hiện lúc SCHEDULED: false→Chờ giáo viên; true→Giáo viên sẵn sàng (kèm giờ nếu hợp lệ); thiếu field→Chưa cập nhật GV. Không coi thiếu API là false/đã sẵn sàng. Readiness hết vai trò hiển thị khi chuyến đã chạy.
+- Viền card/nền header dùng journeyTones theo **tag của con**: warning vàng, info xanh dương, purple tím, success xanh lá, danger đỏ. Readiness xanh không ghi đè tone của điểm danh. Trạng thái chuyến/sự cố giữ tag riêng; chi tiết nền trắng.
+- Lỗi operational: không dùng operation lỗi để suy luận trạng thái mới; fallback home card, có nhãn stale. Detail readiness lỗi→unknown; thời gian/metadata cũ còn giữ có cảnh báo chưa cập nhật đầy đủ.403/404/401 xóa dữ liệu telemetry khỏi scope. Không tự retry mutation hoặc đổi selection.
+
+## Giờ, animation và responsive
+
+[journeyEventTime](../../mobile/utils/parent-journey.ts) tách confirmed/planned/actual: chưa xác nhận dùng lịch; đã xác nhận nhưng thiếu actual hiện —:— / Chưa có giờ, có dòng Lịch riêng nếu biết. Không lấy giờ dự kiến giả làm giờ thực.
+
+- Khởi hành: actualStartTime khi IN_PROGRESS/COMPLETED, trước đó scheduled departure.
+- Chiều đi midpoint: planned PICKUP của con hoặc markedAt khi đã điểm danh; đích: arrivedAtSchoolAt, fallback childAlightedAt nếu có xác nhận xuống, giữ ý nghĩa nhãn tương ứng.
+- Chiều về midpoint: planned DROPOFF riêng con, sau xác nhận là childAlightedAt. Đích: scheduledEndTime hoặc actualEndTime khi COMPLETED. Giờ boarding ở trường vẫn có ở chi tiết điểm danh cũ.
+- Sớm/trễ chỉ tính từ actual arrival của **cùng mốc** so với lịch, không từ thời gian hiện tại. Không có ETA động; bỏ bong bóng countdown theo lịch để tránh nhầm tiến độ thực.
+
+Bus đặt trên rail, thay icon node khi ở0/0.5/1; các mốc khác vẫn hiện. Đường vàng đến mốc nghiệp vụ, phần còn lại xám. Không xe chạy qua lại, không GPS watcher; vị trí đổi trực tiếp, fade180ms khi active. Reduced motion/blur/background ngừng animation như component cũ. Marker scale theo rail measured width; ba time badge flex, title wrap, clock co vừa vùng, không fixed spacer theo thiết bị. Giữ component expand/collapse/keyboard/safe-area hiện có; không thêm input hoặc đổi navigation.
+
+## Component, dữ liệu và mở rộng
+
+| File | Trách nhiệm |
 | --- | --- |
-| SCHEDULED | 0; bus thay icon xuất phát, đường xám |
-| IN_PROGRESS + UNMARKED chiều đi | 1/3 rail =2/3 chặng0→0.5; vẫn có icon xe tại xuất phát |
-| Mới quan sát UNMARKED→PRESENT trên card đang mở, chiều đi đang chạy | 0.5 trong1600ms để ghi nhận điểm danh; bus thay nhà |
-| IN_PROGRESS + PRESENT, chưa đến trường/chưa xuống | 5/6 rail =2/3 chặng0.5→1 |
-| Xe đã đến trường, con chưa xuống | 1, bus thay trường; tag con vẫn Chưa xuống xe nếu PRESENT |
-| PRESENT + đã xuống | 1, tag Đã xuống xe |
-| Chiều về PRESENT trước start | 0 tại trường, chưa minh họa đã chạy |
-| Chiều về IN_PROGRESS + PRESENT | 2/3 chặng trường→điểm trả |
-| Chiều về đã xuống | 1, bus thay nhà |
-| ABSENT hoặc CANCELLED | Không đặt bus cho hành trình con không tham gia/hủy |
-| COMPLETED thiếu mốc đến/xuống xác nhận | Trung tính, không tự xác nhận đã trả con |
-| UNMARKED chiều về đang chạy nhưng chưa có boarding (TH2) | Bus vẫn hiện tại mốc trường0, đường xám; tag Chưa điểm danh giữ nguyên. Vị trí dự phòng, không xác nhận vị trí xe thực hoặc con đã lên xe |
+| [index.tsx](<../../mobile/app/(tabs)/index.tsx>) | Ghép operation đúng tripId/direction/studentId; chọn readiness từ operation nếu có, nếu không dùng detail; truyền label/status/readiness; giữ nguyên body/actions và nhánh staff |
+| [trip-card.tsx](../../mobile/components/parent/trip-card.tsx) | Optional readiness?: StudentJourneyBadge; chip và accessibility label ở header, tone theo studentStatus; giữ expand/collapse |
+| [student-journey.tsx](../../mobile/components/parent/student-journey.tsx) | ParentStudentJourney nhận card/telemetry/active/showServiceDate; rail ba mốc, clocks/variance/incidents, không timer boarding |
+| [parent-journey-stage.ts](../../mobile/utils/parent-journey-stage.ts) | Pure badge/trip label/readiness/stage helpers; không enum/API mutation |
+| [parent-journey.ts](../../mobile/utils/parent-journey.ts) | Parse clock/timezone, actual-vs-planned, time selection theo con; legacy geometry helpers không được dùng để suy ra vị trí rail mới |
+| [use-parent-journey-telemetry.ts](../../mobile/hooks/use-parent-journey-telemetry.ts) | Dedup theo tripId, existing GET operation/incidents5s; detail5s khi SCHEDULED để cập nhật readiness,20s khi đã chạy; focus immediate, scope/permission/active guards cũ |
+| [api-client.ts](../../mobile/services/api-client.ts) | Optional detail readiness fields đã có trên server; runtime client giữ nguyên |
+| [parent-journey-stage.test.ts](../../mobile/scripts/parent-journey-stage.test.ts) | Bảng trạng thái, exception, thời gian và96 tổ hợp scalar; không business fixtures |
 
-**Sửa TH2 theo yêu cầu PO:** trước đây trường hợp này trả position=null nên icon bus bị ẩn. Hiện trả0 để giữ icon trên rail tại mốc đầu trong lúc thiếu xác nhận lên xe của con; không có bubble số phút vì chưa minh họa chặng con đang trên xe. Khi attendance thành PRESENT, dùng mốc2/3 như cũ; khi xuống xe được xác nhận, dùng mốc1. Đây chỉ là fallback trình bày, không thay status chuyến, attendance, tọa độ GPS hoặc timestamps. Tag header vẫn Chưa điểm danh màu amber cho UNMARKED. Vị trí TH1/TH3/chiều đi và ABSENT/CANCELLED/COMPLETED giữ nguyên.
+Khi mở rộng, thêm mapping vào pure helpers từ field đã tồn tại; phân biệt trạng thái chuyến/ready/boarding/down của đúng con. Cần sự kiện, ETA hoặc lịch sử mới phải kiểm tra contract và duyệt phạm vi riêng. Không dùng timers/GPS giả để lấp dữ liệu thiếu.
 
-**Đồng bộ tag xuống xe chiều về theo yêu cầu PO mới nhất:** PRESENT + chưa có xác nhận xuống xe dùng tag Chưa xuống xe màu tím, cùng icon/tone như chiều đi đã đến trường nhưng chưa xuống. PRESENT + đã xác nhận xuống xe dùng tag Đã xuống xe màu xanh lá như chiều đi. Tag chưa xuống xe không khẳng định xe đã đến điểm trả; mốc arrival độc lập vẫn chưa có. Chỉ mở lại phần tag của TH4, không thêm event hoặc sửa vị trí bus.
+## Kiểm chứng01/11/2026
 
-| Trường hợp chiều về | Tag của con ở header | Bus trên rail khi card còn được chọn |
-| --- | --- | --- |
-| SCHEDULED + UNMARKED | Chưa điểm danh, amber | Mốc trường0 |
-| SCHEDULED + PRESENT, chưa xuống | Chưa xuống xe, tím | Mốc trường0, chưa minh họa đã chạy |
-| IN_PROGRESS + UNMARKED (TH2) | Chưa điểm danh, amber | Mốc trường0 dự phòng, không ẩn bus |
-| IN_PROGRESS + PRESENT, chưa xuống (TH1) | Chưa xuống xe, tím | 2/3 chặng trường→điểm trả |
-| Xe đã đến điểm trả nhưng chưa xuống (TH4) | Chưa xuống xe, tím nếu PRESENT | Vẫn2/3 vì chưa có event xác nhận đến điểm trả độc lập; không tự suy ra đến đích |
-| PRESENT + đã xác nhận xuống (TH3) | Đã xuống xe, xanh lá | Mốc điểm trả1, bus thay nhà |
-| ABSENT + báo nghỉ còn hiệu lực | Đã báo nghỉ, đỏ | Không vẽ bus cho hành trình con |
-| ABSENT không báo nghỉ | Vắng mặt, đỏ | Không vẽ bus cho hành trình con |
-| CANCELLED | Tag chuyến Đã hủy; tag con vẫn theo attendance | Helper không vẽ bus; Home không lấy chuyến hủy |
-| COMPLETED | Tag con vẫn theo attendance/alighting nếu còn card tạm | Home không lấy chuyến hoàn thành; helper chỉ tới1 khi PRESENT + đã xuống, thiếu mốc xác nhận trả null |
+- PASS: Mobile npx --no-install tsc --noEmit; Expo export --platform all ra TEMP (web/iOS/Android bundles, không native build/runtime).
+- PASS:31 pure tests trong hai scripts journey/stage, gồm7bước chiều đi,6bước chiều về, readinessmissing, return UNMARKED fallback, completed không suy ra xuống,96 tổ hợp enum/boolean, clock planned/actual/missing. Chỉ scalar/geometry, không records giả hay fake API responses.
+- PASS: Preview JSX/styles thực của header/rail, ma trận13bước tại320×568 và390×844, desktop1440×900: bus hiện đủ các bước thông thường, không overflow ngang. Dùng identity đã có từ snapshot read-only và giờ để trống; không mount API/data hook/auth giả.
+- PASS: Kiểm tra source body/actions của ParentTripCard và các nhánh Home ngoài parent mapping giữ nguyên; runtime API client không đổi;11hashes backend/schema/các phần pending khác/dependencies/env giữ nguyên.
+- NOT_VERIFIED: native Expo iPhone/Android, Safari/Chrome mobile, VoiceOver/font scale lớn, thao tác/authenticated refresh/race và chuyển nghiệp vụ đầu-cuối trên DB. Không thay records để tạo các bước test: BLOCKED_BY_TEST_DATA_POLICY đối với kiểm thử cần mutation/dữ liệu mới. Preview không thay nghiệm thu runtime.
 
-Các trường hợp có alighting xác nhận ở trên giả định dữ liệu hợp lệ, không tự xác nhận con đã xuống khi attendance còn UNMARKED/ABSENT. Home vẫn chỉ chọn một chuyến ưu tiên cho mỗi con, loại chuyến quá scheduled_end_at; việc cả card không còn được chọn khác với icon bus bị ẩn trong card. Học sinh PRESENT chờ khởi hành đã lên xe nhưng chưa xuống nên cũng dùng tag tím; status chuyến Chờ khởi hành giữ nguyên.
-
-Nhịp1600ms là **hiệu ứng UI sau sự kiện điểm danh thực được quan sát**, không field/sự kiện mới “đã rời điểm đón”. Mở một card đã PRESENT từ trước sẽ đi thẳng chặng kế tiếp, không phát lại điểm danh giả. Cần endpoint/event riêng nếu sau này phải giữ bus ở pickup cho đến khi tài xế thực sự rời điểm đó.
-
-Bus thay icon của node khi ở đúng node, không vẽ hai icon chồng nhau. Chiều đi: tại node có3 icon; giữa chặng có4 (xuất phát, nhà, trường, bus). Tâm bus và tâm node cùng y với rail. Marker co theo bề ngang rail ở máy nhỏ để không đè node bên cạnh. Vị trí nhảy ngay; chỉ fade opacity180ms, không chạy liên tục hoặc giả lập GPS. Giữ reduced motion và dừng khi blur/background.
-
-## Tag và trạng thái con ở card thu gọn
-
-Tag chuyến là trạng thái chung, tag con dựa attendance/alighting **của chính studentId**:
-
-| Con | Tag/tone |
-| --- | --- |
-| UNMARKED | Chưa điểm danh, amber đậm + alert icon, nền summary vàng nhạt và viền nhấn |
-| Chiều đi PRESENT chưa đến trường/chưa xuống | Đã điểm danh, xanh dương + check icon |
-| Xe đến trường + PRESENT chưa xuống | Chưa xuống xe, tím + icon xuống xe |
-| Chiều về PRESENT chưa xuống (kể cả đang chờ xuất phát) | Chưa xuống xe, tím + icon xuống xe; không suy ra xe đã đến điểm trả |
-| PRESENT + isAlighted | Đã xuống xe, xanh lá |
-| ABSENT + hasLeaveNotice | Đã báo nghỉ, đỏ |
-| ABSENT không notice | Vắng mặt, đỏ |
-| Có incident WAITING_ASSIGNMENT/WAITING_CONFIRMATION | Chuyến có sự cố, tag đỏ riêng, không biến attendance của con thành “sự cố” |
-
-Dùng cả chữ/icon/màu, không dựa màu đơn thuần. Viền trái giữ độ rộng4px ở mọi trạng thái để đổi màu không làm thay đổi bề ngang. Tag wrap, không ellipsis tên/trường/tuyến. Sự cố RESOLVED/CONFIRMED/CLOSED không tạo cảnh báo đang mở; panel chỉ trình bày loại/thời điểm cấp chuyến được backend cho phép, không context hoặc tên học sinh khác.
-
-### Màu card đồng bộ với tag học sinh
-
-[ParentTripCard](../../mobile/components/parent/trip-card.tsx) lấy `journeyTones[studentStatus.tone]` làm nguồn chung với tag: `border` cho viền card (kể cả viền trái4px), `bg` cho nền header. Áp dụng cả khi thu gọn và mở rộng; màu vàng mặc định khi mở không ghi đè màu trạng thái. Phần chi tiết giữ nền trắng, chữ/icon/nhãn và các nút giữ nguyên.
-
-| Tag học sinh | Viền và nền header |
-| --- | --- |
-| Chưa điểm danh | Vàng/amber |
-| Đã điểm danh | Xanh dương/info |
-| Chưa xuống xe | Tím/purple |
-| Đã xuống xe | Xanh lá/success |
-| Đã báo nghỉ hoặc Vắng mặt | Đỏ/danger |
-
-Màu theo trạng thái của riêng con, không theo tag trạng thái chung của chuyến hoặc tag sự cố. Các tag đó vẫn giữ màu và ý nghĩa riêng. Nếu không truyền studentStatus, giữ tương thích attention=true dùng warning; không có cả hai thì dùng màu mặc định trước đây. Không sửa mapping trạng thái, vị trí bus, API hoặc nghiệp vụ. Font/spacing/border width/animation giữ nguyên nên đổi trạng thái không làm nhảy bố cục.
-
-## Nguồn và ý nghĩa thời gian
-
-[studentJourneyTimes](../../mobile/utils/parent-journey.ts) nhận thêm operation tùy chọn, không thay DTO API:
-
-- Khởi hành: actualStartTime hợp lệ thì Thực tế + giữ dòng Lịch; chưa có thì lịch từ scheduledTime/detail.scheduledStartTime, không đoán thời gian xuất phát từ lúc frontend tải.
-- Điểm đón: PRESENT dùng markedAt và nhãn Điểm danh; ABSENT dùng markedAt với Báo nghỉ/Báo vắng tương ứng; đây là thời điểm ghi nhận, không thời điểm bus đến pickup. UNMARKED dùng plannedArrivalTime của PICKUP riêng con nếu có.
-- Đến trường: arrivedAtSchoolAt từ operational-state, independent với alighting. Nếu chỉ biết đã xuống qua Home và chưa có giờ xe tới trường, dùng mốc đó với nhãn Xuống xe, không tính sớm/trễ như thể đó là giờ xe tới.
-- Chiều về: plannedArrivalTime của DROPOFF đúng studentId/isMyChild; thực tế là alightedAt của chính con. Không dùng actualEndTime/giờ xe về bãi thay thế.
-- Nếu đã đến nhưng timestamp chưa có thì —:—/Chưa có giờ + giữ lịch; không gán timestamp thời điểm render.
-- Các timestamp thực format Asia/Ho_Chi_Minh; serviceDate + giờ lịch có offset+07:00.
-- Sớm/trễ = lịch đích trừ timestamp đích đã xác nhận, làm tròn phút. Không đủ một trong hai mốc thì không tính chênh lệch.
-- Bubble tính số phút còn đến **lịch đã công bố** theo clock thiết bị, ceil phút; caption theo lịch. Không hiện0/âm hoặc tự cộng giờ trễ để tạo ETA mới. Trên60phút hiển thị giờ lịch, không số lớn hoặc ETA giả.
-
-Time badges ở trên rail với đường nối xuống từng mốc; giờ thực nổi vàng nhạt, lịch nền trắng, giờ cũ nhỏ vẫn đọc được. MinHeight94 (không fixed height), số giờ auto-fit đủ5 ký tự, nhãn/phụ chú tự wrap. Sớm/trễ nằm ở footer diagram để các badge cân đối. Không thêm text trạng thái chuyến lặp trong diagram.
-
-## Component, hook, quyền và mở rộng
-
-- [ParentTripCard](../../mobile/components/parent/trip-card.tsx): giữ studentName/avatarUrl/schoolName/status/children/journey(active). Optional studentStatus vừa hiển thị tag vừa chọn tone viền/nền header; hasIncident/stale giữ tag riêng, attention là fallback warning khi thiếu studentStatus. Chỉ giữ disclosure; không gọi API hoặc đổi permissions. accessibilityLabel gồm status con/sự cố và aria-expanded. CTA là sibling của summary, không đóng card.
-- [ParentStudentJourney](../../mobile/components/parent/student-journey.tsx): nhận card thực đã chuẩn hóa, telemetry, active, showServiceDate?. Derive time/stage, nhịp boarding sau event thật, panel sự cố. Không mutation hoặc engine định vị.
-- StudentJourneyRouteHeader: routeName, outbound, serviceDate?; presentation thuần.
-- StudentJourneyDiagram: stagePosition:number|null, outbound, active, departure/arrival/pickup:JourneyTime, pickupTitle, arrivalTitle; optional arrivalNote/late/bubble. Caller phải dùng mốc đúng quy tắc được PO duyệt; không truyền tọa độ GPS vào stagePosition.
-- JourneyTime: value:string|null, kind:scheduled|actual, scheduledValue? để giữ lịch khi actual đã có.
-- [parent-journey-stage](../../mobile/utils/parent-journey-stage.ts): helpers pure normalize riêng child qua children.find(studentId), position, badge, incident active/label, service date, timestamp lịch và arithmetic. Tone/position là trạng thái trình bày, không enum nghiệp vụ.
-- studentJourneyBadge(attendance, alighted, schoolArrived, hasLeaveNotice, direction?): direction lấy từ card hiện tại để chiều về PRESENT chưa xuống dùng tag tím; bỏ qua hoặc TO_SCHOOL giữ quy tắc chiều đi cũ. Luôn xét ABSENT/UNMARKED trước alighting để không gán xuống xe từ dữ liệu chưa xác nhận lên xe.
-- [journeyTones](../../mobile/constants/parent-journey.ts): màu cảnh báo/info/success/danger/purple/neutral dùng chung, tái sử dụng theme. Không cài package/font.
-- [useParentJourneyTelemetry](../../mobile/hooks/use-parent-journey-telemetry.ts): một GET operational-state + incidents mỗi5s cho mỗi tripId, metadata detail tối đa mỗi20s và khi focus. Dedup nhiều con cùng chuyến; useActiveRefresh giữ no-overlap/isCurrent/focus/AppState. **Không gọi navigation/state/history/segment/session/position, không GPS watcher.** Home vẫn fetch8s như cũ.
-- Cache theo account identity và tập tripId, giữ trips không đổi khi sibling đổi.401/403/404 xóa operation/incidents/detail của trip; lỗi từng nguồn giữ dữ liệu trước đó và có nhãn chưa cập nhật, mutable attendance fallback Home khi operational-state đọc lỗi. Không để cached account khác xuất hiện.
-- [HomeScreen](<../../mobile/app/(tabs)/index.tsx>) chọn từng child, giữ nguyên auth/router/quick-leave payload/canReportLeave/busy; nhánh staff không đổi. getAttendanceBadge và getStatusBadge cũ không sửa. Giờ trong panel điểm danh chuyển cùng timezone Việt Nam.
-
-Safe area/header/tab/keyboard của shell và các form được điều hướng đến giữ nguyên. Home không có input; không cộng offset bàn phím. MaxWidth560, responsive, không truncation. Card studentId:tripId giữ expanded qua polling; chiều cao panel đo lại khi metadata/status/font/width đổi. Body display:none khi đóng; button ẩn không vào tab order. Các helper GPS cũ còn trong parent-journey.ts để tương thích/tests, không còn được Home rail gọi.
-
-## Kiểm chứng
-
-- PASS Mobile tsc --noEmit sau cập nhật tag chiều về. Expo export all iOS/Android/Web/server đã chạy ở task mốc nghiệp vụ trước đó, không chạy lại cho thay đổi tag; outputs ngoài repo, không cài mới.
-- PASS26 pure node:test checks:14 cũ +12 stage/time checks gồm hồi quy TH2 và tag chiều về, enums/booleans/clock/geometry only, không records/DTO giả/API mock hoặc DB. Đối chiếu192 vị trí bus giữ nguyên;72 mapping tag chỉ đổi PRESENT/chưa xuống chiều về từ Đã điểm danh sang Chưa xuống xe khi chưa có school-arrival.
-- PASS source parity: controller Home, API clients, staff JSX và router/quick-leave callback payload giữ nguyên. Khối lịch cũ chỉ chuyển trình bày; dữ liệu lịch đầy đủ còn ở các vị trí mới.
-- PASS Chromium IAB presentation-only:8 trạng thái tại320px, bus cùng y rail, node không chồng,3 icon tại xuất phát/pickup/đích và4 giữa chặng; các tag hiện ngay khi collapsed. Header/date cùng hàng320/390/844/1440, tên/trường/tuyến dài đủ và không tràn. Chiều về320/390, bubble theo lịch, CTA local không đóng card, Enter collapse hoạt động. Dùng primitive presentation selectors/nhãn kiểu chữ, không Trip/Student DTO hoặc fake API.
-- NOT_VERIFIED lint: Mobile không có script/config riêng, không thêm dependency.
-- NOT_VERIFIED Expo Go iPhone/Android, Safari iOS/Chrome Android, VoiceOver, Dynamic Type và settings reduced motion thực; thời gian1600ms từ sự kiện API thật, polling/error/permissions và API mutations end-to-end. BLOCKED_BY_TEST_DATA_POLICY cho phần cần phiên/dữ liệu vận hành chưa sẵn; không tự tạo records/phát vị trí hoặc gọi mutations để test.
-
-## Phần thiếu / giới hạn
-
-ETA vận hành và sự kiện xe đến/rời pickup không có trong response hiện dùng; chỉ triển khai lịch và mốc điểm danh có thật. Parent incident bị privacy mask nên chỉ có cảnh báo cấp chuyến. Home không trả lịch sử completed/cancelled; khi backend bỏ chuyến khỏi Home, card có thể chuyển sang chuyến ưu tiên tiếp theo hoặc rỗng, không có history cache do agent tự tạo. PARENT cùng chuyến có thể thấy rail khác nhau theo trạng thái từng con: đây là tiến trình minh họa, không hai vị trí GPS khác nhau của một xe.
-
-Bước tiếp theo duy nhất: nghiệm thu trên Expo Go iPhone với dữ liệu chuyến/điểm danh hợp lệ do PO chuẩn bị.
+[Xem báo cáo và diff riêng task](../ai-review/LATEST.md). Các quyết định cũ được lưu trong lịch sử review; spec này ưu tiên luồng PO ngày01/11.

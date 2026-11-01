@@ -1,0 +1,180 @@
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -1411,14 +1411,18 @@
+                       stop.stopType === 'SCHOOL_ARRIVAL' || stop.stopType === 'SCHOOL_DEPARTURE';
+ 
+                     return (
+-                      <View key={stop.id || idx} style={styles.stopCard}>
+-                        <View style={styles.stopOrderCircle}>
+-                          <Text style={styles.stopOrderText}>{stop.stopOrder}</Text>
++                      <View key={stop.id || idx} style={[styles.stopTimelineRow,
++                        idx === visibleStops.length - 1 && styles.stopTimelineLastRow]}>
++                        <View style={styles.stopTimelineRail}>
++                          {idx < visibleStops.length - 1 && <View style={styles.stopTimelineConnector} />}
++                          <View style={styles.stopOrderCircle}>
++                            <Text style={styles.stopOrderText}>{stop.stopOrder}</Text>
++                          </View>
+                         </View>
+ 
+-                        <View style={{ flex: 1 }}>
++                        <View style={styles.stopCard}>
+                           <View style={styles.stopHeaderRow}>
+-                            <Text style={styles.stopName} numberOfLines={1}>
++                            <Text style={styles.stopName}>
+                               {isParking
+                                 ? 'Bãi xe trung tâm'
+                                 : isSchool
+@@ -1431,7 +1435,7 @@
+                             ) : null}
+                           </View>
+ 
+-                          <Text style={styles.stopAddress} numberOfLines={2}>
++                          <Text style={styles.stopAddress}>
+                             {stop.addressText}
+                           </Text>
+ 
+@@ -3015,15 +3019,19 @@
+     fontSize: 12,
+     color: '#64748B',
+   },
++  stopTimelineRow: { flexDirection: 'row', alignItems: 'stretch', gap: 12, paddingBottom: 16 },
++  stopTimelineLastRow: { paddingBottom: 0 },
++  stopTimelineRail: { width: 26, alignItems: 'center', paddingTop: 12 },
++  // Extend through the row gap; card height can grow with its content.
++  stopTimelineConnector: { position: 'absolute', top: 42, bottom: -24, width: 2, backgroundColor: colors.border },
+   stopCard: {
+-    flexDirection: 'row',
+-    gap: 12,
++    flex: 1,
++    minWidth: 0,
+     padding: 12,
+     backgroundColor: '#F8FAFC',
+     borderRadius: 12,
+     borderWidth: 1,
+     borderColor: '#E2E8F0',
+-    marginBottom: 8,
+   },
+   stopOrderCircle: {
+     width: 26,
+@@ -3041,23 +3049,32 @@
+   stopHeaderRow: {
+     flexDirection: 'row',
+     justifyContent: 'space-between',
+-    alignItems: 'center',
++    alignItems: 'flex-start',
++    flexWrap: 'wrap',
++    gap: 6,
+   },
+   stopName: {
+     fontSize: 13,
+     fontWeight: '700',
+     color: '#0F172A',
+-    flex: 1,
++    flexGrow: 1,
++    flexShrink: 1,
++    flexBasis: 120,
++    lineHeight: 19,
+   },
+   stopEta: {
+     fontSize: 12,
+     fontWeight: '600',
+     color: '#2563EB',
++    lineHeight: 19,
++    flexShrink: 0,
++    maxWidth: '100%',
+   },
+   stopAddress: {
+     fontSize: 12,
+     color: '#64748B',
+     marginTop: 2,
++    lineHeight: 18,
+   },
+   childAttendanceStatusBox: {
+     flexDirection: 'row',
+@@ -3069,12 +3086,15 @@
+     backgroundColor: '#FFFFFF',
+     borderRadius: 6,
+     alignSelf: 'flex-start',
++    maxWidth: '100%',
+     borderWidth: 1,
+     borderColor: '#E2E8F0',
+   },
+   childAttendanceStatusText: {
+     fontSize: 11,
+     fontWeight: '600',
++    lineHeight: 16,
++    flexShrink: 1,
+   },
+   emptyStopsText: {
+     textAlign: 'center',
+--- /dev/null
++++ b/docs/architecture/mobile-trip-stop-timeline.md
+@@ -0,0 +1,55 @@
++# Theo dõi lộ trình — timeline dọc Điểm đón
++
++Cập nhật01/11/2026, Mobile V2, local chưa commit/push.
++
++## Vị trí và phạm vi
++
++Trang chủ phụ huynh → mở card chuyến → Theo dõi lộ trình → `/trip/[id]` → tab **Điểm đón**. Implementation tại [MobileTripDetailScreen](<../../mobile/app/trip/[id].tsx>), nhánh `activeTab === 'STOPS'` dùng chung cho các vai trò vốn có quyền xem chuyến; không thay quyền hoặc hiển thị dữ liệu riêng của vai trò khác.
++
++Chỉ thay cách trình bày danh sách thành timeline dọc. Bản đồ, marker/avatar, GPS/navigation, sheet gestures, tab Thông tin/gọi điện, Điểm danh/Sự cố và hành vi vận hành không đổi. Không thêm endpoint/schema/dependency hoặc record test.
++
++## Bố cục và màu
++
++```text
++(Số thứ tự)   [Tên bãi / trường / học sinh     Giờ dự kiến]
++     │        [Địa chỉ đầy đủ]
++     │        [Tag điểm danh/lý do vắng nếu có quyền]
++(Số tiếp)     [Thông tin điểm tiếp theo ...]
++     │
++(Số cuối)     [Thông tin điểm cuối ...]
++```
++
++- Rail trái26px, vòng số26/bo13 nền xanh `#2563EB`, chữ trắng như trước; card phải flex/minWidth0. Giữ stop.stopOrder từ API, không tự đổi số hoặc sắp xếp lại.
++- Connector2px màu border hiện có `#E2E8F0`, chỉ giữa các điểm; không có đuôi sau điểm cuối và không connector nếu chỉ có một điểm. Không thể hiện vị trí bus/GPS/tiến độ đã hoàn thành bằng đường này.
++- Card vẫn nền `#F8FAFC`, viền `#E2E8F0`, bo12/padding12. Tên navy `#0F172A`, giờ xanh `#2563EB`, địa chỉ xám `#64748B`; tag giữ toàn bộ màu/icon/text xanh lá/đỏ/hổ phách và nền trắng.
++- Row cách16px; rail tự stretch theo chiều cao card. Connector top42/bottom-24 tương ứng marker26/top12, row gap16 và khoảng hở4px với vòng kế tiếp, không giả định chiều cao nội dung. Khi đổi kích thước marker/gap phải đồng bộ geometry này.
++- Header tên/giờ wrap khi hẹp, giờ maxWidth100%; bỏ giới hạn1dòng tên và2dòng địa chỉ để không mất thông tin. Lý do/tag dài có maxWidth100% và text co/wrap. Không cố định chiều cao card hoặc thêm thao tác giả.
++
++## Dữ liệu và bảo toàn nghiệp vụ
++
++`visibleStops` vẫn xuất phát từ `trip.stops`, cập nhật attendanceStatus/absenceReason/attendanceMarkedAt từ operationalState.children khi có. Không thêm sort/filter hoặc dựa vào index để đổi thứ tự. Backend [MobileTripDetailStop](../../mobile/services/api-client.ts) và privacy masking giữ nguyên.
++
++| Nội dung | Mapping giữ nguyên |
++| --- | --- |
++| Mốc số | stop.stopOrder; key stop.id hoặc idx như trước |
++| Bãi xe | PARKING_START/PARKING_END → Bãi xe trung tâm |
++| Trường học | SCHOOL_ARRIVAL/SCHOOL_DEPARTURE → trip.schoolName |
++| Học sinh | stop.studentName hoặc Điểm đón học sinh; tên đã ẩn danh vẫn dùng nguyên dữ liệu API |
++| Giờ/địa chỉ | plannedArrivalTime nếu có; addressText đầy đủ |
++| Tag riêng của con | Chỉ isParent && stop.isMyChild |
++| PRESENT | isAlighted → Đã xuống xe an toàn; còn lại Đã có mặt trên xe |
++| ABSENT | Vắng mặt + absenceReason hoặc Không có lý do |
++| Trạng thái còn lại | Chưa điểm danh |
++| Không có điểm | Giữ Không có điểm dừng |
++
++Không lấy avatar/tên con từ nguồn mới, không lộ PII của học sinh khác, không thêm alighting/attendance enum hoặc API. Phần điều kiện tag giữ nguyên JSX; staff không được thêm tag riêng của phụ huynh. Timeline dùng cho cả chiều đi/về theo thứ tự server, không tự đảo tuyến.
++
++## Responsive, cuộn và mở rộng
++
++ScrollView của tab và vùng sheet hiện có tiếp tục sở hữu cuộn; không thêm list lồng, input, autofocus, animation hoặc keyboard inset. Row không có onPress vì điểm dừng trước đó không có hành động nhấn. Khi bổ sung nội dung sau này, giữ card linh hoạt và node/connector ở rail riêng, không gán trạng thái hành trình giả từ màu đường nối.
++
++## Kiểm chứng và giới hạn
++
++Typecheck/export all; kiểm tra source ngoài STOPS JSX và các style liên quan không đổi. Giữ nguyên JSX tag và tất cả style không liên quan. Chromium IAB preview dùng actual JSX/style và4điểm từ SELECT read-only local (bãi/trường/con đang liên kết), không fake business records/API response;320×568/390×844/844×390/1440×900 không tràn ngang,3connector cho4điểm, rail theo chiều cao card, màn ngang cuộn được.
++
++Preview dùng raw route_stops/attendance/school fields hiện có, không dựng phiên API/route snapshot/resolved-route; stopOrder raw có thể khác phép đánh lại số của backend. Không xem preview như kiểm chứng data/permission của phiên đăng nhập. Thiếu dữ liệu hiển thị lý do vắng dài/PRESENT/alighted trong snapshot thì không tạo hoặc sửa records để test. Native Expo Go iPhone/Android, sheet gestures, VoiceOver/font scale và các trạng thái dữ liệu khác còn NOT_VERIFIED. Chi tiết lệnh, ảnh và giới hạn tại [AI Review](../ai-review/LATEST.md).
+--- a/docs/architecture/mobile-ui-implementation-status.md
++++ b/docs/architecture/mobile-ui-implementation-status.md
+@@ -1,6 +1,10 @@
+ # Hiện trạng giao diện Mobile — Onboarding, xác thực và điều hướng
+ 
+ Ngày cập nhật: **29/10/2026 (Asia/Saigon)**. Commit `db02de6` là mốc Phase1 trên nhánh `dongnnp/mobile/refactor-ui`; các cập nhật local được ghi riêng bên dưới. Tài liệu này ghi nhận phần đã triển khai trong đợt chuyển phong cách V1 sang V2; không phải phê duyệt toàn bộ kế hoạch chuyển giao diện hoặc chứng nhận nghiệm thu thiết bị.
++
++## Theo dõi lộ trình — timeline Điểm đón dọc (01/11/2026, local)
++
++Tab STOPS tại `/trip/[id]` chuyển thành rail số thứ tự bên trái, connector dọc và card thông tin bên phải. Giữ màu xanh/gray/card/tag, toàn bộ thứ tự/tên/giờ/địa chỉ/trạng thái/lý do vắng và privacy/role conditions. Bỏ truncation tên/địa chỉ, cho giờ/tag dài wrap, không thêm tiến độ GPS hoặc thao tác mới. Source ngoài STOPS JSX/style giữ nguyên; không sửa API/backend. [Bố cục/mapping/source/kiểm chứng](mobile-trip-stop-timeline.md). Chưa commit/push; native/auth acceptance chưa xác minh.
+ 
+ ## Báo nghỉ/Đổi điểm — nút + nổi giống Theo dõi (01/11/2026, local)
+ 
