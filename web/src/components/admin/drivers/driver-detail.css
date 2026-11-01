@@ -22,11 +22,25 @@
 .driver-detail-phone { display: flex; align-items: center; gap: 8px; }
 .driver-detail-phone svg { color: var(--brand-muted); flex-shrink: 0; }
 .driver-detail-empty { color: var(--brand-muted) !important; font-weight: 400 !important; }
+.driver-schedule { overflow: hidden; border: 1px solid var(--brand-border); }
+.driver-schedule-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px; }
+.driver-schedule-heading h2 { margin: 0; font-size: 18px; font-weight: 700; color: var(--brand-heading); }
+.driver-schedule-filters { flex: 0 1 560px; min-width: 0; max-width: 100%; margin-left: auto; }
+.driver-schedule-toolbar.ui-filter-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 12px; padding: 0; border: 0; box-shadow: none; border-radius: 0; }
+.driver-schedule-toolbar > .ui-filter-field { width: 100%; }
+.driver-schedule-toolbar > button { white-space: nowrap; }
+.driver-schedule-table { overflow-x: auto; }
+.driver-schedule-school { display: block; margin-top: 4px; font-size: 13px; color: var(--brand-muted); }
+.driver-schedule-message { margin: 0; padding: 28px 24px; color: var(--brand-muted); text-align: center; }
 @media (max-width: 767px) {
+  .driver-schedule-filters { flex-basis: 100%; width: 100%; margin-left: 0; }
   .driver-detail { gap: 16px; }
   .driver-detail-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .driver-detail-profile, .driver-detail-section { padding: 20px; }
   .driver-detail-profile { gap: 16px; }
   .driver-detail-name h2 { font-size: 21px; }
   .driver-detail-avatar { width: 52px; height: 52px; border-radius: 14px; font-size: 22px; }
+}
+@media (max-width: 480px) {
+  .driver-schedule-toolbar.ui-filter-toolbar { grid-template-columns: minmax(0, 1fr); }
 }

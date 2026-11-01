@@ -1,4 +1,5 @@
 'use client';
+import { TableActions } from '@/components/admin/common/table-actions';
 import { FilterField } from '@/components/ui/filter-toolbar';
 
 import { toast } from '@/stores/toast-store';
@@ -436,41 +437,14 @@ export function StudentTable({
 
                       {/* Actions */}
                       <td className="px-4 py-3 text-right">
-                        <div className="inline-flex items-center gap-2">
-                          <ContextLink
-                            href={detailHref}
-                            className="text-xs font-medium text-slate-600 hover:text-amber-700 px-2.5 py-1 rounded-lg hover:bg-slate-100 transition-colors"
-                          >
-                            Xem chi tiết
-                          </ContextLink>
-
-                          {currentUserRole === 'SYSTEM_ADMIN' && isAvailable && student.hasAddress && (
-                            <Button
-                              type="button"
-                              onClick={() => {
-                                setInsertingStudent(student);
-                                setIsInsertModalOpen(true);
-                              }}
-                              className="text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-                            >
-                              Thêm vào tuyến
-                            </Button>
-                          )}
-
-                          {!readOnly && (
-                            <Button
-                              type="button"
-                              onClick={() => handleOpenStatusModal(student)}
-                              className={`text-xs font-medium px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
-                                isAvailable
-                                  ? 'text-red-700 hover:bg-red-50 border border-red-200'
-                                  : 'text-emerald-700 hover:bg-emerald-50 border border-emerald-200'
-                              }`}
-                            >
-                              {isAvailable ? 'Vô hiệu hóa' : 'Kích hoạt'}
-                            </Button>
-                          )}
-                        </div>
+                        <TableActions label={`Thao tác với ${student.fullName}`} actions={[
+                          ...(currentUserRole === 'SYSTEM_ADMIN' && isAvailable && student.hasAddress ? [{
+                            label: 'Thêm vào tuyến', primary: true,
+                            onClick: () => { setInsertingStudent(student); setIsInsertModalOpen(true); },
+                          }] : []),
+                          { label: 'Chi tiết', href: detailHref },
+                        ]} more={!readOnly ? [{ label: isAvailable ? 'Vô hiệu hóa' : 'Kích hoạt', danger: isAvailable,
+                          onClick: () => handleOpenStatusModal(student) }] : []} />
                       </td>
                     </tr>
                   );

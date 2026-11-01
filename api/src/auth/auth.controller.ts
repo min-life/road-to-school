@@ -107,6 +107,7 @@ export class AuthController {
     return this.authService.mobileLogin(dto, deviceInfo, ipAddress);
   }
 
+  @ApiResponse({ status: 503, description: 'Không gửi được OTP hoặc chưa xác định kết quả gửi; khi kết quả chưa rõ phải chờ mã hết hạn trước khi yêu cầu lại' })
   @Post('register/request-otp')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -162,6 +163,7 @@ export class AuthController {
     return this.authService.registerVerify(dto, deviceInfo, ipAddress);
   }
 
+  @ApiResponse({ status: 503, description: 'Không gửi được OTP hoặc chưa xác định kết quả gửi; khi kết quả chưa rõ phải chờ mã hết hạn trước khi yêu cầu lại' })
   @Post('forgot-password/request-otp')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

@@ -1,7 +1,9 @@
+import { PersonnelCredentialsService } from '../auth/personnel-credentials.service.js';
 import { notifyPlan } from '../notifications/notification-events.js';
 import { notifyCancelledTrips } from '../notifications/notification-writer.js';
 import {
   Injectable,
+  Inject,
   Logger,
   NotFoundException,
   BadRequestException,
@@ -48,6 +50,9 @@ import {
 @Injectable()
 export class SchoolsService {
   private readonly logger = new Logger(SchoolsService.name);
+
+  @Inject(PersonnelCredentialsService)
+  private readonly credentials: PersonnelCredentialsService;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -560,7 +565,7 @@ export class SchoolsService {
    */
   async createSchoolAdmin(
     schoolId: string,
-    dto: CreateSchoolAdminDto,
+    dto: Omit<CreateSchoolAdminDto, 'email'> & { email?: string },
     currentUser?: User,
   ): Promise<CreateSchoolAdminResponseDto> {
     // 1. Kiểm tra trường học tồn tại và trạng thái hoạt động
@@ -620,9 +625,9 @@ export class SchoolsService {
       phone = cleanPhone;
     }
 
-    if (!email && !phone) {
+    if (!email) {
       throw new BadRequestException(
-        'Bắt buộc phải cung cấp ít nhất Email hoặc Số điện thoại',
+        'Email nhân sự là bắt buộc để bàn giao mật khẩu',
       );
     }
 
@@ -684,17 +689,7 @@ export class SchoolsService {
       throw error;
     }
 
-    // 6. Bàn giao mật khẩu tạm ra Backend Console chỉ trong môi trường Development
-    if (process.env.NODE_ENV === 'development') {
-      this.logger.log(
-        `[CONSOLE_CREDENTIAL_DELIVERY] Tạo tài khoản ${targetRole} thành công:\n` +
-          `  - Họ và tên:    ${newUser.fullName}\n` +
-          `  - School ID:    ${schoolId}\n` +
-          `  - Định danh:    ${email || phone}\n` +
-          `  - Mật khẩu tạm: ${tempPassword}\n` +
-          `  *(Lưu ý: Chỉ phục vụ Development. Tuyệt đối không trả ra HTTP response)*`,
-      );
-    }
+    const credentialDeliveryStatus = await this.credentials.deliverCreatedUser(newUser, tempPassword);
 
     return {
       id: newUser.id,
@@ -706,7 +701,10 @@ export class SchoolsService {
       isActive: newUser.isActive,
       isVerified: newUser.isVerified,
       createdAt: newUser.createdAt.toISOString(),
-      message: `Tạo tài khoản ${roleNameVi} thành công`,
+      credentialDeliveryStatus,
+      message: credentialDeliveryStatus === 'FAILED'
+        ? `Đã tạo tài khoản ${roleNameVi} nhưng chưa gửi được email mật khẩu`
+        : `Tạo tài khoản ${roleNameVi} thành công`,
     };
   }
 

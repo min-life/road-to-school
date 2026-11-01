@@ -1,4 +1,5 @@
 'use client';
+import { TableActions } from '@/components/admin/common/table-actions';
 import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
 import { PageHeader } from '@/components/ui/page-header';
 
@@ -375,20 +376,10 @@ export default function AdminIncidentsPage() {
 
                     {/* Thao tác */}
                     <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
-                      {canResolve(inc) && (
-                        <button
-                          onClick={() => setSelectedIncidentForResolve(inc)}
-                          className="px-3 py-1.5 text-xs font-bold text-slate-900 bg-[#FFCB56] hover:bg-[#f5be38] rounded-xl shadow-sm transition-colors cursor-pointer"
-                        >
-                          Xử lý
-                        </button>
-                      )}
-                      <button
-                        onClick={() => setSelectedIncidentForDetail(inc)}
-                        className="px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-                      >
-                        Chi tiết
-                      </button>
+                      <TableActions actions={[
+                        ...(canResolve(inc) ? [{ label: 'Xử lý', primary: true, onClick: () => setSelectedIncidentForResolve(inc) }] : []),
+                        { label: 'Chi tiết', onClick: () => setSelectedIncidentForDetail(inc) },
+                      ]} />
                     </td>
                   </tr>
                 ))}

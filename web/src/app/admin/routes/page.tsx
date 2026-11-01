@@ -1,4 +1,5 @@
 'use client';
+import { TableActions } from '@/components/admin/common/table-actions';
 import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
 
 import { useRouteQuery } from '@/hooks/use-route-query';
@@ -321,12 +322,7 @@ export default function RoutePlansPage() {
                         </td>
 
                         <td className="py-3.5 px-4 text-right">
-                          <ContextLink  data-size="sm"
-                            href={`/admin/routes/plans/${plan.id}`}
-                            className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-primary hover:text-slate-900 transition-colors"
-                          >
-                            Chi tiết
-                          </ContextLink>
+                          <TableActions actions={[{ label: 'Chi tiết', href: `/admin/routes/plans/${plan.id}` }]} />
                         </td>
                       </tr>
                     );

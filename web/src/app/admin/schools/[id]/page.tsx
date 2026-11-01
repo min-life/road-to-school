@@ -149,9 +149,15 @@ export default function AdminSchoolDetailPage() {
   }
 
   // Phân tích lịch học tuần
-  const activeScheduleDays = DAY_ORDER.filter(
-    (dayKey) => school.weeklySchedule && school.weeklySchedule[dayKey],
-  );
+  const scheduleGroups = new Map<string, { days: string[]; start: string; end: string }>();
+  for (const dayKey of DAY_ORDER) {
+    const schedule = school.weeklySchedule?.[dayKey];
+    if (!schedule?.start || !schedule.end) continue;
+    const key = `${schedule.start}-${schedule.end}`;
+    const group = scheduleGroups.get(key);
+    if (group) group.days.push(DAY_LABELS[dayKey]);
+    else scheduleGroups.set(key, { days: [DAY_LABELS[dayKey]], start: schedule.start, end: schedule.end });
+  }
 
   return (
     <div className="space-y-6">
@@ -239,7 +245,7 @@ export default function AdminSchoolDetailPage() {
         </div>
 
         {/* Thông tin Hợp đồng & Lịch học */}
-        <div className="mt-6 pt-6 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-6 text-xs text-slate-700">
+        <div className="mt-6 pt-6 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 items-start gap-4 text-sm text-slate-700">
           {/* Thời hạn hợp đồng */}
           <div className="space-y-2 bg-slate-50/60 p-4 rounded-xl border border-slate-200/60">
             <h3 className="font-bold text-slate-800 flex items-center gap-1.5 uppercase text-[11px] tracking-wider text-slate-500">
@@ -249,9 +255,6 @@ export default function AdminSchoolDetailPage() {
             <p className="text-sm font-semibold text-slate-800">
               {formatDate(school.contractStartDate)} – {formatDate(school.contractEndDate)}
             </p>
-            <p className="text-[11px] text-slate-500">
-              Hệ thống tự động kiểm tra thời hạn hợp đồng khi kích hoạt lại trường học.
-            </p>
           </div>
 
           {/* Lịch học trong tuần */}
@@ -260,28 +263,17 @@ export default function AdminSchoolDetailPage() {
               <ClockIcon className="w-4 h-4 text-amber-500" />
               <span>Lịch học theo tuần</span>
             </h3>
-            {activeScheduleDays.length === 0 ? (
+            {scheduleGroups.size === 0 ? (
               <p className="text-xs text-slate-400 italic">Chưa có cấu hình lịch học</p>
             ) : (
-              <div className="space-y-1">
-                {activeScheduleDays.map((dayKey) => {
-                  const schedule = school.weeklySchedule[dayKey];
-                  if (!schedule) return null;
-                  return (
-                    <div
-                      key={dayKey}
-                      className="flex items-center justify-between text-xs py-0.5 border-b border-slate-200/40 last:border-0"
-                    >
-                      <span className="font-semibold text-slate-800">
-                        {DAY_LABELS[dayKey] || dayKey}:
-                      </span>
-                      <span className="text-slate-600">
-                        {schedule.start} – {schedule.end}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+              <dl className="divide-y divide-slate-200/60">
+                {[...scheduleGroups.entries()].map(([key, group]) => (
+                  <div key={key} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2 first:pt-0 last:pb-0">
+                    <dt className="min-w-0 font-semibold text-slate-800">{group.days.join(', ')}</dt>
+                    <dd className="m-0 shrink-0 whitespace-nowrap font-medium tabular-nums text-slate-700">{group.start} – {group.end}</dd>
+                  </div>
+                ))}
+              </dl>
             )}
           </div>
         </div>

@@ -1,4 +1,5 @@
 'use client';
+import { TableActions } from '@/components/admin/common/table-actions';
 
 import { Table } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +15,7 @@ export function OverviewTrips({ trips, title, href }: { trips: OverviewTrip[]; t
     </div>
     {trips.length === 0 ? <p className="px-5 py-8 text-center text-sm text-slate-500">Không có chuyến cần chú ý</p> :
       <div className="overflow-x-auto"><Table className="w-full text-left text-sm" minWidth={815}>
-            <colgroup><col style={{ width: 110 }} /><col /><col style={{ width: 210 }} /><col style={{ width: 175 }} /><col style={{ width: 80 }} /></colgroup>
+            <colgroup><col style={{ width: 110 }} /><col /><col style={{ width: 210 }} /><col style={{ width: 175 }} /><col style={{ width: 110 }} /></colgroup>
         <thead className="bg-slate-50 text-xs text-slate-500"><tr>
           <th className="px-5 py-3">Giờ</th><th className="px-4 py-3">Chuyến</th><th className="px-4 py-3">Nhân sự</th><th className="px-4 py-3">Trạng thái</th><th className="px-4 py-3"><span className="sr-only">Thao tác</span></th>
         </tr></thead>
@@ -23,7 +24,7 @@ export function OverviewTrips({ trips, title, href }: { trips: OverviewTrip[]; t
           <td className="px-4 py-4"><ContextLink href={`/admin/trips/${trip.id}`} className="font-semibold hover:underline">{trip.name}</ContextLink><span className="mt-1 block text-xs text-slate-500">{trip.schoolName} · {trip.vehiclePlate}</span></td>
           <td className="px-4 py-4"><span className="block">{trip.driverName}</span><span className="mt-1 block text-xs text-slate-500">{trip.attendantName}</span></td>
           <td className="whitespace-nowrap px-4 py-4"><Badge className={`rounded-full px-2.5 py-1 text-xs font-semibold ${trip.waitingAssignment ? 'bg-rose-50 text-rose-700' : trip.status === 'IN_PROGRESS' ? 'bg-sky-50 text-sky-700' : 'bg-amber-50 text-amber-800'}`}>{trip.waitingAssignment ? 'Chờ phân công' : trip.status === 'IN_PROGRESS' ? 'Đang chạy' : 'Chờ khởi hành'}</Badge></td>
-          <td className="px-4 py-4"><ContextLink href={`/admin/trips/${trip.id}`} aria-label={`Xem ${trip.name}`} className="font-semibold hover:underline">Xem</ContextLink></td>
+          <td className="px-4 py-4"><TableActions actions={[{ label: 'Chi tiết', href: `/admin/trips/${trip.id}`, title: `Xem ${trip.name}` }]} /></td>
         </tr>)}</tbody>
       </Table></div>}
   </section>;

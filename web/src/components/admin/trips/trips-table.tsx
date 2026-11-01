@@ -1,4 +1,5 @@
 'use client';
+import { TableActions } from '@/components/admin/common/table-actions';
 
 import { Badge } from '@/components/ui/badge';
 
@@ -6,7 +7,6 @@ import { useRouteQuery } from '@/hooks/use-route-query';
 
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ContextLink } from '@/components/admin/common/context-navigation';
 import { useVisibleRefresh } from '@/hooks/use-visible-refresh';
 import type { RefreshContext } from '@/lib/refresh-loop';
 import { useAuth } from '@/components/auth/auth-provider';
@@ -437,12 +437,7 @@ export function TripsTable({
 
                       <td className="py-3 px-4 text-right whitespace-nowrap">
                         {!trip.isVirtual ? (
-                          <ContextLink  data-size="sm"
-                            href={`/admin/trips/${trip.id}`}
-                            className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-primary hover:text-slate-900 transition-colors"
-                          >
-                            Chi tiết
-                          </ContextLink>
+                          <TableActions actions={[{ label: 'Chi tiết', href: `/admin/trips/${trip.id}` }]} />
                         ) : (
                           <span
                             title="Chuyến này chưa được tạo trong cơ sở dữ liệu"

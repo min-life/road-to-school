@@ -1,4 +1,5 @@
 'use client';
+import { TableActions } from '@/components/admin/common/table-actions';
 
 import { useRouteQuery } from '@/hooks/use-route-query';
 
@@ -14,7 +15,6 @@ import {
   MapPinIcon,
   StudentIcon,
   CalendarIcon,
-  EyeIcon,
 } from '@/components/icons';
 import { RequestDetailModal } from './request-detail-modal';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
@@ -25,7 +25,6 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
 import { Table } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
 
 export default function AdminRequestsPage() {
   const { user } = useAuth();
@@ -298,17 +297,7 @@ export default function AdminRequestsPage() {
                         : '—'}
                     </td>
                     <td className="p-3.5 pr-5 text-right">
-                      <Button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenDetail(req.id);
-                        }}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium transition-colors cursor-pointer"
-                      >
-                        <EyeIcon className="w-3.5 h-3.5" />
-                        <span>Xem chi tiết</span>
-                      </Button>
+                      <TableActions actions={[{ label: 'Chi tiết', onClick: () => handleOpenDetail(req.id) }]} />
                     </td>
                   </tr>
                 ))}

@@ -1,4 +1,5 @@
 'use client';
+import { TableActions } from '@/components/admin/common/table-actions';
 
 import { toast } from '@/stores/toast-store';
 
@@ -251,12 +252,7 @@ function DriversPageContent() {
                     </td>
 
                     <td className="px-4 py-3 text-right">
-                      <ContextLink
-                        href={`/admin/drivers/${driver.id}`}
-                        className="text-xs font-medium text-slate-600 hover:text-amber-700 px-2.5 py-1 rounded-lg hover:bg-slate-100 transition-colors"
-                      >
-                        Xem chi tiết
-                      </ContextLink>
+                      <TableActions actions={[{ label: 'Chi tiết', href: `/admin/drivers/${driver.id}` }]} />
                     </td>
                   </tr>
                 ))

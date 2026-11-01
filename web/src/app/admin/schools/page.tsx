@@ -1,4 +1,5 @@
 'use client';
+import { TableActions } from '@/components/admin/common/table-actions';
 
 import { toast } from '@/stores/toast-store';
 
@@ -288,25 +289,9 @@ export default function AdminSchoolsPage() {
 
                     {/* Thao tác */}
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                      <div className="inline-flex items-center gap-2">
-                        <ContextLink data-variant="outline" data-size="sm"
-                          href={`/admin/schools/${school.id}`}
-                          className="ui-button px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 font-semibold text-xs transition-colors cursor-pointer"
-                        >
-                          Xem chi tiết
-                        </ContextLink>
-                        <Button
-                          type="button"
-                          onClick={() => setStatusModalSchool(school)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer border ${
-                            school.isActive
-                              ? 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100'
-                              : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                          }`}
-                        >
-                          {school.isActive ? 'Ngừng hoạt động' : 'Kích hoạt lại'}
-                        </Button>
-                      </div>
+                      <TableActions actions={[{ label: 'Chi tiết', href: `/admin/schools/${school.id}` }]}
+                        label={`Thao tác với ${school.name}`}
+                        more={[{ label: school.isActive ? 'Ngừng hoạt động' : 'Kích hoạt lại', warning: school.isActive, onClick: () => setStatusModalSchool(school) }]} />
                     </td>
                   </tr>
                 ))

@@ -1,4 +1,5 @@
 'use client';
+import { TableActions } from '@/components/admin/common/table-actions';
 import { BackLink, ContextLink } from '@/components/admin/common/context-navigation';
 
 import React, { useState, useEffect, useCallback, use } from 'react';
@@ -461,12 +462,7 @@ function LegacyRoutePlanDetailPage({ params }: { params: Promise<{ id: string }>
                       </td>
 
                       <td className="py-3.5 px-4 text-right">
-                        <ContextLink  data-size="sm"
-                          href={`/admin/routes/${route.id}`}
-                          className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-primary hover:text-slate-900 transition-colors"
-                        >
-                          Xem bản đồ
-                        </ContextLink>
+                        <TableActions actions={[{ label: 'Xem bản đồ', href: `/admin/routes/${route.id}` }]} />
                       </td>
                     </tr>
                   );

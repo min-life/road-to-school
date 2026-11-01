@@ -1,4 +1,5 @@
 'use client';
+import { TableActions } from '@/components/admin/common/table-actions';
 
 import { Badge } from '@/components/ui/badge';
 
@@ -172,12 +173,7 @@ export function SchoolRoutesTab({
                       </td>
 
                       <td className="py-3 px-4 text-right">
-                        <ContextLink  data-size="default"
-                          href={`/admin/routes/plans/${plan.id}`}
-                          className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-primary hover:text-slate-900 rounded-lg transition-colors inline-block"
-                        >
-                          Chi tiết
-                        </ContextLink>
+                        <TableActions actions={[{ label: 'Chi tiết', href: `/admin/routes/plans/${plan.id}` }]} />
                       </td>
                     </tr>
                   );

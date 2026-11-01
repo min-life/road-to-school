@@ -5,11 +5,12 @@ import { toast } from '@/stores/toast-store';
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { SchoolListItem, GenerateTripsResponse } from '@/lib/types';
-import { AlertIcon, InfoIcon, SpinnerIcon } from '@/components/icons';
+import { AlertIcon, BusIcon, CloseIcon, InfoIcon, SchoolIcon, SpinnerIcon } from '@/components/icons';
 import { SchoolSelectFilter } from '@/components/admin/common/school-select-filter';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import './manual-generate-trips-modal.css';
 
 interface ManualGenerateTripsModalProps {
   isOpen: boolean;
@@ -57,7 +58,7 @@ export function ManualGenerateTripsModal({
       if (activeId) {
         apiClient
           .getSchoolDetail(activeId)
-          .then((school: any) => {
+          .then((school) => {
             if (school) {
               setSelectedSchool(school);
               if (school.contractStartDate && school.contractEndDate) {
@@ -127,8 +128,8 @@ export function ManualGenerateTripsModal({
       if (res.failedCount > 0) { toast.warning(`Đã tạo ${res.createdCount} chuyến; ${res.failedCount} chuyến chưa thể tạo. Xem chi tiết trong hộp thoại.`); } else { toast.success(`Đã tạo ${res.createdCount} chuyến, bỏ qua ${res.skippedCount} chuyến đã có.`); }
       setResult(res);
       onSuccess();
-    } catch (err: any) {
-      setError(err?.message || 'Có lỗi xảy ra khi sinh chuyến xe');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Có lỗi xảy ra khi sinh chuyến xe');
     } finally {
       setSubmitting(false);
     }
@@ -137,155 +138,197 @@ export function ManualGenerateTripsModal({
   const isFormValid = !!schoolId && !!fromDate && !!toDate && fromDate <= toDate;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in">
-      <Card className="ui-dialog-panel bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-100 space-y-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <h3 className="text-base font-bold text-slate-800">Sinh chuyến xe thủ công</h3>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="manual-trip-dialog-title"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-[2px] animate-in fade-in duration-150"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && !submitting) onClose();
+      }}
+    >
+      <Card className="manual-trip-dialog-panel ui-dialog-panel ui-dialog-panel-body w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-150">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-700">
+              <BusIcon className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 id="manual-trip-dialog-title" className="text-lg font-bold leading-6 text-slate-900">
+                Sinh chuyến thủ công
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">Tạo chuyến theo trường và khoảng ngày</p>
+            </div>
+          </div>
           <Button
+            type="button"
+            variant="ghost"
+            size="icon"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 text-lg leading-none cursor-pointer"
+            disabled={submitting}
+            aria-label="Đóng hộp thoại"
+            className="-mr-1 -mt-1 shrink-0 text-slate-400 hover:text-slate-700"
           >
-            ✕
+            <CloseIcon className="h-5 w-5" aria-hidden="true" />
           </Button>
         </div>
 
         {!result ? (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <p className="text-xs text-slate-500 leading-relaxed">
-              Sinh chuyến xe theo khoảng ngày cho các phương án tuyến đang ở trạng thái <strong>ACTIVE</strong> của trường. Hệ thống chỉ sinh chuyến từ ngày học hợp lệ tiếp theo sau ngày kích hoạt và tự động bỏ qua chuyến đã tồn tại.
-            </p>
+          <form onSubmit={handleSubmit} className="manual-trip-form">
+            <div className="manual-trip-form-body space-y-5 px-6 py-5">
+              <div className="flex items-start gap-2.5 rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-sm leading-5 text-slate-600">
+                <InfoIcon className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" aria-hidden="true" />
+                <p>Chỉ tạo chuyến cho ngày học hợp lệ của phương án đang hoạt động. Chuyến đã tồn tại sẽ được bỏ qua.</p>
+              </div>
 
-            {/* School selector */}
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">
-                Trường học <span className="text-rose-500">*</span>:
-              </label>
+              <div className="space-y-2">
+                <label htmlFor="manual-trip-school" className="block text-sm font-semibold text-slate-800">
+                  Trường học <span className="text-rose-600" aria-hidden="true">*</span>
+                  <span className="sr-only">(bắt buộc)</span>
+                </label>
 
-              {isSchoolLocked ? (
-                <div className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-800">
-                  {selectedSchool?.name || initialSchoolName || 'Trường học hiện tại'}
+                {isSchoolLocked ? (
+                  <div className="flex min-h-10 items-center gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">
+                    <SchoolIcon className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
+                    <span className="truncate">{selectedSchool?.name || initialSchoolName || 'Trường học hiện tại'}</span>
+                  </div>
+                ) : (
+                  <SchoolSelectFilter
+                    id="manual-trip-school"
+                    floating
+                    value={schoolId}
+                    onChange={(sId, item) => {
+                      setSchoolId(sId);
+                      setSelectedSchool(item || null);
+                    }}
+                    allowAll={false}
+                    required
+                    placeholder="Chọn trường học"
+                    className="manual-trip-school-select"
+                  />
+                )}
+
+                {contractBounds.start && contractBounds.end && (
+                  <p className="text-xs text-slate-500">
+                    Thời hạn hợp đồng: <span className="font-medium text-slate-700">{contractBounds.start} – {contractBounds.end}</span>
+                  </p>
+                )}
+              </div>
+
+              <fieldset className="space-y-2.5">
+                <legend className="text-sm font-semibold text-slate-800">Khoảng ngày <span className="text-rose-600" aria-hidden="true">*</span></legend>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <label htmlFor="manual-trip-from-date" className="block text-sm font-medium text-slate-600">Từ ngày</label>
+                    <Input
+                      id="manual-trip-from-date"
+                      type="date"
+                      value={fromDate}
+                      min={contractBounds.start}
+                      max={contractBounds.end}
+                      disabled={!schoolId}
+                      onChange={(e) => setFromDate(e.target.value)}
+                      required
+                      className="w-full bg-white px-3 text-sm disabled:bg-slate-50 disabled:opacity-60"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label htmlFor="manual-trip-to-date" className="block text-sm font-medium text-slate-600">Đến ngày</label>
+                    <Input
+                      id="manual-trip-to-date"
+                      type="date"
+                      value={toDate}
+                      min={contractBounds.start}
+                      max={contractBounds.end}
+                      disabled={!schoolId}
+                      onChange={(e) => setToDate(e.target.value)}
+                      required
+                      className="w-full bg-white px-3 text-sm disabled:bg-slate-50 disabled:opacity-60"
+                    />
+                  </div>
                 </div>
-              ) : (
-                <SchoolSelectFilter
-                  value={schoolId}
-                  onChange={(sId, item) => {
-                    setSchoolId(sId);
-                    setSelectedSchool(item || null);
-                  }}
-                  allowAll={false}
-                  placeholder="-- Bắt buộc chọn đúng một trường --"
-                />
-              )}
+              </fieldset>
 
-              {contractBounds.start && contractBounds.end && (
-                <p className="text-[11px] text-blue-600 font-medium pt-0.5">
-                  Thời hạn hợp đồng trường: <strong>{contractBounds.start}</strong> đến <strong>{contractBounds.end}</strong>
-                </p>
+              {error && (
+                <div role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm leading-5 text-rose-700">
+                  <AlertIcon className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" aria-hidden="true" />
+                  <span>{error}</span>
+                </div>
               )}
             </div>
 
-            {/* Date range */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700">
-                  Từ ngày (fromDate) <span className="text-rose-500">*</span>:
-                </label>
-                <Input
-                  type="date"
-                  value={fromDate}
-                  min={contractBounds.start}
-                  max={contractBounds.end}
-                  disabled={!schoolId}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  required
-                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:opacity-50"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700">
-                  Đến ngày (toDate) <span className="text-rose-500">*</span>:
-                </label>
-                <Input
-                  type="date"
-                  value={toDate}
-                  min={contractBounds.start}
-                  max={contractBounds.end}
-                  disabled={!schoolId}
-                  onChange={(e) => setToDate(e.target.value)}
-                  required
-                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:opacity-50"
-                />
-              </div>
-            </div>
-
-            {error && (
-              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-start gap-2">
-                <AlertIcon className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/70 px-6 py-4 sm:flex-row sm:justify-end">
               <Button
+                variant="outline"
                 type="button"
                 onClick={onClose}
                 disabled={submitting}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="w-full sm:w-auto"
               >
-                Hủy bỏ
+                Hủy
               </Button>
-              <Button variant="primary" size="sm"
+              <Button
+                variant="primary"
                 type="submit"
                 disabled={submitting || !isFormValid}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-900 bg-primary hover:bg-[#f5c042] transition-colors flex items-center gap-2 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                className="w-full sm:w-auto"
               >
-                {submitting && <SpinnerIcon className="w-4 h-4 animate-spin text-slate-900" />}
-                <span>Bắt đầu sinh chuyến</span>
+                {submitting && <SpinnerIcon className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                <span>{submitting ? 'Đang sinh chuyến…' : 'Sinh chuyến'}</span>
               </Button>
             </div>
           </form>
         ) : (
-          /* Result Summary */
-          <div className="space-y-4">
-            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-2">
-              <h4 className="text-xs font-bold text-emerald-950 uppercase tracking-wider">
-                Kết quả sinh chuyến xe
-              </h4>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div>
-                  Tổng chuyến đủ điều kiện: <strong>{result.totalEligible}</strong>
+          <div className="manual-trip-result">
+            <div className="manual-trip-result-body space-y-5 px-6 py-5">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Kết quả sinh chuyến</h3>
+                <p className="mt-1 text-sm text-slate-500">Hệ thống đã xử lý xong khoảng ngày đã chọn.</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs text-slate-500">Đủ điều kiện</p>
+                  <strong className="mt-1 block text-xl text-slate-900">{result.totalEligible}</strong>
                 </div>
-                <div>
-                  Đã tạo mới: <strong className="text-emerald-700 font-bold">{result.createdCount}</strong>
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                  <p className="text-xs text-emerald-700">Đã tạo</p>
+                  <strong className="mt-1 block text-xl text-emerald-700">{result.createdCount}</strong>
                 </div>
-                <div>
-                  Bỏ qua (đã có): <strong>{result.skippedCount}</strong>
+                <div className="rounded-xl border border-slate-200 bg-white p-3">
+                  <p className="text-xs text-slate-500">Đã có</p>
+                  <strong className="mt-1 block text-xl text-slate-900">{result.skippedCount}</strong>
                 </div>
-                <div>
-                  Lỗi / Chưa đủ tài nguyên: <strong className={result.failedCount > 0 ? 'text-rose-600 font-bold' : ''}>{result.failedCount}</strong>
+                <div className={`rounded-xl border p-3 ${result.failedCount > 0 ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-white'}`}>
+                  <p className={result.failedCount > 0 ? 'text-xs text-rose-700' : 'text-xs text-slate-500'}>Chưa thể tạo</p>
+                  <strong className={result.failedCount > 0 ? 'mt-1 block text-xl text-rose-700' : 'mt-1 block text-xl text-slate-900'}>
+                    {result.failedCount}
+                  </strong>
                 </div>
               </div>
+
+              {result.failures && result.failures.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold text-slate-800">Các tuyến chưa thể tạo</h4>
+                  <div className="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                    {result.failures.map((failure, index) => (
+                      <div key={index} className="rounded-lg bg-white p-2.5 text-rose-700">
+                        <strong>{failure.routeName}</strong>
+                        <p className="mt-0.5 text-xs leading-5">{failure.serviceDate} · {failure.reason}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {result.failures && result.failures.length > 0 && (
-              <div className="space-y-2">
-                <span className="text-xs font-semibold text-slate-700">Chi tiết tuyến chưa thể sinh:</span>
-                <div className="max-h-40 overflow-y-auto space-y-1.5 p-2 rounded-xl bg-slate-50 border border-slate-200 text-[11px]">
-                  {result.failures.map((f, i) => (
-                    <div key={i} className="text-rose-700">
-                      • <strong>{f.routeName}</strong> ({f.serviceDate}): {f.reason}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center justify-end pt-2 border-t border-slate-100">
+            <div className="flex justify-end border-t border-slate-100 bg-slate-50/70 px-6 py-4">
               <Button
+                variant="primary"
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+                className="w-full sm:w-auto"
               >
                 Đóng
               </Button>
