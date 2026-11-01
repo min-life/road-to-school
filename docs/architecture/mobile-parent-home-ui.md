@@ -104,7 +104,15 @@ Luồng dữ liệu giữ nguyên: Settings upload hiện có → setUser với 
 
 PASS TypeScript, Expo export iOS/Android/Web/server, HomeScreen/AuthContext byte-identical, handler upload và API/context/push/logout call parity, khai báo collapse/actions giữ nguyên. Chromium IAB isolated preview320/390 dùng ParentHomeScrollView và UserAvatar thật: fallback hai vị trí cùng màu/font, size48/72; URL ảnh A cùng tải natural528px, URL lỗi404 về fallback cả hai, đổi sang ảnh B natural1320px phục hồi cả hai, bỏ URL về fallback. Dùng PNG logo local sẵn có để kiểm tra tải/crop, không giả lập API hoặc tài khoản/ảnh hồ sơ thật. Compact đo38.4px và không tràn ngang ở320. Preview không chứng nhận upload/auth runtime. NOT_VERIFIED Expo Go iPhone/Android, Safari iOS/Chrome Android, VoiceOver và đổi ảnh thật trên tài khoản; không gọi mutation để test. Entry/server/tab tạm đã dọn; không thêm package/asset, chưa commit/push.
 
-## Cập nhật mới: tiện ích Đổi điểm
+## Hiện hành30/10/2026 — Đổi điểm mở lịch sử trước khi tạo
+
+Home giữ callback `/parent/change-stop`; route này dùng `RequestListView` hiển thị yêu cầu `ADDRESS_UPDATE` của tất cả con đang liên kết. Mỗi card có tên con, trạng thái, địa chỉ đề xuất, kết quả xử lý và thời gian như view yêu cầu hiện có. Nhấn **Tạo mới** hoặc CTA rỗng → `/parent/change-stop/create`: chọn con AVAILABLE ở thẻ đầu form, nhập địa chỉ/bản đồ và OTP trên cùng luồng. Không còn navigate tới màn chọn con riêng. Route select-student cũ redirect về form mới. Báo nghỉ không đổi. [Luồng, API/pagination, component contract, kiểm chứng và giới hạn](mobile-parent-stop-requests.md).
+
+Restyle30/10 tiếp theo: lịch sử Đổi điểm bật appearance leave-history, cùng AppHeader/dấu +, status pills và card style Báo nghỉ. CTA **Tạo yêu cầu đổi điểm** ở khối empty phía trên, cùng vị trí tương đối với **Tạo báo nghỉ mới**, thay căn giữa toàn màn hình. Giữ toàn bộ dữ liệu/filter/Chi tiết/phân trang và luồng chọn con; per-student views mặc định không restyle. [Style/nguồn/verification](mobile-parent-stop-requests.md#style-đồng-bộ-báo-nghỉ--30102026).
+
+Không thêm endpoint hoặc sửa nghiệp vụ: frontend đọc linked students rồi gộp các GET yêu cầu theo từng con, lọc đúng ADDRESS_UPDATE/trạng thái, phân trang10 và ưu tiên mới nhất. Bộ chọn nay là dropdown/modal đầu form dùng chung, giữ empty/link/retry/disabled; đổi con xóa draft và chặn response cũ. API OTP/duyệt/hủy giữ nguyên, điểm vào từ Hồ sơ học sinh dùng cùng form nhưng cố định con đã chọn. Các mô tả28/10 ngay dưới đây là lịch sử trước thay đổi luồng mới này. Thay đổi30/10 này local, chưa commit/push.
+
+## Lịch sử28/10/2026: tiện ích Đổi điểm
 
 PO yêu cầu bổ sung nút Đổi điểm: header nay có Báo nghỉ / Đổi điểm / Làm mới, cả expanded và compact, icon location-outline. Prop onChangeStop nối từ Home tới [parent/change-stop.tsx](../../mobile/app/parent/change-stop.tsx). Các mô tả hai nút/không có Đổi điểm bên dưới là mốc trước yêu cầu này.
 

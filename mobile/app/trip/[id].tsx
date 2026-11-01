@@ -44,6 +44,7 @@ import { useParentMapAvatars } from '@/hooks/use-parent-map-avatars';
 import { decodePolyline } from '@/utils/polyline';
 import { useTripNavigation } from '@/hooks/use-trip-navigation';
 import { TripNavigationControls } from '@/components/trip-navigation-controls';
+import { TripContactCallButton } from '@/components/trip-contact-call-button';
 import { loadLocationHistory, navigationApi, type LocationPoint, type LocationSource, type NavigationState } from '@/services/trip-navigation';
 import { cumulativeDistances, projectProgress, recordedParts, splitSegment, type Coordinate } from '@/utils/trip-navigation';
 
@@ -1376,21 +1377,11 @@ export default function MobileTripDetailScreen() {
                   <View style={styles.infoIconCircle}>
                     <Ionicons name="person-outline" size={20} color="#2563EB" />
                   </View>
-                  <View style={{ flex: 1 }}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={styles.infoLabel}>Tài xế phụ trách</Text>
                     <Text style={styles.infoTitle}>{trip.driverName || 'Chưa gán tài xế'}</Text>
-                    <View style={styles.contactPhoneRow}>
-                      <Ionicons name="call-outline" size={14} color={colors.mutedText} accessible={false} />
-                      <Text style={styles.contactPhoneLabel}>Số điện thoại</Text>
-                      <Text
-                        selectable
-                        accessibilityLabel={`Số điện thoại tài xế: ${trip.driverPhone?.trim() || 'Chưa cập nhật'}`}
-                        style={styles.contactPhoneValue}
-                      >
-                        {trip.driverPhone?.trim() || 'Chưa cập nhật'}
-                      </Text>
-                    </View>
                   </View>
+                  <TripContactCallButton phone={trip.driverPhone} contactLabel="tài xế phụ trách" />
                 </View>
 
                 {/* Giáo viên */}
@@ -1398,23 +1389,13 @@ export default function MobileTripDetailScreen() {
                   <View style={styles.infoIconCircle}>
                     <Ionicons name="school-outline" size={20} color="#059669" />
                   </View>
-                  <View style={{ flex: 1 }}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={styles.infoLabel}>Giáo viên phụ xe</Text>
                     <Text style={styles.infoTitle}>
                       {trip.busAttendantName || 'Chưa gán giáo viên'}
                     </Text>
-                    <View style={styles.contactPhoneRow}>
-                      <Ionicons name="call-outline" size={14} color={colors.mutedText} accessible={false} />
-                      <Text style={styles.contactPhoneLabel}>Số điện thoại</Text>
-                      <Text
-                        selectable
-                        accessibilityLabel={`Số điện thoại giáo viên phụ xe: ${trip.busAttendantPhone?.trim() || 'Chưa cập nhật'}`}
-                        style={styles.contactPhoneValue}
-                      >
-                        {trip.busAttendantPhone?.trim() || 'Chưa cập nhật'}
-                      </Text>
-                    </View>
                   </View>
+                  <TripContactCallButton phone={trip.busAttendantPhone} contactLabel="giáo viên phụ xe" />
                 </View>
               </ScrollView>
             )}
@@ -3033,24 +3014,6 @@ const styles = StyleSheet.create({
   infoSubtext: {
     fontSize: 12,
     color: '#64748B',
-  },
-  contactPhoneRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    columnGap: 6,
-    rowGap: 2,
-    marginTop: 6,
-  },
-  contactPhoneLabel: {
-    fontSize: 12,
-    color: colors.mutedText,
-  },
-  contactPhoneValue: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.foreground,
-    flexShrink: 1,
   },
   stopCard: {
     flexDirection: 'row',

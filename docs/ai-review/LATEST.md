@@ -1,46 +1,92 @@
-# AI Review — Publish mobile UI to GitHub
+# AI Review — Commit local các thay đổi Parent App
 
 ## 1. Task Information
-Task: Publish accumulated mobile UI work to GitHub. Date: 30/10/2026, Asia/Saigon. Scope: Mobile / Documentation / Git. Type: Delivery. Status: COMPLETED. Code commit 497af424362a0a36f485bd4d9f6213895f3bfc83 pushed successfully to origin/dongnnp/mobile/refactor-ui and verified with git ls-remote. This report update is delivered in a subsequent documentation-only commit.
+Task: Commit pending Parent App code and documentation. Date: 01/11/2026, Asia/Saigon. Scope: Mobile / Documentation / Git local. Type: Delivery. Status: COMPLETED preflight; commit is executed after saving this report so the report is included in the same snapshot. The resulting commit hash is recorded in Git history and the chat handoff.
 
 ## 2. Original Request
-PO: “đẩy code lên giúp tôi”.
+PO: “commit code giúp tôi”.
 
 ## 3. Approved Scope
-Explicit authorization to commit and push the session’s accumulated mobile UI and related docs/SQL scripts to the existing dongnnp/mobile/refactor-ui branch on origin. No main merge, force push, rebase, dependency changes, or database execution. Preserve local mobile/.env.example accidental trailing character and Python __pycache__ outside the delivery.
+Explicit authorization to commit the implemented changes in the current session on the existing branch dongnnp/mobile/refactor-ui. No push, new branch, application refactor, dependency install or database operations. Preserve unrelated pending changes.
 
 ## 4. Analysis & Decisions
-HEAD initially 17fda49; branch dongnnp/mobile/refactor-ui. Origin is https://github.com/min-life/road-to-school.git. git fetch succeeded; HEAD and origin branch had 0/0 divergence. Existing pending work belongs to the UI tasks in this session: safe-area NetworkBanner, phase2 header/tab, parent Home/cards/journey, avatar/map markers, OTP/auth/empty/loading/profile styling and docs/manual SQL. Publish them together so new imports/components/assets are included. No functional application changes in this delivery task; normalize excess blank lines at EOF in mobile/constants/navigation.ts and mobile/constants/otp-styles.ts after the staged whitespace check flagged them. mobile/.env.example diff is only an unrelated trailing character; exclude without overwriting the local file.
+Pending work since dc0b2a5 belongs to the requested Parent App refinements: simplify student profile action copy; history-first stop-change flow and inline student selection; shared student picker with avatar/full metadata; remove leave confirmation card; backend-driven leave OTP wait countdown; replace displayed staff phone numbers with phone-app buttons. Include their module specifications and historical AI review evidence. Exclude mobile/.env.example (unrelated trailing character) and Python __pycache__; leave both on disk unchanged. Index was empty at task start.
 
 ## 5. Implementation Details
-Commit pending mobile/ and docs/ files, including new components/hooks/utils/assets/pure tests, module specs and archived reports/manual PostgreSQL scripts. Exclude .agents/skills/ui-ux-pro-max/scripts/__pycache__/ and mobile/.env.example. Archive the previous contact-phone review/diff at history/2026-10-30-before-publish-mobile-ui.md/.diff. Update LATEST.md/LATEST.diff for this delivery. Delivery code commit: 497af42 (187 files). Exact committed file list is available with git show --stat 497af42; no backend or Web files are part of this change set.
+No application code changes in this delivery task. Commit the previously implemented code/docs listed below. Save this 13-section delivery report; archive the previous report/diff as history/2026-11-01-before-parent-ui-local-commit.md/.diff. LATEST.diff states no new application code for this delivery task; implementation diffs remain in archived task reviews and Git.
+
+- `docs/ai-review/history/2026-10-30-before-inline-stop-student.diff`
+- `docs/ai-review/history/2026-10-30-before-inline-stop-student.md`
+- `docs/ai-review/history/2026-10-30-before-stop-history-style.diff`
+- `docs/ai-review/history/2026-10-30-before-stop-history-style.md`
+- `docs/ai-review/history/2026-10-30-before-stop-request-history.diff`
+- `docs/ai-review/history/2026-10-30-before-stop-request-history.md`
+- `docs/ai-review/history/2026-10-30-before-student-action-descriptions.diff`
+- `docs/ai-review/history/2026-10-30-before-student-action-descriptions.md`
+- `docs/ai-review/history/2026-10-31-before-leave-otp-cooldown.diff`
+- `docs/ai-review/history/2026-10-31-before-leave-otp-cooldown.md`
+- `docs/ai-review/history/2026-10-31-before-leave-student-card.diff`
+- `docs/ai-review/history/2026-10-31-before-leave-student-card.md`
+- `docs/ai-review/history/2026-10-31-before-remove-leave-confirmation.diff`
+- `docs/ai-review/history/2026-10-31-before-remove-leave-confirmation.md`
+- `docs/ai-review/history/2026-10-31-before-trip-contact-call.diff`
+- `docs/ai-review/history/2026-10-31-before-trip-contact-call.md`
+- `docs/ai-review/history/2026-10-31-before-unified-student-picker.diff`
+- `docs/ai-review/history/2026-10-31-before-unified-student-picker.md`
+- `docs/architecture/mobile-leave-otp-cooldown.md`
+- `docs/architecture/mobile-leave-student-card.md`
+- `docs/architecture/mobile-parent-stop-requests.md`
+- `mobile/app/parent/change-stop/create.tsx`
+- `mobile/app/parent/change-stop/select-student.tsx`
+- `mobile/components/parent/create-address-request-view.tsx`
+- `mobile/components/parent/linked-student-picker.tsx`
+- `mobile/components/trip-contact-call-button.tsx`
+- `mobile/constants/request-history-styles.ts`
+- `mobile/hooks/use-address-request-student.ts`
+- `mobile/hooks/use-leave-otp-cooldown.ts`
+- `mobile/scripts/leave-otp-cooldown.test.ts`
+- `mobile/scripts/phone-link.test.ts`
+- `mobile/services/parent-request-history.ts`
+- `mobile/utils/leave-otp-cooldown.ts`
+- `mobile/utils/phone-link.ts`
+- `docs/ai-review/LATEST.diff`
+- `docs/ai-review/LATEST.md`
+- `docs/architecture/mobile-keyboard-behavior.md`
+- `docs/architecture/mobile-parent-home-ui.md`
+- `docs/architecture/mobile-trip-contacts.md`
+- `docs/architecture/mobile-ui-implementation-status.md`
+- `mobile/app/leave-notices/create.tsx`
+- `mobile/app/parent/change-stop.tsx`
+- `mobile/app/parent/create-request/address/[studentId].tsx`
+- `mobile/app/parent/student-detail/[id].tsx`
+- `mobile/app/trip/[id].tsx`
+- `mobile/components/parent/RequestListView.tsx`
 
 ## 6. Database Changes
-None in this task. Existing SQL files are included only as PO-requested scripts for manual local pgAdmin use. No SQL was executed, no records were generated/updated and no migrations applied during publication.
+None. No SQL, seed, migration, data creation or API mutations executed in this task.
 
 ## 7. API & Swagger Changes
-None. Backend, API contracts and Swagger unchanged by the delivery task.
+None. Existing contracts retained. Swagger verification is not applicable to a local commit of frontend changes.
 
 ## 8. UI/UX Changes
-No new UI modifications in this task (only two EOF whitespace normalizations); publish existing approved UI work. Current phone contact view uses the assigned driver and attendant phone fields in the expanded Information tab. Preserve prior phase1/phase2 and student journey/avatar implementations; their module docs and historical review limitations remain applicable.
+No new UI edits during delivery. Included implementation: consistent request history/create entry, same student dropdown/popup in both forms, retained fixed student mode and each form's selection rules, OTP countdown driven by server wait, concise profile actions, tappable driver/attendant call icons with missing/invalid number alerts. Detailed behavior and earlier preview evidence remain in module docs/history. Native phone/OTP/keyboard acceptance is still not verified.
 
 ## 9. Verification & Testing
-PASS: git fetch origin; initial divergence 0/0.
-PASS: mobile npx --no-install tsc --noEmit, exit0, run for this delivery.
-PASS: 36 pure tests /7 suites /0 failed via installed TypeScript transpilation into TEMP and node --test --test-reporter=tap: marker script3, navigation layout7, journey stage12, journey geometry/labels14. No DB or fake business/API fixtures.
-PASS: git -c core.safecrlf=false diff --check -- mobile docs. Initial staged diff check found extra EOF blank lines in two new constants files; removed those blank lines and reran the staged check.
-PASS: scan of 186 candidate mobile/docs files for private keys, GitHub/AWS tokens, JWTs, credential URLs and known session passwords: no findings. Separate new-literal credential scan: no findings. Only file/category counts were printed, no secret values. This is a targeted scan, not a claim of exhaustive security audit.
-PASS (previous immediately preceding implementation task, not rerun): Expo export all iOS/Android/Web/server; only EOF whitespace changes since that successful export; no functional application edits.
-NOT_VERIFIED: real-device iPhone/Android, native copy selection/map/profile/GPS and authenticated end-to-end acceptance. Mobile has no configured lint script. No test data or mutation APIs used. PASS: git push origin HEAD:refs/heads/dongnnp/mobile/refactor-ui, exit0; remote advanced 17fda49 → 497af42. git ls-remote --heads origin refs/heads/dongnnp/mobile/refactor-ui returned the exact local HEAD SHA 497af424362a0a36f485bd4d9f6213895f3bfc83. Only excluded local .env.example/cache remained afterwards.
+PASS: mobile npx --no-install tsc --noEmit, exit0, rerun before commit on 01/11/2026.
+PASS: node --experimental-strip-types --test scripts/leave-otp-cooldown.test.ts scripts/phone-link.test.ts, 16/16 tests, exit0. Pure text/clock/phone tests only; no DB, fake business API data, OTP send or actual call.
+PASS: git diff --check for scoped Mobile/docs changes, excluding unrelated mobile/.env.example.
+PASS: credential-pattern scan of 46 initial candidate files: no private key blocks, authenticated PostgreSQL URL, common GitHub/OpenAI token prefixes or direct database/secret environment assignments detected. This is a targeted pattern check, not a complete secret audit.
+Prior task evidence: Expo export all passed before this delivery, with no subsequent application edits; not rerun in this task. Node reported MODULE_TYPELESS_PACKAGE_JSON warnings while running the TS tests; no package config changed for warnings. Mobile has no configured lint script.
+NOT_VERIFIED: native iPhone/Android UX, actual OTP delivery, telephone app launch, authenticated request creation and real photo loading. BLOCKED_BY_TEST_DATA_POLICY remains for missing real-photo data; no data was generated to satisfy tests. No push or remote verification performed.
 
 ## 10. Issues & Risks
-Large cumulative delivery covers several approved session tasks. Device acceptance remains incomplete as recorded in the implementation reports. Local unrelated .env.example character/cache remain deliberately unstaged. Do not interpret historical “not committed/pushed” statements as current Git status; they describe their review snapshot.
+Unrelated mobile/.env.example trailing character and local Python cache remain outside the commit. Existing native/auth acceptance gaps remain documented; passing static/pure tests does not certify those flows. Historical reports may describe older local/uncommitted states; those are preserved as chronological evidence, not current delivery status.
 
 ## 11. Reviewer Focus
-Check that all imported new modules and local assets are committed; inspect parent journey enum/attendance mapping, own-child avatar privacy, map-source stability, header/safe-area/keyboard and staff contact mapping. Ensure no real .env files, cache/generated artifacts or credential values are staged. Retain all per-task native/UAT limitations.
+Review the committed snapshot as a whole, including new dependencies between route wrappers, shared picker/form, request history service and OTP helpers. Confirm no backend/contracts/lockfile/env/cache changes are staged; preserve per-student eligibility, draft reset/race guards and privacy. Verify commit stays on dongnnp/mobile/refactor-ui and no git push is run.
 
 ## 12. Suggested Next Step
-Review the delivered branch on GitHub and verify the updated Parent App on Expo Go iPhone.
+Review this local commit before deciding whether to push it to GitHub.
 
 ## 13. Approval Status
-Commit/push explicitly authorized by the latest PO message. Implementation acceptance remains WAITING FOR USER REVIEW / APPROVAL. Code publication was remotely verified; no claim of device acceptance or main merge.
+PO explicitly requested local git commit in this turn. No authorization to push in this turn. WAITING FOR USER REVIEW / APPROVAL of the delivered snapshot; this report does not self-approve implementation acceptance.

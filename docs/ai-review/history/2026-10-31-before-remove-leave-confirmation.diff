@@ -1,0 +1,1415 @@
+--- a/mobile/app/parent/change-stop.tsx
++++ b/mobile/app/parent/change-stop.tsx
+@@ -10 +10 @@
+-      createRoute="/parent/change-stop/select-student"
++      createRoute="/parent/change-stop/create"
+--- /dev/null
++++ b/mobile/app/parent/change-stop/create.tsx
+@@ -0,0 +1,5 @@
++import { CreateAddressRequestView } from '@/components/parent/create-address-request-view';
++
++export default function CreateStopRequestScreen() {
++  return <CreateAddressRequestView />;
++}
+--- a/mobile/app/parent/change-stop/select-student.tsx
++++ b/mobile/app/parent/change-stop/select-student.tsx
+@@ -1,9 +1 @@
+-import { useCallback, useState } from 'react';
+-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+-import { useFocusEffect, useRouter } from 'expo-router';
+-import Ionicons from '@expo/vector-icons/Ionicons';
+-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+-import { AppHeader } from '@/components/navigation/app-header';
+-import { TrackingEmptyState } from '@/components/parent/tracking-empty-state';
+-import { colors } from '@/constants/theme';
+-import { mobileApiClient, type ParentLinkedStudentItem } from '@/services/api-client';
++import { Redirect } from 'expo-router';
+@@ -11,43 +3,3 @@
+-/** Select a linked child, then reuse the existing address-request flow. */
+-export default function ChangeStopScreen() {
+-  const router = useRouter();
+-  const insets = useSafeAreaInsets();
+-  const [students, setStudents] = useState<ParentLinkedStudentItem[]>([]);
+-  const [loading, setLoading] = useState(true);
+-  const [error, setError] = useState<string | null>(null);
+-  const [attempt, setAttempt] = useState(0);
+-
+-  useFocusEffect(useCallback(() => {
+-    let active = true;
+-    setLoading(true);
+-    setError(null);
+-    setStudents([]);
+-    mobileApiClient.getLinkedStudents().then(data => {
+-      if (active) setStudents(data);
+-    }).catch((failure: unknown) => {
+-      if (active) setError(failure instanceof Error ? failure.message : 'Không thể tải danh sách học sinh.');
+-    }).finally(() => { if (active) setLoading(false); });
+-    return () => { active = false; };
+-  }, [attempt]));
+-
+-  return <View style={styles.screen}>
+-    <AppHeader title="Tạo yêu cầu đổi điểm" subtitle="Chọn học sinh" onBack={() => router.back()} />
+-    {loading ? <View style={styles.state}><ActivityIndicator color={colors.navigationActive} /><Text style={styles.muted}>Đang tải học sinh...</Text></View>
+-      : error ? <View style={styles.state}><Text style={styles.error}>{error}</Text>
+-        <Pressable accessibilityRole="button" onPress={() => setAttempt(value => value + 1)} style={styles.button}><Text style={styles.label}>Thử lại</Text></Pressable></View>
+-      : <FlatList data={students} keyExtractor={student => student.id} contentContainerStyle={[styles.list, { paddingBottom: 24 + insets.bottom }]}
+-        ListEmptyComponent={<TrackingEmptyState title="Chưa có học sinh liên kết" description={null}
+-          onLink={() => router.push('/parent/link-student')} />}
+-        renderItem={({ item }) => {
+-          const disabled = item.status !== 'AVAILABLE';
+-          return <Pressable accessibilityRole="button" accessibilityLabel={`Đổi điểm cho ${item.fullName}`}
+-            accessibilityState={{ disabled }} disabled={disabled}
+-            onPress={() => router.push({ pathname: '/parent/create-request/address/[studentId]', params: { studentId: item.id } })}
+-            style={({ pressed }) => [styles.card, disabled && styles.disabled, pressed && styles.pressed]}>
+-            <View style={styles.icon}><Ionicons name="location-outline" size={24} color={colors.navigationActive} /></View>
+-            <View style={styles.copy}><Text style={styles.name}>{item.fullName}</Text><Text style={styles.muted}>{item.schoolName}</Text>
+-              {disabled && <Text style={styles.muted}>Học sinh đã bị vô hiệu hóa</Text>}</View>
+-            <Ionicons name="chevron-forward" size={20} color={colors.mutedText} />
+-          </Pressable>;
+-        }} />}
+-  </View>;
++/** Compatibility for the former standalone student-selection route. */
++export default function SelectStudentRedirect() {
++  return <Redirect href="/parent/change-stop/create" />;
+@@ -55,16 +6,0 @@
+-
+-const styles = StyleSheet.create({
+-  screen: { flex: 1, backgroundColor: colors.background },
+-  list: { width: '100%', maxWidth: 560, alignSelf: 'center', padding: 16, gap: 12, paddingBottom: 24 },
+-  state: { padding: 24, alignItems: 'center', gap: 16 },
+-  card: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, backgroundColor: colors.surface,
+-    borderRadius: 16, borderWidth: 1, borderColor: colors.border, minHeight: 64 },
+-  copy: { flex: 1, minWidth: 0 },
+-  icon: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.navigationHighlight, alignItems: 'center', justifyContent: 'center' },
+-  name: { fontSize: 16, lineHeight: 23, color: colors.foreground, fontWeight: '700' },
+-  muted: { fontSize: 12, lineHeight: 18, color: colors.mutedText },
+-  error: { color: colors.error, textAlign: 'center' },
+-  button: { minHeight: 48, borderRadius: 24, paddingHorizontal: 24, paddingVertical: 12, backgroundColor: colors.primary, justifyContent: 'center' },
+-  label: { fontSize: 14, color: colors.foreground, fontWeight: '700' },
+-  disabled: { opacity: 0.5 }, pressed: { opacity: 0.7 },
+-});
+--- a/mobile/app/parent/create-request/address/[studentId].tsx
++++ b/mobile/app/parent/create-request/address/[studentId].tsx
+@@ -1,25 +1,2 @@
+-import { AppHeader } from '@/components/navigation/app-header';
+-import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+-import React, { useState, useEffect, useRef } from 'react';
+-import {
+-  StyleSheet,
+-  Text,
+-  View,
+-  TextInput,
+-  TouchableOpacity,
+-  ActivityIndicator,
+-  Alert,
+-} from 'react-native';
+-import { useRouter, useLocalSearchParams } from 'expo-router';
+-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+-import Ionicons from '@expo/vector-icons/Ionicons';
+-import { colors } from '@/constants/theme';
+-import {
+-  mobileApiClient,
+-  ParentLinkedStudentDetail,
+-} from '@/services/api-client';
+-import {
+-  mobileVietmapService,
+-  MobileVietmapSuggestion,
+-} from '@/services/vietmap.service';
+-import { VietMapPicker } from '@/components/maps/VietMapPicker';
++import { useLocalSearchParams } from 'expo-router';
++import { CreateAddressRequestView } from '@/components/parent/create-address-request-view';
+@@ -28,275 +5,2 @@
+-  const router = useRouter();
+-  const insets = useSafeAreaInsets();
+-  const params = useLocalSearchParams<{ studentId: string }>();
+-  const studentId = params.studentId;
+-
+-  const [student, setStudent] = useState<ParentLinkedStudentDetail | null>(null);
+-  const [isLoadingStudent, setIsLoadingStudent] = useState(true);
+-
+-  // Address search & map state
+-  const [searchText, setSearchText] = useState('');
+-  const [suggestions, setSuggestions] = useState<MobileVietmapSuggestion[]>([]);
+-  const [isSearching, setIsSearching] = useState(false);
+-  const [isReversing, setIsReversing] = useState(false);
+-  const [selectedAddressText, setSelectedAddressText] = useState('');
+-  const [selectedLat, setSelectedLat] = useState<number | null>(null);
+-  const [selectedLng, setSelectedLng] = useState<number | null>(null);
+-  const [isSubmitting, setIsSubmitting] = useState(false);
+-
+-  const searchTimeoutRef = useRef<any>(null);
+-
+-  useEffect(() => {
+-    if (!studentId) return;
+-    mobileApiClient
+-      .getLinkedStudentDetail(studentId)
+-      .then(setStudent)
+-      .catch((err) => {
+-        Alert.alert('Lỗi', err?.message || 'Không thể tải thông tin học sinh.');
+-      })
+-      .finally(() => {
+-        setIsLoadingStudent(false);
+-      });
+-  }, [studentId]);
+-
+-  const handleSearchChange = (val: string) => {
+-    setSearchText(val);
+-    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+-
+-    if (!val.trim() || val.length < 2) {
+-      setSuggestions([]);
+-      return;
+-    }
+-
+-    searchTimeoutRef.current = setTimeout(async () => {
+-      try {
+-        setIsSearching(true);
+-        const results = await mobileVietmapService.autocomplete(val.trim());
+-        setSuggestions(results);
+-      } catch (err) {
+-        console.warn('Search suggestions error:', err);
+-      } finally {
+-        setIsSearching(false);
+-      }
+-    }, 350);
+-  };
+-
+-  const handleSelectSuggestion = async (item: MobileVietmapSuggestion) => {
+-    setSearchText(item.address || item.display || item.name);
+-    setSuggestions([]);
+-    try {
+-      setIsSearching(true);
+-      const detail = await mobileVietmapService.getPlaceDetail(item.refId);
+-      if (detail) {
+-        setSelectedAddressText(detail.addressText || item.address);
+-        setSelectedLat(detail.latitude);
+-        setSelectedLng(detail.longitude);
+-      } else {
+-        Alert.alert(
+-          'Lỗi tọa độ',
+-          'Không thể lấy tọa độ chi tiết cho địa điểm này. Vui lòng chọn kết quả khác.'
+-        );
+-      }
+-    } catch (err) {
+-      console.warn('Place detail error:', err);
+-    } finally {
+-      setIsSearching(false);
+-    }
+-  };
+-
+-  // Xử lý khi phụ huynh chạm vào bản đồ hoặc kéo marker
+-  const handleMapLocationSelect = async (lat: number, lng: number) => {
+-    setSelectedLat(lat);
+-    setSelectedLng(lng);
+-    try {
+-      setIsReversing(true);
+-      const results = await mobileVietmapService.reverseGeocode(lat, lng);
+-      if (results && results.length > 0 && results[0].addressText) {
+-        const addr = results[0].addressText;
+-        setSelectedAddressText(addr);
+-        setSearchText(addr);
+-      }
+-    } catch (err) {
+-      console.warn('Reverse geocode error:', err);
+-    } finally {
+-      setIsReversing(false);
+-    }
+-  };
+-
+-  const handleSubmit = async () => {
+-    if (!student || !studentId) return;
+-
+-    if (!selectedAddressText || selectedLat === null || selectedLng === null) {
+-      Alert.alert(
+-        'Chưa chọn địa chỉ',
+-        'Vui lòng tìm kiếm hoặc chọn một vị trí cụ thể trên bản đồ VietMap.'
+-      );
+-      return;
+-    }
+-
+-    const proposedData = {
+-      addressText: selectedAddressText,
+-      latitude: selectedLat,
+-      longitude: selectedLng,
+-    };
+-
+-    try {
+-      setIsSubmitting(true);
+-      const otpRes = await mobileApiClient.requestStudentUpdateOtp(studentId, {
+-        type: 'ADDRESS_UPDATE',
+-        proposedData,
+-      });
+-
+-      router.push({
+-        pathname: '/parent/create-request/verify-otp',
+-        params: {
+-          studentId,
+-          type: 'ADDRESS_UPDATE',
+-          challengeId: otpRes.challengeId,
+-          maskedPhone: otpRes.maskedPhone,
+-          proposedDataJson: JSON.stringify(proposedData),
+-        },
+-      });
+-    } catch (err: any) {
+-      Alert.alert(
+-        'Không thể gửi mã xác thực',
+-        err?.message || 'Không thể gửi yêu cầu mã OTP. Vui lòng thử lại sau.'
+-      );
+-    } finally {
+-      setIsSubmitting(false);
+-    }
+-  };
+-
+-  return (
+-    <View style={styles.container}>
+-      {/* Header */}
+-      <AppHeader title="Đổi địa chỉ đón trả" onBack={() => router.back()} />
+-
+-      {isLoadingStudent ? (
+-        <View style={styles.centerBox}>
+-          <ActivityIndicator size="large" color={colors.primary} />
+-          <Text style={styles.loadingText}>Đang tải thông tin...</Text>
+-        </View>
+-      ) : (
+-        <KeyboardScrollView
+-          contentContainerStyle={[
+-            styles.content,
+-            { paddingBottom: insets.bottom + 24 },
+-          ]}
+-          keyboardShouldPersistTaps="handled"
+-        >
+-          {/* Notice Card */}
+-          <View style={styles.noticeCard}>
+-            <Ionicons name="information-circle-outline" size={18} color="#1D4ED8" />
+-            <Text style={styles.noticeText}>
+-              Địa chỉ mới sẽ được kiểm tra và tích hợp vào tuyến xe buýt của học sinh sau khi được phê duyệt.
+-            </Text>
+-          </View>
+-
+-          {/* 1. Current Address Card */}
+-          <View style={styles.card}>
+-            <Text style={styles.cardTitle}>Địa chỉ đón trả hiện tại</Text>
+-            <View style={styles.currentAddressRow}>
+-              <Ionicons name="location-outline" size={18} color="#D97706" />
+-              <Text style={styles.currentAddressText}>
+-                {student?.addressText || 'Chưa cập nhật địa chỉ'}
+-              </Text>
+-            </View>
+-          </View>
+-
+-          {/* 2. Search VietMap Address */}
+-          <View style={styles.card}>
+-            <Text style={styles.cardTitle}>Tìm kiếm địa chỉ mới (VietMap)</Text>
+-
+-            <View style={styles.searchInputContainer}>
+-              <Ionicons name="search-outline" size={18} color="#94A3B8" />
+-              <TextInput
+-                style={styles.searchInput}
+-                value={searchText}
+-                onChangeText={handleSearchChange}
+-                placeholder="Nhập tên đường, số nhà, phường/xã..."
+-                placeholderTextColor="#94A3B8"
+-              />
+-              {isSearching && <ActivityIndicator size="small" color={colors.primary} />}
+-            </View>
+-
+-            {/* Suggestions Dropdown */}
+-            {suggestions.length > 0 && (
+-              <View style={styles.suggestionsList}>
+-                {suggestions.map((item) => (
+-                  <TouchableOpacity
+-                    key={item.refId}
+-                    style={styles.suggestionItem}
+-                    onPress={() => handleSelectSuggestion(item)}
+-                    activeOpacity={0.7}
+-                  >
+-                    <Ionicons name="pin" size={16} color="#2563EB" style={{ marginTop: 2 }} />
+-                    <View style={{ flex: 1 }}>
+-                      <Text style={styles.suggestionName}>{item.name}</Text>
+-                      <Text style={styles.suggestionAddress}>{item.address}</Text>
+-                    </View>
+-                  </TouchableOpacity>
+-                ))}
+-              </View>
+-            )}
+-          </View>
+-
+-          {/* 3. Interactive VietMap Map */}
+-          <View style={styles.card}>
+-            <View style={styles.mapHeaderRow}>
+-              <Text style={styles.cardTitle}>Bản đồ chọn vị trí đón trả</Text>
+-              {isReversing && (
+-                <View style={styles.reversingBadge}>
+-                  <ActivityIndicator size="small" color="#D97706" />
+-                  <Text style={styles.reversingText}>Đang lấy địa chỉ...</Text>
+-                </View>
+-              )}
+-            </View>
+-
+-            <VietMapPicker
+-              latitude={selectedLat}
+-              longitude={selectedLng}
+-              onLocationSelect={handleMapLocationSelect}
+-              height={270}
+-            />
+-          </View>
+-
+-          {/* 4. Selected Address Confirmation Box */}
+-          {selectedAddressText ? (
+-            <View style={styles.selectedAddressBox}>
+-              <View style={styles.selectedHeader}>
+-                <Ionicons name="checkmark-circle" size={18} color="#059669" />
+-                <Text style={styles.selectedHeaderTitle}>Địa chỉ đề xuất đã chọn</Text>
+-              </View>
+-              <Text style={styles.selectedAddressContent}>{selectedAddressText}</Text>
+-              <View style={styles.coordRow}>
+-                <Ionicons name="navigate-outline" size={12} color="#64748B" />
+-                <Text style={styles.coordText}>
+-                  Tọa độ: {selectedLat?.toFixed(6)}, {selectedLng?.toFixed(6)}
+-                </Text>
+-              </View>
+-            </View>
+-          ) : null}
+-
+-          {/* 5. Submit Button */}
+-          <TouchableOpacity
+-            style={[
+-              styles.submitButton,
+-              (!selectedAddressText || isSubmitting) && styles.submitButtonDisabled,
+-            ]}
+-            onPress={handleSubmit}
+-            disabled={!selectedAddressText || isSubmitting}
+-            activeOpacity={0.8}
+-          >
+-            {isSubmitting ? (
+-              <ActivityIndicator size="small" color="#1E293B" />
+-            ) : (
+-              <View style={styles.submitRow}>
+-                <Text style={styles.submitButtonText}>Tiếp tục xác thực OTP</Text>
+-                <Ionicons name="arrow-forward" size={18} color="#1E293B" />
+-              </View>
+-            )}
+-          </TouchableOpacity>
+-        </KeyboardScrollView>
+-      )}
+-    </View>
+-  );
++  const { studentId } = useLocalSearchParams<{ studentId: string }>();
++  return <CreateAddressRequestView key={studentId} fixedStudentId={studentId || ''} />;
+@@ -304,197 +7,0 @@
+-
+-const styles = StyleSheet.create({
+-  container: {
+-    flex: 1,
+-    backgroundColor: colors.background,
+-  },
+-  content: {
+-    padding: 16,
+-    gap: 14,
+-  },
+-  centerBox: {
+-    flex: 1,
+-    justifyContent: 'center',
+-    alignItems: 'center',
+-    padding: 24,
+-  },
+-  loadingText: {
+-    fontSize: 13,
+-    color: colors.mutedText,
+-    marginTop: 10,
+-  },
+-  noticeCard: {
+-    flexDirection: 'row',
+-    alignItems: 'flex-start',
+-    backgroundColor: '#EFF6FF',
+-    borderWidth: 1,
+-    borderColor: '#BFDBFE',
+-    borderRadius: 12,
+-    padding: 12,
+-    gap: 8,
+-  },
+-  noticeText: {
+-    flex: 1,
+-    fontSize: 12,
+-    color: '#1E40AF',
+-    lineHeight: 17,
+-  },
+-  card: {
+-    backgroundColor: '#FFFFFF',
+-    borderRadius: 16,
+-    padding: 16,
+-    borderWidth: 1,
+-    borderColor: '#E2E8F0',
+-    shadowColor: '#000',
+-    shadowOffset: { width: 0, height: 1 },
+-    shadowOpacity: 0.05,
+-    shadowRadius: 3,
+-    elevation: 2,
+-    gap: 10,
+-  },
+-  cardTitle: {
+-    fontSize: 14,
+-    fontWeight: '700',
+-    color: '#1E293B',
+-  },
+-  mapHeaderRow: {
+-    flexDirection: 'row',
+-    justifyContent: 'space-between',
+-    alignItems: 'center',
+-    borderBottomWidth: 1,
+-    borderBottomColor: '#F1F5F9',
+-    paddingBottom: 8,
+-  },
+-  reversingBadge: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    gap: 6,
+-    backgroundColor: '#FEF3C7',
+-    paddingHorizontal: 8,
+-    paddingVertical: 3,
+-    borderRadius: 12,
+-  },
+-  reversingText: {
+-    fontSize: 11,
+-    fontWeight: '600',
+-    color: '#92400E',
+-  },
+-  currentAddressRow: {
+-    flexDirection: 'row',
+-    alignItems: 'flex-start',
+-    backgroundColor: '#F8FAFC',
+-    padding: 10,
+-    borderRadius: 10,
+-    gap: 8,
+-    marginTop: 4,
+-  },
+-  currentAddressText: {
+-    flex: 1,
+-    fontSize: 13,
+-    color: '#334155',
+-    lineHeight: 18,
+-  },
+-  searchInputContainer: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    backgroundColor: '#F8FAFC',
+-    borderWidth: 1,
+-    borderColor: '#CBD5E1',
+-    borderRadius: 12,
+-    paddingHorizontal: 12,
+-    height: 44,
+-    gap: 8,
+-  },
+-  searchInput: {
+-    flex: 1,
+-    fontSize: 13,
+-    color: '#1E293B',
+-    paddingVertical: 0,
+-  },
+-  suggestionsList: {
+-    borderWidth: 1,
+-    borderColor: '#E2E8F0',
+-    borderRadius: 10,
+-    backgroundColor: '#FFFFFF',
+-    maxHeight: 180,
+-    overflow: 'hidden',
+-  },
+-  suggestionItem: {
+-    flexDirection: 'row',
+-    alignItems: 'flex-start',
+-    padding: 10,
+-    borderBottomWidth: 1,
+-    borderBottomColor: '#F1F5F9',
+-    gap: 8,
+-  },
+-  suggestionName: {
+-    fontSize: 13,
+-    fontWeight: '600',
+-    color: '#1E293B',
+-  },
+-  suggestionAddress: {
+-    fontSize: 11,
+-    color: '#64748B',
+-    marginTop: 1,
+-  },
+-  selectedAddressBox: {
+-    backgroundColor: '#F0FDF4',
+-    borderWidth: 1,
+-    borderColor: '#86EFAC',
+-    borderRadius: 14,
+-    padding: 14,
+-    gap: 6,
+-  },
+-  selectedHeader: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    gap: 6,
+-  },
+-  selectedHeaderTitle: {
+-    fontSize: 13,
+-    fontWeight: '700',
+-    color: '#065F46',
+-  },
+-  selectedAddressContent: {
+-    fontSize: 14,
+-    fontWeight: '600',
+-    color: '#1E293B',
+-    lineHeight: 19,
+-  },
+-  coordRow: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    gap: 4,
+-    marginTop: 2,
+-  },
+-  coordText: {
+-    fontSize: 11,
+-    color: '#64748B',
+-    fontWeight: '500',
+-  },
+-  submitButton: {
+-    backgroundColor: colors.primary,
+-    borderRadius: 14,
+-    paddingVertical: 14,
+-    alignItems: 'center',
+-    justifyContent: 'center',
+-    marginTop: 4,
+-    shadowColor: '#000',
+-    shadowOffset: { width: 0, height: 2 },
+-    shadowOpacity: 0.1,
+-    shadowRadius: 3,
+-    elevation: 3,
+-  },
+-  submitButtonDisabled: {
+-    opacity: 0.45,
+-  },
+-  submitRow: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    gap: 6,
+-  },
+-  submitButtonText: {
+-    fontSize: 15,
+-    fontWeight: '700',
+-    color: '#1E293B',
+-  },
+-});
+--- /dev/null
++++ b/mobile/components/parent/create-address-request-view.tsx
+@@ -0,0 +1,567 @@
++import { AppHeader } from '@/components/navigation/app-header';
++import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
++import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
++import {
++  StyleSheet,
++  Text,
++  View,
++  TextInput,
++  TouchableOpacity,
++  ActivityIndicator,
++  Alert,
++} from 'react-native';
++import { useRouter } from 'expo-router';
++import { useSafeAreaInsets } from 'react-native-safe-area-context';
++import Ionicons from '@expo/vector-icons/Ionicons';
++import { colors } from '@/constants/theme';
++import { mobileApiClient } from '@/services/api-client';
++import {
++  mobileVietmapService,
++  MobileVietmapSuggestion,
++} from '@/services/vietmap.service';
++import { VietMapPicker } from '@/components/maps/VietMapPicker';
++import { LinkedStudentPicker } from './linked-student-picker';
++import { useAddressRequestStudent } from '@/hooks/use-address-request-student';
++
++export function CreateAddressRequestView({ fixedStudentId }: { fixedStudentId?: string }) {
++  const router = useRouter();
++  const insets = useSafeAreaInsets();
++  const { studentId, isFixed, student, studentLoading, studentError, retryStudent,
++    students, studentsLoading, studentsError, retryStudents, selectStudent } = useAddressRequestStudent(fixedStudentId);
++
++  // Address search & map state
++  const [searchText, setSearchText] = useState('');
++  const [suggestions, setSuggestions] = useState<MobileVietmapSuggestion[]>([]);
++  const [isSearching, setIsSearching] = useState(false);
++  const [isReversing, setIsReversing] = useState(false);
++  const [selectedAddressText, setSelectedAddressText] = useState('');
++  const [selectedLat, setSelectedLat] = useState<number | null>(null);
++  const [selectedLng, setSelectedLng] = useState<number | null>(null);
++  const [isSubmitting, setIsSubmitting] = useState(false);
++
++  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
++  const draftGeneration = useRef(0);
++  const searchGeneration = useRef(0);
++  const lookupGeneration = useRef(0);
++  const activeStudentId = useRef(studentId);
++  const mounted = useRef(true);
++  const selectedEntry = students.find(item => item.id === studentId);
++  const isStudentUnavailable = student?.status === 'DISABLED' || selectedEntry?.status === 'DISABLED';
++  const canEdit = Boolean(student?.status === 'AVAILABLE' && (isFixed || selectedEntry?.status === 'AVAILABLE')
++    && !studentLoading && !studentsLoading && !studentsError);
++  const canSubmit = canEdit && Boolean(selectedAddressText) && selectedLat !== null && selectedLng !== null
++    && !isSubmitting && !isSearching && !isReversing;
++
++  const resetDraft = useCallback(() => {
++    draftGeneration.current += 1;
++    searchGeneration.current += 1;
++    lookupGeneration.current += 1;
++    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
++    setSearchText(''); setSuggestions([]); setSelectedAddressText('');
++    setSelectedLat(null); setSelectedLng(null);
++    setIsSearching(false); setIsReversing(false); setIsSubmitting(false);
++  }, []);
++
++  useLayoutEffect(() => {
++    activeStudentId.current = studentId;
++    resetDraft();
++  }, [studentId, resetDraft]);
++  useEffect(() => {
++    mounted.current = true;
++    return () => {
++      mounted.current = false;
++      draftGeneration.current += 1;
++      searchGeneration.current += 1;
++      lookupGeneration.current += 1;
++      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
++    };
++  }, []);
++
++  const handleSelectStudent = (id: string) => {
++    if (isSubmitting || id === studentId || !students.some(item => item.id === id && item.status === 'AVAILABLE')) return;
++    activeStudentId.current = id;
++    resetDraft();
++    selectStudent(id);
++  };
++
++  const handleSearchChange = (val: string) => {
++    if (!mounted.current || activeStudentId.current !== studentId || !canEdit || isSubmitting) return;
++    setSearchText(val);
++    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
++    const generation = ++searchGeneration.current;
++    const draft = draftGeneration.current;
++    lookupGeneration.current += 1;
++    setSuggestions([]); setIsReversing(false);
++    const shouldSearch = val.trim().length >= 2;
++    setIsSearching(shouldSearch);
++    if (!shouldSearch) return;
++
++    searchTimeoutRef.current = setTimeout(async () => {
++      const current = () => mounted.current && activeStudentId.current === studentId
++        && draft === draftGeneration.current && generation === searchGeneration.current;
++      if (!current()) return;
++      try {
++        const results = await mobileVietmapService.autocomplete(val.trim());
++        if (current()) setSuggestions(results);
++      } catch (err) {
++        if (current()) console.warn('Search suggestions error:', err);
++      } finally {
++        if (current()) setIsSearching(false);
++      }
++    }, 350);
++  };
++
++  const handleSelectSuggestion = async (item: MobileVietmapSuggestion) => {
++    if (!mounted.current || activeStudentId.current !== studentId || !canEdit || isSubmitting) return;
++    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
++    searchGeneration.current += 1;
++    const generation = ++lookupGeneration.current;
++    const draft = draftGeneration.current;
++    const current = () => mounted.current && activeStudentId.current === studentId
++      && draft === draftGeneration.current && generation === lookupGeneration.current;
++    setSearchText(item.address || item.display || item.name);
++    setSuggestions([]);
++    setIsReversing(false);
++    try {
++      setIsSearching(true);
++      const detail = await mobileVietmapService.getPlaceDetail(item.refId);
++      if (!current()) return;
++      if (detail) {
++        setSelectedAddressText(detail.addressText || item.address);
++        setSelectedLat(detail.latitude);
++        setSelectedLng(detail.longitude);
++      } else {
++        Alert.alert(
++          'Lỗi tọa độ',
++          'Không thể lấy tọa độ chi tiết cho địa điểm này. Vui lòng chọn kết quả khác.'
++        );
++      }
++    } catch (err) {
++      if (current()) console.warn('Place detail error:', err);
++    } finally {
++      if (current()) setIsSearching(false);
++    }
++  };
++
++  // Xử lý khi phụ huynh chạm vào bản đồ hoặc kéo marker
++  const handleMapLocationSelect = async (lat: number, lng: number) => {
++    if (!mounted.current || activeStudentId.current !== studentId || !canEdit || isSubmitting) return;
++    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
++    searchGeneration.current += 1;
++    const generation = ++lookupGeneration.current;
++    const draft = draftGeneration.current;
++    const current = () => mounted.current && activeStudentId.current === studentId
++      && draft === draftGeneration.current && generation === lookupGeneration.current;
++    setIsSearching(false); setSuggestions([]);
++    setSelectedAddressText(''); setSearchText('');
++    setSelectedLat(lat);
++    setSelectedLng(lng);
++    try {
++      setIsReversing(true);
++      const results = await mobileVietmapService.reverseGeocode(lat, lng);
++      if (!current()) return;
++      if (results && results.length > 0 && results[0].addressText) {
++        const addr = results[0].addressText;
++        setSelectedAddressText(addr);
++        setSearchText(addr);
++      }
++    } catch (err) {
++      if (current()) console.warn('Reverse geocode error:', err);
++    } finally {
++      if (current()) setIsReversing(false);
++    }
++  };
++
++  const handleSubmit = async () => {
++    if (!mounted.current || activeStudentId.current !== studentId || isSubmitting || isSearching || isReversing || !canEdit || !student || !studentId) return;
++
++    if (!selectedAddressText || selectedLat === null || selectedLng === null) {
++      Alert.alert(
++        'Chưa chọn địa chỉ',
++        'Vui lòng tìm kiếm hoặc chọn một vị trí cụ thể trên bản đồ VietMap.'
++      );
++      return;
++    }
++
++    const proposedData = {
++      addressText: selectedAddressText,
++      latitude: selectedLat,
++      longitude: selectedLng,
++    };
++    const draft = draftGeneration.current;
++
++    try {
++      setIsSubmitting(true);
++      const otpRes = await mobileApiClient.requestStudentUpdateOtp(studentId, {
++        type: 'ADDRESS_UPDATE',
++        proposedData,
++      });
++      if (draft !== draftGeneration.current) return;
++
++      router.push({
++        pathname: '/parent/create-request/verify-otp',
++        params: {
++          studentId,
++          type: 'ADDRESS_UPDATE',
++          challengeId: otpRes.challengeId,
++          maskedPhone: otpRes.maskedPhone,
++          proposedDataJson: JSON.stringify(proposedData),
++        },
++      });
++    } catch (err: any) {
++      if (draft !== draftGeneration.current) return;
++      Alert.alert(
++        'Không thể gửi mã xác thực',
++        err?.message || 'Không thể gửi yêu cầu mã OTP. Vui lòng thử lại sau.'
++      );
++    } finally {
++      if (draft === draftGeneration.current) setIsSubmitting(false);
++    }
++  };
++
++  return (
++    <View style={styles.container}>
++      {/* Header */}
++      <AppHeader title={isFixed ? 'Đổi địa chỉ đón trả' : 'Tạo yêu cầu đổi điểm'} onBack={() => router.back()} backDisabled={isSubmitting} />
++
++        <KeyboardScrollView
++          contentContainerStyle={[
++            styles.content,
++            { paddingBottom: insets.bottom + 24 },
++          ]}
++          keyboardShouldPersistTaps="handled"
++        >
++          {!isFixed ? (
++            <LinkedStudentPicker students={students} selectedId={studentId} loading={studentsLoading}
++              error={studentsError} disabled={isSubmitting} onSelect={handleSelectStudent}
++              onRetry={retryStudents} onLink={() => router.push('/parent/link-student')} />
++          ) : (
++            <View style={styles.card}>
++              <Text style={styles.cardTitle}>Học sinh</Text>
++              <Text style={styles.currentAddressText}>{student?.fullName || (studentLoading ? 'Đang tải thông tin học sinh...' : 'Không thể tải học sinh')}</Text>
++            </View>
++          )}
++          {studentLoading ? <View style={styles.studentState}>
++            <ActivityIndicator color={colors.navigationActive} /><Text style={styles.stateText}>Đang tải thông tin học sinh...</Text>
++          </View> : studentError ? <View style={styles.studentState}>
++            <Text accessibilityRole="alert" style={styles.errorText}>{studentError}</Text>
++            <TouchableOpacity accessibilityRole="button" onPress={retryStudent} style={styles.retryButton}>
++              <Text style={styles.retryText}>Thử lại</Text>
++            </TouchableOpacity>
++          </View> : isStudentUnavailable ? <Text style={styles.errorText}>Học sinh đã bị vô hiệu hóa</Text> : null}
++
++          {/* Notice Card */}
++          <View style={styles.noticeCard}>
++            <Ionicons name="information-circle-outline" size={18} color="#1D4ED8" />
++            <Text style={styles.noticeText}>
++              Địa chỉ mới sẽ được kiểm tra và tích hợp vào tuyến xe buýt của học sinh sau khi được phê duyệt.
++            </Text>
++          </View>
++
++          {/* 1. Current Address Card */}
++          <View style={styles.card}>
++            <Text style={styles.cardTitle}>Địa chỉ đón trả hiện tại</Text>
++            <View style={styles.currentAddressRow}>
++              <Ionicons name="location-outline" size={18} color="#D97706" />
++              <Text style={styles.currentAddressText}>
++                {studentLoading ? 'Đang tải địa chỉ...' : studentError ? 'Không thể tải địa chỉ' : student
++                  ? student.addressText || 'Chưa cập nhật địa chỉ' : 'Chưa chọn học sinh'}
++              </Text>
++            </View>
++          </View>
++
++          {/* 2. Search VietMap Address */}
++          <View style={styles.card}>
++            <Text style={styles.cardTitle}>Tìm kiếm địa chỉ mới (VietMap)</Text>
++
++            <View style={styles.searchInputContainer}>
++              <Ionicons name="search-outline" size={18} color="#94A3B8" />
++              <TextInput
++                style={styles.searchInput}
++                value={searchText}
++                onChangeText={handleSearchChange}
++                editable={canEdit && !isSubmitting}
++                placeholder="Nhập tên đường, số nhà, phường/xã..."
++                placeholderTextColor="#94A3B8"
++              />
++              {isSearching && <ActivityIndicator size="small" color={colors.primary} />}
++            </View>
++
++            {/* Suggestions Dropdown */}
++            {suggestions.length > 0 && (
++              <View style={styles.suggestionsList}>
++                {suggestions.map((item) => (
++                  <TouchableOpacity
++                    key={item.refId}
++                    style={styles.suggestionItem}
++                    onPress={() => handleSelectSuggestion(item)}
++                    activeOpacity={0.7}
++                  >
++                    <Ionicons name="pin" size={16} color="#2563EB" style={{ marginTop: 2 }} />
++                    <View style={{ flex: 1 }}>
++                      <Text style={styles.suggestionName}>{item.name}</Text>
++                      <Text style={styles.suggestionAddress}>{item.address}</Text>
++                    </View>
++                  </TouchableOpacity>
++                ))}
++              </View>
++            )}
++          </View>
++
++          {/* 3. Interactive VietMap Map */}
++          <View style={styles.card}>
++            <View style={styles.mapHeaderRow}>
++              <Text style={styles.cardTitle}>Bản đồ chọn vị trí đón trả</Text>
++              {isReversing && (
++                <View style={styles.reversingBadge}>
++                  <ActivityIndicator size="small" color="#D97706" />
++                  <Text style={styles.reversingText}>Đang lấy địa chỉ...</Text>
++                </View>
++              )}
++            </View>
++
++            {student?.status === 'AVAILABLE' ? <VietMapPicker
++              key={studentId}
++              latitude={selectedLat}
++              longitude={selectedLng}
++              onLocationSelect={handleMapLocationSelect}
++              disabled={!canEdit || isSubmitting}
++              height={270}
++            /> : <View style={styles.mapPlaceholder}>
++              <Ionicons name="map-outline" size={32} color={colors.mutedText} />
++              <Text style={styles.stateText}>{studentLoading ? 'Đang tải thông tin học sinh...' : 'Chọn học sinh để chọn điểm đón/trả'}</Text>
++            </View>}
++          </View>
++
++          {/* 4. Selected Address Confirmation Box */}
++          {selectedAddressText ? (
++            <View style={styles.selectedAddressBox}>
++              <View style={styles.selectedHeader}>
++                <Ionicons name="checkmark-circle" size={18} color="#059669" />
++                <Text style={styles.selectedHeaderTitle}>Địa chỉ đề xuất đã chọn</Text>
++              </View>
++              <Text style={styles.selectedAddressContent}>{selectedAddressText}</Text>
++              <View style={styles.coordRow}>
++                <Ionicons name="navigate-outline" size={12} color="#64748B" />
++                <Text style={styles.coordText}>
++                  Tọa độ: {selectedLat?.toFixed(6)}, {selectedLng?.toFixed(6)}
++                </Text>
++              </View>
++            </View>
++          ) : null}
++
++          {/* 5. Submit Button */}
++          <TouchableOpacity
++            style={[
++              styles.submitButton,
++              !canSubmit && styles.submitButtonDisabled,
++            ]}
++            onPress={handleSubmit}
++            disabled={!canSubmit}
++            activeOpacity={0.8}
++          >
++            {isSubmitting ? (
++              <ActivityIndicator size="small" color="#1E293B" />
++            ) : (
++              <View style={styles.submitRow}>
++                <Text style={styles.submitButtonText}>Tiếp tục xác thực OTP</Text>
++                <Ionicons name="arrow-forward" size={18} color="#1E293B" />
++              </View>
++            )}
++          </TouchableOpacity>
++        </KeyboardScrollView>
++    </View>
++  );
++}
++
++const styles = StyleSheet.create({
++  container: {
++    flex: 1,
++    backgroundColor: colors.background,
++  },
++  content: {
++    padding: 16,
++    gap: 14,
++  },
++  studentState: { alignItems: 'center', gap: 8 },
++  stateText: { fontSize: 12, color: colors.mutedText, textAlign: 'center' },
++  errorText: { fontSize: 12, color: colors.error },
++  retryButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 16 },
++  retryText: { color: colors.navigationActive, fontWeight: '700' },
++  mapPlaceholder: { height: 270, backgroundColor: '#F8FAFC', borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 16 },
++  noticeCard: {
++    flexDirection: 'row',
++    alignItems: 'flex-start',
++    backgroundColor: '#EFF6FF',
++    borderWidth: 1,
++    borderColor: '#BFDBFE',
++    borderRadius: 12,
++    padding: 12,
++    gap: 8,
++  },
++  noticeText: {
++    flex: 1,
++    fontSize: 12,
++    color: '#1E40AF',
++    lineHeight: 17,
++  },
++  card: {
++    backgroundColor: '#FFFFFF',
++    borderRadius: 16,
++    padding: 16,
++    borderWidth: 1,
++    borderColor: '#E2E8F0',
++    shadowColor: '#000',
++    shadowOffset: { width: 0, height: 1 },
++    shadowOpacity: 0.05,
++    shadowRadius: 3,
++    elevation: 2,
++    gap: 10,
++  },
++  cardTitle: {
++    fontSize: 14,
++    fontWeight: '700',
++    color: '#1E293B',
++  },
++  mapHeaderRow: {
++    flexDirection: 'row',
++    justifyContent: 'space-between',
++    alignItems: 'center',
++    borderBottomWidth: 1,
++    borderBottomColor: '#F1F5F9',
++    paddingBottom: 8,
++  },
++  reversingBadge: {
++    flexDirection: 'row',
++    alignItems: 'center',
++    gap: 6,
++    backgroundColor: '#FEF3C7',
++    paddingHorizontal: 8,
++    paddingVertical: 3,
++    borderRadius: 12,
++  },
++  reversingText: {
++    fontSize: 11,
++    fontWeight: '600',
++    color: '#92400E',
++  },
++  currentAddressRow: {
++    flexDirection: 'row',
++    alignItems: 'flex-start',
++    backgroundColor: '#F8FAFC',
++    padding: 10,
++    borderRadius: 10,
++    gap: 8,
++    marginTop: 4,
++  },
++  currentAddressText: {
++    flex: 1,
++    fontSize: 13,
++    color: '#334155',
++    lineHeight: 18,
++  },
++  searchInputContainer: {
++    flexDirection: 'row',
++    alignItems: 'center',
++    backgroundColor: '#F8FAFC',
++    borderWidth: 1,
++    borderColor: '#CBD5E1',
++    borderRadius: 12,
++    paddingHorizontal: 12,
++    height: 44,
++    gap: 8,
++  },
++  searchInput: {
++    flex: 1,
++    fontSize: 13,
++    color: '#1E293B',
++    paddingVertical: 0,
++  },
++  suggestionsList: {
++    borderWidth: 1,
++    borderColor: '#E2E8F0',
++    borderRadius: 10,
++    backgroundColor: '#FFFFFF',
++    maxHeight: 180,
++    overflow: 'hidden',
++  },
++  suggestionItem: {
++    flexDirection: 'row',
++    alignItems: 'flex-start',
++    padding: 10,
++    borderBottomWidth: 1,
++    borderBottomColor: '#F1F5F9',
++    gap: 8,
++  },
++  suggestionName: {
++    fontSize: 13,
++    fontWeight: '600',
++    color: '#1E293B',
++  },
++  suggestionAddress: {
++    fontSize: 11,
++    color: '#64748B',
++    marginTop: 1,
++  },
++  selectedAddressBox: {
++    backgroundColor: '#F0FDF4',
++    borderWidth: 1,
++    borderColor: '#86EFAC',
++    borderRadius: 14,
++    padding: 14,
++    gap: 6,
++  },
++  selectedHeader: {
++    flexDirection: 'row',
++    alignItems: 'center',
++    gap: 6,
++  },
++  selectedHeaderTitle: {
++    fontSize: 13,
++    fontWeight: '700',
++    color: '#065F46',
++  },
++  selectedAddressContent: {
++    fontSize: 14,
++    fontWeight: '600',
++    color: '#1E293B',
++    lineHeight: 19,
++  },
++  coordRow: {
++    flexDirection: 'row',
++    alignItems: 'center',
++    gap: 4,
++    marginTop: 2,
++  },
++  coordText: {
++    fontSize: 11,
++    color: '#64748B',
++    fontWeight: '500',
++  },
++  submitButton: {
++    backgroundColor: colors.primary,
++    borderRadius: 14,
++    paddingVertical: 14,
++    alignItems: 'center',
++    justifyContent: 'center',
++    marginTop: 4,
++    shadowColor: '#000',
++    shadowOffset: { width: 0, height: 2 },
++    shadowOpacity: 0.1,
++    shadowRadius: 3,
++    elevation: 3,
++  },
++  submitButtonDisabled: {
++    opacity: 0.45,
++  },
++  submitRow: {
++    flexDirection: 'row',
++    alignItems: 'center',
++    gap: 6,
++  },
++  submitButtonText: {
++    fontSize: 15,
++    fontWeight: '700',
++    color: '#1E293B',
++  },
++});
+--- /dev/null
++++ b/mobile/components/parent/linked-student-picker.tsx
+@@ -0,0 +1,107 @@
++import { useState } from 'react';
++import { ActivityIndicator, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
++import { useSafeAreaInsets } from 'react-native-safe-area-context';
++import Ionicons from '@expo/vector-icons/Ionicons';
++import type { ParentLinkedStudentItem } from '@/services/api-client';
++import { colors } from '@/constants/theme';
++import { TrackingEmptyState } from './tracking-empty-state';
++
++type LinkedStudentPickerProps = {
++  students: ParentLinkedStudentItem[];
++  selectedId: string;
++  loading: boolean;
++  error: string | null;
++  disabled?: boolean;
++  onSelect: (studentId: string) => void;
++  onRetry: () => void;
++  onLink: () => void;
++};
++
++/** Presentation only: same dropdown and modal pattern as Create Leave Notice. */
++export function LinkedStudentPicker({ students, selectedId, loading, error, disabled = false,
++  onSelect, onRetry, onLink }: LinkedStudentPickerProps) {
++  const [visible, setVisible] = useState(false);
++  const insets = useSafeAreaInsets();
++  const { height } = useWindowDimensions();
++  const selected = students.find(student => student.id === selectedId);
++  const blocked = loading || disabled || Boolean(error);
++
++  return <View style={styles.section}>
++    <Text style={styles.label}>Học sinh</Text>
++    <Pressable accessibilityRole="button" accessibilityLabel={selected ? `Học sinh: ${selected.fullName}` : 'Chọn học sinh'}
++      accessibilityState={{ disabled: blocked, expanded: visible }} disabled={blocked}
++      onPress={() => { Keyboard.dismiss(); setVisible(true); }} style={({ pressed }) => [styles.dropdown, pressed && styles.pressed, blocked && styles.disabled]}>
++      <Ionicons name="person-circle-outline" size={20} color={colors.navigationActive} />
++      <Text style={styles.value}>{selected?.fullName || 'Chọn học sinh'}</Text>
++      {loading ? <ActivityIndicator color={colors.navigationActive} /> : <Ionicons name="chevron-down" size={18} color={colors.mutedText} />}
++    </Pressable>
++    {error ? <View style={styles.message}>
++      <Text accessibilityRole="alert" style={styles.error}>{error}</Text>
++      <Pressable accessibilityRole="button" disabled={disabled} onPress={onRetry} style={styles.retry}><Text style={styles.retryText}>Thử lại</Text></Pressable>
++    </View> : !loading && students.length === 0 ? <View style={styles.message}>
++      <Text style={styles.muted}>Chưa có học sinh liên kết</Text>
++      <Pressable accessibilityRole="button" disabled={disabled} onPress={onLink} style={styles.retry}><Text style={styles.retryText}>Liên kết học sinh</Text></Pressable>
++    </View> : null}
++
++    <Modal visible={visible && !disabled} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
++      <Pressable accessible={false} onPress={() => setVisible(false)}
++        style={[styles.overlay, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}>
++        <View accessibilityViewIsModal onStartShouldSetResponder={() => true}
++          style={[styles.modal, { maxHeight: height - insets.top - insets.bottom - 32 }]}>
++          <View style={styles.modalHeader}>
++            <Text accessibilityRole="header" style={styles.modalTitle}>Chọn học sinh</Text>
++            <Pressable accessibilityRole="button" accessibilityLabel="Đóng chọn học sinh" onPress={() => setVisible(false)} style={styles.close}>
++              <Ionicons name="close" size={22} color={colors.mutedText} />
++            </Pressable>
++          </View>
++          <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
++            {students.length === 0 ? <TrackingEmptyState title="Chưa có học sinh liên kết" description={null}
++              onLink={() => { setVisible(false); onLink(); }} /> : students.map(student => {
++              const unavailable = student.status !== 'AVAILABLE';
++              const active = student.id === selectedId;
++              return <Pressable key={student.id} accessibilityRole="button"
++                accessibilityLabel={`${student.fullName}, ${student.schoolName}${unavailable ? ', đã vô hiệu hóa' : ''}`}
++                accessibilityState={{ selected: active, disabled: unavailable }} disabled={unavailable}
++                onPress={() => { onSelect(student.id); setVisible(false); }}
++                style={({ pressed }) => [styles.item, active && styles.selected, unavailable && styles.disabled, pressed && styles.pressed]}>
++                <Ionicons name="person-circle-outline" size={22} color={active ? colors.navigationActive : colors.mutedText} />
++                <View style={styles.copy}>
++                  <Text style={[styles.itemTitle, active && styles.selectedTitle]}>{student.fullName}</Text>
++                  <Text style={styles.itemMeta}>Mã: {student.code} · {student.schoolName}</Text>
++                  {unavailable && <Text style={styles.itemMeta}>Học sinh đã bị vô hiệu hóa</Text>}
++                </View>
++                {active && <Ionicons name="checkmark-circle" size={20} color={colors.navigationActive} />}
++              </Pressable>;
++            })}
++          </ScrollView>
++        </View>
++      </Pressable>
++    </Modal>
++  </View>;
++}
++
++const styles = StyleSheet.create({
++  section: { gap: 8 },
++  label: { fontSize: 13, fontWeight: '700', color: '#334155', textTransform: 'uppercase', letterSpacing: 0.5 },
++  dropdown: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.surface,
++    borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 12, minHeight: 48 },
++  value: { flex: 1, fontSize: 14, fontWeight: '600', color: colors.foreground },
++  message: { alignItems: 'flex-start', gap: 4 },
++  muted: { color: colors.mutedText, fontSize: 12 },
++  error: { color: colors.error, fontSize: 12 },
++  retry: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 },
++  retryText: { color: colors.navigationActive, fontWeight: '700', fontSize: 13 },
++  overlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
++  modal: { width: '100%', maxWidth: 360, backgroundColor: colors.surface, borderRadius: 20, padding: 20, flexShrink: 1 },
++  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16,
++    borderBottomWidth: 1, borderBottomColor: '#F1F5F9', paddingBottom: 12 },
++  modalTitle: { flex: 1, fontSize: 16, fontWeight: '700', color: colors.foreground },
++  close: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
++  item: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 8, borderRadius: 12, minHeight: 48 },
++  copy: { flex: 1, minWidth: 0 },
++  itemTitle: { fontSize: 14, fontWeight: '600', color: colors.foreground },
++  itemMeta: { fontSize: 11, color: colors.mutedText, marginTop: 1 },
++  selected: { backgroundColor: '#FEF9C3' },
++  selectedTitle: { color: '#92400E', fontWeight: '700' },
++  disabled: { opacity: 0.5 }, pressed: { opacity: 0.7 },
++});
+--- /dev/null
++++ b/mobile/hooks/use-address-request-student.ts
+@@ -0,0 +1,66 @@
++import { useCallback, useState } from 'react';
++import { useFocusEffect } from 'expo-router';
++import {
++  mobileApiClient,
++  type ParentLinkedStudentDetail,
++  type ParentLinkedStudentItem,
++} from '@/services/api-client';
++
++/** A fixed student preserves profile entry; otherwise selection stays inside the form. */
++export function useAddressRequestStudent(fixedStudentId?: string) {
++  const isFixed = fixedStudentId !== undefined;
++  const [selectedId, setSelectedId] = useState('');
++  const studentId = fixedStudentId ?? selectedId;
++  const [students, setStudents] = useState<ParentLinkedStudentItem[]>([]);
++  const [studentsLoading, setStudentsLoading] = useState(!isFixed);
++  const [studentsError, setStudentsError] = useState<string | null>(null);
++  const [listAttempt, setListAttempt] = useState(0);
++  const [detailAttempt, setDetailAttempt] = useState(0);
++  const [detail, setDetail] = useState<{
++    id: string; student: ParentLinkedStudentDetail | null; loading: boolean; error: string | null;
++  }>({ id: '', student: null, loading: false, error: null });
++
++  useFocusEffect(useCallback(() => {
++    if (isFixed) return;
++    let active = true;
++    setStudentsLoading(true);
++    setStudentsError(null);
++    mobileApiClient.getLinkedStudents().then(result => {
++      if (!active) return;
++      setStudents(result);
++      setSelectedId(current => result.some(student => student.id === current) ? current : '');
++    }).catch((failure: unknown) => {
++      if (active) setStudentsError(failure instanceof Error ? failure.message : 'Không thể tải học sinh.');
++    }).finally(() => { if (active) setStudentsLoading(false); });
++    return () => { active = false; };
++  }, [isFixed, listAttempt]));
++
++  useFocusEffect(useCallback(() => {
++    let active = true;
++    if (!studentId) {
++      setDetail({ id: '', student: null, loading: false,
++        error: isFixed ? 'Không tìm thấy học sinh. Vui lòng quay lại.' : null });
++      return;
++    }
++    setDetail({ id: studentId, student: null, loading: true, error: null });
++    mobileApiClient.getLinkedStudentDetail(studentId).then(student => {
++      if (active) setDetail({ id: studentId, student, loading: false, error: null });
++    }).catch((failure: unknown) => {
++      if (active) setDetail({ id: studentId, student: null, loading: false,
++        error: failure instanceof Error ? failure.message : 'Không thể tải thông tin học sinh.' });
++    });
++    return () => { active = false; };
++  }, [studentId, isFixed, detailAttempt]));
++
++  const linked = isFixed || students.some(student => student.id === studentId);
++  const current = detail.id === studentId && linked ? detail : null;
++  return {
++    studentId, isFixed, students, studentsLoading, studentsError,
++    student: current?.student ?? null,
++    studentLoading: Boolean(studentId) && (!current || current.loading),
++    studentError: current?.error ?? null,
++    selectStudent: setSelectedId,
++    retryStudents: () => setListAttempt(value => value + 1),
++    retryStudent: () => setDetailAttempt(value => value + 1),
++  };
++}
+--- a/docs/architecture/mobile-parent-stop-requests.md
++++ b/docs/architecture/mobile-parent-stop-requests.md
+@@ -3 +3 @@
+-30/10/2026, Mobile V2, local chưa commit/push. Chỉ thay luồng frontend theo chỉ thị PO; Báo nghỉ, backend, API contract, form địa chỉ, OTP, phê duyệt và hủy yêu cầu giữ nguyên.
++30/10/2026, Mobile V2, local chưa commit/push. Chỉ thay luồng frontend theo chỉ thị PO; Báo nghỉ, backend, API contract, OTP, phê duyệt và hủy yêu cầu giữ nguyên. Form địa chỉ được dùng chung và bổ sung chọn học sinh trong cùng trang theo cập nhật mới nhất bên dưới.
+@@ -14,3 +14,6 @@
+-              Chọn học sinh đã liên kết
+-                      ↓ Chọn con AVAILABLE
+-              Form địa chỉ V2 → xác thực OTP V2
++              Tạo yêu cầu đổi điểm (cùng một form)
++                [Học sinh                 v] → modal chọn con AVAILABLE
++                [Địa chỉ hiện tại]
++                [Tìm kiếm địa chỉ mới]
++                [Bản đồ · Địa chỉ đề xuất · Tọa độ]
++                [Tiếp tục xác thực OTP]
+@@ -19 +22,14 @@
+-Tái sử dụng RequestListView và bộ chọn hiện có; chỉ chuyển điểm chọn con sau thao tác tạo mới. Home vẫn dùng cùng callback `/parent/change-stop` cho tiện ích expanded/compact. Học sinh DISABLED không được chọn để tạo mới, nhưng lịch sử vẫn được đọc nếu còn liên kết. Không tự chọn con đầu tiên hoặc mở form khi vừa vào lịch sử.
++Tái sử dụng RequestListView; sau thao tác tạo mới mở thẳng `/parent/change-stop/create`. Thẻ Học sinh ở đầu form mở modal cùng kiểu Tạo báo nghỉ, không navigate qua màn chọn con riêng. Home vẫn dùng cùng callback `/parent/change-stop` cho tiện ích expanded/compact. Học sinh DISABLED không được chọn để tạo mới, nhưng lịch sử vẫn được đọc nếu còn liên kết. Không tự chọn con đầu tiên hoặc mở form khi vừa vào lịch sử.
++
++## Hiện hành — chọn con ngay trên form (30/10/2026)
++
++- [change-stop/create.tsx](../../mobile/app/parent/change-stop/create.tsx) mở [CreateAddressRequestView](../../mobile/components/parent/create-address-request-view.tsx) ở chế độ chọn con. Giữ đầy đủ notice phê duyệt, địa chỉ hiện tại, tìm kiếm/gợi ý VietMap, bản đồ270px, địa chỉ/tọa độ đề xuất và nút OTP.
++- [LinkedStudentPicker](../../mobile/components/parent/linked-student-picker.tsx) là presentation nhận danh sách/thông tin chọn/loading/error/callback. Dropdown trên cùng dùng cùng icon, màu, bo12, padding14×12 và label uppercase như Tạo báo nghỉ. Modal có tên, mã, trường, dấu chọn, đóng/backdrop/Android Back; danh sách cuộn theo viewport/safe area, học sinh DISABLED bị vô hiệu hóa. Không có TextInput trong modal, không tự focus. Mở modal đóng bàn phím bằng Keyboard.dismiss; chưa nghiệm thu thiết bị.
++- Chưa chọn con: form vẫn hiển thị toàn bộ các phần, nhưng input/bản đồ/OTP chưa được bật. Bản đồ dùng placeholder trung tính thay vì tải tile khi chưa biết con. Chưa có con: có Liên kết học sinh ở thẻ và TrackingEmptyState hiện có trong modal; không tự tạo dữ liệu. Lỗi danh sách/detail có Thử lại, không coi lỗi mạng như danh sách rỗng.
++- [useAddressRequestStudent](../../mobile/hooks/use-address-request-student.ts) đọc GET linked students/focus và detail của ID đã chọn; response scope cũ bị bỏ qua. Không tự chọn con đầu. Nếu con không còn liên kết sau refresh, bỏ lựa chọn; lỗi danh sách khóa thao tác gửi cho tới khi đọc được danh sách hợp lệ.
++- Đổi con xóa search/suggestions/địa chỉ/tọa độ nháp, hủy debounce; draft/search/lookup generation, mounted và activeStudentId guards chặn kết quả trả chậm hoặc message map của con trước. Reset trước paint, map keyed theo studentId để marker cũ không còn. Chọn lại đúng cùng con giữ nháp. Tạm khóa đổi con/input/map khi đang gửi OTP; không có draft địa chỉ con A gửi cho con B.
++- Chỉ gửi khi detail của con AVAILABLE đã tải và có địa chỉ/tọa độ hợp lệ, không tìm kiếm/reverse/submitting. Request OTP giữ nguyên type ADDRESS_UPDATE/proposedData, params điều hướng OTP và validation backend. Không gọi mutation để kiểm thử.
++- [Route có studentId](<../../mobile/app/parent/create-request/address/[studentId].tsx>) là wrapper của cùng view, truyền fixedStudentId và key; giữ con được chọn từ hồ sơ, không mở chọn con khác. ID thiếu/sai/quyền lỗi không thành chế độ tổng hợp. Route cũ [select-student.tsx](../../mobile/app/parent/change-stop/select-student.tsx) redirect tới form mới để giữ deep link, không còn màn chọn con riêng.
++- KeyboardScrollView tiếp tục là chủ sở hữu cuộn input cho cả hai điểm vào. Không thêm thư viện, keyboard offset cố định hoặc KeyboardAvoidingView. Modal chỉ là danh sách đọc/chọn, có ScrollView riêng.
++
++Nội dung/điểm chọn con trong các mục trước được thay bởi cập nhật này. Bộ gộp lịch sử, appearance và các callback lịch sử không đổi trong task form này.
+@@ -30 +46 @@
+-- Lịch sử rỗng vẫn có CTA và dấu +; có dữ liệu dùng dấu + trên header như Báo nghỉ. Cả hai giữ cùng handleCreateRequest và đích bộ chọn hiện có. Retry/refresh, guard và disabled giữ nguyên.
++- Lịch sử rỗng vẫn có CTA và dấu +; có dữ liệu dùng dấu + trên header như Báo nghỉ. Cả hai giữ cùng handleCreateRequest và nay mở form có chọn con inline. Retry/refresh, guard và disabled giữ nguyên.
+@@ -32 +48 @@
+-Style nằm tại [request-history-styles.ts](../../mobile/constants/request-history-styles.ts). Không sửa source trang Báo nghỉ, form/OTP, bộ chọn hoặc service gộp yêu cầu. Kiểm chứng layout dùng JSX/style thật tách riêng để SSR bằng React Native Web, không mock API/records:320/390px CTA hai trang cùng y353 trong preview inset0, không tràn ngang; desktop1440px không tràn. Không dùng số đo preview làm tọa độ trong production hoặc coi là nghiệm thu iPhone thật.
++Style nằm tại [request-history-styles.ts](../../mobile/constants/request-history-styles.ts). Riêng task style lịch sử không sửa form/bộ chọn; task hiện hành đã dùng chung form và chọn con inline như mô tả trên. Source Báo nghỉ/OTP và service gộp yêu cầu vẫn giữ nguyên. Kiểm chứng layout lịch sử dùng JSX/style thật tách riêng để SSR bằng React Native Web, không mock API/records:320/390px CTA hai trang cùng y353 trong preview inset0, không tràn ngang; desktop1440px không tràn. Không dùng số đo preview làm tọa độ trong production hoặc coi là nghiệm thu iPhone thật.
+@@ -34 +50 @@
+-Back dùng `router.push`/`router.back`: form → bộ chọn → lịch sử → Trang chủ. Sau xác thực OTP thành công vẫn tới danh sách yêu cầu riêng của con như V2; task này không thay màn OTP hoặc logic gửi/duyệt/hủy. Các điểm vào yêu cầu riêng từ Hồ sơ học sinh vẫn giữ route và studentId.
++Back dùng `router.push`/`router.back`: form có thẻ chọn con → lịch sử → Trang chủ; đóng modal chỉ trở lại form và giữ nháp khi chưa đổi con. Sau xác thực OTP thành công vẫn tới danh sách yêu cầu riêng của con như V2; task này không thay màn OTP hoặc logic gửi/duyệt/hủy. Các điểm vào yêu cầu riêng từ Hồ sơ học sinh vẫn giữ route và studentId.
+@@ -38,2 +54,2 @@
+-- [change-stop.tsx](../../mobile/app/parent/change-stop.tsx): route lịch sử, RequestListView với `requestType="ADDRESS_UPDATE"`, không truyền studentId, createRoute trỏ bộ chọn mới.
+-- [select-student.tsx](../../mobile/app/parent/change-stop/select-student.tsx): bộ chọn chuyển từ file cũ; chọn con mở `/parent/create-request/address/[studentId]`. Giữ controller focus/error/retry, card/empty illustration và CTA liên kết.
++- [change-stop.tsx](../../mobile/app/parent/change-stop.tsx): route lịch sử, RequestListView với `requestType="ADDRESS_UPDATE"`, không truyền studentId, createRoute trỏ `/parent/change-stop/create`.
++- [select-student.tsx](../../mobile/app/parent/change-stop/select-student.tsx): redirect tương thích tới form mới; bộ chọn nằm trong LinkedStudentPicker trên form.
+@@ -42 +58 @@
+-- [Home](<../../mobile/app/(tabs)/index.tsx>), form, OTP, detail và các route yêu cầu riêng không cần chỉnh source. Không tạo component lịch sử riêng trùng giao diện.
++- [Home](<../../mobile/app/(tabs)/index.tsx>), OTP, detail và các route danh sách yêu cầu riêng không cần chỉnh source. Form cũ chuyển thành shared view như cập nhật trên; không tạo component lịch sử hoặc form địa chỉ trùng lặp.
+@@ -44 +60 @@
+-View tổng hợp thêm tên con trên mỗi card; giữ địa chỉ, badge trạng thái, resolution, ngày giờ và route detail. Nút tạo trên header mới dùng HeaderAction48; ở appearance mặc định vẫn giữ Tạo mới/minHeight44. Không thêm input hoặc xử lý bàn phím mới; header/safe area/FlatList/pull refresh theo view sẵn có. Bộ chọn giữ AppHeader trong flow và bottom inset, maxWidth560. Tab yêu cầu riêng cũng hưởng focus refresh và guard chống response cũ; không đổi contract/validation hay quyền thao tác.
++View tổng hợp thêm tên con trên mỗi card; giữ địa chỉ, badge trạng thái, resolution, ngày giờ và route detail. Nút tạo trên header mới dùng HeaderAction48; ở appearance mặc định vẫn giữ Tạo mới/minHeight44. Header/safe area/FlatList/pull refresh theo view sẵn có; form mới vẫn dùng input và KeyboardScrollView cũ. Tab yêu cầu riêng cũng hưởng focus refresh và guard chống response cũ; không đổi contract/validation hay quyền thao tác.
+@@ -55 +71 @@
+-Không có con → lịch sử rỗng, vẫn có Tạo mới; bộ chọn hiển thị empty + Liên kết học sinh. Một nhánh GET lỗi → báo lỗi/Thử lại, không trình bày danh sách thiếu như đủ. Khi đổi filter, về trang1; focus lại tải trang1, hỗ trợ pull refresh. Generation guard chặn response cũ, ngừng các batch/page tiếp theo khi rời màn; request đã gửi không hủy transport. Lỗi danh sách xóa card cũ, không thêm record hoặc request giả.
++Không có con → lịch sử rỗng, vẫn có Tạo mới; thẻ chọn con trên form/modal hiển thị empty + Liên kết học sinh. Một nhánh GET lỗi → báo lỗi/Thử lại, không trình bày danh sách thiếu như đủ. Khi đổi filter, về trang1; focus lại tải trang1, hỗ trợ pull refresh. Generation guard chặn response cũ, ngừng các batch/page tiếp theo khi rời màn; request đã gửi không hủy transport. Lỗi danh sách xóa card cũ, không thêm record hoặc request giả.
+@@ -61 +77 @@
+-Kết quả thực tế, phạm vi file và giới hạn ghi tại [AI Review](../ai-review/LATEST.md). Typecheck và Expo export iOS/Android/Web/server phải đạt; kiểm tra manifest nhận cả route lịch sử/bộ chọn, đối chiếu source của guard AVAILABLE và các route form/OTP/detail. Không dùng fixtures Student/Request/API giả hoặc ghi DB để test.
++Kết quả thực tế, phạm vi file và giới hạn ghi tại [AI Review](../ai-review/LATEST.md). Typecheck và Expo export iOS/Android/Web/server phải đạt; kiểm tra manifest nhận route lịch sử, form create và redirect select-student; đối chiếu source của guard AVAILABLE và các route form/OTP/detail. Kiểm tra reset/guard bằng primitive UI state, không fixtures Student/Request/API giả hoặc ghi DB để test. Preview empty form SSR từ JSX/style thật xác minh selector ở trên địa chỉ, input readonly và vùng cuộn; không chạy loader hoặc API/map thật.
+--- a/docs/architecture/mobile-parent-home-ui.md
++++ b/docs/architecture/mobile-parent-home-ui.md
+@@ -109 +109 @@
+-Home giữ callback `/parent/change-stop`; route này nay dùng `RequestListView` hiển thị yêu cầu `ADDRESS_UPDATE` của tất cả con đang liên kết. Mỗi card có tên con, trạng thái, địa chỉ đề xuất, kết quả xử lý và thời gian như view yêu cầu hiện có. Nhấn **Tạo mới** hoặc CTA rỗng → `/parent/change-stop/select-student` → chọn con AVAILABLE → `/parent/create-request/address/[studentId]`. Không đi qua danh sách yêu cầu của riêng con trước khi vào form nữa. Báo nghỉ không đổi. [Luồng, API/pagination, component contract, kiểm chứng và giới hạn](mobile-parent-stop-requests.md).
++Home giữ callback `/parent/change-stop`; route này dùng `RequestListView` hiển thị yêu cầu `ADDRESS_UPDATE` của tất cả con đang liên kết. Mỗi card có tên con, trạng thái, địa chỉ đề xuất, kết quả xử lý và thời gian như view yêu cầu hiện có. Nhấn **Tạo mới** hoặc CTA rỗng → `/parent/change-stop/create`: chọn con AVAILABLE ở thẻ đầu form, nhập địa chỉ/bản đồ và OTP trên cùng luồng. Không còn navigate tới màn chọn con riêng. Route select-student cũ redirect về form mới. Báo nghỉ không đổi. [Luồng, API/pagination, component contract, kiểm chứng và giới hạn](mobile-parent-stop-requests.md).
+@@ -113 +113 @@
+-Không thêm endpoint hoặc sửa nghiệp vụ: frontend đọc linked students rồi gộp các GET yêu cầu theo từng con, lọc đúng ADDRESS_UPDATE/trạng thái, phân trang10 và ưu tiên mới nhất. Bộ chọn chuyển nguyên từ route cũ, giữ empty/link/retry/disabled; form/OTP/duyệt/hủy và trang yêu cầu riêng từ Hồ sơ học sinh giữ nguyên. Các mô tả28/10 ngay dưới đây là lịch sử trước thay đổi luồng mới này. Thay đổi30/10 này local, chưa commit/push.
++Không thêm endpoint hoặc sửa nghiệp vụ: frontend đọc linked students rồi gộp các GET yêu cầu theo từng con, lọc đúng ADDRESS_UPDATE/trạng thái, phân trang10 và ưu tiên mới nhất. Bộ chọn nay là dropdown/modal đầu form dùng chung, giữ empty/link/retry/disabled; đổi con xóa draft và chặn response cũ. API OTP/duyệt/hủy giữ nguyên, điểm vào từ Hồ sơ học sinh dùng cùng form nhưng cố định con đã chọn. Các mô tả28/10 ngay dưới đây là lịch sử trước thay đổi luồng mới này. Thay đổi30/10 này local, chưa commit/push.
+--- a/docs/architecture/mobile-keyboard-behavior.md
++++ b/docs/architecture/mobile-keyboard-behavior.md
+@@ -34 +34 @@
+-All 29 TextInputs across 15 current Mobile screen files have a KeyboardScrollView ancestor: five authentication screens; parent linking/OTP and address/information/update OTP forms; leave creation/OTP; settings password/name modals; trip attendance search, absence, QR manual entry, report and explanation modals; incident explanation modal. Read-only selection lists do not need keyboard handling. Future forms/drawers must use the same bounded scroll owner.
++Phase1 verified29 TextInputs across15 implementation files with a KeyboardScrollView ancestor: five authentication screens; parent linking/OTP and address/information/update OTP forms; leave creation/OTP; settings password/name modals; trip attendance search, absence, QR manual entry, report and explanation modals; incident explanation modal. The address form input now lives in [CreateAddressRequestView](../../mobile/components/parent/create-address-request-view.tsx), shared by `/parent/change-stop/create` and the fixed-student address route; the wrapper remains KeyboardScrollView, without autoFocus or extra keyboard inset. [Inline student picker](mobile-parent-stop-requests.md#hiện-hành--chọn-con-ngay-trên-form-30102026) dismisses the keyboard before opening its input-free, scrollable modal. Actual native keyboard/modal behavior in this new flow remains NOT_VERIFIED. Read-only selection lists do not need keyboard handling. Future forms/drawers must use the same bounded scroll owner.

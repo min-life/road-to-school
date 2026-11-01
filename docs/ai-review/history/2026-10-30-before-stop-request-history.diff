@@ -1,0 +1,45 @@
+--- a/mobile/app/parent/student-detail/[id].tsx
++++ b/mobile/app/parent/student-detail/[id].tsx
+@@ -224,5 +223,0 @@
+-                <Text style={styles.actionSubtext}>
+-                  {isAvailable
+-                    ? 'Yêu cầu thay đổi tên học sinh hoặc số điện thoại'
+-                    : 'Không thể cập nhật khi học sinh bị vô hiệu hóa'}
+-                </Text>
+@@ -255,5 +249,0 @@
+-                <Text style={styles.actionSubtext}>
+-                  {isAvailable
+-                    ? 'Yêu cầu thay đổi địa chỉ đón trả trên tuyến xe'
+-                    : 'Không thể cập nhật khi học sinh bị vô hiệu hóa'}
+-                </Text>
+@@ -280,3 +269,0 @@
+-                <Text style={styles.actionSubtext}>
+-                  Lộ trình di chuyển, giờ đón/trả và xe dự kiến
+-                </Text>
+@@ -303,3 +289,0 @@
+-                <Text style={styles.actionSubtext}>
+-                  Lịch trình các chuyến xe đưa đón theo từng ngày trong tuần
+-                </Text>
+@@ -326,3 +309,0 @@
+-                <Text style={styles.actionSubtext}>
+-                  Xem lịch sử báo nghỉ và tạo báo nghỉ cho chuyến xe
+-                </Text>
+@@ -351,3 +331,0 @@
+-                <Text style={styles.actionSubtext}>
+-                  Gỡ học sinh khỏi danh sách theo dõi của phụ huynh
+-                </Text>
+@@ -599,5 +576,0 @@
+-  actionSubtext: {
+-    fontSize: 11,
+-    color: '#64748B',
+-    marginTop: 2,
+-  },
+--- a/docs/architecture/mobile-ui-implementation-status.md
++++ b/docs/architecture/mobile-ui-implementation-status.md
+@@ -5 +5,5 @@
+-## Rail theo trạng thái nghiệp vụ — 30/10/2026, mới nhất
++## Hồ sơ học sinh — nút thao tác gọn (30/10/2026, local)
++
++[student-detail/[id].tsx](<../../mobile/app/parent/student-detail/[id].tsx>) bỏ mô tả phụ trong cả sáu nút: Cập nhật thông tin học sinh, Cập nhật địa chỉ đón trả, Tuyến đường đưa đón, Lịch học & Xe đưa đón, Báo nghỉ, Hủy liên kết học sinh. Giữ tên nút, icon, chevron, padding và vùng nhấn; các tiêu đề vẫn được xuống dòng. Xóa style `actionSubtext` không còn dùng. Không đổi route/params, điều kiện vô hiệu hóa, loading hủy liên kết hoặc hộp thoại xác nhận; thông tin hồ sơ và badge trạng thái giữ nguyên. Chỉ tinh gọn copy theo chỉ thị trực tiếp của PO, không refactor màn hình. Kiểm chứng và giới hạn ở [AI Review](../ai-review/LATEST.md). Thay đổi này chưa commit/push.
++
++## Rail theo trạng thái nghiệp vụ — 30/10/2026

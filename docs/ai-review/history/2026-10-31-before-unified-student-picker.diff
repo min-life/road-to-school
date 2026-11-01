@@ -1,0 +1,193 @@
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -46,0 +47 @@
++import { TripContactCallButton } from '@/components/trip-contact-call-button';
+@@ -1379 +1380 @@
+-                  <View style={{ flex: 1 }}>
++                  <View style={{ flex: 1, minWidth: 0 }}>
+@@ -1382,11 +1382,0 @@
+-                    <View style={styles.contactPhoneRow}>
+-                      <Ionicons name="call-outline" size={14} color={colors.mutedText} accessible={false} />
+-                      <Text style={styles.contactPhoneLabel}>Số điện thoại</Text>
+-                      <Text
+-                        selectable
+-                        accessibilityLabel={`Số điện thoại tài xế: ${trip.driverPhone?.trim() || 'Chưa cập nhật'}`}
+-                        style={styles.contactPhoneValue}
+-                      >
+-                        {trip.driverPhone?.trim() || 'Chưa cập nhật'}
+-                      </Text>
+-                    </View>
+@@ -1393,0 +1384 @@
++                  <TripContactCallButton phone={trip.driverPhone} contactLabel="tài xế phụ trách" />
+@@ -1401 +1392 @@
+-                  <View style={{ flex: 1 }}>
++                  <View style={{ flex: 1, minWidth: 0 }}>
+@@ -1406,11 +1396,0 @@
+-                    <View style={styles.contactPhoneRow}>
+-                      <Ionicons name="call-outline" size={14} color={colors.mutedText} accessible={false} />
+-                      <Text style={styles.contactPhoneLabel}>Số điện thoại</Text>
+-                      <Text
+-                        selectable
+-                        accessibilityLabel={`Số điện thoại giáo viên phụ xe: ${trip.busAttendantPhone?.trim() || 'Chưa cập nhật'}`}
+-                        style={styles.contactPhoneValue}
+-                      >
+-                        {trip.busAttendantPhone?.trim() || 'Chưa cập nhật'}
+-                      </Text>
+-                    </View>
+@@ -1417,0 +1398 @@
++                  <TripContactCallButton phone={trip.busAttendantPhone} contactLabel="giáo viên phụ xe" />
+@@ -3037,18 +3017,0 @@
+-  contactPhoneRow: {
+-    flexDirection: 'row',
+-    flexWrap: 'wrap',
+-    alignItems: 'center',
+-    columnGap: 6,
+-    rowGap: 2,
+-    marginTop: 6,
+-  },
+-  contactPhoneLabel: {
+-    fontSize: 12,
+-    color: colors.mutedText,
+-  },
+-  contactPhoneValue: {
+-    fontSize: 13,
+-    fontWeight: '600',
+-    color: colors.foreground,
+-    flexShrink: 1,
+-  },
+--- /dev/null
++++ b/mobile/components/trip-contact-call-button.tsx
+@@ -0,0 +1,52 @@
++import { useRef, useState } from 'react';
++import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet } from 'react-native';
++import Ionicons from '@expo/vector-icons/Ionicons';
++import { colors } from '@/constants/theme';
++import { phoneDialUrl } from '@/utils/phone-link';
++
++/** Opens the system phone app; a missing number stays tappable to explain the error. */
++export function TripContactCallButton({ phone, contactLabel }: {
++  phone?: string | null;
++  contactLabel: string;
++}) {
++  const [opening, setOpening] = useState(false);
++  const openingRef = useRef(false);
++
++  const handlePress = async () => {
++    if (openingRef.current) return;
++    if (typeof phone !== 'string' || !phone.trim()) {
++      Alert.alert('Không có số điện thoại', `Chưa có số điện thoại của ${contactLabel}.`);
++      return;
++    }
++    const url = phoneDialUrl(phone);
++    if (!url) {
++      Alert.alert('Số điện thoại không hợp lệ', `Không thể mở số điện thoại của ${contactLabel}.`);
++      return;
++    }
++    openingRef.current = true;
++    setOpening(true);
++    try {
++      await Linking.openURL(url);
++    } catch {
++      Alert.alert('Không thể mở bàn phím gọi điện', 'Vui lòng kiểm tra ứng dụng Điện thoại trên thiết bị.');
++    } finally {
++      openingRef.current = false;
++      setOpening(false);
++    }
++  };
++
++  return <Pressable accessibilityRole="button" accessibilityLabel={`Gọi ${contactLabel}`}
++    accessibilityHint="Mở bàn phím gọi điện" accessibilityState={{ disabled: opening, busy: opening }}
++    disabled={opening} onPress={handlePress}
++    style={({ pressed }) => [styles.button, pressed && styles.pressed, opening && styles.opening]}>
++    {opening ? <ActivityIndicator size="small" color={colors.foreground} />
++      : <Ionicons name="call-outline" size={20} color={colors.foreground} accessible={false} />}
++  </Pressable>;
++}
++
++const styles = StyleSheet.create({
++  button: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primary,
++    alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
++  pressed: { opacity: 0.7 },
++  opening: { opacity: 0.6 },
++});
+--- /dev/null
++++ b/mobile/utils/phone-link.ts
+@@ -0,0 +1,8 @@
++/** Keep the supplied country prefix/leading zero; accept phone formatting, never URL commands. */
++export function phoneDialUrl(phone: unknown): string | null {
++  if (typeof phone !== 'string') return null;
++  const value = phone.trim();
++  if (!value || !/^\+?[\d\s().-]+$/u.test(value)) return null;
++  const number = value.replace(/[\s().-]/gu, '');
++  return /^\+?\d+$/u.test(number) ? `tel:${number}` : null;
++}
+--- /dev/null
++++ b/mobile/scripts/phone-link.test.ts
+@@ -0,0 +1,29 @@
++import { describe, it } from 'node:test';
++import assert from 'node:assert/strict';
++import { phoneDialUrl } from '../utils/phone-link.ts';
++
++// Phone text primitives only; no User/Trip fixtures, device dialer, or actual calls.
++describe('phone app URL', () => {
++  it('rejects missing numbers', () => {
++    for (const value of [undefined, null, '', '   ', 123]) assert.equal(phoneDialUrl(value), null);
++  });
++  it('preserves a leading zero', () => {
++    assert.equal(phoneDialUrl('0123456789'), 'tel:0123456789');
++  });
++  it('preserves the supplied international prefix without inventing a country code', () => {
++    assert.equal(phoneDialUrl('+123456789'), 'tel:+123456789');
++  });
++  it('removes only ordinary display separators', () => {
++    assert.equal(phoneDialUrl('  +1 (234) 567-89.0  '), 'tel:+1234567890');
++    assert.equal(phoneDialUrl('(0123) 456-789'), 'tel:0123456789');
++  });
++  it('rejects empty punctuation and misplaced plus signs', () => {
++    for (const value of ['()', '--', '.', '+', '12+34', '++123']) assert.equal(phoneDialUrl(value), null);
++  });
++  it('does not strip arbitrary text into a different phone number', () => {
++    for (const value of ['abc123', '123abc', 'tel:123', 'https://example.invalid/123']) assert.equal(phoneDialUrl(value), null);
++  });
++  it('rejects command/extension/query characters', () => {
++    for (const value of ['*123#', '123,456', '123;456', '123?x=1', '123&x=1', '123%20']) assert.equal(phoneDialUrl(value), null);
++  });
++});
+--- a/docs/architecture/mobile-trip-contacts.md
++++ b/docs/architecture/mobile-trip-contacts.md
+@@ -3 +3 @@
+-Cập nhật 30/10/2026. Phạm vi: Mobile, thay đổi local chưa commit/push.
++Cập nhật31/10/2026. Phạm vi: Mobile, thay đổi local chưa commit/push. Yêu cầu mới thay phần hiển thị số bằng nút gọi; mô tả hiển thị số/sao chép trước đây đã được thay thế.
+@@ -9 +9 @@
+-[Màn chi tiết chuyến](<../../mobile/app/trip/[id].tsx>) giữ các thẻ phương tiện, tài xế phụ trách và giáo viên phụ xe. Hai thẻ nhân sự hiển thị vai trò, tên và một hàng điện thoại có biểu tượng, nhãn **Số điện thoại** và số có thể chọn để sao chép. Không thêm thao tác gọi điện tự động.
++[Màn chi tiết chuyến](<../../mobile/app/trip/[id].tsx>) giữ các thẻ phương tiện, tài xế phụ trách và giáo viên phụ xe. Hai thẻ nhân sự chỉ hiển thị vai trò/tên, có nút icon điện thoại bên phải. Không còn dòng số điện thoại, nhãn Số điện thoại hoặc số để sao chép trong tab này.
+@@ -11 +11 @@
+-| Thẻ | Tên | Số điện thoại |
++| Thẻ | Tên hiển thị | Số dùng để mở Điện thoại |
+@@ -16 +16 @@
+-Các trường đã có trong `MobileTripDetail` và GET `/trips/mobile/:id` của [API client](../../mobile/services/api-client.ts). [Backend](../../api/src/trips/trips.service.ts) lấy số từ `assignedDriver.phone` và `assignedBusAttendant.phone` của chuyến thực tế; không lấy mặc định của tuyến hoặc số phụ huynh. Trước task này số đã được render dưới dạng chữ phụ; task làm rõ cách hiển thị, không thêm API/field mới.
++Các trường đã có trong `MobileTripDetail` và GET `/trips/mobile/:id` của [API client](../../mobile/services/api-client.ts). [Backend](../../api/src/trips/trips.service.ts) lấy số từ `assignedDriver.phone` và `assignedBusAttendant.phone` của chuyến thực tế; không lấy mặc định của tuyến hoặc số phụ huynh. Không thêm API/field mới hoặc chỉnh dữ liệu liên hệ.
+@@ -18 +18 @@
+-## Bố cục và trạng thái thiếu dữ liệu
++## Component và hành vi gọi
+@@ -20,5 +20,10 @@
+-- Hàng điện thoại dùng chung các style `contactPhoneRow`, `contactPhoneLabel`, `contactPhoneValue`; màu từ theme V2.
+-- Cho phép xuống dòng khi màn hình hẹp hoặc chữ lớn, không dùng `numberOfLines` để cắt số. Tab giữ vùng cuộn sẵn có.
+-- Bỏ khoảng trắng hai đầu số khi hiển thị; null/undefined/chuỗi rỗng hoặc toàn khoảng trắng hiện **Chưa cập nhật**, không tạo số mẫu.
+-- Số có nhãn accessibility phân biệt tài xế/giáo viên; biểu tượng trang trí không đọc riêng.
+-- Không đổi chiều cao sheet thu gọn, thao tác kéo/mở tab, safe area, bản đồ, avatar, route, refresh, phân quyền hoặc API nghiệp vụ. Tab Thông tin vẫn dùng chung cho các vai trò có quyền xem chuyến.
++- [TripContactCallButton](../../mobile/components/trip-contact-call-button.tsx) nhận `phone?: string | null`, `contactLabel: string`. Dùng chung cho hai thẻ, nút tròn48px nền vàng, icon call-outline; vùng nhận nhấn48×48 và tên accessibility Gọi tài xế phụ trách/Gọi giáo viên phụ xe.
++- Nhấn nút có số hợp lệ: `Linking.openURL('tel:...')` bàn giao cho ứng dụng Điện thoại/hệ điều hành để phụ huynh tiếp tục gọi. Không request quyền CALL_PHONE, không ACTION_CALL hay API gọi điện, không sửa app.json/Info.plist/Android manifest. Xác nhận/ứng dụng xử lý liên kết cụ thể phụ thuộc hệ điều hành và thiết bị.
++- Thiếu số/null/undefined/rỗng/toàn khoảng trắng: nút vẫn nhấn được và hiện Alert **Không có số điện thoại**, kèm vai trò chưa có số. Không tự báo lỗi khi vừa mở tab.
++- Chuỗi số không hợp lệ: Alert **Số điện thoại không hợp lệ**. Nếu hệ điều hành từ chối/mở liên kết thất bại: Alert **Không thể mở bàn phím gọi điện**. Không lộ số qua log hoặc popup lỗi.
++- Trong lúc bàn giao, nút hiện spinner/busy và khóa tạm; ref chống double tap. Không khóa nút chỉ vì thiếu số, vì cần phản hồi lỗi theo yêu cầu PO.
++- [phoneDialUrl](../../mobile/utils/phone-link.ts) chỉ nhận chuỗi số, dấu + đầu và ký tự định dạng space/ngoặc/chấm/gạch ngang; giữ số0/+ và mã quốc gia đã được cung cấp, không tự đổi đầu số. Bỏ separator để tạo URI tel; từ chối URL có sẵn, chữ lẫn số, ký tự command/extension/query như `*`, `#`, `;`, `,`, `?`.
++
++## Bố cục và phạm vi
++
++Vai trò/tên vẫn bên cạnh icon person/school; text có flex1/minWidth0 và tự wrap khi hẹp, nút48 cố định không co. Xóa style contactPhoneRow/Label/Value hết dùng. Thẻ phương tiện, chiều cao/gesture sheet, scroll/safe area, bản đồ/avatar, route, refresh, phân quyền và API nghiệp vụ giữ nguyên. Tab Thông tin vẫn dùng chung cho các vai trò vốn có quyền xem chuyến.
+@@ -28 +33,3 @@
+-Kết quả lệnh của task và giới hạn môi trường ghi tại [AI Review](../ai-review/LATEST.md). Cần kiểm tra trên Expo Go với chuyến hiện có: mở tab Thông tin, đối chiếu đúng người phụ trách và số, thử chọn/sao chép, chữ lớn và cuộn trên màn hình hẹp. Chưa nghiệm thu trên iPhone/Android thật; không tự tạo hoặc sửa số điện thoại để test.
++Kết quả lệnh và giới hạn môi trường ghi tại [AI Review](../ai-review/LATEST.md). [Pure tests](../../mobile/scripts/phone-link.test.ts) kiểm tra chuẩn hóa URI và từ chối đầu vào không phải số; handler tests trong TEMP chỉ mock primitive platform opener/Alert, không mở Điện thoại thật, gọi API hoặc tạo User/Trip records. Typecheck/build không thay kiểm thử handset.
++
++Cần kiểm tra Expo Go iPhone/Android với chuyến có dữ liệu hợp lệ: tab không hiện số, hai nút mở đúng số người phụ trách; thiếu số báo đúng lỗi; thiết bị thiếu ứng dụng nhận liên kết báo lỗi; tên dài vẫn wrap/cuộn. Native dialer/handoff, VoiceOver và cuộc gọi thực tế NOT_VERIFIED; agent không mở liên kết tel thật hoặc thực hiện cuộc gọi trong task.

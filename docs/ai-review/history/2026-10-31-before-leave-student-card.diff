@@ -1,0 +1,212 @@
+--- a/mobile/app/leave-notices/create.tsx
++++ b/mobile/app/leave-notices/create.tsx
+@@ -3 +3 @@
+-import React, { useState, useEffect, useMemo } from 'react';
++import React, { useState, useEffect, useMemo, useRef } from 'react';
+@@ -25,0 +26,2 @@
++import { parseLeaveOtpWaitSeconds } from '@/utils/leave-otp-cooldown';
++import { useLeaveOtpCooldown } from '@/hooks/use-leave-otp-cooldown';
+@@ -72,0 +75,4 @@
++  const otpRequestInFlight = useRef(false);
++  const { remainingSeconds: otpWaitSeconds, start: startOtpWait } = useLeaveOtpCooldown(
++    JSON.stringify([user?.id ?? '', isParent ? selectedStudentId : null]),
++  );
+@@ -195 +201,2 @@
+-    if (submittingOtp) return;
++    if (submittingOtp || otpRequestInFlight.current || otpWaitSeconds > 0) return;
++    otpRequestInFlight.current = true;
+@@ -221,0 +229,3 @@
++      const wait = err?.statusCode === 400 || err?.statusCode === 429
++        ? parseLeaveOtpWaitSeconds(err?.message) : null;
++      if (wait !== null && startOtpWait(wait)) return;
+@@ -225,0 +236 @@
++      otpRequestInFlight.current = false;
+@@ -458 +469 @@
+-            (!selectedTripId || submittingOtp) && styles.submitBtnDisabled,
++            (!selectedTripId || submittingOtp || otpWaitSeconds > 0) && styles.submitBtnDisabled,
+@@ -461 +472,5 @@
+-          disabled={!selectedTripId || submittingOtp}
++          disabled={!selectedTripId || submittingOtp || otpWaitSeconds > 0}
++          accessibilityRole="button"
++          accessibilityLabel={submittingOtp ? 'Đang gửi mã xác thực OTP' : otpWaitSeconds > 0
++            ? `Gửi lại OTP sau ${otpWaitSeconds}s` : 'Gửi mã xác thực OTP'}
++          accessibilityState={{ disabled: !selectedTripId || submittingOtp || otpWaitSeconds > 0, busy: submittingOtp }}
+@@ -468,2 +483,2 @@
+-              <Text style={styles.submitBtnText}>Gửi mã xác thực OTP</Text>
+-              <Ionicons name="arrow-forward" size={18} color="#1E293B" />
++              <Text style={styles.submitBtnText}>{otpWaitSeconds > 0 ? `Gửi lại OTP sau ${otpWaitSeconds}s` : 'Gửi mã xác thực OTP'}</Text>
++              <Ionicons name={otpWaitSeconds > 0 ? 'time-outline' : 'arrow-forward'} size={18} color="#1E293B" />
+--- /dev/null
++++ b/mobile/hooks/use-leave-otp-cooldown.ts
+@@ -0,0 +1,41 @@
++import { useCallback, useState } from 'react';
++import { AppState } from 'react-native';
++import { useFocusEffect } from 'expo-router';
++import { otpCooldownDeadline, otpCooldownSecondsLeft } from '@/utils/leave-otp-cooldown';
++
++/** In-memory waits scoped exactly as Leave OTP: actor + child (staff: actor only). */
++export function useLeaveOtpCooldown(scope: string) {
++  const [deadlines, setDeadlines] = useState<Record<string, number>>({});
++  const [, setTick] = useState(0);
++  const deadline = deadlines[scope] ?? 0;
++  const remainingSeconds = otpCooldownSecondsLeft(deadline, Date.now());
++
++  useFocusEffect(useCallback(() => {
++    let timer: ReturnType<typeof setInterval> | undefined;
++    const stop = () => { if (timer !== undefined) clearInterval(timer); timer = undefined; };
++    const update = () => {
++      setTick(value => value + 1);
++      if (otpCooldownSecondsLeft(deadline, Date.now()) === 0) stop();
++    };
++    const activate = (state: string | null | undefined) => {
++      stop();
++      update();
++      if (state === 'active' && otpCooldownSecondsLeft(deadline, Date.now()) > 0) {
++        timer = setInterval(update, 1000);
++      }
++    };
++    activate(AppState.currentState);
++    const subscription = AppState.addEventListener('change', activate);
++    return () => { stop(); subscription.remove(); };
++  }, [deadline]));
++
++  // The callback captures the request's scope, even if the user switches child meanwhile.
++  const start = useCallback((seconds: number) => {
++    const until = otpCooldownDeadline(seconds, Date.now());
++    if (until === null) return false;
++    setDeadlines(current => ({ ...current, [scope]: until }));
++    return true;
++  }, [scope]);
++
++  return { remainingSeconds, start };
++}
+--- /dev/null
++++ b/mobile/utils/leave-otp-cooldown.ts
+@@ -0,0 +1,20 @@
++/** The current Leave OTP endpoint reports its wait in this exact message (HTTP400). */
++export function parseLeaveOtpWaitSeconds(message: unknown): number | null {
++  if (typeof message !== 'string') return null;
++  const match = /^Vui lòng chờ\s+(\d+)\s+giây trước khi yêu cầu mã xác thực mới[.!]?$/iu.exec(message.trim());
++  if (!match) return null;
++  const seconds = Number(match[1]);
++  return Number.isSafeInteger(seconds) && seconds > 0 && Number.isSafeInteger(seconds * 1000)
++    ? seconds : null;
++}
++
++export function otpCooldownDeadline(seconds: number, now: number): number | null {
++  const deadline = now + seconds * 1000;
++  return Number.isSafeInteger(seconds) && seconds > 0 && Number.isSafeInteger(now)
++    && Number.isSafeInteger(deadline) ? deadline : null;
++}
++
++export function otpCooldownSecondsLeft(deadline: number, now: number): number {
++  return Number.isFinite(deadline) && Number.isFinite(now)
++    ? Math.max(0, Math.ceil((deadline - now) / 1000)) : 0;
++}
+--- /dev/null
++++ b/mobile/scripts/leave-otp-cooldown.test.ts
+@@ -0,0 +1,56 @@
++import { describe, it } from 'node:test';
++import assert from 'node:assert/strict';
++import { parseLeaveOtpWaitSeconds, otpCooldownDeadline, otpCooldownSecondsLeft } from '../utils/leave-otp-cooldown.ts';
++
++// Text, numbers and clocks only; no business DTOs, API mocks, OTP requests or DB.
++describe('Leave OTP wait message', () => {
++  it('uses the exact server wait, including values longer than 60 seconds', () => {
++    assert.equal(parseLeaveOtpWaitSeconds('Vui lòng chờ 287 giây trước khi yêu cầu mã xác thực mới'), 287);
++    assert.equal(parseLeaveOtpWaitSeconds('Vui lòng chờ 1 giây trước khi yêu cầu mã xác thực mới'), 1);
++  });
++  it('tolerates surrounding whitespace, case and final punctuation', () => {
++    assert.equal(parseLeaveOtpWaitSeconds('  VUI LÒNG CHỜ 42 giây trước khi yêu cầu mã xác thực mới. '), 42);
++  });
++  it('does not mistake validation or network errors for a resend wait', () => {
++    for (const text of ['Chuyến xe không còn ở trạng thái chờ vận hành (SCHEDULED)',
++      'Bạn còn 3 lần thử.', 'Lỗi kết nối máy chủ (400)', 'Chờ 60 giây', '']) {
++      assert.equal(parseLeaveOtpWaitSeconds(text), null);
++    }
++  });
++  it('rejects absent, zero, negative, fractional and unsafe durations', () => {
++    for (const value of [null, undefined, 60]) assert.equal(parseLeaveOtpWaitSeconds(value), null);
++    for (const value of ['0', '-1', '1.5', '999999999999999999999']) {
++      assert.equal(parseLeaveOtpWaitSeconds(`Vui lòng chờ ${value} giây trước khi yêu cầu mã xác thực mới`), null);
++    }
++  });
++});
++
++describe('deadline-based countdown', () => {
++  it('creates a deadline from the actual wait instead of a fixed TTL', () => {
++    assert.equal(otpCooldownDeadline(287, 1000), 288000);
++  });
++  it('rounds up so the button cannot unlock before a whole waiting interval has elapsed', () => {
++    assert.equal(otpCooldownSecondsLeft(11000, 1000), 10);
++    assert.equal(otpCooldownSecondsLeft(11000, 1001), 10);
++    assert.equal(otpCooldownSecondsLeft(11000, 10999), 1);
++  });
++  it('recomputes after background time or delayed timer ticks', () => {
++    const deadline = otpCooldownDeadline(300, 0)!;
++    assert.equal(otpCooldownSecondsLeft(deadline, 240000), 60);
++    assert.equal(otpCooldownSecondsLeft(deadline, 299999), 1);
++  });
++  it('unlocks at expiry and never displays negative seconds', () => {
++    assert.equal(otpCooldownSecondsLeft(1000, 1000), 0);
++    assert.equal(otpCooldownSecondsLeft(1000, 9000), 0);
++    assert.equal(otpCooldownSecondsLeft(0, 9000), 0);
++  });
++  it('rejects invalid deadline inputs', () => {
++    for (const seconds of [0, -1, 0.1, NaN, Infinity, Number.MAX_SAFE_INTEGER]) {
++      assert.equal(otpCooldownDeadline(seconds, 1000), null);
++    }
++    assert.equal(otpCooldownDeadline(60, NaN), null);
++    assert.equal(otpCooldownDeadline(60, Number.MAX_SAFE_INTEGER), null);
++    assert.equal(otpCooldownSecondsLeft(NaN, 1000), 0);
++    assert.equal(otpCooldownSecondsLeft(1000, Infinity), 0);
++  });
++});
+--- a/docs/architecture/mobile-ui-implementation-status.md
++++ b/docs/architecture/mobile-ui-implementation-status.md
+@@ -3,0 +4,4 @@
++
++## Tạo báo nghỉ — countdown trên nút OTP (31/10/2026, local)
++
++Khi gửi OTP lại quá sớm, dùng số giây từ thông báo backend để hiện **Gửi lại OTP sau Ns** ngay trên nút và khóa nút đến khi hết chờ, thay popup/banner chờ. Các lỗi khác giữ nguyên; hết giờ không tự gửi. Deadline theo actor/con, tính theo đồng hồ và cleanup focus/AppState, không hardcode60giây. Không sửa API/OTP screen hoặc luồng thành công. [Hook/contract, scope, source và kiểm chứng](mobile-leave-otp-cooldown.md). Chưa commit/push; native/live OTP còn NOT_VERIFIED.
+--- /dev/null
++++ b/docs/architecture/mobile-leave-otp-cooldown.md
+@@ -0,0 +1,38 @@
++# Tạo báo nghỉ — thời gian chờ ngay trên nút OTP
++
++31/10/2026. Mobile frontend, local chưa commit/push.
++
++## Hành vi
++
++Trong [Tạo báo nghỉ](../../mobile/app/leave-notices/create.tsx), khi gửi OTP lần nữa quá sớm và server trả thời gian phải chờ:
++
++- Nút đổi thành **Gửi lại OTP sau 287s** (ví dụ số giây từ server), có icon đồng hồ, style disabled và đếm về0.
++- Không hiển thị lại popup/banner lỗi thời gian chờ; các lỗi mạng, quyền, chuyến, validation khác vẫn dùng cách hiển thị trước đây.
++- Hết giờ, nút trở lại **Gửi mã xác thực OTP** và vẫn cần người dùng chủ động nhấn, với điều kiện đã chọn chuyến hợp lệ. Không tự gửi OTP, không tự tạo báo nghỉ.
++- Nút cũng khóa trong lúc gửi và có ref chặn double-tap trước khi state kịp render; loading/spinner và chuyển sang màn OTP khi gửi thành công giữ nguyên.
++
++Chỉ bắt đầu countdown khi lần yêu cầu bị server giới hạn. Không hardcode60/300giây hoặc suy ra từ TTL màn OTP; không sửa hành vi gửi lại ở màn xác thực `/leave-notices/otp` hoặc quick-leave.
++
++## API thực tế và phạm vi chờ
++
++[OtpService.createLeaveNoticeChallenge](../../api/src/auth/otp.service.ts) hiện ném HTTP400 BadRequestException với message **Vui lòng chờ N giây trước khi yêu cầu mã xác thực mới** khi challenge gần nhất còn hạn. Swagger có mô tả429 nhưng endpoint này chưa trả field retryAfter riêng; task này không thay backend/Swagger hoặc API contract.
++
++[Utility](../../mobile/utils/leave-otp-cooldown.ts) nhận diện đúng toàn bộ câu chờ hiện tại, nhận số nguyên dương an toàn, không lấy bừa con số trong lỗi khác. Screen chỉ xử lý như cooldown nếu status400/429 và parse được câu; nếu không, giữ lỗi gốc. Phụ thuộc định dạng message được ghi rõ: backend đổi câu cần đồng bộ parser hoặc có task API cho field thời gian riêng, không tự đoán thời lượng dự phòng.
++
++Backend khóa theo actor + student cho PARENT (không theo trip/date/direction); nhân sự khóa theo actor. Screen dùng scope JSON `[user.id, parent ? studentId : null]`. Đổi chuyến/ngày/chiều cùng con vẫn giữ chờ. Đổi con chuyển sang thời gian riêng; quay lại con trước còn hạn tiếp tục chờ. Callback lưu scope của lần gửi ban đầu nếu người dùng đổi con trong lúc request đang chờ. Không dùng contact/OTP/token làm key.
++
++## Hook và vòng đời
++
++[useLeaveOtpCooldown(scope)](../../mobile/hooks/use-leave-otp-cooldown.ts) trả `{ remainingSeconds, start(seconds): boolean }`:
++
++- `start` nhận số giây server, tính deadline từ Date.now, từ chối số không hợp lệ/overflow.
++- Lưu deadline theo scope trong state của form. Khi form còn trong stack thì giữ; unmount/remount không lưu persistent, request lại vẫn do server quyết định và trả thời gian còn lại.
++- Cứ mỗi giây tính `ceil((deadline-now)/1000)` và giới hạn tối thiểu0; không trừ1 vào counter nên không bị kéo dài khi timer/background bị chậm.
++- Dùng useFocusEffect + AppState để chỉ chạy timer khi form focus/foreground; dừng khi blur/background/unmount/hết giờ. Khi focus/foreground lại tính theo thời gian đã trôi qua, không bắt đầu lại từ số cũ.
++- Không thay giá trị học sinh/chuyến/ngày/chiều/lý do, không gọi API trong timer. Accessibility label theo trạng thái nút, disabled/busy đúng; không live announce mỗi giây.
++
++## Kiểm chứng và giới hạn
++
++[Tests](../../mobile/scripts/leave-otp-cooldown.test.ts) chỉ dùng chuỗi, số và thời điểm: nhận dạng thông báo, loại lỗi không liên quan/giá trị không hợp lệ, thời gian hơn60giây, ceil và trở lại sau background/expiry. Không mock response nghiệp vụ, không Student/Trip/User fixtures hoặc DB/mutation.
++
++Kết quả typecheck/build/source checks và giới hạn ghi ở [AI Review](../ai-review/LATEST.md). Cần nghiệm thu trên Expo Go bằng dữ liệu/OTP đã có: gửi lại quá sớm, nút đếm ngược, đổi con/chuyến, background/foreground và mở khóa khi hết thời gian. Không gửi OTP thật chỉ để kiểm thử khi chưa được PO cấp phạm vi mutation. Native timer/VoiceOver và phản hồi live chưa được chứng nhận bằng pure tests hoặc Expo export.

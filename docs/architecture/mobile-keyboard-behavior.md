@@ -31,7 +31,7 @@ No new package, native configuration, backend, API or data changes.
 
 ## Coverage
 
-All 29 TextInputs across 15 current Mobile screen files have a KeyboardScrollView ancestor: five authentication screens; parent linking/OTP and address/information/update OTP forms; leave creation/OTP; settings password/name modals; trip attendance search, absence, QR manual entry, report and explanation modals; incident explanation modal. Read-only selection lists do not need keyboard handling. Future forms/drawers must use the same bounded scroll owner.
+Phase1 verified29 TextInputs across15 implementation files with a KeyboardScrollView ancestor: five authentication screens; parent linking/OTP and address/information/update OTP forms; leave creation/OTP; settings password/name modals; trip attendance search, absence, QR manual entry, report and explanation modals; incident explanation modal. The address form input now lives in [CreateAddressRequestView](../../mobile/components/parent/create-address-request-view.tsx), shared by `/parent/change-stop/create` and the fixed-student address route; the wrapper remains KeyboardScrollView, without autoFocus or extra keyboard inset. [Inline student picker](mobile-parent-stop-requests.md#hiện-hành--chọn-con-ngay-trên-form-30102026) dismisses the keyboard before opening its input-free, scrollable modal. Actual native keyboard/modal behavior in this new flow remains NOT_VERIFIED. Read-only selection lists do not need keyboard handling. Future forms/drawers must use the same bounded scroll owner.
 
 ## Manual acceptance checklist
 
