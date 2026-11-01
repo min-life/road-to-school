@@ -1,4 +1,5 @@
 'use client';
+import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
 import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
 
 import { useRouteQuery } from '@/hooks/use-route-query';
@@ -197,10 +198,10 @@ export default function RoutePlansPage() {
               className="w-full"
             >
               <option value="">Tất cả trạng thái</option>
-              <option value="ACTIVE">Đang hoạt động (ACTIVE)</option>
-              <option value="DRAFT">Bản nháp (DRAFT)</option>
-              <option value="CANCELLED">Đã hủy (CANCELLED)</option>
-              <option value="EXPIRED">Hết hạn hợp đồng (EXPIRED)</option>
+              <option value="ACTIVE">{getRoutePlanStatusLabel('ACTIVE')}</option>
+              <option value="DRAFT">{getRoutePlanStatusLabel('DRAFT')}</option>
+              <option value="CANCELLED">{getRoutePlanStatusLabel('CANCELLED')}</option>
+              <option value="EXPIRED">{getRoutePlanStatusLabel('EXPIRED')}</option>
             </Select>
         </FilterField>
         <Button type="button" onClick={() => fetchRoutePlans()} className="ui-filter-refresh">Làm mới</Button>
@@ -303,19 +304,19 @@ export default function RoutePlansPage() {
                         <td className="py-3.5 px-4">
                           {plan.status === 'ACTIVE' ? (
                             <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              ACTIVE
+                              {getRoutePlanStatusLabel(plan.status)}
                             </Badge>
                           ) : plan.status === 'DRAFT' ? (
                             <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                              DRAFT
+                              {getRoutePlanStatusLabel(plan.status)}
                             </Badge>
                           ) : plan.status === 'EXPIRED' ? (
                             <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300">
-                              EXPIRED
+                              {getRoutePlanStatusLabel(plan.status)}
                             </Badge>
                           ) : (
                             <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                              CANCELLED
+                              {getRoutePlanStatusLabel(plan.status)}
                             </Badge>
                           )}
                         </td>

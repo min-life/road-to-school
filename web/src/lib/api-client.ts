@@ -483,7 +483,7 @@ class ApiClient {
 
   async createTeacher(
     schoolId: string,
-    body: { fullName: string; email?: string; phone?: string },
+    body: { fullName: string; email: string; phone: string },
   ): Promise<CreateSchoolAdminResponse> {
     return this.request<CreateSchoolAdminResponse>(
       `/schools/${schoolId}/employees`,
@@ -1047,8 +1047,8 @@ class ApiClient {
 
   async approveRoutePlan(
     planId: string,
-  ): Promise<{ message: string; routePlan: RoutePlanItem }> {
-    return this.request<{ message: string; routePlan: RoutePlanItem }>(
+  ): Promise<RoutePlanItem> {
+    return this.request<RoutePlanItem>(
       `/routes/route-plans/${planId}/approve`,
       { method: 'POST' },
     );

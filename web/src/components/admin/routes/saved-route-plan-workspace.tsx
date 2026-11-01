@@ -1,4 +1,5 @@
-﻿'use client';
+'use client';
+import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
 
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -12,12 +13,15 @@ import { RoutePlanningWorkspace, PlanningTabs } from './route-planning-workspace
 import { RoutePlanAssignments } from './route-plan-assignments';
 import { CancelRoutePlanModal } from './cancel-route-plan-modal';
 import { getAssignmentProgress, resolveSavedRoutePlanTab } from './route-plan-assignment-state';
+import { SchoolRoutePlanApproval } from './school-route-plan-approval';
 import './saved-route-plan-workspace.css';
 
-const statusLabels = { DRAFT: 'Nháp', ACTIVE: 'Đã duyệt', EXPIRED: 'Hết hạn', CANCELLED: 'Đã hủy' };
 
-/** System-admin presentation only. School admins keep their existing detail page. */
-export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role: Role | null }) {
+
+/** Shared layout; role-specific actions still use the existing authorized APIs. */
+export function SavedRoutePlanWorkspace({ planId, role, schoolId }: { planId: string; role: Role | null; schoolId?: string | null }) {
+  const isSchoolAdmin = role === 'SCHOOL_ADMIN';
+  const allowed = role === 'SYSTEM_ADMIN' || isSchoolAdmin;
   const router = useRouter();
   const pathname = usePathname();
   const query = useSearchParams();
@@ -29,8 +33,10 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
   const [route, setRoute] = useState<RouteItem | null>(null);
   const [routeError, setRouteError] = useState<{ id: string; message: string } | null>(null);
   const [routeRevision, setRouteRevision] = useState(0);
-  const [readiness, setReadiness] = useState<ApprovalReadinessResponse | null>(null);
-  const [readinessError, setReadinessError] = useState(false);
+  const [readinessResult, setReadinessResult] = useState<{ planId: string; revision: number; value: ApprovalReadinessResponse } | null>(null);
+  const [readinessFailure, setReadinessFailure] = useState<number | null>(null);
+  const readiness = readinessResult?.planId === planId && readinessResult.revision === revision ? readinessResult.value : null;
+  const readinessError = readinessFailure === revision;
   const [cancelOpen, setCancelOpen] = useState(false);
   const [focusPoint, setFocusPoint] = useState<{ latitude: number; longitude: number; zoom: number } | null>(null);
 
@@ -42,29 +48,35 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
 
   useEffect(() => {
     let current = true;
-    if (role !== 'SYSTEM_ADMIN') return;
+    if (!allowed) return;
     apiClient.getRoutePlanDetail(planId).then(value => {
       if (!current) return;
+      if (isSchoolAdmin && value.schoolId !== schoolId) throw new Error('Bạn không có quyền xem phương án của trường khác.');
       setPlan(value);
       setError(null);
     }).catch((reason: unknown) => {
-      if (current) setError(reason instanceof Error ? reason.message : 'Không thể tải phương án.');
+      if (current) {
+        setPlan(null);
+        setRoute(null);
+        setError(reason instanceof Error ? reason.message : 'Không thể tải phương án.');
+      }
     });
     return () => { current = false; };
-  }, [planId, role, revision]);
+  }, [planId, allowed, isSchoolAdmin, schoolId, revision]);
 
   useEffect(() => {
     let current = true;
-    if (role !== 'SYSTEM_ADMIN' || plan?.status !== 'DRAFT') return;
+    if (!allowed || plan?.id !== planId || plan.status !== 'DRAFT') return;
     apiClient.getApprovalReadiness(planId).then(value => {
-      if (current) { setReadiness(value); setReadinessError(false); }
-    }).catch(() => { if (current) setReadinessError(true); });
+      if (current) { setReadinessResult({ planId, revision, value }); setReadinessFailure(null); }
+    }).catch(() => { if (current) setReadinessFailure(revision); });
     return () => { current = false; };
-  }, [planId, role, plan?.status, revision]);
+  }, [planId, allowed, plan?.id, plan?.status, revision]);
 
   const routes = plan?.routes ?? [];
   const { editable: assignmentEditable, actionableSystemPendingGroupCount, schoolPendingGroupCount } = getAssignmentProgress(routes, plan?.status);
-  const tab = resolveSavedRoutePlanTab(requestedTab, actionableSystemPendingGroupCount);
+  const tab = resolveSavedRoutePlanTab(requestedTab, 0);
+  const pendingCount = isSchoolAdmin && assignmentEditable ? schoolPendingGroupCount : actionableSystemPendingGroupCount;
   const activeRoute = routes.find(item => item.id === selectedId) ?? routes[0];
   const activeId = activeRoute?.id;
   useEffect(() => {
@@ -81,9 +93,9 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
   useEffect(() => {
     if (!plan || requestedTab === 'routes' || requestedTab === 'assignments') return;
     const next = new URLSearchParams(query.toString());
-    next.set('tab', actionableSystemPendingGroupCount > 0 ? 'assignments' : 'routes');
+    next.set('tab', 'routes');
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
-  }, [actionableSystemPendingGroupCount, pathname, plan, query, requestedTab, router]);
+  }, [pathname, plan, query, requestedTab, router]);
 
   const visibleRoute = route?.id === activeId ? route : activeRoute;
   const points: MapPoint[] = (visibleRoute?.stops ?? [])
@@ -92,8 +104,10 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
       title: stop.studentName || 'Điểm đón/trả', subtitle: stop.addressText,
       type: 'STUDENT', order: stop.stopOrder, isSelected: true }));
   const editable = assignmentEditable;
+  const canCancel = editable && (!isSchoolAdmin || plan?.status === 'ACTIVE');
   const chooseRoute = (id: string) => { setFocusPoint(null); updateQuery({ routeId: id }); };
 
+  if (!allowed) return <p role="alert">Bạn không có quyền xem phương án tuyến.</p>;
   if (!plan || error) return <div className="route-planning-page saved-plan-page">
     <BackLink fallback="/admin/routes" />
     {error ? <div className="saved-plan-error" role="alert">{error}<Button variant="outline" onClick={() => setRevision(value => value + 1)}>Thử lại</Button></div>
@@ -104,15 +118,19 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
     <BackLink fallback="/admin/routes" />
     <header className="saved-plan-heading">
       <div><h1>{plan.name}</h1><p>{plan.schoolName} · {routes.length} tuyến · {plan.totalStudents} học sinh</p></div>
-      <span data-status={plan.status}>{statusLabels[plan.status]}</span>
-      {editable && <Button className="saved-plan-cancel-button" variant="danger" size="sm" onClick={() => setCancelOpen(true)}>
+      <span data-status={plan.status}>{getRoutePlanStatusLabel(plan.status)}</span>
+      {canCancel && <Button className="saved-plan-cancel-button" variant="danger" size="sm" onClick={() => setCancelOpen(true)}>
         <AlertIcon className="w-4 h-4" aria-hidden="true" />
         Hủy phương án
       </Button>}
     </header>
     {plan.status === 'CANCELLED' && <p className="saved-plan-notice">Phương án đã hủy{plan.cancellationReason ? `: ${plan.cancellationReason}` : '.'}</p>}
     {plan.status === 'EXPIRED' && <p className="saved-plan-notice">Phương án hết hạn hợp đồng. Thông tin được giữ để tra cứu.</p>}
-    <RoutePlanningWorkspace preview panelLabel={tab === 'assignments' ? `Phân công${actionableSystemPendingGroupCount ? ` (${actionableSystemPendingGroupCount})` : ''}` : 'Tuyến'}
+    <RoutePlanningWorkspace preview panelLabel={tab === 'assignments' ? `Phân công${pendingCount ? ` (${pendingCount})` : ''}` : 'Tuyến'}
+      footer={isSchoolAdmin && plan.status === 'DRAFT' ? <SchoolRoutePlanApproval
+        plan={plan} readiness={readiness} failed={readinessError}
+        onRefresh={() => setRevision(value => value + 1)}
+        onApproved={updated => { setPlan(updated); setRevision(value => value + 1); }} /> : undefined}
       map={routes.length ? <>
         <RouteMap schoolLocation={visibleRoute?.schoolLocation} parkingLocation={visibleRoute?.parkingLocation}
           points={points} polylineGeometry={visibleRoute?.polylineGeometry} focusPoint={focusPoint} height="100%" />
@@ -120,7 +138,7 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
           <Button variant="outline" size="sm" onClick={() => setRouteRevision(value => value + 1)}>Thử lại</Button></div>}
       </> : <p className="route-workspace-empty">Phương án chưa có tuyến để hiển thị.</p>}
       panel={<>
-        <PlanningTabs tabs={[{ value: 'routes', label: 'Tuyến' }, { value: 'assignments', label: `Phân công${actionableSystemPendingGroupCount ? ` (${actionableSystemPendingGroupCount})` : ''}` }]}
+        <PlanningTabs tabs={[{ value: 'routes', label: 'Tuyến' }, { value: 'assignments', label: `Phân công${pendingCount ? ` (${pendingCount})` : ''}` }]}
           value={tab} onChange={value => updateQuery({ tab: value })} />
         <div className="saved-plan-route-toolbar"><label className="saved-plan-route-select">Tuyến trên bản đồ
           <select value={activeId ?? ''} disabled={!routes.length} onChange={event => chooseRoute(event.target.value)}>
@@ -130,18 +148,18 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
         <div className="route-workspace-content" role="tabpanel" id={`planning-panel-${tab}`} aria-labelledby={`planning-tab-${tab}`}>
           {tab === 'assignments' ? <>
             <div className="saved-plan-assignment-status" data-pending={actionableSystemPendingGroupCount > 0} role="status" aria-atomic="true">
-              {actionableSystemPendingGroupCount > 0 ? <>
+              {!editable ? <><strong>Phân công đã lưu</strong><span>Phương án chỉ xem.</span></> : actionableSystemPendingGroupCount > 0 ? <>
                 <strong>Còn {actionableSystemPendingGroupCount} nhóm xe nhà xe cần xử lý</strong>
-                <span>Chọn Phân công tài xế hoặc Đổi xe trong từng nhóm bên dưới.</span>
+                <span>{isSchoolAdmin ? 'Nhà xe cần hoàn tất phân công xe và tài xế.' : 'Chọn Phân công tài xế hoặc Đổi xe trong từng nhóm bên dưới.'}</span>
               </> : schoolPendingGroupCount > 0 ? <>
                 <strong>Nhà xe đã hoàn tất phân công</strong>
-                <span>Đang chờ trường phân công giáo viên phụ xe cho {schoolPendingGroupCount} nhóm.</span>
+                <span>{isSchoolAdmin ? `Cần phân công giáo viên phụ xe cho ${schoolPendingGroupCount} nhóm.` : `Đang chờ trường phân công giáo viên phụ xe cho ${schoolPendingGroupCount} nhóm.`}</span>
               </> : <>
                 <strong>Đã hoàn tất phân công</strong>
                 <span>Xe, tài xế và giáo viên phụ xe đã đầy đủ.</span>
               </>}
             </div>
-            {plan.status === 'DRAFT' && <details className="saved-plan-readiness">
+            {!isSchoolAdmin && plan.status === 'DRAFT' && <details className="saved-plan-readiness">
               <summary>{readinessError ? 'Chưa tải được điều kiện duyệt' : !readiness ? 'Đang kiểm tra điều kiện duyệt…' : readiness.isReadyForApproval ? 'Đủ điều kiện để trường phê duyệt' : `Còn ${readiness.blockers.length} mục cần bổ sung trước khi duyệt`}</summary>
               {readinessError ? <Button size="sm" variant="outline" onClick={() => setRevision(value => value + 1)}>Thử lại</Button>
                 : <ul>{readiness?.blockers.map((item, index) => <li key={index}>{item.message}</li>)}</ul>}
@@ -176,7 +194,7 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
         </div>
       </>}
     />
-    <CancelRoutePlanModal isOpen={cancelOpen} routePlanId={plan.id} routePlanName={plan.name}
-      onClose={() => setCancelOpen(false)} onSuccess={() => { setCancelOpen(false); setRevision(value => value + 1); }} />
+    {canCancel && <CancelRoutePlanModal isOpen={cancelOpen} routePlanId={plan.id} routePlanName={plan.name}
+      onClose={() => setCancelOpen(false)} onSuccess={() => { setCancelOpen(false); setRevision(value => value + 1); }} />}
   </div>;
 }

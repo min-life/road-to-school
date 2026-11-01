@@ -1,4 +1,5 @@
 'use client';
+import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
 
 import { Badge } from '@/components/ui/badge';
 
@@ -167,7 +168,7 @@ export function SchoolRoutesTab({
                               : 'bg-rose-50 text-rose-700 border border-rose-200'
                           }`}
                         >
-                          {plan.status}
+                          {getRoutePlanStatusLabel(plan.status)}
                         </Badge>
                       </td>
 

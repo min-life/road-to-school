@@ -870,19 +870,16 @@ export interface ApprovalBlocker {
 }
 
 export interface ApprovalSummary {
-  fullyAssignedRoutes: number;
-  missingVehicleRoutes: number;
-  missingDriverRoutes: number;
-  missingBusAttendantRoutes: number;
+  totalRoutes: number;
+  routesWithVehicle: number;
+  routesWithDriver: number;
+  routesWithBusAttendant: number;
 }
 
 export interface ApprovalReadinessResponse {
   isReadyForApproval: boolean;
   routePlanId: string;
-  schoolId: string;
-  schoolName: string;
-  totalRoutes: number;
-  totalVehicles: number;
+  status: RoutePlanStatus;
   summary: ApprovalSummary;
   blockers: ApprovalBlocker[];
 }

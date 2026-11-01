@@ -7,6 +7,9 @@ import { OtpService } from './otp.service.js';
 import { AuthGuard } from './auth.guard.js';
 import { RolesGuard } from './roles.guard.js';
 import { CloudinaryService } from '../schools/cloudinary.service.js';
+import { EmailDeliveryService } from './email-delivery.service.js';
+import { EsmsSmsService } from './esms-sms.service.js';
+import { PersonnelCredentialsService } from './personnel-credentials.service.js';
 
 @Module({
   imports: [
@@ -28,8 +31,8 @@ import { CloudinaryService } from '../schools/cloudinary.service.js';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, OtpService, AuthGuard, RolesGuard, CloudinaryService],
-  exports: [AuthService, OtpService, AuthGuard, RolesGuard, JwtModule, CloudinaryService],
+  providers: [AuthService, OtpService, AuthGuard, RolesGuard, CloudinaryService, EmailDeliveryService, EsmsSmsService, PersonnelCredentialsService],
+  exports: [AuthService, OtpService, AuthGuard, RolesGuard, JwtModule, CloudinaryService, EmailDeliveryService, EsmsSmsService, PersonnelCredentialsService],
 })
 export class AuthModule {}
 

@@ -1,4 +1,5 @@
 'use client';
+import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
 import { BackLink, ContextLink } from '@/components/admin/common/context-navigation';
 
 import React, { useState, useEffect, useCallback, use } from 'react';
@@ -26,8 +27,8 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
   const { id } = use(params);
   const { user, isLoading } = useAuth();
   if (isLoading || !user) return <div className="py-20 text-center" role="status">Đang tải phương án…</div>;
-  if (user.role === 'SYSTEM_ADMIN') {
-    return <SavedRoutePlanWorkspace key={`${user.id}:${id}`} planId={id} role={user.role} />;
+  if (user.role === 'SYSTEM_ADMIN' || user.role === 'SCHOOL_ADMIN') {
+    return <SavedRoutePlanWorkspace key={`${user.id}:${user.role}:${user.schoolId}:${id}`} planId={id} role={user.role} schoolId={user.schoolId} />;
   }
   return <LegacyRoutePlanDetailPage params={params} />;
 }
@@ -162,19 +163,19 @@ function LegacyRoutePlanDetailPage({ params }: { params: Promise<{ id: string }>
             <h1 className="text-2xl font-bold text-slate-800">{plan.name}</h1>
             {isActive ? (
               <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                ACTIVE
+                {getRoutePlanStatusLabel(plan.status)}
               </Badge>
             ) : isDraft ? (
               <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                DRAFT
+                {getRoutePlanStatusLabel(plan.status)}
               </Badge>
             ) : plan.status === 'EXPIRED' ? (
               <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300">
-                EXPIRED
+                {getRoutePlanStatusLabel(plan.status)}
               </Badge>
             ) : (
               <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                CANCELLED
+                {getRoutePlanStatusLabel(plan.status)}
               </Badge>
             )}
           </div>

@@ -1,4 +1,5 @@
 'use client';
+import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
 
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
@@ -224,7 +225,7 @@ export function InsertStudentModal({
                         <div className="flex items-center justify-between font-semibold text-slate-800 mb-1">
                           <span>{pair.planName}</span>
                           <Badge className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
-                            {pair.planStatus}
+                            {getRoutePlanStatusLabel(pair.planStatus)}
                           </Badge>
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600">

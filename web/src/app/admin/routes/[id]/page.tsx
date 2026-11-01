@@ -1,4 +1,5 @@
 'use client';
+import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
 import { BackLink } from '@/components/admin/common/context-navigation';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -192,7 +193,7 @@ export default function RouteDetailPage() {
                     : 'bg-rose-50 text-rose-700 border border-rose-200'
                 }`}
               >
-                Phương án: {isActive ? 'ACTIVE' : isDraft ? 'DRAFT' : 'CANCELLED'}
+                Phương án: {getRoutePlanStatusLabel(route.planStatus ?? route.status)}
               </span>
             </div>
             <p className="text-sm text-slate-500 mt-1">

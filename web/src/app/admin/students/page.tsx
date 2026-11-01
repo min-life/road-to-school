@@ -57,8 +57,9 @@ function StudentsPageContent() {
 
       {/* Main Student Table */}
       <StudentTable
-        key={refreshKey}
+        key={`${user?.id}:${schoolId}:${refreshKey}`}
         schoolId={schoolId}
+        allowCardPrinting
         readOnly={false}
         baseDetailUrl="/admin/students"
         onAddClick={() => setIsAddModalOpen(true)}

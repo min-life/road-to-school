@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { CloseIcon, SpinnerIcon, AlertIcon } from '@/components/icons';
 import { Tooltip } from '@/components/admin/schools/tooltip';
@@ -15,28 +15,20 @@ interface AddTeacherModalProps {
   onSuccess: () => void;
 }
 
-export function AddTeacherModal({
-  isOpen,
+export function AddTeacherModal({ isOpen, ...props }: AddTeacherModalProps) {
+  return isOpen ? <AddTeacherForm {...props} /> : null;
+}
+
+function AddTeacherForm({
   schoolId,
   onClose,
   onSuccess,
-}: AddTeacherModalProps) {
+}: Omit<AddTeacherModalProps, 'isOpen'>) {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isOpen) {
-      setFullName('');
-      setEmail('');
-      setPhone('');
-      setErrorMessage(null);
-    }
-  }, [isOpen]);
-
-  if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,26 +36,29 @@ export function AddTeacherModal({
 
     const trimmedName = fullName.trim();
     const trimmedEmail = email.trim();
-    const trimmedPhone = phone.trim();
+    const trimmedPhone = phone.trim().replace(/[\s\-().]/g, '');
 
     if (!trimmedName) {
       setErrorMessage('Vui lòng nhập họ và tên của giáo viên.');
       return;
     }
 
-    if (!trimmedEmail && !trimmedPhone) {
-      setErrorMessage('Vui lòng cung cấp ít nhất Email hoặc Số điện thoại để làm thông tin đăng nhập.');
+    if (!trimmedEmail) {
+      setErrorMessage('Vui lòng nhập email của giáo viên.');
       return;
     }
 
-    // Phone format check if provided
-    if (trimmedPhone && !/^(0|\+84|84)?[35789]\d{8}$/.test(trimmedPhone)) {
+    if (!trimmedPhone) {
+      setErrorMessage('Vui lòng nhập số điện thoại của giáo viên.');
+      return;
+    }
+
+    if (!/^(0|\+84|84)?[35789]\d{8}$/.test(trimmedPhone)) {
       setErrorMessage('Số điện thoại không đúng định dạng di động Việt Nam (ví dụ: 0912345678).');
       return;
     }
 
-    // Email format check if provided
-    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
       setErrorMessage('Địa chỉ email không đúng định dạng.');
       return;
     }
@@ -72,15 +67,15 @@ export function AddTeacherModal({
       setIsLoading(true);
       await apiClient.createTeacher(schoolId, {
         fullName: trimmedName,
-        email: trimmedEmail || undefined,
-        phone: trimmedPhone || undefined,
+        email: trimmedEmail,
+        phone: trimmedPhone,
       });
 
       onSuccess();
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setErrorMessage(
-        err?.message || 'Không thể tạo tài khoản giáo viên. Vui lòng thử lại.'
+        err instanceof Error ? err.message : 'Không thể tạo tài khoản giáo viên. Vui lòng thử lại.'
       );
     } finally {
       setIsLoading(false);
@@ -124,10 +119,11 @@ export function AddTeacherModal({
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
+            <label htmlFor="teacher-full-name" className="block text-xs font-semibold text-slate-700 mb-1">
               Họ và tên <span className="text-red-500">*</span>
             </label>
             <Input
+              id="teacher-full-name"
               type="text"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
@@ -140,11 +136,13 @@ export function AddTeacherModal({
 
           <div>
             <div className="flex items-center gap-1 mb-1">
-              <label className="text-xs font-semibold text-slate-700">Email</label>
-              <Tooltip content="Địa chỉ email dùng để đăng nhập hoặc nhận thông báo. Cần ít nhất Email hoặc Số điện thoại." />
+              <label htmlFor="teacher-email" className="text-xs font-semibold text-slate-700">Email <span className="text-red-500">*</span></label>
+              <Tooltip content="Bắt buộc. Dùng để đăng nhập và nhận mật khẩu tài khoản." />
             </div>
             <Input
+              id="teacher-email"
               type="email"
+              required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="mai.tt@school.edu.vn"
@@ -155,11 +153,13 @@ export function AddTeacherModal({
 
           <div>
             <div className="flex items-center gap-1 mb-1">
-              <label className="text-xs font-semibold text-slate-700">Số điện thoại</label>
-              <Tooltip content="Số điện thoại di động dùng để đăng nhập. Cần ít nhất Email hoặc Số điện thoại." />
+              <label htmlFor="teacher-phone" className="text-xs font-semibold text-slate-700">Số điện thoại <span className="text-red-500">*</span></label>
+              <Tooltip content="Bắt buộc. Số di động Việt Nam dùng để liên hệ và đăng nhập." />
             </div>
             <Input
+              id="teacher-phone"
               type="tel"
+              required
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="0912345678"

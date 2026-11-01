@@ -589,7 +589,7 @@ export function EditSchoolModal({
             {/* Thống kê tác động */}
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2 text-xs text-slate-700">
               <div className="flex items-center justify-between">
-                <span>Phương án DRAFT/ACTIVE của trường bị hủy:</span>
+                <span>Phương án nháp/đã duyệt của trường bị hủy:</span>
                 <span className="font-bold text-rose-600">
                   {locationImpact.cancelledPlansCount ?? ((locationImpact.draftPlansCount || 0) + (locationImpact.activePlansCount || 0))} phương án
                 </span>

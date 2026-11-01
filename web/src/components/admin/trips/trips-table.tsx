@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
 import { Table } from '@/components/ui/table';
+import './trips-table.css';
 
 interface TripsTableProps {
   fixedSchoolId?: string;
@@ -304,15 +305,15 @@ export function TripsTable({
 
       {/* Main Trips Table */}
       <Card className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <Table className="w-full text-left border-collapse text-xs" minWidth={1765}>
-            <colgroup><col style={{ width: 125 }} /><col /><col style={{ width: 210 }} /><col style={{ width: 115 }} /><col style={{ width: 160 }} /><col style={{ width: 150 }} /><col style={{ width: 190 }} /><col style={{ width: 190 }} /><col style={{ width: 100 }} /><col style={{ width: 170 }} /><col style={{ width: 115 }} /></colgroup>
+        <div className="trips-table-scroll overflow-x-auto" tabIndex={0} role="region" aria-label="Bảng chuyến xe, cuộn ngang để xem thêm cột">
+          <Table className="trips-table w-full text-left text-xs" minWidth={1765}>
+            <colgroup><col style={{ width: 125 }} /><col style={{ width: 240 }} /><col style={{ width: 210 }} /><col style={{ width: 115 }} /><col style={{ width: 160 }} /><col style={{ width: 150 }} /><col style={{ width: 190 }} /><col /><col style={{ width: 100 }} /><col style={{ width: 170 }} /><col style={{ width: 115 }} /></colgroup>
             <thead>
               <tr className="border-b border-slate-200/80 bg-slate-50/70 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
-                <th className="py-3 px-4 w-32">Thứ / Ngày</th>
-                <th className="py-3 px-4">Tuyến xe</th>
-                <th className="py-3 px-4">Trường học</th>
-                <th className="py-3 px-4">Chiều</th>
+                <th className="trip-pin trip-pin-date py-3 px-4" scope="col">Thứ / Ngày</th>
+                <th className="trip-pin trip-pin-route py-3 px-4" scope="col">Tuyến xe</th>
+                <th className="trip-pin trip-pin-school py-3 px-4" scope="col">Trường học</th>
+                <th className="trip-pin trip-pin-direction py-3 px-4" scope="col">Chiều</th>
                 <th className="py-3 px-4 text-center">Khung giờ</th>
                 <th className="py-3 px-4">Xe phân công</th>
                 <th className="py-3 px-4">Tài xế</th>
@@ -365,7 +366,7 @@ export function TripsTable({
                       {isFirstOfDay && (
                         <td
                           rowSpan={span}
-                          className="py-3 px-4 font-bold text-slate-800 bg-slate-50/40 border-r border-slate-100 align-top"
+                          className="trip-pin trip-pin-date py-3 px-4 font-bold text-slate-800 border-r border-slate-100 align-top"
                         >
                           <div className="sticky top-0">
                             <span className="text-blue-700 font-extrabold block text-xs">
@@ -378,18 +379,18 @@ export function TripsTable({
                         </td>
                       )}
 
-                      <td className="py-3 px-4 font-semibold text-slate-800">
+                      <td className="trip-pin trip-pin-route py-3 px-4 font-semibold text-slate-800">
                         <div className="flex items-center gap-1.5">
                           <RouteIcon className="w-4 h-4 text-slate-400 shrink-0" />
                           <span className="font-medium">{trip.routeName}</span>
                         </div>
                       </td>
 
-                      <td className="py-3 px-4 text-slate-600 max-w-[140px] truncate">
+                      <td className="trip-pin trip-pin-school py-3 px-4 text-slate-600 truncate" title={trip.schoolName}>
                         {trip.schoolName}
                       </td>
 
-                      <td className="py-3 px-4">
+                      <td className="trip-pin trip-pin-direction py-3 px-4">
                         <Badge
                           className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${
                             trip.direction === 'TO_SCHOOL'

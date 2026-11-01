@@ -79,7 +79,7 @@ export function ApprovalReadinessCard({
             )}
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Trường: <strong className="text-slate-700">{readiness.schoolName}</strong> • {readiness.totalRoutes} tuyến • {readiness.totalVehicles} nhóm xe
+            {readiness.summary.totalRoutes} tuyến
           </p>
         </div>
 
@@ -111,57 +111,57 @@ export function ApprovalReadinessCard({
         {/* Xe */}
         <div
           className={`p-3 rounded-xl border text-xs ${
-            readiness.summary.missingVehicleRoutes === 0
+            (readiness.summary.totalRoutes - readiness.summary.routesWithVehicle) === 0
               ? 'bg-emerald-50/50 border-emerald-200/80 text-emerald-900'
               : 'bg-rose-50/50 border-rose-200/80 text-rose-900'
           }`}
         >
           <div className="font-bold flex items-center justify-between mb-1">
             <span>Phương tiện (Xe)</span>
-            <span>{readiness.summary.missingVehicleRoutes === 0 ? '✓ Đủ' : '✗ Thiếu'}</span>
+            <span>{(readiness.summary.totalRoutes - readiness.summary.routesWithVehicle) === 0 ? '✓ Đủ' : '✗ Thiếu'}</span>
           </div>
           <p className="text-[11px] opacity-80">
-            {readiness.summary.missingVehicleRoutes === 0
-              ? 'Tất cả tuyến đã được gán xe hợp lệ'
-              : `Còn ${readiness.summary.missingVehicleRoutes} tuyến chưa gán xe`}
+            {(readiness.summary.totalRoutes - readiness.summary.routesWithVehicle) === 0
+              ? 'Tất cả tuyến đã có xe'
+              : `Còn ${(readiness.summary.totalRoutes - readiness.summary.routesWithVehicle)} tuyến chưa gán xe`}
           </p>
         </div>
 
         {/* Tài xế */}
         <div
           className={`p-3 rounded-xl border text-xs ${
-            readiness.summary.missingDriverRoutes === 0
+            (readiness.summary.totalRoutes - readiness.summary.routesWithDriver) === 0
               ? 'bg-emerald-50/50 border-emerald-200/80 text-emerald-900'
               : 'bg-rose-50/50 border-rose-200/80 text-rose-900'
           }`}
         >
           <div className="font-bold flex items-center justify-between mb-1">
             <span>Tài xế</span>
-            <span>{readiness.summary.missingDriverRoutes === 0 ? '✓ Đủ' : '✗ Thiếu'}</span>
+            <span>{(readiness.summary.totalRoutes - readiness.summary.routesWithDriver) === 0 ? '✓ Đủ' : '✗ Thiếu'}</span>
           </div>
           <p className="text-[11px] opacity-80">
-            {readiness.summary.missingDriverRoutes === 0
-              ? 'Tất cả nhóm xe đã có tài xế phụ trách'
-              : `Còn ${readiness.summary.missingDriverRoutes} tuyến chưa có tài xế`}
+            {(readiness.summary.totalRoutes - readiness.summary.routesWithDriver) === 0
+              ? 'Tất cả tuyến đã có tài xế phụ trách'
+              : `Còn ${(readiness.summary.totalRoutes - readiness.summary.routesWithDriver)} tuyến chưa có tài xế`}
           </p>
         </div>
 
         {/* Giáo viên / Phụ xe */}
         <div
           className={`p-3 rounded-xl border text-xs ${
-            readiness.summary.missingBusAttendantRoutes === 0
+            (readiness.summary.totalRoutes - readiness.summary.routesWithBusAttendant) === 0
               ? 'bg-emerald-50/50 border-emerald-200/80 text-emerald-900'
               : 'bg-rose-50/50 border-rose-200/80 text-rose-900'
           }`}
         >
           <div className="font-bold flex items-center justify-between mb-1">
             <span>Giáo viên / Phụ xe</span>
-            <span>{readiness.summary.missingBusAttendantRoutes === 0 ? '✓ Đủ' : '✗ Thiếu'}</span>
+            <span>{(readiness.summary.totalRoutes - readiness.summary.routesWithBusAttendant) === 0 ? '✓ Đủ' : '✗ Thiếu'}</span>
           </div>
           <p className="text-[11px] opacity-80">
-            {readiness.summary.missingBusAttendantRoutes === 0
-              ? 'Tất cả nhóm xe đã có giáo viên phụ xe'
-              : `Còn ${readiness.summary.missingBusAttendantRoutes} tuyến chưa có giáo viên`}
+            {(readiness.summary.totalRoutes - readiness.summary.routesWithBusAttendant) === 0
+              ? 'Tất cả tuyến đã có giáo viên phụ xe'
+              : `Còn ${(readiness.summary.totalRoutes - readiness.summary.routesWithBusAttendant)} tuyến chưa có giáo viên`}
           </p>
         </div>
       </div>
@@ -193,17 +193,17 @@ export function ApprovalReadinessCard({
               </div>
               <div>
                 <h3 className="text-base font-bold text-slate-800">Xác nhận phê duyệt phương án</h3>
-                <p className="text-xs text-slate-500">Chuyển trạng thái sang ACTIVE để đưa vào vận hành</p>
+                <p className="text-xs text-slate-500">Chuyển sang Đã duyệt để đưa vào vận hành</p>
               </div>
             </div>
 
             <div className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-slate-200/60 space-y-2">
               <p>
-                Sau khi phê duyệt, phương án tuyến sẽ chính thức chuyển sang <strong>ACTIVE</strong>:
+                Sau khi phê duyệt, phương án tuyến chuyển sang <strong>Đã duyệt</strong>:
               </p>
               <ul className="list-disc list-inside space-y-1 pl-1 text-slate-700">
-                <li>Hệ thống bắt đầu sinh chuyến xe tự động từ ngày học kế tiếp.</li>
-                <li>Không thể hủy phương án một khi đã chuyển sang ACTIVE.</li>
+                <li>Phương án được sử dụng khi hệ thống tạo chuyến theo lịch.</li>
+                <li>Hủy phương án theo điều kiện và tác động được hệ thống kiểm tra.</li>
                 <li>Mọi phân công xe, tài xế và giáo viên hiện tại sẽ được lưu thành mặc định.</li>
               </ul>
             </div>

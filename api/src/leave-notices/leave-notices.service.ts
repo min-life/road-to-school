@@ -103,7 +103,7 @@ export class LeaveNoticesService {
       maskedChannels.push({
         channel: DeliveryChannel.SMS,
         destination: this.otpService.maskIdentifier(link.student.guardianPhone, DeliveryChannel.SMS),
-        isConsole: true,
+        isConsole: this.otpService.isConsole(DeliveryChannel.SMS),
       });
     } else if (user.role === Role.DRIVER) {
       kind = LeaveNoticeKind.DRIVER;
@@ -288,7 +288,7 @@ export class LeaveNoticesService {
       contacts.push({
         channel: DeliveryChannel.SMS,
         destination: link.student.guardianPhone,
-        isConsole: true,
+        isConsole: this.otpService.isConsole(DeliveryChannel.SMS),
       });
     } else if (kind === LeaveNoticeKind.DRIVER) {
       if (trip.assignedDriverId !== user.id) {
@@ -980,14 +980,14 @@ export class LeaveNoticesService {
       maskedChannels.push({
         channel: DeliveryChannel.EMAIL,
         destination: this.otpService.maskIdentifier(user.email, DeliveryChannel.EMAIL),
-        isConsole: false,
+        isConsole: this.otpService.isConsole(DeliveryChannel.EMAIL),
       });
     }
     if (user.phone) {
       maskedChannels.push({
         channel: DeliveryChannel.SMS,
         destination: this.otpService.maskIdentifier(user.phone, DeliveryChannel.SMS),
-        isConsole: true,
+        isConsole: this.otpService.isConsole(DeliveryChannel.SMS),
       });
     }
     if (maskedChannels.length === 0) {
@@ -1003,14 +1003,14 @@ export class LeaveNoticesService {
       contacts.push({
         channel: DeliveryChannel.EMAIL,
         destination: user.email,
-        isConsole: false,
+        isConsole: this.otpService.isConsole(DeliveryChannel.EMAIL),
       });
     }
     if (user.phone) {
       contacts.push({
         channel: DeliveryChannel.SMS,
         destination: user.phone,
-        isConsole: true,
+        isConsole: this.otpService.isConsole(DeliveryChannel.SMS),
       });
     }
     if (contacts.length === 0) {

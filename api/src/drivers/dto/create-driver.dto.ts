@@ -1,11 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsNotEmpty,
   IsString,
   IsOptional,
   IsEmail,
   Matches,
-  ValidateIf,
 } from 'class-validator';
 
 export class CreateDriverDto {
@@ -17,18 +17,19 @@ export class CreateDriverDto {
   @IsString({ message: 'Họ và tên tài xế phải là chuỗi ký tự' })
   fullName: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     description:
-      'Địa chỉ email của tài xế (bắt buộc nếu không có số điện thoại)',
+      'Email bắt buộc để nhận mật khẩu tài khoản tài xế',
     example: 'lai.tv@roadtoschool.vn',
   })
-  @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' ? value.trim().toLowerCase() : value)
+  @IsNotEmpty({ message: 'Email tài xế là bắt buộc để bàn giao mật khẩu' })
   @IsEmail({}, { message: 'Địa chỉ email tài xế không đúng định dạng' })
-  email?: string;
+  email: string;
 
   @ApiPropertyOptional({
     description:
-      'Số điện thoại di động của tài xế (bắt buộc nếu không có email)',
+      'Số điện thoại liên hệ của tài xế (tùy chọn)',
     example: '0987654321',
   })
   @IsOptional()
