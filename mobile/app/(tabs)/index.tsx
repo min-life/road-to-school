@@ -19,7 +19,6 @@ import { parentHomeStyles } from '@/components/parent/home-styles';
 import { ParentHomeScrollView } from '@/components/parent/home-scroll-view';
 import { ParentTripCard } from '@/components/parent/trip-card';
 import { staffHomeStyles } from '@/components/staff/staff-home-styles';
-import { StaffHomeScrollView } from '@/components/staff/staff-home-scroll-view';
 import { StaffTripCard } from '@/components/staff/staff-trip-card';
 import { ParentStudentJourney } from '@/components/parent/student-journey';
 import { useParentJourneyTelemetry } from '@/hooks/use-parent-journey-telemetry';
@@ -129,10 +128,8 @@ export default function HomeScreen() {
     }
   };
 
-  const HomeScrollView = isParent
+  const HomeScrollView = isParent || isDriverOrAttendant
     ? ParentHomeScrollView
-    : isDriverOrAttendant
-    ? StaffHomeScrollView
     : ScrollView;
   const serviceDates = [...new Set(parentCards.map(card => card.serviceDate))];
   return (
@@ -142,12 +139,13 @@ export default function HomeScreen() {
         onOpenLeave: () => router.push('/leave-notices' as any),
         onChangeStop: () => router.push('/parent/change-stop')
       } : isDriverOrAttendant ? {
-        fullName: user?.fullName,
-        avatarUrl: user?.avatarUrl,
-        userRole: user?.role,
-        subTitle: homeTrip?.schoolName,
-        onOpenLeave: () => router.push('/leave-notices' as any),
-        onOpenIncident: () => router.push('/incidents' as any),
+        fullName: user?.fullName, avatarUrl: user?.avatarUrl,
+        title: user?.fullName || (isDriver ? 'Tài xế' : 'Giáo viên phụ xe'),
+        subtitle: `${isDriver ? 'Tài xế' : 'Giáo viên phụ xe'} · ${homeTrip?.schoolName || (isDriver ? 'Bãi xe trung tâm' : 'Trường học đối tác')}`,
+        actions: [
+          { label: 'Báo nghỉ', icon: 'calendar-outline' as const, onPress: () => router.push('/leave-notices' as any) },
+          { label: 'Sự cố', icon: 'warning-outline' as const, onPress: () => router.push('/incidents' as any) },
+        ],
       } : {})}
       style={[styles.container, isParent && parentHomeStyles.container, isDriverOrAttendant && staffHomeStyles.container]}
       contentContainerStyle={[styles.content, isParent && parentHomeStyles.content, isDriverOrAttendant && staffHomeStyles.content]}
@@ -179,6 +177,11 @@ export default function HomeScreen() {
       ) : isDriverOrAttendant ? (
         /* ================= DRIVER & ATTENDANT HOME (D06: Single Trip) ================= */
         hasHomeTrip && homeTrip ? (
+          <>
+          <View style={parentHomeStyles.sectionHeader}>
+            <Text accessibilityRole="header" style={parentHomeStyles.sectionTitle}>Chuyến xe của bạn</Text>
+            <Text style={parentHomeStyles.sectionDate}>{journeyServiceDate(homeTrip.serviceDate)}</Text>
+          </View>
           <StaffTripCard
             role={user?.role}
             trip={homeTrip}
@@ -197,6 +200,7 @@ export default function HomeScreen() {
             canReportLeave={Boolean(homeTrip.canReportLeave)}
             getStatusBadge={getStatusBadge}
           />
+          </>
         ) : (
           <View style={staffHomeStyles.emptyContainer}>
             <Ionicons name="bus-outline" size={48} color="#94A3B8" />
