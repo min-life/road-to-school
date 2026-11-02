@@ -1,62 +1,19 @@
-diff --git a/C:/Users/toila/.codex/visualizations/2026/11/01/01a1977c-ba51-7e80-8b97-84400724d696/before-attendant-home.tsx b/mobile/app/(tabs)/index.tsx
-index 1c95931..a7baa70 100644
---- a/C:/Users/toila/.codex/visualizations/2026/11/01/01a1977c-ba51-7e80-8b97-84400724d696/before-attendant-home.tsx
-+++ b/mobile/app/(tabs)/index.tsx
-@@ -19,7 +19,6 @@ import { parentHomeStyles } from '@/components/parent/home-styles';
- import { ParentHomeScrollView } from '@/components/parent/home-scroll-view';
- import { ParentTripCard } from '@/components/parent/trip-card';
- import { staffHomeStyles } from '@/components/staff/staff-home-styles';
--import { StaffHomeScrollView } from '@/components/staff/staff-home-scroll-view';
- import { StaffTripCard } from '@/components/staff/staff-trip-card';
- import { ParentStudentJourney } from '@/components/parent/student-journey';
- import { useParentJourneyTelemetry } from '@/hooks/use-parent-journey-telemetry';
-@@ -129,10 +128,8 @@ export default function HomeScreen() {
-     }
-   };
- 
--  const HomeScrollView = isParent || isDriver
-+  const HomeScrollView = isParent || isDriverOrAttendant
-     ? ParentHomeScrollView
--    : isDriverOrAttendant
--    ? StaffHomeScrollView
-     : ScrollView;
-   const serviceDates = [...new Set(parentCards.map(card => card.serviceDate))];
-   return (
-@@ -141,21 +138,14 @@ export default function HomeScreen() {
-         fullName: user?.fullName, avatarUrl: user?.avatarUrl,
-         onOpenLeave: () => router.push('/leave-notices' as any),
-         onChangeStop: () => router.push('/parent/change-stop')
--      } : isDriver ? {
-+      } : isDriverOrAttendant ? {
-         fullName: user?.fullName, avatarUrl: user?.avatarUrl,
--        title: user?.fullName || 'Tài xế',
--        subtitle: `Tài xế · ${homeTrip?.schoolName || 'Bãi xe trung tâm'}`,
-+        title: user?.fullName || (isDriver ? 'Tài xế' : 'Giáo viên phụ xe'),
-+        subtitle: `${isDriver ? 'Tài xế' : 'Giáo viên phụ xe'} · ${homeTrip?.schoolName || (isDriver ? 'Bãi xe trung tâm' : 'Trường học đối tác')}`,
-         actions: [
-           { label: 'Báo nghỉ', icon: 'calendar-outline' as const, onPress: () => router.push('/leave-notices' as any) },
-           { label: 'Sự cố', icon: 'warning-outline' as const, onPress: () => router.push('/incidents' as any) },
-         ],
--      } : isDriverOrAttendant ? {
--        fullName: user?.fullName,
--        avatarUrl: user?.avatarUrl,
--        userRole: user?.role,
--        subTitle: homeTrip?.schoolName,
--        onOpenLeave: () => router.push('/leave-notices' as any),
--        onOpenIncident: () => router.push('/incidents' as any),
-       } : {})}
-       style={[styles.container, isParent && parentHomeStyles.container, isDriverOrAttendant && staffHomeStyles.container]}
-       contentContainerStyle={[styles.content, isParent && parentHomeStyles.content, isDriverOrAttendant && staffHomeStyles.content]}
-@@ -188,10 +178,10 @@ export default function HomeScreen() {
-         /* ================= DRIVER & ATTENDANT HOME (D06: Single Trip) ================= */
-         hasHomeTrip && homeTrip ? (
-           <>
--          {isDriver && <View style={parentHomeStyles.sectionHeader}>
-+          <View style={parentHomeStyles.sectionHeader}>
-             <Text accessibilityRole="header" style={parentHomeStyles.sectionTitle}>Chuyến xe của bạn</Text>
-             <Text style={parentHomeStyles.sectionDate}>{journeyServiceDate(homeTrip.serviceDate)}</Text>
--          </View>}
-+          </View>
-           <StaffTripCard
-             role={user?.role}
-             trip={homeTrip}
+diff --git a/mobile/app/trip/[id].tsx b/mobile/app/trip/[id].tsx
+index fd6ac92..ca73352 100644
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -1375,5 +1375,9 @@ export default function MobileTripDetailScreen() {
+-                    <Image
+-                      source={require('@/assets/driver/Bus.png')}
+-                      style={{ width: 24, height: 24 }}
+-                      resizeMode="contain"
+-                    />
++                    {isDriverOrAttendant ? (
++                      <Ionicons name="bus-outline" size={24} color="#D97706" />
++                    ) : (
++                      <Image
++                        source={require('@/assets/driver/Bus.png')}
++                        style={{ width: 24, height: 24 }}
++                        resizeMode="contain"
++                      />
++                    )}

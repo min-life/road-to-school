@@ -41,6 +41,7 @@ import { useActiveRefresh } from '@/hooks/use-active-refresh';
 import type { RefreshContext } from '@/utils/refresh-loop';
 import { getTripMapSnapshot } from '@/utils/trip-map-data';
 import { childMapPinCss, childMapPinScript, childMapPinSize, serializeMapScriptValue } from '@/utils/child-map-marker';
+import { hasTripBottomAction } from '@/utils/trip-map-layout';
 import { useParentMapAvatars } from '@/hooks/use-parent-map-avatars';
 import { decodePolyline } from '@/utils/polyline';
 import { useTripNavigation } from '@/hooks/use-trip-navigation';
@@ -53,7 +54,6 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const COLLAPSED_HEIGHT = 115;
 const EXPANDED_HEIGHT = Math.round(SCREEN_HEIGHT * 0.72);
-const FIXED_BOTTOM_ACTION_HEIGHT = 74;
 
 export default function MobileTripDetailScreen() {
   const router = useRouter();
@@ -94,6 +94,7 @@ export default function MobileTripDetailScreen() {
 
   // Bottom Sheet 2-State Animation & Gesture
   const [isExpanded, setIsExpanded] = useState(false);
+  const [bottomActionHeight, setBottomActionHeight] = useState(0);
   const isExpandedRef = useRef(false);
   const sheetHeightAnim = useRef(new Animated.Value(COLLAPSED_HEIGHT)).current;
   const currentHeight = useRef(COLLAPSED_HEIGHT);
@@ -412,25 +413,32 @@ export default function MobileTripDetailScreen() {
           var bounds = L.latLngBounds();
           var stops = ${stopsJson};
           ${childMapPinScript}
+          var staffMap = ${isDriverOrAttendant};
 
           stops.forEach(function(s) {
             var iconHtml = '<div class="student-marker">' + s.order + '</div>';
             var ownChildPin = s.isMyChild && s.studentId && (s.type === 'PICKUP' || s.type === 'DROPOFF');
+            var staffStopPin = staffMap && (s.type === 'PICKUP' || s.type === 'DROPOFF');
             if (s.type === 'PARKING_START' || s.type === 'PARKING_END') {
               iconHtml = '<div class="depot-marker">P</div>';
             } else if (s.type === 'SCHOOL_ARRIVAL' || s.type === 'SCHOOL_DEPARTURE') {
               iconHtml = '<div class="school-marker">🏫</div>';
             } else if (ownChildPin) {
               iconHtml = window.createChildMapPin(s.studentId, s.name);
+            } else if (staffStopPin) {
+              iconHtml = window.createChildMapPin(null, s.name);
             }
 
+            var pinMarker = ownChildPin || staffStopPin;
             var icon = L.divIcon({ className: '', html: iconHtml,
-              iconSize: ownChildPin ? [${childMapPinSize.width}, ${childMapPinSize.height}] : [28, 28],
-              iconAnchor: ownChildPin ? [${childMapPinSize.width / 2}, ${childMapPinSize.height * 65 / 66}] : [14, 14],
-              popupAnchor: ownChildPin ? [0, -${childMapPinSize.height - 5}] : [0, 0] });
+              iconSize: pinMarker ? [${childMapPinSize.width}, ${childMapPinSize.height}] : [28, 28],
+              iconAnchor: pinMarker ? [${childMapPinSize.width / 2}, ${childMapPinSize.height * 65 / 66}] : [14, 14],
+              popupAnchor: pinMarker ? [0, -${childMapPinSize.height - 5}] : [0, 0] });
             var marker = L.marker([s.lat, s.lng], { icon: icon }).addTo(map);
             if (ownChildPin && marker.getElement()) {
               marker.getElement().setAttribute('aria-label', (s.type === 'PICKUP' ? 'Điểm đón: ' : 'Điểm trả: ') + s.name);
+            } else if (staffStopPin && marker.getElement()) {
+              marker.getElement().setAttribute('aria-label', 'Điểm dừng ' + s.order + ': ' + s.name);
             }
             marker.bindPopup('<b>' + s.name + '</b><br/>' + (s.eta ? 'Dự kiến: ' + s.eta + '<br/>' : '') + s.address);
             bounds.extend([s.lat, s.lng]);
@@ -507,7 +515,7 @@ export default function MobileTripDetailScreen() {
       </body>
       </html>
     `;
-  }, [mapData, tilemapKey]);
+  }, [mapData, tilemapKey, isDriverOrAttendant]);
   const mapSource = useMemo(() => ({ html: mapHtml }), [mapHtml]);
   const historyParts = useMemo(() => recordedParts(history ?? []), [history]);
   const terminal = operationalState?.status === 'COMPLETED' || operationalState?.status === 'CANCELLED';
@@ -828,12 +836,8 @@ export default function MobileTripDetailScreen() {
     ? operationalState?.status === 'IN_PROGRESS' && !operationalState.isSchoolArrived
     : operationalState?.status === 'IN_PROGRESS' ||
       (operationalState?.status === 'SCHEDULED' && operationalState.isAttendantReady));
-  const showBottomAction =
-    isDriverOrAttendant &&
-    operationalState?.status !== 'COMPLETED' &&
-    operationalState?.status !== 'CANCELLED';
-
-  const bottomActionOffset = showBottomAction ? FIXED_BOTTOM_ACTION_HEIGHT + insets.bottom : 0;
+  const showBottomAction = hasTripBottomAction(user?.role, operationalState?.status);
+  const bottomActionOffset = showBottomAction ? bottomActionHeight : 0;
 
   const canReady = Boolean(operationalState?.canMarkReady ?? operationalState?.canAttendantReady);
   const canStart = Boolean(operationalState?.canStartTrip ?? operationalState?.canDriverStart);
@@ -1267,15 +1271,11 @@ export default function MobileTripDetailScreen() {
                   </TouchableOpacity>
                 </View>
               ) : (
-                /* DRIVER / ATTENDANT: Horizontally scrollable 4 tabs */
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.tabBar}
-                >
+                /* Staff keeps attendance; all four tabs use the Parent's fixed row. */
+                <View style={[styles.tabBarParent, styles.tabBarStaff]}>
                   <TouchableOpacity
                     onPress={() => setActiveTab('INFO')}
-                    style={[styles.tabButton, activeTab === 'INFO' && styles.tabButtonActive]}
+                    style={[styles.tabButton, styles.tabButtonParent, styles.tabButtonStaff, activeTab === 'INFO' && styles.tabButtonActive]}
                   >
                     <Ionicons
                       name="information-circle-outline"
@@ -1285,6 +1285,8 @@ export default function MobileTripDetailScreen() {
                     <Text
                       style={[
                         styles.tabButtonText,
+                        styles.tabButtonTextParent,
+                        styles.tabButtonTextStaff,
                         activeTab === 'INFO' && styles.tabButtonTextActive,
                       ]}
                     >
@@ -1294,7 +1296,7 @@ export default function MobileTripDetailScreen() {
 
                   <TouchableOpacity
                     onPress={() => setActiveTab('STOPS')}
-                    style={[styles.tabButton, activeTab === 'STOPS' && styles.tabButtonActive]}
+                    style={[styles.tabButton, styles.tabButtonParent, styles.tabButtonStaff, activeTab === 'STOPS' && styles.tabButtonActive]}
                   >
                     <Ionicons
                       name="location-outline"
@@ -1304,6 +1306,8 @@ export default function MobileTripDetailScreen() {
                     <Text
                       style={[
                         styles.tabButtonText,
+                        styles.tabButtonTextParent,
+                        styles.tabButtonTextStaff,
                         activeTab === 'STOPS' && styles.tabButtonTextActive,
                       ]}
                     >
@@ -1313,7 +1317,7 @@ export default function MobileTripDetailScreen() {
 
                   <TouchableOpacity
                     onPress={() => setActiveTab('ATTENDANCE')}
-                    style={[styles.tabButton, activeTab === 'ATTENDANCE' && styles.tabButtonActive]}
+                    style={[styles.tabButton, styles.tabButtonParent, styles.tabButtonStaff, activeTab === 'ATTENDANCE' && styles.tabButtonActive]}
                   >
                     <Ionicons
                       name="checkbox-outline"
@@ -1323,6 +1327,8 @@ export default function MobileTripDetailScreen() {
                     <Text
                       style={[
                         styles.tabButtonText,
+                        styles.tabButtonTextParent,
+                        styles.tabButtonTextStaff,
                         activeTab === 'ATTENDANCE' && styles.tabButtonTextActive,
                       ]}
                     >
@@ -1334,6 +1340,8 @@ export default function MobileTripDetailScreen() {
                     onPress={() => setActiveTab('INCIDENTS')}
                     style={[
                       styles.tabButton,
+                      styles.tabButtonParent,
+                      styles.tabButtonStaff,
                       activeTab === 'INCIDENTS' && styles.tabButtonActiveIncident,
                     ]}
                   >
@@ -1345,6 +1353,8 @@ export default function MobileTripDetailScreen() {
                     <Text
                       style={[
                         styles.tabButtonText,
+                        styles.tabButtonTextParent,
+                        styles.tabButtonTextStaff,
                         activeTab === 'INCIDENTS' && styles.tabButtonTextActive,
                         activeTab === 'INCIDENTS' && { color: '#DC2626' },
                       ]}
@@ -1352,7 +1362,7 @@ export default function MobileTripDetailScreen() {
                       Sự cố ({tripIncidents.length})
                     </Text>
                   </TouchableOpacity>
-                </ScrollView>
+                </View>
               )}
             </View>
 
@@ -1362,11 +1372,15 @@ export default function MobileTripDetailScreen() {
                 {/* Xe */}
                 <View style={styles.infoCard}>
                   <View style={styles.infoIconCircle}>
-                    <Image
-                      source={require('@/assets/driver/Bus.png')}
-                      style={{ width: 24, height: 24 }}
-                      resizeMode="contain"
-                    />
+                    {isDriverOrAttendant ? (
+                      <Ionicons name="bus-outline" size={24} color="#D97706" />
+                    ) : (
+                      <Image
+                        source={require('@/assets/driver/Bus.png')}
+                        style={{ width: 24, height: 24 }}
+                        resizeMode="contain"
+                      />
+                    )}
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.infoLabel}>Phương tiện đưa đón</Text>
@@ -2042,7 +2056,8 @@ export default function MobileTripDetailScreen() {
 
       {/* 3. Fixed Bottom Action Area (Pinned to screen bottom, respects safe area) */}
       {showBottomAction && (
-        <View style={[styles.fixedBottomActionContainer, { paddingBottom: insets.bottom + 8 }]}>
+        <View onLayout={event => setBottomActionHeight(event.nativeEvent.layout.height)}
+          style={[styles.fixedBottomActionContainer, { paddingBottom: insets.bottom + 8 }]}>
           {isBusAttendant ? (
             /* BUS ATTENDANT BOTTOM ACTION */
             operationalState?.status === 'SCHEDULED' ? (
@@ -2925,12 +2940,9 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E2E8F0',
     marginBottom: 12,
   },
-  tabBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingRight: 16,
-  },
+  tabBarStaff: { alignItems: 'stretch' },
+  tabButtonStaff: { minWidth: 0 },
+  tabButtonTextStaff: { flexShrink: 1, textAlign: 'center' },
   tabBarParent: {
     flexDirection: 'row',
     alignItems: 'center',

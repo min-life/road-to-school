@@ -5,6 +5,8 @@ const pinBody = '#176B80';
 export const childMapPinSize = { width: 24, height: 30 } as const;
 const portraitSize = childMapPinSize.width * 0.75;
 
+export const mapPinSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 66"><path d="M26 1C12.2 1 1 12.2 1 26c0 17.5 25 39 25 39s25-21.5 25-39C51 12.2 39.8 1 26 1Z" fill="${pinBody}" stroke="${colors.surface}" stroke-width="1.2"/><circle cx="26" cy="26" r="22" fill="${colors.surface}" stroke="${colors.foreground}" stroke-width=".6"/><circle cx="26" cy="26" r="20" fill="none" stroke="${colors.navigationActive}" stroke-width=".6"/></svg>`;
+
 export const childMapPinCss = `
   .child-map-pin { position: relative; width: ${childMapPinSize.width}px; height: ${childMapPinSize.height}px; filter: drop-shadow(0 1px 2px rgba(23,36,59,.25)); }
   .child-map-pin::before { content: ''; position: absolute; width: 44px; height: 44px;
@@ -64,7 +66,7 @@ export const childMapPinScript = `
       var root = document.createElement('div');
       root.className = 'child-map-pin';
       root.setAttribute('aria-hidden', 'true');
-      root.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 66"><path d="M26 1C12.2 1 1 12.2 1 26c0 17.5 25 39 25 39s25-21.5 25-39C51 12.2 39.8 1 26 1Z" fill="${pinBody}" stroke="${colors.surface}" stroke-width="1.2"/><circle cx="26" cy="26" r="22" fill="${colors.surface}" stroke="${colors.foreground}" stroke-width=".6"/><circle cx="26" cy="26" r="20" fill="none" stroke="${colors.navigationActive}" stroke-width=".6"/></svg>';
+      root.innerHTML = '${mapPinSvg}';
       var face = document.createElement('div');
       face.className = 'child-map-pin-face';
       var initial = document.createElement('span');
