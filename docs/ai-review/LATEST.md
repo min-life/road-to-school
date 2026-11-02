@@ -1,42 +1,43 @@
-# AI Review — Icon vector cho thông tin xe Staff
+# AI Review — Nút vàng dùng chung với Home
 
 ## 1. Task Information
-01/11/2026. Mobile Trip detail icon follow-up. Source COMPLETED; native NOT_VERIFIED.
+02/11/2026 Asia/Saigon. IMPLEMENTATION. Source hoàn tất; native NOT_VERIFIED. Bảo toàn pending work, không commit/push.
 
 ## 2. Original Request
-Thay icon PNG bằng icon Parent.
+PO không muốn nút khác màu vàng; yêu cầu dùng chung kiểu/màu nút Home, ảnh đối chiếu nút Hoàn thành và Xem chi tiết & Vận hành.
 
 ## 3. Approved Scope
-Thẻ thông tin trong sheet map Driver/Bus Attendant đang được chỉnh. Giữ Parent hiện tại theo chỉ thị đã chốt; không mở rộng sang splash, map markers hoặc Home.
+Nút thao tác Staff trong Trip và modal liên quan: vận hành, điểm danh, QR, báo/xác nhận sự cố và nút phụ. Giữ Parent/Home reference, quyền/disabled/handlers.
 
 ## 4. Analysis & Decisions
-Icon xe INFO còn require Bus.png trong JSX dùng chung cả ba vai trò. Người/trường/tab đã dùng Ionicons. Chọn bus-outline màu #D97706 như màn Parent student-detail/route-detail; chỉ Staff dùng vector, Parent giữ Image cũ.
+Reuse parentHomeStyles.primaryBtn/Text cho nút vận hành, kế thừa cho confirm/report/QR. Nút phụ dùng secondaryBtn/Text vàng nhạt. Nút gọn giữ layout nhỏ với palette vàng và chữ tối, radius24. Không thiết kế lại badge/trạng thái/thanh tiến độ.
 
 ## 5. Implementation Details
-mobile/app/trip/[id].tsx: điều kiện isDriverOrAttendant hiển thị Ionicons bus-outline24px vàng; nhánh còn lại giữ nguyên Image24px. Không thêm helper/dependency hoặc xóa asset còn caller. LATEST.diff riêng từ working baseline task, archive báo cáo trước tại history/2026-11-01-before-staff-info-icon.md/.diff. Cập nhật ghi chú architecture.
+Chỉ mobile/app/trip/[id].tsx: import shared Home styles; primaryActionBtn/Text trỏ trực tiếp tới Home. Bỏ bgReady/bgStart/bgArrive/bgComplete và metadata confirmBg/inline overrides. Đồng bộ modal/QR/attendance/report/giải trình; icon/text/spinner tối trên vàng. Retry lỗi chỉ override Staff để giữ Parent. Không sửa shared Home hoặc StaffTripCard. Review/diff task-only, archive trước tại history/2026-11-02-before-yellow-trip-buttons.md/.diff và architecture addendum.
 
 ## 6. Database Changes
-None. Không tạo dữ liệu nghiệp vụ hoặc gọi DB.
+None. Không dữ liệu giả, seed hoặc mutation.
 
 ## 7. API & Swagger Changes
-None. Không đổi hợp đồng/quyền/handlers.
+None. Không đổi API, engine, quyền hoặc gọi API test.
 
 ## 8. UI/UX Changes
-Xe Staff là icon nét vàng, cùng bộ Ionicons đang dùng ở Parent; các icon người/trường/tab giữ nguyên vì đã vector. Giao diện Parent giữ nguyên. Đây là thay icon nhỏ trong bố cục đã duyệt, không refactor màn hình.
+Nút chính vàng#FFCB56, chữ/icon tối, bo tròn như Home; nút phụ vàng nhạt. Disabled giữ opacity0.5 và cùng điều kiện. Badges/progress/camera overlay giữ màu ngữ nghĩa hiện có. Parent reference không đổi.
 
 ## 9. Verification & Testing
-PASS TypeScript app --noEmit exit0.
-PASS TypeScript AST/source assertions: Staff là bus-outline24px #D97706; nhánh Parent Image giống baseline; phục hồi riêng biểu thức icon thu được source giống baseline hoàn toàn, chứng minh không thay tab/content/operation khác.
-Không thêm test phản chiếu icon/style, không chạy lại export cho thay đổi trình bày nhỏ này. Không coi kết quả export/preview task trước là verification mới. Native và authenticated Trip NOT_VERIFIED; integration không thực hiện do thiếu session/dữ liệu được cấp (BLOCKED_BY_TEST_DATA_POLICY). Không cài package, tạo record, commit/push.
+PASS TypeScript app --noEmit exit0 trên source cuối.
+PASS AST parity: tất cả onPress/disabled expressions giữ nguyên; toàn bộ handle* initializers giống baseline sau chỉ loại property confirmBg. Callback/mutation nghiệp vụ không đổi.
+PASS đánh giá chính StyleSheet source với palette/Home styles thật và StyleSheet identity stub: primaryActionBtn/Text cùng object với Home, background#FFCB56/radius24; các action/report/modal/QR primary dùng colors.primary, secondary dùng navigationHighlight; disabled opacity0.5.
+PASS git diff --check. Không thêm test mirror style, không chạy lại navigation tests/export vì chỉ đổi trình bày; không lấy checks task trước làm kết quả mới. Không tạo business fixtures/API responses. Browser/native/font-scale/modal visual acceptance NOT_VERIFIED.
 
 ## 10. Issues & Risks
-Chưa kiểm tra nét vẽ icon trên Android/iOS. Asset Bus.png vẫn cần cho Parent và RoleSplash nên không xóa. Phạm vi không bao gồm splash/brand assets.
+Một số nút modal mới dùng minHeight48/padding như Home nên cần xem màn hẹp/chữ lớn. Không dependencies mới hoặc commit/push.
 
 ## 11. Reviewer Focus
-Chỉ Staff đổi sang vector; Parent Image còn nguyên; các icon khác vốn đã dùng vector.
+Nút INFO thực sự reuse shared style; không còn operation color overrides. Chữ/icon/spinner tương phản với vàng. Giữ nguyên quyền, disabled và callbacks.
 
 ## 12. Suggested Next Step
-PO reload app để xem icon xe trong tab Thông tin Driver/Bus Attendant.
+PO reload app và nghiệm thu nút hoàn thành cùng popup xác nhận trên thiết bị.
 
 ## 13. Approval Status
-PO yêu cầu trực tiếp thực hiện. Source hoàn tất, chờ nghiệm thu native.
+PO yêu cầu trực tiếp; source hoàn tất và checks an toàn PASS, chờ native acceptance.

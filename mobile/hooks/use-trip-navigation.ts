@@ -3,7 +3,7 @@ import { AppState } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import * as Location from 'expo-location';
 import { navigationApi, type Checkpoint, type LocationSource, type NavigationSegment, type NavigationState, type PositionSample } from '../services/trip-navigation';
-import { autoPosition, coordinate, cumulativeDistances, distance, joystickPosition, nextGuidance, projectProgress, splitSegment, type Coordinate } from '../utils/trip-navigation';
+import { autoPosition, coordinate, cumulativeDistances, distance, joystickPosition, nextGuidance, projectProgress, shouldHandOffToManual, splitSegment, type Coordinate } from '../utils/trip-navigation';
 import { decodePolyline } from '../utils/polyline';
 import type { MobileTripDetailStop } from '../services/api-client';
 import { navigationResumeStorage } from '../services/navigation-resume-storage';
@@ -257,6 +257,14 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
     const p = coordinate(position);
     const current = leg.current;
     const target = stopsRef.current.find(s => s.id === cp.current?.targetStopId);
+    if (!busy.current && !routeBusy.current && shouldHandOffToManual(
+      cp.current.activeSource, target?.stopType, target ? distance(p, coordinate(target)) : Infinity,
+    )) {
+      setView(v => ({ ...v, position: p }));
+      // Switch before ADVANCE so the driver takes over at this stop, without moving to the next target.
+      void change('TEST_JOYSTICK');
+      return;
+    }
     if (!current) {
       setView(v => ({ ...v, position: p, guidance: null }));
       const first = stopsRef.current[0];
@@ -646,9 +654,9 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
     joystick: (bearing: number, speed: number) => {
       const now = performance.now();
       if (speed > 0) {
+        if (control.current.speed === 0) control.current.pressStartedAt = now;
         control.current.bearing = bearing;
         control.current.speed = speed;
-        control.current.pressStartedAt = now;
       } else {
         if (control.current.speed > 0 && control.current.pressStartedAt > 0) {
           const heldMs = now - control.current.pressStartedAt;

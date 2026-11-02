@@ -23,6 +23,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { WebView } from 'react-native-webview';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { colors } from '@/constants/theme';
+import { parentHomeStyles } from '@/components/parent/home-styles';
 import { useAuth } from '@/context/auth-context';
 import {
   mobileApiClient,
@@ -41,11 +42,12 @@ import { useActiveRefresh } from '@/hooks/use-active-refresh';
 import type { RefreshContext } from '@/utils/refresh-loop';
 import { getTripMapSnapshot } from '@/utils/trip-map-data';
 import { childMapPinCss, childMapPinScript, childMapPinSize, serializeMapScriptValue } from '@/utils/child-map-marker';
-import { hasTripBottomAction } from '@/utils/trip-map-layout';
+import { hasTripAction } from '@/utils/trip-map-layout';
 import { useParentMapAvatars } from '@/hooks/use-parent-map-avatars';
 import { decodePolyline } from '@/utils/polyline';
 import { useTripNavigation } from '@/hooks/use-trip-navigation';
 import { TripNavigationControls } from '@/components/trip-navigation-controls';
+import { TripJoystick } from '@/components/trip-joystick';
 import { TripContactCallButton } from '@/components/trip-contact-call-button';
 import { loadLocationHistory, navigationApi, type LocationPoint, type LocationSource, type NavigationState } from '@/services/trip-navigation';
 import { cumulativeDistances, projectProgress, recordedParts, splitSegment, type Coordinate } from '@/utils/trip-navigation';
@@ -77,7 +79,6 @@ export default function MobileTripDetailScreen() {
     title: string;
     message: string;
     confirmText: string;
-    confirmBg: string;
     onConfirm: () => void;
   } | null>(null);
 
@@ -94,7 +95,6 @@ export default function MobileTripDetailScreen() {
 
   // Bottom Sheet 2-State Animation & Gesture
   const [isExpanded, setIsExpanded] = useState(false);
-  const [bottomActionHeight, setBottomActionHeight] = useState(0);
   const isExpandedRef = useRef(false);
   const sheetHeightAnim = useRef(new Animated.Value(COLLAPSED_HEIGHT)).current;
   const currentHeight = useRef(COLLAPSED_HEIGHT);
@@ -591,7 +591,6 @@ export default function MobileTripDetailScreen() {
       title: 'Xác nhận sẵn sàng',
       message: 'Bạn xác nhận xe và các điều kiện đón học sinh đã sẵn sàng để khởi hành chuyến xe này?',
       confirmText: 'Xác nhận sẵn sàng',
-      confirmBg: '#059669',
       onConfirm: async () => {
         try {
           await mutate(() => mobileApiClient.markAttendantReady(tripId));
@@ -609,7 +608,6 @@ export default function MobileTripDetailScreen() {
       title: 'Bắt đầu chuyến xe',
       message: 'Bạn có chắc chắn muốn bắt đầu chuyến xe này ngay bây giờ?',
       confirmText: 'Bắt đầu ngay',
-      confirmBg: '#15803D',
       onConfirm: async () => {
         try {
           await mutate(() => mobileApiClient.startTrip(tripId));
@@ -644,7 +642,6 @@ export default function MobileTripDetailScreen() {
       title: 'Xác nhận đến trường',
       message: 'Bạn xác nhận xe đã đến cổng trường an toàn để mở xác nhận học sinh xuống xe?',
       confirmText: 'Xác nhận đến trường',
-      confirmBg: '#0284C7',
       onConfirm: async () => {
         try {
           await mutate(() => mobileApiClient.arriveAtSchool(tripId));
@@ -665,7 +662,6 @@ export default function MobileTripDetailScreen() {
       title: 'Hoàn thành chuyến xe',
       message: `Bạn xác nhận hoàn thành chuyến xe này?\n\n• Có mặt: ${present} học sinh (Đã xuống xe: ${alighted})\n• Vắng mặt: ${absent} học sinh`,
       confirmText: 'Xác nhận hoàn thành',
-      confirmBg: '#2563EB',
       onConfirm: async () => {
         try {
           await mutate(() => mobileApiClient.completeTrip(tripId));
@@ -683,7 +679,6 @@ export default function MobileTripDetailScreen() {
       title: 'Điểm danh có mặt',
       message: `Xác nhận học sinh ${student.fullName} (${student.studentCode}) có mặt trên xe?`,
       confirmText: 'Có mặt',
-      confirmBg: '#059669',
       onConfirm: async () => {
         try {
           await mutate(() => mobileApiClient.updateAttendance(tripId, student.studentId, 'PRESENT'));
@@ -728,7 +723,6 @@ export default function MobileTripDetailScreen() {
       title: 'Hoàn tác điểm danh',
       message: `Đưa trạng thái điểm danh của học sinh ${student.fullName} về Chưa điểm danh?`,
       confirmText: 'Hoàn tác',
-      confirmBg: '#475569',
       onConfirm: async () => {
         try {
           await mutate(() => mobileApiClient.updateAttendance(tripId, student.studentId, 'UNMARKED'));
@@ -748,7 +742,6 @@ export default function MobileTripDetailScreen() {
         ? `Xác nhận học sinh ${student.fullName} (${student.studentCode}) đã xuống xe an toàn?`
         : `Đưa trạng thái của học sinh ${student.fullName} về Chưa xuống xe?`,
       confirmText: isAlighted ? 'Đã xuống xe' : 'Hoàn tác',
-      confirmBg: isAlighted ? '#0284C7' : '#475569',
       onConfirm: async () => {
         try {
           await mutate(() => mobileApiClient.updateAlighting(tripId, student.studentId, isAlighted));
@@ -818,8 +811,8 @@ export default function MobileTripDetailScreen() {
           <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
           <Text style={styles.errorTitle}>Không tìm thấy chuyến xe</Text>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={loadTripDetail}>
-            <Text style={styles.retryButtonText}>Thử lại</Text>
+          <TouchableOpacity style={[styles.retryButton, isDriverOrAttendant && parentHomeStyles.primaryBtn]} onPress={loadTripDetail}>
+            <Text style={[styles.retryButtonText, isDriverOrAttendant && parentHomeStyles.primaryBtnText]}>Thử lại</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -836,8 +829,7 @@ export default function MobileTripDetailScreen() {
     ? operationalState?.status === 'IN_PROGRESS' && !operationalState.isSchoolArrived
     : operationalState?.status === 'IN_PROGRESS' ||
       (operationalState?.status === 'SCHEDULED' && operationalState.isAttendantReady));
-  const showBottomAction = hasTripBottomAction(user?.role, operationalState?.status);
-  const bottomActionOffset = showBottomAction ? bottomActionHeight : 0;
+  const showTripAction = hasTripAction(user?.role, operationalState?.status);
 
   const canReady = Boolean(operationalState?.canMarkReady ?? operationalState?.canAttendantReady);
   const canStart = Boolean(operationalState?.canStartTrip ?? operationalState?.canDriverStart);
@@ -910,7 +902,7 @@ export default function MobileTripDetailScreen() {
         <TripNavigationControls
           canPublish={isDriver && (!!navigation?.canPublish || operationalState?.status === 'IN_PROGRESS') && !terminal}
           testMode={!!navigation?.testMode} mode={engine.mode} guidance={engine.guidance}
-          message={engine.message} change={engine.change} joystick={engine.joystick}
+          message={engine.message} change={engine.change}
           retry={engine.retry} canRetry={isDriver && !engine.segment.length && !terminal}
           speedKmh={engine.speedKmh}
           onIncreaseSpeed={engine.increaseSpeed}
@@ -975,7 +967,7 @@ export default function MobileTripDetailScreen() {
         </View>
       )}
 
-      {/* Floating Header (Back Button & Báo sự cố Button) */}
+      {/* Floating Header (Back Button) */}
       <View
         pointerEvents="box-none"
         style={[
@@ -989,58 +981,7 @@ export default function MobileTripDetailScreen() {
       >
         <HeaderAction icon="arrow-back" label="Quay lại" onPress={() => router.back()} />
 
-        {/* Báo sự cố Button (Only for assigned staff on SCHEDULED trips) */}
-        {isDriverOrAttendant && (trip?.status === 'SCHEDULED' || incidentOptions?.canReport) && (
-          <TouchableOpacity
-            style={[
-              styles.reportIncidentFloatingBtn,
-              incidentOptions && !incidentOptions.canReport && styles.reportIncidentFloatingBtnDisabled,
-            ]}
-            onPress={() => {
-              if (incidentOptions && !incidentOptions.canReport) {
-                const reasonMap: Record<string, string> = {
-                  ATTENDANT_ALREADY_READY: 'Giáo viên phụ xe đã xác nhận sẵn sàng khởi hành.',
-                  INCIDENT_ALREADY_OPEN: 'Đang có báo cáo sự cố chưa được xử lý.',
-                  TRIP_NOT_SCHEDULED: 'Chuyến xe đã bắt đầu hoặc không ở trạng thái chờ khởi hành.',
-                  TOO_EARLY: `Chưa đến khung giờ báo sự cố (bắt đầu từ ${
-                    incidentOptions.reportAvailableAt
-                      ? new Date(incidentOptions.reportAvailableAt).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })
-                      : '15 phút trước giờ chạy'
-                  }).`,
-                  SCHEDULED_END_TIME_EXCEEDED: 'Chuyến xe đã quá giờ kết thúc dự kiến.',
-                  NOT_ASSIGNED_DRIVER: 'Bạn không phải tài xế được phân công cho chuyến này.',
-                  NOT_ASSIGNED_ATTENDANT: 'Bạn không phải phụ xe được phân công cho chuyến này.',
-                  MISSING_SCHEDULE_TIMES: 'Chuyến xe chưa có thông tin giờ bắt đầu/kết thúc lịch trình.',
-                };
-                Alert.alert(
-                  'Không thể báo sự cố',
-                  reasonMap[incidentOptions.disabledReason || ''] ||
-                    'Hiện tại chuyến xe chưa đủ điều kiện để báo sự cố.',
-                );
-                return;
-              }
-              setReportModalVisible(true);
-            }}
-            activeOpacity={0.85}
-          >
-            <Ionicons
-              name="warning"
-              size={15}
-              color={incidentOptions && !incidentOptions.canReport ? '#94A3B8' : '#DC2626'}
-            />
-            <Text
-              style={[
-                styles.reportIncidentFloatingBtnText,
-                incidentOptions && !incidentOptions.canReport && { color: '#94A3B8' },
-              ]}
-            >
-              Báo sự cố
-            </Text>
-          </TouchableOpacity>
-        )}
+
       </View>
 
       {/* Bus Attendant Unconfirmed Incident Warning Banner */}
@@ -1062,14 +1003,20 @@ export default function MobileTripDetailScreen() {
         </View>
       )}
 
+      {isDriver && navigation?.testMode && engine.mode === 'TEST_JOYSTICK' && !terminal && !isExpanded && (
+        <Animated.View style={{ position: 'absolute', right: 12, bottom: Animated.add(sheetHeightAnim, 16) }}>
+          <TripJoystick onMove={engine.joystick} />
+        </Animated.View>
+      )}
+
       {/* 2. Persistent 2-State Draggable Bottom Sheet */}
       <Animated.View
         style={[
           styles.bottomSheet,
           {
             height: sheetHeightAnim,
-            bottom: bottomActionOffset,
-            paddingBottom: showBottomAction ? 10 : insets.bottom + 10,
+            bottom: 0,
+            paddingBottom: insets.bottom + 10,
           },
         ]}
       >
@@ -1416,6 +1363,89 @@ export default function MobileTripDetailScreen() {
                   </View>
                   <TripContactCallButton phone={trip.busAttendantPhone} contactLabel="giáo viên phụ xe" />
                 </View>
+
+                {showTripAction && (
+                  <View style={styles.tripInfoActions}>
+                    {isBusAttendant ? (
+                      /* BUS ATTENDANT ACTION */
+                      operationalState?.status === 'SCHEDULED' ? (
+                        operationalState.isAttendantReady ? (
+                          <View style={styles.readyBadgeRow}>
+                            <Ionicons name="checkmark-circle" size={20} color="#059669" />
+                            <Text style={styles.readyBadgeText}>
+                              Bạn đã xác nhận sẵn sàng khởi hành
+                            </Text>
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            style={[
+                              styles.primaryActionBtn,
+                              !canReady && styles.btnDisabled,
+                            ]}
+                            disabled={!canReady}
+                            onPress={handleMarkReady}
+                            activeOpacity={0.85}
+                          >
+                            <Ionicons name="hand-right-outline" size={18} color={colors.foreground} />
+                            <Text style={styles.primaryActionBtnText}>
+                              {canReady ? 'Xác nhận sẵn sàng' : readyDisabledText}
+                            </Text>
+                          </TouchableOpacity>
+                        )
+                      ) : null
+                    ) : isDriver ? (
+                      /* DRIVER ACTION */
+                      operationalState?.status === 'SCHEDULED' ? (
+                        <TouchableOpacity
+                          style={[
+                            styles.primaryActionBtn,
+                            !canStart && styles.btnDisabled,
+                          ]}
+                          disabled={!canStart}
+                          onPress={handleStartTrip}
+                          activeOpacity={0.85}
+                        >
+                          <Ionicons name="play" size={18} color={colors.foreground} />
+                          <Text style={styles.primaryActionBtnText}>
+                            {canStart ? 'Bắt đầu chuyến xe' : startDisabledText}
+                          </Text>
+                        </TouchableOpacity>
+                      ) : operationalState?.status === 'IN_PROGRESS' ? (
+                        isToSchool && !operationalState?.isSchoolArrived ? (
+                          <TouchableOpacity
+                            style={[
+                              styles.primaryActionBtn,
+                              !canArriveAtSchool && styles.btnDisabled,
+                            ]}
+                            disabled={!canArriveAtSchool}
+                            onPress={handleArriveAtSchool}
+                            activeOpacity={0.85}
+                          >
+                            <Ionicons name="school-outline" size={18} color={colors.foreground} />
+                            <Text style={styles.primaryActionBtnText}>
+                              {canArriveAtSchool ? 'Xác nhận đến trường' : arriveDisabledText}
+                            </Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <TouchableOpacity
+                            style={[
+                              styles.primaryActionBtn,
+                              !canComplete && styles.btnDisabled,
+                            ]}
+                            disabled={!canComplete}
+                            onPress={handleCompleteTrip}
+                            activeOpacity={0.85}
+                          >
+                            <Ionicons name="flag-outline" size={18} color={colors.foreground} />
+                            <Text style={styles.primaryActionBtnText}>
+                              {canComplete ? 'Hoàn thành chuyến xe' : completeDisabledText}
+                            </Text>
+                          </TouchableOpacity>
+                        )
+                      ) : null
+                    ) : null}
+                  </View>
+                )}
               </ScrollView>
             )}
 
@@ -1700,7 +1730,7 @@ export default function MobileTripDetailScreen() {
                                         disabled={!canBoard}
                                         onPress={() => handleMarkPresent(student)}
                                       >
-                                        <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                                        <Ionicons name="checkmark" size={14} color={colors.foreground} />
                                         <Text style={styles.actionBtnTextLight}>Có mặt</Text>
                                       </TouchableOpacity>
 
@@ -1712,7 +1742,7 @@ export default function MobileTripDetailScreen() {
                                         disabled={!canBoard}
                                         onPress={() => handleOpenAbsenceModal(student)}
                                       >
-                                        <Ionicons name="close" size={14} color="#FFFFFF" />
+                                        <Ionicons name="close" size={14} color={colors.foreground} />
                                         <Text style={styles.actionBtnTextLight}>Vắng mặt</Text>
                                       </TouchableOpacity>
                                     </>
@@ -1871,7 +1901,7 @@ export default function MobileTripDetailScreen() {
                                         onPress={() => handleToggleAlighting(student, true)}
                                         activeOpacity={0.85}
                                       >
-                                        <Ionicons name="walk-outline" size={15} color="#FFFFFF" />
+                                        <Ionicons name="walk-outline" size={15} color={colors.foreground} />
                                         <Text style={styles.actionBtnTextLight}>Xác nhận xuống xe</Text>
                                       </TouchableOpacity>
                                     ) : (
@@ -1901,6 +1931,53 @@ export default function MobileTripDetailScreen() {
             {/* TAB 4: SỰ CỐ VẬN HÀNH */}
             {activeTab === 'INCIDENTS' && (
               <ScrollView style={styles.tabContentScroll} showsVerticalScrollIndicator={false}>
+                {/* Báo sự cố */}
+                {isDriverOrAttendant && (trip?.status === 'SCHEDULED' || incidentOptions?.canReport) && (
+                  <TouchableOpacity
+                    style={[
+                      styles.reportIncidentButton,
+                      incidentOptions && !incidentOptions.canReport && styles.reportIncidentButtonDisabled,
+                    ]}
+                    onPress={() => {
+                      if (incidentOptions && !incidentOptions.canReport) {
+                        const reasonMap: Record<string, string> = {
+                          ATTENDANT_ALREADY_READY: 'Giáo viên phụ xe đã xác nhận sẵn sàng khởi hành.',
+                          INCIDENT_ALREADY_OPEN: 'Đang có báo cáo sự cố chưa được xử lý.',
+                          TRIP_NOT_SCHEDULED: 'Chuyến xe đã bắt đầu hoặc không ở trạng thái chờ khởi hành.',
+                          TOO_EARLY: `Chưa đến khung giờ báo sự cố (bắt đầu từ ${
+                            incidentOptions.reportAvailableAt
+                              ? new Date(incidentOptions.reportAvailableAt).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })
+                              : '15 phút trước giờ chạy'
+                          }).`,
+                          SCHEDULED_END_TIME_EXCEEDED: 'Chuyến xe đã quá giờ kết thúc dự kiến.',
+                          NOT_ASSIGNED_DRIVER: 'Bạn không phải tài xế được phân công cho chuyến này.',
+                          NOT_ASSIGNED_ATTENDANT: 'Bạn không phải phụ xe được phân công cho chuyến này.',
+                          MISSING_SCHEDULE_TIMES: 'Chuyến xe chưa có thông tin giờ bắt đầu/kết thúc lịch trình.',
+                        };
+                        Alert.alert(
+                          'Không thể báo sự cố',
+                          reasonMap[incidentOptions.disabledReason || ''] ||
+                            'Hiện tại chuyến xe chưa đủ điều kiện để báo sự cố.',
+                        );
+                        return;
+                      }
+                      setReportModalVisible(true);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons
+                      name="warning"
+                      size={15}
+                      color={colors.foreground}
+                    />
+                    <Text style={styles.reportIncidentButtonText}>
+                      Báo sự cố
+                    </Text>
+                  </TouchableOpacity>
+                )}
                 {tripIncidents.length === 0 ? (
                   <View style={styles.emptyIncidentsBox}>
                     <Ionicons name="checkmark-circle-outline" size={40} color="#10B981" />
@@ -2054,95 +2131,6 @@ export default function MobileTripDetailScreen() {
         )}
       </Animated.View>
 
-      {/* 3. Fixed Bottom Action Area (Pinned to screen bottom, respects safe area) */}
-      {showBottomAction && (
-        <View onLayout={event => setBottomActionHeight(event.nativeEvent.layout.height)}
-          style={[styles.fixedBottomActionContainer, { paddingBottom: insets.bottom + 8 }]}>
-          {isBusAttendant ? (
-            /* BUS ATTENDANT BOTTOM ACTION */
-            operationalState?.status === 'SCHEDULED' ? (
-              operationalState.isAttendantReady ? (
-                <View style={styles.readyBadgeRow}>
-                  <Ionicons name="checkmark-circle" size={20} color="#059669" />
-                  <Text style={styles.readyBadgeText}>
-                    Bạn đã xác nhận sẵn sàng khởi hành
-                  </Text>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={[
-                    styles.primaryActionBtn,
-                    styles.bgReady,
-                    !canReady && styles.btnDisabled,
-                  ]}
-                  disabled={!canReady}
-                  onPress={handleMarkReady}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="hand-right-outline" size={18} color="#FFFFFF" />
-                  <Text style={styles.primaryActionBtnText}>
-                    {canReady ? 'Xác nhận sẵn sàng' : readyDisabledText}
-                  </Text>
-                </TouchableOpacity>
-              )
-            ) : null
-          ) : isDriver ? (
-            /* DRIVER BOTTOM ACTION */
-            operationalState?.status === 'SCHEDULED' ? (
-              <TouchableOpacity
-                style={[
-                  styles.primaryActionBtn,
-                  styles.bgStart,
-                  !canStart && styles.btnDisabled,
-                ]}
-                disabled={!canStart}
-                onPress={handleStartTrip}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="play" size={18} color="#FFFFFF" />
-                <Text style={styles.primaryActionBtnText}>
-                  {canStart ? 'Bắt đầu chuyến xe' : startDisabledText}
-                </Text>
-              </TouchableOpacity>
-            ) : operationalState?.status === 'IN_PROGRESS' ? (
-              isToSchool && !operationalState?.isSchoolArrived ? (
-                <TouchableOpacity
-                  style={[
-                    styles.primaryActionBtn,
-                    styles.bgArrive,
-                    !canArriveAtSchool && styles.btnDisabled,
-                  ]}
-                  disabled={!canArriveAtSchool}
-                  onPress={handleArriveAtSchool}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="school-outline" size={18} color="#FFFFFF" />
-                  <Text style={styles.primaryActionBtnText}>
-                    {canArriveAtSchool ? 'Xác nhận đến trường' : arriveDisabledText}
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={[
-                    styles.primaryActionBtn,
-                    styles.bgComplete,
-                    !canComplete && styles.btnDisabled,
-                  ]}
-                  disabled={!canComplete}
-                  onPress={handleCompleteTrip}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="flag-outline" size={18} color="#FFFFFF" />
-                  <Text style={styles.primaryActionBtnText}>
-                    {canComplete ? 'Hoàn thành chuyến xe' : completeDisabledText}
-                  </Text>
-                </TouchableOpacity>
-              )
-            ) : null
-          ) : null}
-        </View>
-      )}
-
       {/* Confirmation Modal */}
       {confirmModal && (
         <Modal transparent animationType="fade" visible={confirmModal.visible}>
@@ -2158,7 +2146,7 @@ export default function MobileTripDetailScreen() {
                   <Text style={styles.modalCancelBtnText}>Hủy bỏ</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.modalConfirmBtn, { backgroundColor: confirmModal.confirmBg }]}
+                  style={styles.modalConfirmBtn}
                   onPress={confirmModal.onConfirm}
                 >
                   <Text style={styles.modalConfirmBtnText}>{confirmModal.confirmText}</Text>
@@ -2201,7 +2189,7 @@ export default function MobileTripDetailScreen() {
                   <Text style={styles.modalCancelBtnText}>Hủy</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.modalConfirmBtn, { backgroundColor: '#DC2626' }]}
+                  style={styles.modalConfirmBtn}
                   onPress={handleSubmitAbsence}
                 >
                   <Text style={styles.modalConfirmBtnText}>Xác nhận vắng</Text>
@@ -2389,7 +2377,7 @@ export default function MobileTripDetailScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.modalConfirmBtn, { backgroundColor: '#DC2626' }]}
+                style={styles.modalConfirmBtn}
                 onPress={() => {
                   Keyboard.dismiss();
                   handleReportIncident();
@@ -2397,7 +2385,7 @@ export default function MobileTripDetailScreen() {
                 disabled={reportingIncident}
               >
                 {reportingIncident ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <ActivityIndicator size="small" color={colors.foreground} />
                 ) : (
                   <Text style={styles.modalConfirmBtnText}>Gửi báo cáo</Text>
                 )}
@@ -2493,7 +2481,6 @@ export default function MobileTripDetailScreen() {
               <TouchableOpacity
                 style={[
                   styles.modalConfirmBtn,
-                  { backgroundColor: '#059669' },
                   (!confirmReason.trim() || confirmReason.trim().length < 3) && styles.btnDisabled,
                 ]}
                 onPress={() => {
@@ -2503,7 +2490,7 @@ export default function MobileTripDetailScreen() {
                 disabled={confirmingIncident || !confirmReason.trim() || confirmReason.trim().length < 3}
               >
                 {confirmingIncident ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <ActivityIndicator size="small" color={colors.foreground} />
                 ) : (
                   <Text style={styles.modalConfirmBtnText}>Xác nhận & Gửi</Text>
                 )}
@@ -2567,31 +2554,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 10,
   },
-  reportIncidentFloatingBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  reportIncidentFloatingBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#DC2626',
-  },
-  reportIncidentFloatingBtnDisabled: {
-    borderColor: '#E2E8F0',
-    backgroundColor: '#F8FAFC',
-  },
+  reportIncidentButton: { ...parentHomeStyles.primaryBtn, marginTop: 12, marginBottom: 12 },
+  reportIncidentButtonText: parentHomeStyles.primaryBtnText,
+  reportIncidentButtonDisabled: parentHomeStyles.disabled,
   floatingWarningBanner: {
     position: 'absolute',
     left: 16,
@@ -2618,15 +2583,15 @@ const styles = StyleSheet.create({
     color: '#B45309',
   },
   floatingWarningBannerBtn: {
-    backgroundColor: '#D97706',
+    backgroundColor: colors.primary,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 24,
   },
   floatingWarningBannerBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: colors.foreground,
   },
   sheetWarningBanner: {
     flexDirection: 'row',
@@ -2647,15 +2612,15 @@ const styles = StyleSheet.create({
     color: '#B45309',
   },
   sheetWarningBannerBtn: {
-    backgroundColor: '#D97706',
+    backgroundColor: colors.primary,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 8,
+    borderRadius: 24,
   },
   sheetWarningBannerBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: colors.foreground,
   },
   emptyIncidentsBox: {
     padding: 32,
@@ -2744,15 +2709,15 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
   },
   incidentConfirmSmallBtn: {
-    backgroundColor: '#059669',
+    backgroundColor: colors.primary,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 24,
   },
   incidentConfirmSmallBtnText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: colors.foreground,
   },
   modalHeaderRow: {
     flexDirection: 'row',
@@ -2827,10 +2792,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.navigationHighlight,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: 24,
   },
   keyboardDismissBtnText: {
     fontSize: 11,
@@ -2848,19 +2813,8 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     minHeight: 70,
   },
-  modalLaterBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalLaterBtnText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#475569',
-  },
+  modalLaterBtn: { ...parentHomeStyles.secondaryBtn, flex: 1 },
+  modalLaterBtnText: parentHomeStyles.secondaryBtnText,
   bottomSheet: {
     position: 'absolute',
     left: 0,
@@ -3146,17 +3100,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.primary,
     paddingVertical: 6,
     paddingHorizontal: 10,
-    borderRadius: 8,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: colors.primary,
   },
   qrHeaderBtnText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#1E293B',
+    color: colors.foreground,
   },
   searchBox: {
     flexDirection: 'row',
@@ -3270,9 +3224,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    backgroundColor: '#059669',
+    backgroundColor: colors.primary,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: 24,
   },
   actionBtnAbsent: {
     flex: 1,
@@ -3280,87 +3234,55 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    backgroundColor: '#DC2626',
+    backgroundColor: colors.primary,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: 24,
   },
   actionBtnSwitch: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E2E8F0',
+    backgroundColor: colors.navigationHighlight,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: 24,
   },
   actionBtnReset: {
     width: 80,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.navigationHighlight,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: colors.primary,
   },
   actionBtnTextLight: {
-    color: '#FFFFFF',
+    color: colors.foreground,
     fontSize: 12,
     fontWeight: '600',
   },
   actionBtnTextDark: {
-    color: '#0F172A',
+    color: colors.foreground,
     fontSize: 12,
     fontWeight: '600',
   },
   btnDisabled: {
     opacity: 0.5,
   },
-  fixedBottomActionContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 10,
-    zIndex: 99,
+  tripInfoActions: {
+    paddingTop: 4,
+    paddingBottom: 12,
   },
-  primaryActionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 13,
-    borderRadius: 12,
-  },
-  bgReady: {
-    backgroundColor: '#059669',
-  },
-  bgStart: {
-    backgroundColor: '#15803D',
-  },
-  bgComplete: {
-    backgroundColor: '#2563EB',
-  },
-  bgArrive: {
-    backgroundColor: '#0284C7',
-  },
+  primaryActionBtn: parentHomeStyles.primaryBtn,
   actionBtnAlight: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    backgroundColor: '#0284C7',
+    backgroundColor: colors.primary,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: 24,
   },
   subTabBar: {
     flexDirection: 'row',
@@ -3415,11 +3337,7 @@ const styles = StyleSheet.create({
   textNotAlighted: {
     color: '#D97706',
   },
-  primaryActionBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
+  primaryActionBtnText: parentHomeStyles.primaryBtnText,
   readyBadgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3469,31 +3387,10 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 8,
   },
-  modalCancelBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 11,
-    borderRadius: 10,
-    backgroundColor: '#F1F5F9',
-  },
-  modalCancelBtnText: {
-    color: '#475569',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  modalConfirmBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 11,
-    borderRadius: 10,
-  },
-  modalConfirmBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
+  modalCancelBtn: { ...parentHomeStyles.secondaryBtn, flex: 1 },
+  modalCancelBtnText: parentHomeStyles.secondaryBtnText,
+  modalConfirmBtn: { ...parentHomeStyles.primaryBtn, flex: 1 },
+  modalConfirmBtnText: parentHomeStyles.primaryBtnText,
   absenceInput: {
     backgroundColor: '#F8FAFC',
     borderRadius: 8,
@@ -3571,14 +3468,14 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
   qrManualSubmitBtn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: colors.primary,
     paddingHorizontal: 16,
-    borderRadius: 10,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },
   qrManualSubmitText: {
-    color: '#FFFFFF',
+    color: colors.foreground,
     fontSize: 13,
     fontWeight: '700',
   },
@@ -3617,29 +3514,9 @@ const styles = StyleSheet.create({
     marginTop: 20,
     width: '100%',
   },
-  qrVerifyRetryBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    backgroundColor: '#F1F5F9',
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  qrVerifyRetryText: {
-    color: '#475569',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  qrVerifyConfirmBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    backgroundColor: '#059669',
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  qrVerifyConfirmText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
+  qrVerifyRetryBtn: { ...parentHomeStyles.secondaryBtn, flex: 1 },
+  qrVerifyRetryText: parentHomeStyles.secondaryBtnText,
+  qrVerifyConfirmBtn: { ...parentHomeStyles.primaryBtn, flex: 1 },
+  qrVerifyConfirmText: parentHomeStyles.primaryBtnText,
 });
 import { AppHeader, HeaderAction } from '@/components/navigation/app-header';

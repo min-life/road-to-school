@@ -1,0 +1,29 @@
+diff --git a/mobile/components/trip-joystick.tsx b/mobile/components/trip-joystick.tsx
+index 9c064ff..1e30b40 100644
+--- a/mobile/components/trip-joystick.tsx
++++ b/mobile/components/trip-joystick.tsx
+@@ -3,2 +2,0 @@ import { AppState, PanResponder, StyleSheet, View } from 'react-native';
+-import Ionicons from '@expo/vector-icons/Ionicons';
+-import { colors } from '../constants/theme';
+@@ -82,7 +80 @@ export function TripJoystick({ onMove }: { onMove: (bearing: number, speed: numb
+-        <Ionicons name="chevron-up" size={14} color={colors.navigationActive} style={styles.north} />
+-        <Ionicons name="chevron-forward" size={14} color={colors.navigationActive} style={styles.east} />
+-        <Ionicons name="chevron-down" size={14} color={colors.navigationActive} style={styles.south} />
+-        <Ionicons name="chevron-back" size={14} color={colors.navigationActive} style={styles.west} />
+-        <View style={[styles.thumb, { transform: [{ translateX: thumb.x }, { translateY: thumb.y }] }]}>
+-          <Ionicons name="move" size={24} color={colors.foreground} />
+-        </View>
++        <View style={[styles.thumb, { transform: [{ translateX: thumb.x }, { translateY: thumb.y }] }]} />
+@@ -97,3 +89 @@ const styles = StyleSheet.create({
+-    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+-    shadowColor: colors.navigationShadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15,
+-    shadowRadius: 6, elevation: 4,
++    backgroundColor: 'transparent', borderWidth: 1, borderColor: 'rgba(30, 41, 59, 0.3)',
+@@ -103,2 +93,2 @@ const styles = StyleSheet.create({
+-    width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary,
+-    alignItems: 'center', justifyContent: 'center',
++    width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(30, 41, 59, 0.16)',
++    borderWidth: 1, borderColor: 'rgba(30, 41, 59, 0.45)',
+@@ -106,2 +95,0 @@ const styles = StyleSheet.create({
+-  north: { position: 'absolute', top: 6 }, east: { position: 'absolute', right: 6 },
+-  south: { position: 'absolute', bottom: 6 }, west: { position: 'absolute', left: 6 },

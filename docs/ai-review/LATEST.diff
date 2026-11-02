@@ -1,19 +1,308 @@
 diff --git a/mobile/app/trip/[id].tsx b/mobile/app/trip/[id].tsx
-index fd6ac92..ca73352 100644
+index 011148a..7bae554 100644
 --- a/mobile/app/trip/[id].tsx
 +++ b/mobile/app/trip/[id].tsx
-@@ -1375,5 +1375,9 @@ export default function MobileTripDetailScreen() {
--                    <Image
--                      source={require('@/assets/driver/Bus.png')}
--                      style={{ width: 24, height: 24 }}
--                      resizeMode="contain"
--                    />
-+                    {isDriverOrAttendant ? (
-+                      <Ionicons name="bus-outline" size={24} color="#D97706" />
-+                    ) : (
-+                      <Image
-+                        source={require('@/assets/driver/Bus.png')}
-+                        style={{ width: 24, height: 24 }}
-+                        resizeMode="contain"
-+                      />
-+                    )}
+@@ -25,0 +26 @@ import { colors } from '@/constants/theme';
++import { parentHomeStyles } from '@/components/parent/home-styles';
+@@ -81 +81,0 @@ export default function MobileTripDetailScreen() {
+-    confirmBg: string;
+@@ -594 +593,0 @@ export default function MobileTripDetailScreen() {
+-      confirmBg: '#059669',
+@@ -612 +610,0 @@ export default function MobileTripDetailScreen() {
+-      confirmBg: '#15803D',
+@@ -647 +644,0 @@ export default function MobileTripDetailScreen() {
+-      confirmBg: '#0284C7',
+@@ -668 +664,0 @@ export default function MobileTripDetailScreen() {
+-      confirmBg: '#2563EB',
+@@ -686 +681,0 @@ export default function MobileTripDetailScreen() {
+-      confirmBg: '#059669',
+@@ -731 +725,0 @@ export default function MobileTripDetailScreen() {
+-      confirmBg: '#475569',
+@@ -751 +744,0 @@ export default function MobileTripDetailScreen() {
+-      confirmBg: isAlighted ? '#0284C7' : '#475569',
+@@ -821,2 +814,2 @@ export default function MobileTripDetailScreen() {
+-          <TouchableOpacity style={styles.retryButton} onPress={loadTripDetail}>
+-            <Text style={styles.retryButtonText}>Thử lại</Text>
++          <TouchableOpacity style={[styles.retryButton, isDriverOrAttendant && parentHomeStyles.primaryBtn]} onPress={loadTripDetail}>
++            <Text style={[styles.retryButtonText, isDriverOrAttendant && parentHomeStyles.primaryBtnText]}>Thử lại</Text>
+@@ -1390 +1382,0 @@ export default function MobileTripDetailScreen() {
+-                              styles.bgReady,
+@@ -1397 +1389 @@ export default function MobileTripDetailScreen() {
+-                            <Ionicons name="hand-right-outline" size={18} color="#FFFFFF" />
++                            <Ionicons name="hand-right-outline" size={18} color={colors.foreground} />
+@@ -1410 +1401,0 @@ export default function MobileTripDetailScreen() {
+-                            styles.bgStart,
+@@ -1417 +1408 @@ export default function MobileTripDetailScreen() {
+-                          <Ionicons name="play" size={18} color="#FFFFFF" />
++                          <Ionicons name="play" size={18} color={colors.foreground} />
+@@ -1427 +1417,0 @@ export default function MobileTripDetailScreen() {
+-                              styles.bgArrive,
+@@ -1434 +1424 @@ export default function MobileTripDetailScreen() {
+-                            <Ionicons name="school-outline" size={18} color="#FFFFFF" />
++                            <Ionicons name="school-outline" size={18} color={colors.foreground} />
+@@ -1443 +1432,0 @@ export default function MobileTripDetailScreen() {
+-                              styles.bgComplete,
+@@ -1450 +1439 @@ export default function MobileTripDetailScreen() {
+-                            <Ionicons name="flag-outline" size={18} color="#FFFFFF" />
++                            <Ionicons name="flag-outline" size={18} color={colors.foreground} />
+@@ -1744 +1733 @@ export default function MobileTripDetailScreen() {
+-                                        <Ionicons name="checkmark" size={14} color="#FFFFFF" />
++                                        <Ionicons name="checkmark" size={14} color={colors.foreground} />
+@@ -1756 +1745 @@ export default function MobileTripDetailScreen() {
+-                                        <Ionicons name="close" size={14} color="#FFFFFF" />
++                                        <Ionicons name="close" size={14} color={colors.foreground} />
+@@ -1915 +1904 @@ export default function MobileTripDetailScreen() {
+-                                        <Ionicons name="walk-outline" size={15} color="#FFFFFF" />
++                                        <Ionicons name="walk-outline" size={15} color={colors.foreground} />
+@@ -1985 +1974 @@ export default function MobileTripDetailScreen() {
+-                      color={incidentOptions && !incidentOptions.canReport ? '#94A3B8' : '#DC2626'}
++                      color={colors.foreground}
+@@ -1987,6 +1976 @@ export default function MobileTripDetailScreen() {
+-                    <Text
+-                      style={[
+-                        styles.reportIncidentButtonText,
+-                        incidentOptions && !incidentOptions.canReport && { color: '#94A3B8' },
+-                      ]}
+-                    >
++                    <Text style={styles.reportIncidentButtonText}>
+@@ -2165 +2149 @@ export default function MobileTripDetailScreen() {
+-                  style={[styles.modalConfirmBtn, { backgroundColor: confirmModal.confirmBg }]}
++                  style={styles.modalConfirmBtn}
+@@ -2208 +2192 @@ export default function MobileTripDetailScreen() {
+-                  style={[styles.modalConfirmBtn, { backgroundColor: '#DC2626' }]}
++                  style={styles.modalConfirmBtn}
+@@ -2396 +2380 @@ export default function MobileTripDetailScreen() {
+-                style={[styles.modalConfirmBtn, { backgroundColor: '#DC2626' }]}
++                style={styles.modalConfirmBtn}
+@@ -2404 +2388 @@ export default function MobileTripDetailScreen() {
+-                  <ActivityIndicator size="small" color="#FFFFFF" />
++                  <ActivityIndicator size="small" color={colors.foreground} />
+@@ -2500 +2483,0 @@ export default function MobileTripDetailScreen() {
+-                  { backgroundColor: '#059669' },
+@@ -2510 +2493 @@ export default function MobileTripDetailScreen() {
+-                  <ActivityIndicator size="small" color="#FFFFFF" />
++                  <ActivityIndicator size="small" color={colors.foreground} />
+@@ -2574,23 +2557,3 @@ const styles = StyleSheet.create({
+-  reportIncidentButton: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'center',
+-    gap: 6,
+-    marginTop: 12,
+-    marginBottom: 12,
+-    paddingHorizontal: 12,
+-    paddingVertical: 10,
+-    borderRadius: 10,
+-    backgroundColor: '#FFFFFF',
+-    borderWidth: 1,
+-    borderColor: '#FECACA',
+-  },
+-  reportIncidentButtonText: {
+-    fontSize: 13,
+-    fontWeight: '700',
+-    color: '#DC2626',
+-  },
+-  reportIncidentButtonDisabled: {
+-    borderColor: '#E2E8F0',
+-    backgroundColor: '#F8FAFC',
+-  },
++  reportIncidentButton: { ...parentHomeStyles.primaryBtn, marginTop: 12, marginBottom: 12 },
++  reportIncidentButtonText: parentHomeStyles.primaryBtnText,
++  reportIncidentButtonDisabled: parentHomeStyles.disabled,
+@@ -2623 +2586 @@ const styles = StyleSheet.create({
+-    backgroundColor: '#D97706',
++    backgroundColor: colors.primary,
+@@ -2626 +2589 @@ const styles = StyleSheet.create({
+-    borderRadius: 8,
++    borderRadius: 24,
+@@ -2631 +2594 @@ const styles = StyleSheet.create({
+-    color: '#FFFFFF',
++    color: colors.foreground,
+@@ -2652 +2615 @@ const styles = StyleSheet.create({
+-    backgroundColor: '#D97706',
++    backgroundColor: colors.primary,
+@@ -2655 +2618 @@ const styles = StyleSheet.create({
+-    borderRadius: 8,
++    borderRadius: 24,
+@@ -2660 +2623 @@ const styles = StyleSheet.create({
+-    color: '#FFFFFF',
++    color: colors.foreground,
+@@ -2749 +2712 @@ const styles = StyleSheet.create({
+-    backgroundColor: '#059669',
++    backgroundColor: colors.primary,
+@@ -2752 +2715 @@ const styles = StyleSheet.create({
+-    borderRadius: 6,
++    borderRadius: 24,
+@@ -2757 +2720 @@ const styles = StyleSheet.create({
+-    color: '#FFFFFF',
++    color: colors.foreground,
+@@ -2832 +2795 @@ const styles = StyleSheet.create({
+-    backgroundColor: '#F1F5F9',
++    backgroundColor: colors.navigationHighlight,
+@@ -2835 +2798 @@ const styles = StyleSheet.create({
+-    borderRadius: 6,
++    borderRadius: 24,
+@@ -2853,13 +2816,2 @@ const styles = StyleSheet.create({
+-  modalLaterBtn: {
+-    flex: 1,
+-    paddingVertical: 12,
+-    borderRadius: 12,
+-    backgroundColor: '#F1F5F9',
+-    alignItems: 'center',
+-    justifyContent: 'center',
+-  },
+-  modalLaterBtnText: {
+-    fontSize: 14,
+-    fontWeight: '600',
+-    color: '#475569',
+-  },
++  modalLaterBtn: { ...parentHomeStyles.secondaryBtn, flex: 1 },
++  modalLaterBtnText: parentHomeStyles.secondaryBtnText,
+@@ -3151 +3103 @@ const styles = StyleSheet.create({
+-    backgroundColor: '#F1F5F9',
++    backgroundColor: colors.primary,
+@@ -3154 +3106 @@ const styles = StyleSheet.create({
+-    borderRadius: 8,
++    borderRadius: 24,
+@@ -3156 +3108 @@ const styles = StyleSheet.create({
+-    borderColor: '#CBD5E1',
++    borderColor: colors.primary,
+@@ -3161 +3113 @@ const styles = StyleSheet.create({
+-    color: '#1E293B',
++    color: colors.foreground,
+@@ -3275 +3227 @@ const styles = StyleSheet.create({
+-    backgroundColor: '#059669',
++    backgroundColor: colors.primary,
+@@ -3277 +3229 @@ const styles = StyleSheet.create({
+-    borderRadius: 8,
++    borderRadius: 24,
+@@ -3285 +3237 @@ const styles = StyleSheet.create({
+-    backgroundColor: '#DC2626',
++    backgroundColor: colors.primary,
+@@ -3287 +3239 @@ const styles = StyleSheet.create({
+-    borderRadius: 8,
++    borderRadius: 24,
+@@ -3293 +3245 @@ const styles = StyleSheet.create({
+-    backgroundColor: '#E2E8F0',
++    backgroundColor: colors.navigationHighlight,
+@@ -3295 +3247 @@ const styles = StyleSheet.create({
+-    borderRadius: 8,
++    borderRadius: 24,
+@@ -3301 +3253 @@ const styles = StyleSheet.create({
+-    backgroundColor: '#F1F5F9',
++    backgroundColor: colors.navigationHighlight,
+@@ -3303 +3255 @@ const styles = StyleSheet.create({
+-    borderRadius: 8,
++    borderRadius: 24,
+@@ -3305 +3257 @@ const styles = StyleSheet.create({
+-    borderColor: '#CBD5E1',
++    borderColor: colors.primary,
+@@ -3308 +3260 @@ const styles = StyleSheet.create({
+-    color: '#FFFFFF',
++    color: colors.foreground,
+@@ -3313 +3265 @@ const styles = StyleSheet.create({
+-    color: '#0F172A',
++    color: colors.foreground,
+@@ -3324,20 +3276 @@ const styles = StyleSheet.create({
+-  primaryActionBtn: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'center',
+-    gap: 8,
+-    paddingVertical: 13,
+-    borderRadius: 12,
+-  },
+-  bgReady: {
+-    backgroundColor: '#059669',
+-  },
+-  bgStart: {
+-    backgroundColor: '#15803D',
+-  },
+-  bgComplete: {
+-    backgroundColor: '#2563EB',
+-  },
+-  bgArrive: {
+-    backgroundColor: '#0284C7',
+-  },
++  primaryActionBtn: parentHomeStyles.primaryBtn,
+@@ -3350 +3283 @@ const styles = StyleSheet.create({
+-    backgroundColor: '#0284C7',
++    backgroundColor: colors.primary,
+@@ -3352 +3285 @@ const styles = StyleSheet.create({
+-    borderRadius: 8,
++    borderRadius: 24,
+@@ -3407,5 +3340 @@ const styles = StyleSheet.create({
+-  primaryActionBtnText: {
+-    color: '#FFFFFF',
+-    fontSize: 14,
+-    fontWeight: '700',
+-  },
++  primaryActionBtnText: parentHomeStyles.primaryBtnText,
+@@ -3461,25 +3390,4 @@ const styles = StyleSheet.create({
+-  modalCancelBtn: {
+-    flex: 1,
+-    alignItems: 'center',
+-    justifyContent: 'center',
+-    paddingVertical: 11,
+-    borderRadius: 10,
+-    backgroundColor: '#F1F5F9',
+-  },
+-  modalCancelBtnText: {
+-    color: '#475569',
+-    fontSize: 13,
+-    fontWeight: '600',
+-  },
+-  modalConfirmBtn: {
+-    flex: 1,
+-    alignItems: 'center',
+-    justifyContent: 'center',
+-    paddingVertical: 11,
+-    borderRadius: 10,
+-  },
+-  modalConfirmBtnText: {
+-    color: '#FFFFFF',
+-    fontSize: 13,
+-    fontWeight: '700',
+-  },
++  modalCancelBtn: { ...parentHomeStyles.secondaryBtn, flex: 1 },
++  modalCancelBtnText: parentHomeStyles.secondaryBtnText,
++  modalConfirmBtn: { ...parentHomeStyles.primaryBtn, flex: 1 },
++  modalConfirmBtnText: parentHomeStyles.primaryBtnText,
+@@ -3563 +3471 @@ const styles = StyleSheet.create({
+-    backgroundColor: '#2563EB',
++    backgroundColor: colors.primary,
+@@ -3565 +3473 @@ const styles = StyleSheet.create({
+-    borderRadius: 10,
++    borderRadius: 24,
+@@ -3570 +3478 @@ const styles = StyleSheet.create({
+-    color: '#FFFFFF',
++    color: colors.foreground,
+@@ -3609,24 +3517,4 @@ const styles = StyleSheet.create({
+-  qrVerifyRetryBtn: {
+-    flex: 1,
+-    paddingVertical: 12,
+-    backgroundColor: '#F1F5F9',
+-    borderRadius: 10,
+-    alignItems: 'center',
+-  },
+-  qrVerifyRetryText: {
+-    color: '#475569',
+-    fontSize: 13,
+-    fontWeight: '600',
+-  },
+-  qrVerifyConfirmBtn: {
+-    flex: 1,
+-    paddingVertical: 12,
+-    backgroundColor: '#059669',
+-    borderRadius: 10,
+-    alignItems: 'center',
+-  },
+-  qrVerifyConfirmText: {
+-    color: '#FFFFFF',
+-    fontSize: 13,
+-    fontWeight: '700',
+-  },
++  qrVerifyRetryBtn: { ...parentHomeStyles.secondaryBtn, flex: 1 },
++  qrVerifyRetryText: parentHomeStyles.secondaryBtnText,
++  qrVerifyConfirmBtn: { ...parentHomeStyles.primaryBtn, flex: 1 },
++  qrVerifyConfirmText: parentHomeStyles.primaryBtnText,

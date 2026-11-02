@@ -1,5 +1,29 @@
 # Staff map alignment — preserve Parent
 
+## Cập nhật mới nhất: nút vàng dùng chung Home — 02/11/2026
+
+PO chốt nút thao tác dùng vàng. primaryActionBtn/Text dùng trực tiếp parentHomeStyles.primaryBtn/Text; modal/QR/report kế thừa cùng style. Nút gọn vàng/chữ tối; secondary vàng nhạt. Bỏ bgReady/Start/Arrive/Complete và confirmBg overrides. Disabled/quyền/handlers giữ nguyên, không sửa Home/Parent reference hoặc badge/progress/camera overlay. Typecheck, actual style identity/palette và callback AST parity PASS; native/modal/font-scale chưa nghiệm thu.
+
+## Cập nhật mới nhất: bàn giao Auto→Manual và tab Sự cố — 02/11/2026
+
+Auto tới trong100m của target PICKUP/DROPOFF gọi change(TEST_JOYSTICK) trước ADVANCE rồi return; reuse SWITCH/position preservation hiện hữu, dừng auto và chờ joystick. Busy/routeBusy guards tránh tranh chấp. Khoảng cách địa lý, không độ dài đường còn lại; trường/bãi/GPS giữ nguyên. Nút Báo sự cố chuyển từ header vào đầu tab INCIDENTS, giữ guard staff+(SCHEDULED hoặc canReport), onPress/reasons/modal. Không mở rộng quyền báo cáo.44tests/typecheck/web-server export/source checks PASS; native/real Trip/API side effects chưa kiểm chứng.
+
+## Cập nhật mới nhất: vận hành nằm trong INFO — 02/11/2026
+
+PO yêu cầu bỏ cụm nút ghim đáy khi thu gọn. Nội dung Driver start/arrive/complete và Attendant readiness chuyển nguyên vào ScrollView INFO, ngay dưới thẻ giáo viên; chỉ hiện expanded+INFO, giữ mọi guards/disabled/handlers. Bỏ footer đo chiều cao/offset và style fixed; sheet bottom0/safe-area padding, joystick bottom=sheetHeightAnim+16px. Helper đổi tên hasTripAction, logic role/status giữ nguyên. Typecheck,4role/status tests, source parity/ancestry và web/server export PASS; native/real Trip/scroll acceptance chưa kiểm chứng. Các mô tả footer ghim đáy/offset trong phần lịch sử dưới đây không còn áp dụng.
+
+## Cập nhật mới nhất: tốc độ cùng hàng chế độ — 02/11/2026
+
+Theo ảnh PO, speed stepper chuyển cùng hàng Auto/Manual và bỏ nhãn Tốc độ mô phỏng. TestMode dùng row nowrap, hai mode buttons flex1/nhãn wrap khi hẹp, stepper spacing gọn. Điều kiện hiện và callbacks giữ nguyên; không thay engine/joystick/Parent. Typecheck, callback parity, RN-web390/320px với120km/h và tăng/giảm PASS. Native/font scaling chưa kiểm chứng.
+
+## Cập nhật mới nhất: joystick trong suốt — 02/11/2026
+
+PO yêu cầu tối giản: vòng ngoài transparent viền xám mảnh, núm xám rgba; bỏ nền trắng, vàng, icons và shadow/elevation. Vùng chạm120px/núm44px, vị trí và toàn bộ gesture/stop/a11y giữ nguyên. Typecheck/source parity PASS; giao diện mới chưa kiểm tra trực tiếp browser/native. Phần mô tả trắng/vàng/Ionicons dưới đây là lịch sử trước yêu cầu này.
+
+## Cập nhật mới nhất: joystick lái thủ công — 02/11/2026
+
+PO yêu cầu đổi bốn nút hướng thành joystick ở góc dưới phải map. TripJoystick dùng PanResponder/Ionicons, kéo360°, dead zone và clamp; release/cancel/multitouch/background/unmount dừng. Chỉ Driver testMode/TEST_JOYSTICK và sheet collapsed thấy control. Vị trí theo sheetHeightAnim + footerHeight +16px; mở rộng sheet ẩn control. Bỏ bốn nút trong card trên, giữ mode/speed. Engine giữ pressStartedAt từ đầu hold để steering liên tục không tạo short-tap giả khi release. Parent/Attendant UI và nghiệp vụ không đổi.36tests, typecheck, web/server export và RN-web390/320px PASS; native/real Trip và screen-reader acceptance chưa kiểm chứng.
+
 ## Cập nhật mới nhất: icon thông tin xe Staff — 01/11/2026
 
 Theo yêu cầu bỏ PNG ở Staff, thẻ phương tiện tab Thông tin dùng Ionicons bus-outline24px màu #D97706 (icon đang dùng tại Parent student-detail/route-detail). Parent Trip INFO vẫn giữ Image Bus.png theo chỉ thị bảo toàn Parent. Người/trường/tab vốn dùng Ionicons nên không đổi; không ảnh hưởng marker trên map. Typecheck và source parity PASS; native chưa kiểm chứng.

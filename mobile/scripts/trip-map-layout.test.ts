@@ -1,30 +1,30 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { hasTripBottomAction } from '../utils/trip-map-layout';
+import { hasTripAction } from '../utils/trip-map-layout';
 
 // Role/status primitives only; no Trip/User records or API responses.
-describe('Trip map footer visibility', () => {
-  it('never reserves an operation footer for Parent', () => {
+describe('Trip information action availability', () => {
+  it('never offers operation actions to Parent', () => {
     for (const status of [undefined, 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']) {
-      assert.equal(hasTripBottomAction('PARENT', status), false);
+      assert.equal(hasTripAction('PARENT', status), false);
     }
   });
-  it('shows the driver footer only where an existing action is rendered', () => {
-    assert.equal(hasTripBottomAction('DRIVER', 'SCHEDULED'), true);
-    assert.equal(hasTripBottomAction('DRIVER', 'IN_PROGRESS'), true);
+  it('offers driver actions only in scheduled or running trips', () => {
+    assert.equal(hasTripAction('DRIVER', 'SCHEDULED'), true);
+    assert.equal(hasTripAction('DRIVER', 'IN_PROGRESS'), true);
     for (const status of [undefined, 'COMPLETED', 'CANCELLED', 'UNKNOWN']) {
-      assert.equal(hasTripBottomAction('DRIVER', status), false);
+      assert.equal(hasTripAction('DRIVER', status), false);
     }
   });
-  it('does not leave an empty attendant footer during a running trip', () => {
-    assert.equal(hasTripBottomAction('BUS_ATTENDANT', 'SCHEDULED'), true);
+  it('offers attendant readiness only before departure', () => {
+    assert.equal(hasTripAction('BUS_ATTENDANT', 'SCHEDULED'), true);
     for (const status of [undefined, 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']) {
-      assert.equal(hasTripBottomAction('BUS_ATTENDANT', status), false);
+      assert.equal(hasTripAction('BUS_ATTENDANT', status), false);
     }
   });
-  it('does not grant footer controls to an unknown or admin role', () => {
+  it('does not grant operation controls to an unknown or admin role', () => {
     for (const role of [undefined, 'SYSTEM_ADMIN', 'SCHOOL_ADMIN'] as const) {
-      assert.equal(hasTripBottomAction(role, 'SCHEDULED'), false);
+      assert.equal(hasTripAction(role, 'SCHEDULED'), false);
     }
   });
 });
