@@ -4,6 +4,7 @@ import {
   HttpCode,
   Get,
   Post,
+  Patch,
   Param,
   Query,
   Body,
@@ -33,6 +34,8 @@ import {
   DriverListResponseDto,
   CreateDriverResponseDto,
   DriverItemDto,
+  DriverDeactivationImpactDto,
+  UpdateDriverStatusDto,
 } from './dto/index.js';
 
 @ApiTags('Drivers')
@@ -123,6 +126,55 @@ export class DriversController {
   async resendCredentials(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @CurrentUser() user: User): Promise<CredentialDeliveryResultDto> {
     return this.credentials.resend(id, user);
+  }
+
+  @Get(':id/deactivation-impact')
+  @ApiOperation({
+    summary: 'Xem trước tác động khi chuyển trạng thái tài xế (Chỉ SYSTEM_ADMIN)',
+    description:
+      'Thống kê số lượng tuyến ACTIVE và chuyến xe SCHEDULED/IN_PROGRESS đang phân công cho tài xế này trước khi quyết định vô hiệu hóa tài khoản.',
+  })
+  @ApiParam({ name: 'id', description: 'ID tài xế (UUID v4)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Thông tin tác động khi vô hiệu hóa tài xế',
+    type: DriverDeactivationImpactDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Không tìm thấy tài xế',
+  })
+  async getDeactivationImpact(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ): Promise<DriverDeactivationImpactDto> {
+    return this.driversService.getDriverDeactivationImpact(id);
+  }
+
+  @Patch(':id/status')
+  @ApiOperation({
+    summary: 'Cập nhật trạng thái hoạt động của tài xế (Chỉ SYSTEM_ADMIN)',
+    description:
+      'Chuyển trạng thái tài xế giữa hoạt động (isActive=true) và không hoạt động (isActive=false). Nếu tài xế còn tuyến ACTIVE hoặc chuyến SCHEDULED, bắt buộc truyền replacementUserId để bàn giao nguyên tử. Toàn bộ Session trên Mobile App sẽ bị thu hồi lập tức.',
+  })
+  @ApiParam({ name: 'id', description: 'ID tài xế (UUID v4)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Cập nhật trạng thái tài xế thành công',
+    type: DriverItemDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Tài xế có chuyến IN_PROGRESS hoặc thiếu tài xế thay thế hợp lệ khi còn phân công',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Không tìm thấy tài xế hoặc tài xế thay thế',
+  })
+  async updateDriverStatus(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: UpdateDriverStatusDto,
+  ): Promise<DriverItemDto> {
+    return this.driversService.updateDriverStatus(id, dto);
   }
 
   @Get(':id')

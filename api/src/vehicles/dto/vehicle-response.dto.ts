@@ -20,6 +20,9 @@ export class VehicleResponseDto {
   @ApiProperty({ example: 'Trắng' })
   color: string;
 
+  @ApiProperty({ example: true, description: 'Trạng thái hoạt động của phương tiện' })
+  isActive: boolean;
+
   @ApiProperty({ example: '2026-10-23T12:00:00.000Z' })
   createdAt: string;
 

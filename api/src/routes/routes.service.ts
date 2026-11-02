@@ -14,6 +14,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service.js';
 import { VietMapVRPService, VRPJobInput, VRPVehicleInput } from './vietmap-vrp.service.js';
 import { Prisma, Role, RouteDirection, RoutePlanStatus, RouteStopType, StudentStatus, User } from '@prisma/client';
+import * as crypto from 'node:crypto';
 import { buildTripRouteSnapshot } from '../trips/utils/trip-snapshot-resolver.js';
 import {
   EligibleStudentItemDto,
@@ -314,6 +315,18 @@ export class RoutesService {
     const unavailableVehicles: UnavailableVehicleItemDto[] = [];
 
     for (const v of allVehicles) {
+      if (!v.isActive) {
+        unavailableVehicles.push({
+          id: v.id,
+          brand: v.brand,
+          seatCount: v.seatCount,
+          licensePlate: v.licensePlate,
+          color: v.color,
+          reasonCode: 'VEHICLE_INACTIVE',
+          reasonMessage: 'Phương tiện đang ngừng hoạt động',
+        });
+        continue;
+      }
       if (v.seatCount <= 0 || !v.licensePlate) {
         unavailableVehicles.push({
           id: v.id,
@@ -410,6 +423,11 @@ export class RoutesService {
 
     if (vehicles.length === 0) {
       throw new BadRequestException('Vui lòng chọn ít nhất một phương tiện để chạy tuyến');
+    }
+
+    const inactiveVehicle = vehicles.find((v) => !v.isActive);
+    if (inactiveVehicle) {
+      throw new BadRequestException(`Phương tiện ${inactiveVehicle.licensePlate} đang ngừng hoạt động`);
     }
 
     // Gate 2: Revalidate vehicle reservation exclusivity before calling VietMap VRP (BR-V01, BR-V02, BR-V03)
@@ -732,8 +750,9 @@ export class RoutesService {
         }
       }
 
+      const routeCode = `TD${String(obIndex++).padStart(2, '0')}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
       outboundPreviewRoutes.push({
-        name: `Tuyến Đi 0${obIndex++} (${v.licensePlate})`,
+        name: routeCode,
         direction: RouteDirection.TO_SCHOOL,
         proposedVehicleId: v.id,
         proposedVehiclePlate: v.licensePlate,
@@ -854,8 +873,9 @@ export class RoutesService {
         }
       }
 
+      const routeCode = `TV${String(retIndex++).padStart(2, '0')}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
       returnPreviewRoutes.push({
-        name: `Tuyến Về 0${retIndex++} (${v.licensePlate})`,
+        name: routeCode,
         direction: RouteDirection.TO_PARKING,
         proposedVehicleId: v.id,
         proposedVehiclePlate: v.licensePlate,
@@ -1381,6 +1401,8 @@ export class RoutesService {
           status: p.status,
           effectiveStatus: invalidation && ['DRAFT', 'ACTIVE'].includes(p.status) ? RoutePlanStatus.CANCELLED : p.status,
           effectiveStatusReason: invalidation,
+          needsReoptimization: p.needsReoptimization,
+          reoptimizationReason: p.reoptimizationReason,
           totalStudents,
           totalOutboundRoutes,
           totalReturnRoutes,
@@ -1474,6 +1496,8 @@ export class RoutesService {
       status: plan.status,
       effectiveStatus: await planInvalidation(this.prisma, plan.schoolId, plan.createdAt) && ['DRAFT', 'ACTIVE'].includes(plan.status) ? RoutePlanStatus.CANCELLED : plan.status,
       effectiveStatusReason: await planInvalidation(this.prisma, plan.schoolId, plan.createdAt),
+      needsReoptimization: plan.needsReoptimization,
+      reoptimizationReason: plan.reoptimizationReason,
       totalStudents,
       totalOutboundRoutes,
       totalReturnRoutes,
@@ -3399,5 +3423,285 @@ export class RoutesService {
     const hours = Math.floor(normSec / 3600);
     const minutes = Math.floor((normSec % 3600) / 60);
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  }
+
+  /**
+   * Tối ưu lại toàn bộ các tuyến trong RoutePlan theo vị trí bãi xe / trường học mới.
+   * Quy tắc nghiệp vụ bắt buộc:
+   * 1. Route-by-Route: Giữ nguyên phân bổ học sinh và xe của từng tuyến, KHÔNG gom học sinh lại để phân bổ lại.
+   * 2. Chỉ kiểm tra 2 ràng buộc: Thời gian di chuyển tối đa (maxRouteDurationMinutes) và thời gian dừng xử lý (defaultStopServiceSeconds).
+   * 3. All-or-Nothing: Nếu có bất kỳ tuyến nào không thể tối ưu, lập tức dừng và báo lỗi tuyến đó, TUYỆT ĐỐI KHÔNG cập nhật các tuyến khác.
+   * 4. Thành công: Chuyển RoutePlan về DRAFT để chờ School Admin phê duyệt.
+   */
+  async reoptimizeRoutePlan(planId: string, currentUser: User): Promise<RoutePlanResponseDto> {
+    if (currentUser.role !== Role.SYSTEM_ADMIN) {
+      throw new ForbiddenException('Chỉ Quản trị viên hệ thống (SYSTEM_ADMIN) mới có quyền tối ưu lại phương án tuyến');
+    }
+
+    const plan = await this.prisma.routePlan.findUnique({
+      where: { id: planId },
+      include: {
+        school: true,
+        routes: {
+          include: {
+            proposedVehicle: true,
+            stops: {
+              include: { student: true },
+              orderBy: { stopOrder: 'asc' },
+            },
+          },
+        },
+      },
+    });
+
+    if (!plan) {
+      throw new NotFoundException('Không tìm thấy phương án tuyến');
+    }
+
+    if (plan.status === RoutePlanStatus.CANCELLED || plan.status === RoutePlanStatus.EXPIRED) {
+      throw new BadRequestException('Không thể tối ưu lại phương án đã bị hủy hoặc đã hết hạn');
+    }
+
+    // 1. Lấy tọa độ bãi xe trung tâm hiện tại
+    const parkingSetting = await this.prisma.systemSetting.findUnique({
+      where: { key: 'PARKING_LOT' },
+    });
+    const parkingVal = parkingSetting?.value as any;
+    const parkingLot = {
+      addressText: parkingVal?.addressText || this.defaultParking.addressText,
+      latitude: Number(parkingVal?.latitude) || this.defaultParking.latitude,
+      longitude: Number(parkingVal?.longitude) || this.defaultParking.longitude,
+    };
+
+    const schoolLocation = {
+      addressText: plan.school.addressText,
+      latitude: plan.school.latitude,
+      longitude: plan.school.longitude,
+    };
+
+    const weeklySched = (plan.school.weeklySchedule as any) || {};
+    const defaultStartTime = weeklySched.monday?.start || weeklySched.tuesday?.start || '07:30';
+    const defaultEndTime = weeklySched.monday?.end || weeklySched.tuesday?.end || '16:30';
+
+    const planConstraints = (plan.routingConstraints as any) || {};
+
+    // 2. Tối ưu tuần tự từng route và kiểm tra ràng buộc (All-or-Nothing validation)
+    const optimizedRoutesData: Array<{
+      routeId: string;
+      direction: RouteDirection;
+      totalDistanceMeters: number;
+      estimatedDurationSeconds: number;
+      polylineGeometry: string;
+      departureTime: string;
+      arrivalTime: string;
+      stops: Array<{
+        stopOrder: number;
+        stopType: RouteStopType;
+        studentId: string | null;
+        addressText: string;
+        latitude: number;
+        longitude: number;
+        plannedArrivalSeconds: number | null;
+        plannedArrivalTime: string | null;
+      }>;
+    }> = [];
+
+    for (const route of plan.routes) {
+      const studentStops = route.stops.filter((s) => s.studentId !== null);
+      if (studentStops.length === 0) {
+        continue;
+      }
+
+      const routeConstraints = (route.routingConstraints as any) || {};
+      const maxRouteDurationMinutes = Math.max(
+        10,
+        Number(
+          routeConstraints.maxRouteDurationMinutes ??
+            planConstraints.maxRouteDurationMinutes ??
+            90,
+        ),
+      );
+      const defaultStopServiceSeconds = Math.max(
+        10,
+        Math.min(
+          300,
+          Number(
+            routeConstraints.defaultStopServiceSeconds ??
+              planConstraints.defaultStopServiceSeconds ??
+              60,
+          ),
+        ),
+      );
+
+      const isToSchool = route.direction === RouteDirection.TO_SCHOOL;
+
+      const jobs: VRPJobInput[] = studentStops.map((s) => ({
+        id: s.studentId!,
+        location: [s.longitude, s.latitude],
+        serviceSeconds: defaultStopServiceSeconds,
+        pickupAmount: isToSchool ? 1 : 0,
+        deliveryAmount: isToSchool ? 0 : 1,
+      }));
+
+      const vehicleInput: VRPVehicleInput = {
+        id: route.proposedVehicleId || 'v1',
+        start: isToSchool
+          ? [parkingLot.longitude, parkingLot.latitude]
+          : [schoolLocation.longitude, schoolLocation.latitude],
+        end: isToSchool
+          ? [schoolLocation.longitude, schoolLocation.latitude]
+          : [parkingLot.longitude, parkingLot.latitude],
+        capacity: route.proposedVehicle?.seatCount ?? 50,
+      };
+
+      const solution = await this.vietmapVRPService.solveVRP(jobs, [vehicleInput]);
+
+      if (!solution || !solution.routes || solution.routes.length === 0) {
+        throw new BadRequestException(
+          `Tuyến ${route.name} không thể tối ưu: VietMap không tìm được lộ trình hợp lệ từ vị trí bãi xe/trường học mới. Toàn bộ phương án chưa được cập nhật.`,
+        );
+      }
+
+      if (solution.unassignedJobIds && solution.unassignedJobIds.length > 0) {
+        throw new BadRequestException(
+          `Tuyến ${route.name} không thể tối ưu: Có ${solution.unassignedJobIds.length} học sinh không thể đến được với cấu hình bãi xe/trường học mới. Toàn bộ phương án chưa được cập nhật.`,
+        );
+      }
+
+      const vrpRoute = solution.routes[0];
+      const totalRouteElapsedMinutes = Math.ceil(vrpRoute.durationSeconds / 60);
+
+      if (totalRouteElapsedMinutes > maxRouteDurationMinutes) {
+        throw new BadRequestException(
+          `Tuyến ${route.name} không thể tối ưu: Thời gian lộ trình dự kiến (${totalRouteElapsedMinutes} phút) vượt quá thời gian tối đa cho phép (${maxRouteDurationMinutes} phút). Toàn bộ phương án chưa được cập nhật.`,
+        );
+      }
+
+      const newStops: Array<{
+        stopOrder: number;
+        stopType: RouteStopType;
+        studentId: string | null;
+        addressText: string;
+        latitude: number;
+        longitude: number;
+        plannedArrivalSeconds: number | null;
+        plannedArrivalTime: string | null;
+      }> = [];
+
+      let order = 0;
+      const targetArrivalSec = this.parseTimeToSeconds(defaultStartTime);
+      const targetDepSec = this.parseTimeToSeconds(defaultEndTime);
+
+      let routeDepSec = isToSchool ? targetArrivalSec - vrpRoute.durationSeconds : targetDepSec;
+      if (routeDepSec < 0) routeDepSec += 86400;
+      let routeArrSec = isToSchool ? targetArrivalSec : targetDepSec + vrpRoute.durationSeconds;
+
+      const studentMap = new Map(studentStops.map((s) => [s.studentId!, s]));
+
+      for (const step of vrpRoute.steps) {
+        if (step.type === 'start') {
+          newStops.push({
+            stopOrder: order++,
+            stopType: isToSchool ? RouteStopType.PARKING_START : RouteStopType.SCHOOL_DEPARTURE,
+            studentId: null,
+            addressText: isToSchool ? parkingLot.addressText : schoolLocation.addressText,
+            latitude: isToSchool ? parkingLot.latitude : schoolLocation.latitude,
+            longitude: isToSchool ? parkingLot.longitude : schoolLocation.longitude,
+            plannedArrivalSeconds: 0,
+            plannedArrivalTime: this.secondsToTimeString(routeDepSec),
+          });
+        } else if (step.type === 'job') {
+          const matchedStudent = studentMap.get(String(step.id));
+          const stepArrivalSec = routeDepSec + step.arrivalSeconds;
+          newStops.push({
+            stopOrder: order++,
+            stopType: isToSchool ? RouteStopType.PICKUP : RouteStopType.DROPOFF,
+            studentId: matchedStudent?.studentId || String(step.id),
+            addressText: matchedStudent?.addressText || 'Điểm đón/trả học sinh',
+            latitude: step.location[1],
+            longitude: step.location[0],
+            plannedArrivalSeconds: step.arrivalSeconds,
+            plannedArrivalTime: this.secondsToTimeString(stepArrivalSec),
+          });
+        } else if (step.type === 'end') {
+          newStops.push({
+            stopOrder: order++,
+            stopType: isToSchool ? RouteStopType.SCHOOL_ARRIVAL : RouteStopType.PARKING_END,
+            studentId: null,
+            addressText: isToSchool ? schoolLocation.addressText : parkingLot.addressText,
+            latitude: isToSchool ? schoolLocation.latitude : parkingLot.latitude,
+            longitude: isToSchool ? schoolLocation.longitude : parkingLot.longitude,
+            plannedArrivalSeconds: vrpRoute.durationSeconds,
+            plannedArrivalTime: this.secondsToTimeString(routeArrSec),
+          });
+        }
+      }
+
+      optimizedRoutesData.push({
+        routeId: route.id,
+        direction: route.direction,
+        totalDistanceMeters: vrpRoute.distanceMeters,
+        estimatedDurationSeconds: vrpRoute.durationSeconds,
+        polylineGeometry: vrpRoute.geometry,
+        departureTime: this.secondsToTimeString(routeDepSec),
+        arrivalTime: this.secondsToTimeString(routeArrSec),
+        stops: newStops,
+      });
+    }
+
+    // 3. Toàn bộ các route đều hợp lệ -> Lưu nguyên tử vào Database
+    await this.prisma.$transaction(async (tx) => {
+      for (const r of optimizedRoutesData) {
+        await tx.routeStop.deleteMany({
+          where: { routeId: r.routeId },
+        });
+
+        for (const st of r.stops) {
+          await tx.routeStop.create({
+            data: {
+              routeId: r.routeId,
+              stopOrder: st.stopOrder,
+              stopType: st.stopType,
+              studentId: st.studentId,
+              addressText: st.addressText,
+              latitude: st.latitude,
+              longitude: st.longitude,
+              plannedArrivalSeconds: st.plannedArrivalSeconds,
+              plannedArrivalTime: st.plannedArrivalTime,
+            },
+          });
+        }
+
+        await tx.route.update({
+          where: { id: r.routeId },
+          data: {
+            totalDistanceMeters: r.totalDistanceMeters,
+            estimatedDurationSeconds: r.estimatedDurationSeconds,
+            polylineGeometry: r.polylineGeometry,
+            departureTime: r.departureTime,
+            arrivalTime: r.arrivalTime,
+          },
+        });
+      }
+
+      await tx.routePlan.update({
+        where: { id: planId },
+        data: {
+          status: RoutePlanStatus.DRAFT,
+          needsReoptimization: false,
+          reoptimizationReason: null,
+          activatedAt: null,
+          approvedById: null,
+        },
+      });
+
+      await notifyPlan(tx, planId, currentUser.id);
+    });
+
+    this.logger.log(
+      `Tối ưu lại thành công toàn bộ ${optimizedRoutesData.length} tuyến của RoutePlan ${plan.name} (${planId}). Đã chuyển về DRAFT chờ duyệt.`,
+    );
+
+    return this.getRoutePlanDetail(planId, currentUser);
   }
 }

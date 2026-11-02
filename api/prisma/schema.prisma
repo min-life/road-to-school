@@ -311,6 +311,7 @@ model Vehicle {
   licensePlate    String   @unique @map("license_plate") @db.VarChar(20)
   normalizedPlate String   @unique @map("normalized_plate") @db.VarChar(20)
   color           String   @db.VarChar(50)
+  isActive        Boolean  @default(true) @map("is_active")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -319,6 +320,7 @@ model Vehicle {
   assignedTrips   Trip[]
 
   @@index([brand])
+  @@index([isActive])
   @@map("vehicles")
 }
 
@@ -383,6 +385,8 @@ model RoutePlan {
   cancellationReason  String?         @map("cancellation_reason") @db.VarChar(500)
   activatedAt         DateTime?       @map("activated_at")
   approvedById        String?         @map("approved_by_id")
+  needsReoptimization Boolean         @default(false) @map("needs_reoptimization")
+  reoptimizationReason String?        @map("reoptimization_reason") @db.VarChar(500)
 
   // Quan hệ
   school      School   @relation(fields: [schoolId], references: [id], onDelete: Restrict)
@@ -393,6 +397,7 @@ model RoutePlan {
 
   @@index([schoolId, status])
   @@index([status, createdAt])
+  @@index([needsReoptimization])
   @@map("route_plans")
 }
 

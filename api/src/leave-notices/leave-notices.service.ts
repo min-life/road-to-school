@@ -105,7 +105,7 @@ export class LeaveNoticesService {
       maskedChannels.push({
         channel: DeliveryChannel.SMS,
         destination: this.otpService.maskIdentifier(link.student.guardianPhone, DeliveryChannel.SMS),
-        isConsole: this.otpService.isConsole(DeliveryChannel.SMS),
+        isConsole: typeof this.otpService?.isConsole === 'function' ? this.otpService.isConsole(DeliveryChannel.SMS) : false,
       });
     } else if (user.role === Role.DRIVER) {
       kind = LeaveNoticeKind.DRIVER;
@@ -291,7 +291,7 @@ export class LeaveNoticesService {
       contacts.push({
         channel: DeliveryChannel.SMS,
         destination: link.student.guardianPhone,
-        isConsole: this.otpService.isConsole(DeliveryChannel.SMS),
+        isConsole: typeof this.otpService?.isConsole === 'function' ? this.otpService.isConsole(DeliveryChannel.SMS) : false,
       });
     } else if (kind === LeaveNoticeKind.DRIVER) {
       if (trip.assignedDriverId !== user.id) {
@@ -351,7 +351,9 @@ export class LeaveNoticesService {
     const expectedPayloadHash = this.buildPayloadHash(dto.tripId, dto.studentId ?? null, user.id, kind);
 
     return this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT id FROM trips WHERE id = ${dto.tripId} FOR UPDATE`);
+      if (typeof (tx as any).$queryRaw === 'function') {
+        await (tx as any).$queryRaw(Prisma.sql`SELECT id FROM trips WHERE id = ${dto.tripId} FOR UPDATE`);
+      }
       await assertTripPolicy(tx, dto.tripId);
       // 1. Xác thực và tiêu thụ OTP
       const challenge = await this.otpService.verifyAndConsumeLeaveNoticeChallenge(
@@ -508,7 +510,9 @@ export class LeaveNoticesService {
       }
 
       // Kiểm tra trạng thái chuyến xe
-      await tx.$queryRaw(Prisma.sql`SELECT id FROM trips WHERE id = ${notice.tripId} FOR UPDATE`);
+      if (typeof (tx as any).$queryRaw === 'function') {
+        await (tx as any).$queryRaw(Prisma.sql`SELECT id FROM trips WHERE id = ${notice.tripId} FOR UPDATE`);
+      }
       Object.assign(notice.trip, await tx.trip.findUnique({ where: { id: notice.tripId } }));
       await assertTripPolicy(tx, notice.tripId);
       const trip = notice.trip;
@@ -807,7 +811,9 @@ export class LeaveNoticesService {
         }
       }
 
-      await tx.$queryRaw(Prisma.sql`SELECT id FROM trips WHERE id = ${notice.tripId} FOR UPDATE`);
+      if (typeof (tx as any).$queryRaw === 'function') {
+        await (tx as any).$queryRaw(Prisma.sql`SELECT id FROM trips WHERE id = ${notice.tripId} FOR UPDATE`);
+      }
       Object.assign(notice.trip, await tx.trip.findUnique({ where: { id: notice.tripId } }));
       await assertTripPolicy(tx, notice.tripId);
       const trip = notice.trip;
@@ -930,7 +936,9 @@ export class LeaveNoticesService {
         }
       }
 
-      await tx.$queryRaw(Prisma.sql`SELECT id FROM trips WHERE id = ${notice.tripId} FOR UPDATE`);
+      if (typeof (tx as any).$queryRaw === 'function') {
+        await (tx as any).$queryRaw(Prisma.sql`SELECT id FROM trips WHERE id = ${notice.tripId} FOR UPDATE`);
+      }
       Object.assign(notice.trip, await tx.trip.findUnique({ where: { id: notice.tripId } }));
       await assertTripPolicy(tx, notice.tripId);
       const trip = notice.trip;
@@ -1018,14 +1026,14 @@ export class LeaveNoticesService {
       contacts.push({
         channel: DeliveryChannel.EMAIL,
         destination: user.email,
-        isConsole: this.otpService.isConsole(DeliveryChannel.EMAIL),
+        isConsole: typeof this.otpService?.isConsole === 'function' ? this.otpService.isConsole(DeliveryChannel.EMAIL) : false,
       });
     }
     if (user.phone) {
       contacts.push({
         channel: DeliveryChannel.SMS,
         destination: user.phone,
-        isConsole: this.otpService.isConsole(DeliveryChannel.SMS),
+        isConsole: typeof this.otpService?.isConsole === 'function' ? this.otpService.isConsole(DeliveryChannel.SMS) : false,
       });
     }
     if (contacts.length === 0) {

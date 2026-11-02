@@ -90,6 +90,8 @@ Tất cả đường dẫn API có tiền tố `/api/v1`. Đây là ánh xạ t�
 
 ### WF-01 — Tài khoản
 
+**Hiện hành:** 3.1 đã IMPLEMENTED theo nhật ký cuối file; các mô tả “chưa triển khai” dưới đây là lịch sử. Chưa VERIFIED gửi thật/runtime.
+
 Phân tích chi tiết: [3.1 — Tài khoản và đăng nhập](ai-review/auth-business-flow-detail.md), gồm AUTH-01..08 ở trạng thái NEEDS_DECISION; chưa duyệt triển khai.
 
 Cập nhật 30/10/2026: quyết định mới tại mục 12 tài liệu chi tiết được ưu tiên: eSMS format test + console dev; nhân sự bắt buộc email và chỉ gửi mật khẩu email; giữ tài khoản riêng từng role; mất số liên hệ trường sửa thông tin học sinh. AUTH-04 chuyển WF-03/WF-08; AUTH-06 chuyển WF-02/WF-16. AUTH-07/08 đang được giải thích, chưa chốt thay đổi. Chưa triển khai code; trạng thái NEEDS_DECISION ban đầu không còn áp dụng đồng loạt.
@@ -101,7 +103,7 @@ Cập nhật 30/10/2026: quyết định mới tại mục 12 tài liệu chi ti
 
 ### WF-02 — Trường và dịch vụ
 
-**Cập nhật hiện hành 03/11/2026: IMPLEMENTED trong source, chưa VERIFIED/deployed.** Các đoạn quyết định cũ phía dưới là lịch sử. Checklist P1–P6 và phần còn chờ tại [kế hoạch mục 17](ai-review/school-api-improvement-plan.md#17-triển-khai-sau-phê-duyệt--03112026); [note FE/PR](ai-review/school-3.2-fe-pr-notes.md). Đã duyệt field/schema/lịch âm và package, tạo DDL nhưng chưa apply DB. Không chạy script test.
+**Cập nhật hiện hành 03/11/2026: IMPLEMENTED; migration đã apply DB local; code đã commit/push de2e301; chưa VERIFIED nghiệp vụ/runtime.** Các đoạn quyết định cũ phía dưới là lịch sử. Checklist P1–P6 và phần còn chờ tại [kế hoạch mục 17](ai-review/school-api-improvement-plan.md#17-triển-khai-sau-phê-duyệt--03112026); [note FE/PR](ai-review/school-3.2-fe-pr-notes.md). Đã duyệt field/schema/lịch âm và package; migration local đã apply theo cập nhật cuối file. Không chạy script test.
 
 Chốt 03/11/2026: D3 trước mốc đổi địa điểm plan cũ tiếp tục, đến ngày hủy plan cũ rồi tạo mới; D7 đồng ý hủy đến ngày cho fixed/nonfixed, rút trước ngày giữ Trip gốc và nghỉ nhà xe chặn học bù đã duyệt; D8 đồng ý bảng phân loại + R1 giữ bận tài nguyên Trip ngoại lệ tới khi admin chốt. Xem school-api-improvement-plan.md mục 15. Field/schema cụ thể và một số quy tắc ngày/âm lịch còn chờ; chưa IMPLEMENTED.
 
@@ -125,12 +127,23 @@ Phân tích chi tiết 3.2: [school-business-flow-detail.md](ai-review/school-bu
 - Hiện có: chặn sửa hợp đồng khi còn plan DRAFT/ACTIVE; đổi lịch xử lý các chuyến SCHEDULED.
 - Vấn đề: lịch ngoại lệ, đổi lịch sau Ready, snapshot giờ chạy, gia hạn không gián đoạn. Xem B-05, P-01, P-05.
 
-### WF-03 — Nguồn lực và bãi
+### WF-03 — Nguồn lực và bãi (Status: IMPLEMENTED — 03/11/2026)
 
-- Actor: nhà xe quản lý xe/tài xế/bãi; trường quản lý giáo viên.
-- Thao tác: thêm và xem xe, tài xế, nhân sự trường; chỉnh bãi sau xem tác động.
-- API: POST/GET `/vehicles`, `/drivers`; POST `/schools/:id/employees`; GET `/system-settings/parking-lot/impact`; PUT `/system-settings/parking-lot`.
-- Vấn đề: xe bảo dưỡng, giấy phép nhân sự, định nghĩa số chỗ và ngày hiệu lực đổi bãi. Xem B-12, P-05, P-07.
+- Actor: SYSTEM_ADMIN (nhà xe quản lý xe/tài xế/bãi/nhân sự toàn hệ thống); SCHOOL_ADMIN (quản lý giáo viên phụ xe trường mình).
+- Thao tác:
+  - Phương tiện: Quản lý trạng thái nhị phân (`isActive`). Chặn vô hiệu hóa khi có chuyến `IN_PROGRESS`. Bắt buộc truyền xe thay thế hợp lệ (`replacementVehicleId`) để bàn giao nguyên tử toàn bộ tuyến `ACTIVE` và chuyến `SCHEDULED`.
+  - Nhân sự: `SYSTEM_ADMIN` inactive tài xế/nhân sự toàn hệ thống; `SCHOOL_ADMIN` inactive giáo viên trường mình. Bắt buộc truyền nhân sự thay thế hợp lệ (`replacementUserId`) để bàn giao nguyên tử và thu hồi toàn bộ session đăng nhập.
+  - Bãi đỗ xe trung tâm: Đổi vị trí bãi xe theo lịch hẹn ngày hiệu lực (`effectiveDate` >= ngày mai). Không hủy RoutePlan, chỉ đánh dấu `needsReoptimization = true` kèm lý do; chỉ hủy các chuyến `SCHEDULED` từ ngày hiệu lực trở đi.
+  - Đặt tên Tuyến: Bỏ hoàn toàn biển số xe khỏi tên tuyến; áp dụng format unique chuẩn `TD01-[Mã 8 ký tự]` (chiều đi) và `TV01-[Mã 8 ký tự]` (chiều về).
+  - Tối ưu lại RoutePlan (`POST /routes/route-plans/:id/re-optimize`): Tối ưu theo từng tuyến (Route-by-Route), bảo toàn xe và học sinh của tuyến, chỉ ràng buộc thời gian di chuyển tối đa và thời gian dừng. Cơ chế All-or-Nothing: nếu có 1 tuyến không thể tối ưu thì dừng và báo lỗi, không cập nhật DB. Thành công đưa phương án về `DRAFT` chờ School Admin duyệt.
+- API:
+  - `GET /vehicles/:id/deactivation-impact`, `PATCH /vehicles/:id/status`
+  - `GET /drivers/:id/deactivation-impact`, `PATCH /drivers/:id/status`
+  - `GET /schools/:id/employees/:employeeId/deactivation-impact`, `PATCH /schools/:id/employees/:employeeId/status`
+  - `GET /system-settings/parking-lot/impact`, `PUT /system-settings/parking-lot`, `POST /system-settings/parking-lot/cancel-scheduled-change`, `POST /system-settings/parking-lot/apply-scheduled-change`
+  - `POST /routes/route-plans/:id/re-optimize`
+- Database:
+  - Migration `20261103023000_vehicle_status_and_route_plan_reoptimization`: thêm `isActive` vào `Vehicle`; thêm `needsReoptimization` và `reoptimizationReason` vào `RoutePlan`. Lưu lịch hẹn dời bãi trong `system_settings.value.scheduledChange` (JSONB).
 
 ### WF-04 — Học sinh và phụ huynh
 
@@ -353,3 +366,7 @@ Mẫu cho lần cập nhật tiếp: `Ngày | B-xx/P-xx | Thay đổi cụ thể
 ### Cập nhật 03/11/2026 — Migration 3.2
 
 PO cho phép migrate; 20261103010000_school_lifecycle_calendar đã apply vào DB local roadtoschool/public tại localhost:5432. Xác nhận hai bảng mới và trips.admin_finalization JSONB nullable tồn tại, tổng 15 migrations up to date. Chỉ migration verification PASS; nghiệp vụ vẫn IMPLEMENTED/chưa VERIFIED, không test scripts hoặc seed. Xem LATEST.md; báo cáo implementation trước được archive.
+
+### Cập nhật 03/11/2026 — Những phần còn lại sau 3.2
+
+Đối chiếu 16 nhóm WF-03..WF-18, phân biệt module nền tảng đã có với nghiệp vụ chưa cải thiện; WF-16 đã có phần lifecycle trong 3.2. Danh sách chi tiết và phần tồn đọng 3.1–3.2: [business-improvement-remaining-after-3.2.md](ai-review/business-improvement-remaining-after-3.2.md). B-07/P-01/phần trường của P-05 không còn được xem là hoàn toàn chưa triển khai. Không cập nhật hàng loạt lỗi baseline thành VERIFIED khi chưa nghiệm thu. Bước tiếp theo duy nhất: phân tích chi tiết 3.3.
