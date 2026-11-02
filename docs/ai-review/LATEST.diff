@@ -306,3 +306,27 @@ index 011148a..7bae554 100644
 +  qrVerifyRetryText: parentHomeStyles.secondaryBtnText,
 +  qrVerifyConfirmBtn: { ...parentHomeStyles.primaryBtn, flex: 1 },
 +  qrVerifyConfirmText: parentHomeStyles.primaryBtnText,
+--- a/mobile/components/parent/trip-card.tsx
++++ b/mobile/components/parent/trip-card.tsx
+@@ -119,7 +119,7 @@
+   card: {
+     padding: 0,
+     gap: 0,
+-    borderLeftWidth: 4,
++    borderTopWidth: 4,
+   },
+   expandedCard: { borderColor: colors.primary },
+   studentTags: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 8 },
+--- a/docs/architecture/mobile-parent-home-ui.md
++++ b/docs/architecture/mobile-parent-home-ui.md
+@@ -1,6 +1,10 @@
+ # Trang chủ phụ huynh — chuyển phong cách V1 sang V2
+ 
+ 28/10/2026. Đã implement local; chưa commit/push. Chỉ trình bày PARENT, không đổi API/nghiệp vụ hoặc Trang chủ nhân sự. [Header/tab Phase 2](mobile-navigation-phase2.md) được giữ.
++
++## Viền nhấn trên card Chuyến xe của con — 01/11/2026
++
++[ParentTripCard](../../mobile/components/parent/trip-card.tsx) dùng viền trên4 thay viền trái4. Ba cạnh còn lại giữ viền mảnh1 từ parentHomeStyles.tripCard. Màu viền và nền header vẫn theo journeyTones của trạng thái con, giữ qua mở/đóng; không thay nội dung, bố cục thông tin, animation, nút hoặc nghiệp vụ. Thay đổi chỉ áp dụng card chuyến trên Home phụ huynh. Typecheck và kiểm tra diff đạt; chưa kiểm tra trực tiếp trên iPhone. Chưa commit/push lượt chỉnh này.
+ 
+ ## Hiện hành01/11/2026 — tiện ích thu gọn ngay khi kéo nhẹ
+ 

@@ -2,6 +2,10 @@
 
 28/10/2026. Đã implement local; chưa commit/push. Chỉ trình bày PARENT, không đổi API/nghiệp vụ hoặc Trang chủ nhân sự. [Header/tab Phase 2](mobile-navigation-phase2.md) được giữ.
 
+## Viền nhấn trên card Chuyến xe của con — 01/11/2026
+
+[ParentTripCard](../../mobile/components/parent/trip-card.tsx) dùng viền trên4 thay viền trái4. Ba cạnh còn lại giữ viền mảnh1 từ parentHomeStyles.tripCard. Màu viền và nền header vẫn theo journeyTones của trạng thái con, giữ qua mở/đóng; không thay nội dung, bố cục thông tin, animation, nút hoặc nghiệp vụ. Thay đổi chỉ áp dụng card chuyến trên Home phụ huynh. Typecheck và kiểm tra diff đạt; chưa kiểm tra trực tiếp trên iPhone. Chưa commit/push lượt chỉnh này.
+
 ## Hiện hành01/11/2026 — tiện ích thu gọn ngay khi kéo nhẹ
 
 [ParentHomeScrollView](../../mobile/components/parent/home-scroll-view.tsx) chuyển sang **hai bố cục cố định** theo yêu cầu PO, thay cơ chế nội suy từng pixel trong mục Header/tiện ích lịch sử bên dưới. Không đổi vị trí cuối, nội dung hoặc callbacks Báo nghỉ/Đổi điểm/Thông báo.

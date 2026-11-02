@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
   card: {
     padding: 0,
     gap: 0,
-    borderLeftWidth: 4,
+    borderTopWidth: 4,
   },
   expandedCard: { borderColor: colors.primary },
   studentTags: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 8 },
