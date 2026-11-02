@@ -193,17 +193,17 @@ export function ApprovalReadinessCard({
               </div>
               <div>
                 <h3 className="text-base font-bold text-slate-800">Xác nhận phê duyệt phương án</h3>
-                <p className="text-xs text-slate-500">Chuyển trạng thái sang ACTIVE để đưa vào vận hành</p>
+                <p className="text-xs text-slate-500">Chuyển sang trạng thái đang hoạt động để đưa vào vận hành</p>
               </div>
             </div>
 
             <div className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-slate-200/60 space-y-2">
               <p>
-                Sau khi phê duyệt, phương án tuyến sẽ chính thức chuyển sang <strong>ACTIVE</strong>:
+                Sau khi phê duyệt, phương án tuyến sẽ chính thức chuyển sang trạng thái <strong>Đang hoạt động</strong>:
               </p>
               <ul className="list-disc list-inside space-y-1 pl-1 text-slate-700">
                 <li>Hệ thống bắt đầu sinh chuyến xe tự động từ ngày học kế tiếp.</li>
-                <li>Không thể hủy phương án một khi đã chuyển sang ACTIVE.</li>
+                <li>Không thể hủy phương án một khi đã chuyển sang trạng thái đang hoạt động.</li>
                 <li>Mọi phân công xe, tài xế và giáo viên hiện tại sẽ được lưu thành mặc định.</li>
               </ul>
             </div>

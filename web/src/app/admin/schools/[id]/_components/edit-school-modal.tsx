@@ -18,8 +18,8 @@ import {
 import {
   WeeklyScheduleBuilder,
   validateWeeklySchedule,
-} from './weekly-schedule-builder';
-import { VietMapPicker } from './vietmap-picker';
+} from '@/components/admin/schools/weekly-schedule-builder';
+import { VietMapPicker } from '@/components/admin/schools/vietmap-picker';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -418,7 +418,7 @@ export function EditSchoolModal({
                     />
                   </div>
                   <p className="col-span-2 text-[11px] text-slate-500">
-                    Chỉ có thể sửa/gia hạn khi trường không có phương án DRAFT/ACTIVE. Ngày bắt đầu phải từ hôm nay trở đi.
+                    Chỉ có thể sửa/gia hạn khi trường không có phương án chưa duyệt hoặc đang hoạt động. Ngày bắt đầu phải từ hôm nay trở đi.
                   </p>
                 </div>
               )}
@@ -581,7 +581,7 @@ export function EditSchoolModal({
                   Xác nhận đổi địa chỉ / vị trí trường học
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Đổi địa chỉ trường sẽ cascade hủy toàn bộ phương án tuyến DRAFT và ACTIVE của trường.
+                  Đổi địa chỉ trường sẽ hủy toàn bộ phương án tuyến chưa duyệt và đang hoạt động của trường.
                 </p>
               </div>
             </div>
@@ -589,19 +589,19 @@ export function EditSchoolModal({
             {/* Thống kê tác động */}
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2 text-xs text-slate-700">
               <div className="flex items-center justify-between">
-                <span>Phương án DRAFT/ACTIVE của trường bị hủy:</span>
+                <span>Phương án chưa duyệt hoặc đang hoạt động của trường bị hủy:</span>
                 <span className="font-bold text-rose-600">
                   {locationImpact.cancelledPlansCount ?? ((locationImpact.draftPlansCount || 0) + (locationImpact.activePlansCount || 0))} phương án
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span>Chuyến xe SCHEDULED liên quan bị hủy:</span>
+                <span>Chuyến xe đã lên lịch liên quan bị hủy:</span>
                 <span className="font-bold text-rose-600">
                   {locationImpact.cancelledTripsCount ?? (locationImpact.scheduledTripsCount || 0)} chuyến
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span>Chuyến xe đang chạy (IN_PROGRESS) giữ nguyên:</span>
+                <span>Chuyến xe đang chạy giữ nguyên:</span>
                 <span className="font-bold text-emerald-600">
                   {locationImpact.inProgressTripsPreservedCount ?? (locationImpact.inProgressTripsCount || 0)} chuyến
                 </span>

@@ -15,7 +15,7 @@ import {
   AlertIcon,
 } from '@/components/icons';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
-import { AddSchoolModal } from '@/components/admin/schools/add-school-modal';
+import { AddSchoolModal } from './_components/add-school-modal';
 import { SchoolStatusDialog } from '@/components/admin/schools/school-status-dialog';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';

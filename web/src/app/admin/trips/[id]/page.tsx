@@ -1,4 +1,5 @@
 'use client';
+import { getTripStatusLabel } from '@/lib/status-labels';
 import { BackLink } from '@/components/admin/common/context-navigation';
 
 import React, { useState, useEffect, useMemo, useRef, use } from 'react';
@@ -16,7 +17,7 @@ import {
   MapPinIcon,
 } from '@/components/icons';
 import { RouteMap, MapPoint } from '@/components/admin/routes/route-map';
-import { TripAssignmentModal } from '@/components/admin/trips/trip-assignment-modal';
+import { TripAssignmentModal } from './_components/trip-assignment-modal';
 import { getRecordedHistory, getTripLocation, splitRecordedHistory, type RecordedPoint, type TripLocationState } from '@/lib/trip-location';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -212,7 +213,7 @@ export default function AdminTripDetailPage({
             )}
 
             <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
-              {trip.status}
+              {getTripStatusLabel(trip.status)}
             </Badge>
           </div>
 

@@ -12,7 +12,6 @@ import {
   SchoolIcon,
   MapPinIcon,
   CalendarIcon,
-  ClockIcon,
   UsersIcon,
   SpinnerIcon,
   AlertIcon,
@@ -22,15 +21,18 @@ import {
 } from '@/components/icons';
 import { useAuth } from '@/components/auth/auth-provider';
 import { SchoolStatusDialog } from '@/components/admin/schools/school-status-dialog';
-import { EditSchoolModal } from '@/components/admin/schools/edit-school-modal';
-import { SchoolEmployeesTab } from '@/components/admin/schools/school-employees-tab';
+import { VietMapPicker } from '@/components/admin/schools/vietmap-picker';
+import { EditSchoolModal } from './_components/edit-school-modal';
+import { SchoolEmployeesTab } from './_components/school-employees-tab';
 import { StudentTable } from '@/components/admin/students/student-table';
-import { SchoolRoutesTab } from '@/components/admin/schools/school-routes-tab';
-import { SchoolTripsTab } from '@/components/admin/schools/school-trips-tab';
+import { SchoolRoutesTab } from './_components/school-routes-tab';
+import { SchoolTripsTab } from './_components/school-trips-tab';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
 import { Badge } from '@/components/ui/badge';
+import { SchoolSchedule } from './_components/school-schedule';
+import './_components/school-detail.css';
 
 function formatDate(dateStr: string): string {
   if (!dateStr) return '';
@@ -41,26 +43,6 @@ function formatDate(dateStr: string): string {
   const year = d.getUTCFullYear();
   return `${day}/${month}/${year}`;
 }
-
-const DAY_LABELS: Record<string, string> = {
-  monday: 'Thứ 2',
-  tuesday: 'Thứ 3',
-  wednesday: 'Thứ 4',
-  thursday: 'Thứ 5',
-  friday: 'Thứ 6',
-  saturday: 'Thứ 7',
-  sunday: 'Chủ nhật',
-};
-
-const DAY_ORDER = [
-  'monday',
-  'tuesday',
-  'wednesday',
-  'thursday',
-  'friday',
-  'saturday',
-  'sunday',
-];
 
 export default function AdminSchoolDetailPage() {
   const { user } = useAuth();
@@ -76,6 +58,7 @@ export default function AdminSchoolDetailPage() {
   // Edit & Status modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
+  const [showSchoolMap, setShowSchoolMap] = useState(false);
 
   // Horizontal Tabs (employees, students, routes, trips)
   const pathname = usePathname();
@@ -148,17 +131,6 @@ export default function AdminSchoolDetailPage() {
     );
   }
 
-  // Phân tích lịch học tuần
-  const scheduleGroups = new Map<string, { days: string[]; start: string; end: string }>();
-  for (const dayKey of DAY_ORDER) {
-    const schedule = school.weeklySchedule?.[dayKey];
-    if (!schedule?.start || !schedule.end) continue;
-    const key = `${schedule.start}-${schedule.end}`;
-    const group = scheduleGroups.get(key);
-    if (group) group.days.push(DAY_LABELS[dayKey]);
-    else scheduleGroups.set(key, { days: [DAY_LABELS[dayKey]], start: schedule.start, end: schedule.end });
-  }
-
   return (
     <div className="space-y-6">
       {/* Toast thông báo */}
@@ -212,10 +184,12 @@ export default function AdminSchoolDetailPage() {
                 <MapPinIcon className="w-4 h-4 text-slate-400 shrink-0" />
                 <span>{school.addressText}</span>
               </p>
+              <Button type="button" variant="outline" size="sm" className="school-detail-map-toggle"
+                aria-expanded={showSchoolMap} aria-controls="school-detail-location" onClick={() => setShowSchoolMap((open) => !open)}>
+                <MapPinIcon className="w-4 h-4" aria-hidden="true" />
+                {showSchoolMap ? 'Thu gọn bản đồ' : 'Xem bản đồ'}
+              </Button>
 
-              <p className="text-xs text-slate-500">
-                Tọa độ: {school.latitude.toFixed(6)}, {school.longitude.toFixed(6)}
-              </p>
             </PageHeader>
           </div>
 
@@ -244,39 +218,29 @@ export default function AdminSchoolDetailPage() {
           </div>
         </div>
 
-        {/* Thông tin Hợp đồng & Lịch học */}
-        <div className="mt-6 pt-6 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 items-start gap-4 text-sm text-slate-700">
-          {/* Thời hạn hợp đồng */}
-          <div className="space-y-2 bg-slate-50/60 p-4 rounded-xl border border-slate-200/60">
-            <h3 className="font-bold text-slate-800 flex items-center gap-1.5 uppercase text-[11px] tracking-wider text-slate-500">
-              <CalendarIcon className="w-4 h-4 text-amber-500" />
-              <span>Thời hạn hợp đồng</span>
-            </h3>
-            <p className="text-sm font-semibold text-slate-800">
-              {formatDate(school.contractStartDate)} – {formatDate(school.contractEndDate)}
+        <div className="school-detail-summary">
+          <section className="school-detail-info-card school-detail-contract-card" aria-label="Thời hạn hợp đồng">
+            <div className="school-detail-section-heading">
+              <h3><CalendarIcon className="w-4 h-4" aria-hidden="true" />Thời hạn hợp đồng</h3>
+            </div>
+            <p className="school-detail-contract">
+              <time dateTime={school.contractStartDate}>{formatDate(school.contractStartDate)}</time>
+              <span>–</span>
+              <time dateTime={school.contractEndDate}>{formatDate(school.contractEndDate)}</time>
             </p>
-          </div>
-
-          {/* Lịch học trong tuần */}
-          <div className="space-y-2 bg-slate-50/60 p-4 rounded-xl border border-slate-200/60">
-            <h3 className="font-bold text-slate-800 flex items-center gap-1.5 uppercase text-[11px] tracking-wider text-slate-500">
-              <ClockIcon className="w-4 h-4 text-amber-500" />
-              <span>Lịch học theo tuần</span>
-            </h3>
-            {scheduleGroups.size === 0 ? (
-              <p className="text-xs text-slate-400 italic">Chưa có cấu hình lịch học</p>
-            ) : (
-              <dl className="divide-y divide-slate-200/60">
-                {[...scheduleGroups.entries()].map(([key, group]) => (
-                  <div key={key} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2 first:pt-0 last:pb-0">
-                    <dt className="min-w-0 font-semibold text-slate-800">{group.days.join(', ')}</dt>
-                    <dd className="m-0 shrink-0 whitespace-nowrap font-medium tabular-nums text-slate-700">{group.start} – {group.end}</dd>
-                  </div>
-                ))}
-              </dl>
-            )}
-          </div>
+          </section>
+          <SchoolSchedule schedule={school.weeklySchedule ?? {}} schoolName={school.name} />
         </div>
+        {showSchoolMap && (
+          <section id="school-detail-location" className="school-detail-location" aria-label="Vị trí trường">
+            <VietMapPicker
+              latitude={school.latitude}
+              longitude={school.longitude}
+              onChangeCoordinates={() => undefined}
+              disabled
+            />
+          </section>
+        )}
       </Card>
 
       {/* 14. Horizontal Tabs (Section 14 & Wireframe W6) */}

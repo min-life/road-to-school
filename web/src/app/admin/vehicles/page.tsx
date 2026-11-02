@@ -6,7 +6,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { apiClient } from '@/lib/api-client';
 import { Vehicle } from '@/lib/types';
-import { AddVehicleModal } from '@/components/admin/vehicles/add-vehicle-modal';
+import { AddVehicleModal } from './_components/add-vehicle-modal';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
 import {
   VehicleIcon,

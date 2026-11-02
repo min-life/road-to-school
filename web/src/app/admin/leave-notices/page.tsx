@@ -1,4 +1,5 @@
 'use client';
+import { getLeaveNoticeStatusLabel } from '@/lib/status-labels';
 import { TableActions } from '@/components/admin/common/table-actions';
 
 import { SchoolSelectFilter } from '@/components/admin/common/school-select-filter';
@@ -24,8 +25,8 @@ import {
   TeacherIcon,
 } from '@/components/icons';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
-import { ReplacementModal } from '@/components/admin/leave-notices/replacement-modal';
-import { CancelTripModal } from '@/components/admin/leave-notices/cancel-trip-modal';
+import { ReplacementModal } from './_components/replacement-modal';
+import { CancelTripModal } from './_components/cancel-trip-modal';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -202,7 +203,7 @@ export default function AdminLeaveNoticesPage() {
       default:
         return (
           <Badge className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-            {notice.status}
+            {getLeaveNoticeStatusLabel(notice.status)}
           </Badge>
         );
     }
@@ -270,7 +271,7 @@ export default function AdminLeaveNoticesPage() {
         </Button>
       </div>
 
-      {focusNotice && <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm"><div className="flex justify-between"><strong>Chi tiết báo nghỉ</strong><button type="button" onClick={() => setFocusNotice(null)}>Đóng</button></div><p className="my-2">{focusNotice.kind === 'STUDENT' ? 'Học sinh' : focusNotice.kind === 'DRIVER' ? 'Tài xế' : 'Giáo viên'} · {focusNotice.status}</p><ContextLink className="font-semibold underline" href={'/admin/trips/' + focusNotice.tripId}>Xem chuyến xe</ContextLink></div>}
+      {focusNotice && <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm"><div className="flex justify-between"><strong>Chi tiết báo nghỉ</strong><button type="button" onClick={() => setFocusNotice(null)}>Đóng</button></div><p className="my-2">{focusNotice.kind === 'STUDENT' ? 'Học sinh' : focusNotice.kind === 'DRIVER' ? 'Tài xế' : 'Giáo viên'} · {renderStatusBadge(focusNotice)}</p><ContextLink className="font-semibold underline" href={'/admin/trips/' + focusNotice.tripId}>Xem chuyến xe</ContextLink></div>}
 
       {actionableOnly && <button type="button" onClick={() => setActionableOnly(false)} className="text-xs font-semibold text-amber-800">Chỉ báo nghỉ cần bố trí ×</button>}
       {/* Filter Toolbar */}

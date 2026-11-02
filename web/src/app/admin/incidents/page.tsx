@@ -25,7 +25,7 @@ import {
   AlertTriangleIcon,
 } from '@/components/icons';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
-import { ResolveIncidentModal } from '@/components/admin/incidents/resolve-incident-modal';
+import { ResolveIncidentModal } from './_components/resolve-incident-modal';
 
 export default function AdminIncidentsPage() {
   const { user } = useAuth();
@@ -174,7 +174,7 @@ export default function AdminIncidentsPage() {
       default:
         return (
           <Badge className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200">
-            {status}
+            Không xác định
           </Badge>
         );
     }
@@ -445,26 +445,6 @@ export default function AdminIncidentsPage() {
                   <span className="font-semibold text-slate-500 block mb-0.5">Nội dung báo:</span>
                   <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80">
                     {selectedIncidentForDetail.description}
-                  </div>
-                </div>
-              )}
-              {selectedIncidentForDetail.context && (
-                <div>
-                  <span className="font-semibold text-slate-500 block mb-0.5">Bằng chứng kỹ thuật:</span>
-                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 font-mono text-[11px] text-slate-600 overflow-x-auto">
-                    {selectedIncidentForDetail.type === 'OFF_ROUTE' && (
-                      <p>
-                        Khoảng cách lệch: {selectedIncidentForDetail.context.distanceMeters}m (ngưỡng 100m) · Thời gian lệch: {selectedIncidentForDetail.context.durationSeconds}s
-                      </p>
-                    )}
-                    {selectedIncidentForDetail.type === 'LATE_STOP' && (
-                      <p>
-                        Trạm: {selectedIncidentForDetail.context.stopAddress || 'Trạm đón/trả'} · Độ trễ: {Math.round(selectedIncidentForDetail.context.delaySeconds / 60)} phút · Thời gian duy trì: {selectedIncidentForDetail.context.durationSeconds}s
-                      </p>
-                    )}
-                    {selectedIncidentForDetail.type !== 'OFF_ROUTE' && selectedIncidentForDetail.type !== 'LATE_STOP' && (
-                      <pre>{JSON.stringify(selectedIncidentForDetail.context, null, 2)}</pre>
-                    )}
                   </div>
                 </div>
               )}

@@ -178,6 +178,7 @@ export interface DriverListResponse {
 }
 
 export interface CreateDriverResponse {
+  credentialDeliveryStatus: 'SENT' | 'FAILED' | 'CONSOLE';
   id: string;
   fullName: string;
   email: string | null;

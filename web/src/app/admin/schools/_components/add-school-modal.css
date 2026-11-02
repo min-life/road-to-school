@@ -1,0 +1,89 @@
+.school-wizard-dialog.ui-dialog-panel {
+  width: min(850px, calc(100vw - 32px));
+  max-width: 920px;
+  height: auto;
+  max-height: min(735px, calc(100dvh - 32px));
+  padding: 24px 24px 0;
+  background: #fff;
+  color: #10244e;
+}
+.school-wizard-dialog > .school-wizard-header { flex-shrink: 0; align-items: flex-start; padding: 0; border: 0; gap: 16px; }
+.school-wizard-header h2 { color: #10244e; font-size: 24px; line-height: 1.25; font-weight: 750; }
+.school-wizard-header p { margin-top: 6px; color: #6680a5; font-size: 13px; line-height: 1.45; }
+.school-wizard-navigation { flex-shrink: 0; margin-top: 14px; padding: 10px 14px; border: 1px solid #dce6f4; border-radius: 9px; background: #fff; }
+.school-wizard-navigation ol { display: flex; gap: 10px; list-style: none; padding: 0; margin: 0; }
+.school-wizard-navigation li { display: flex; flex: 1; align-items: center; min-width: 0; gap: 10px; }
+.school-wizard-navigation li:not(:last-child)::after { content: ''; width: 18px; height: 1px; flex-shrink: 0; background: #c9d6e6; }
+.school-wizard-navigation button { display: flex; flex: 1; align-items: center; gap: 12px; min-width: 0; min-height: 46px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #8397b3; text-align: left; font-size: 13px; font-weight: 600; cursor: pointer; }
+.school-wizard-navigation button > span:last-child { color: #18325e; }
+.school-wizard-navigation button[aria-current=step] > span:last-child { color: #173e83; }
+.school-wizard-step-number { display: grid; place-items: center; width: 42px; height: 42px; border: 0; border-radius: 50%; background: #edf1f6; color: #29466d; flex-shrink: 0; font-size: 15px; font-weight: 700; }
+.school-wizard-navigation button[aria-current=step] .school-wizard-step-number { background: #0878ff; color: #fff; }
+.school-wizard-navigation button:focus-visible { outline: 2px solid #8db9f5; outline-offset: 3px; }
+.school-wizard-navigation button:disabled { cursor: default; opacity: .6; }
+.school-wizard-form { min-width: 0; min-height: 0; margin-top: 12px; padding: 4px 6px 12px 4px; overscroll-behavior: contain; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: #b9c8dc transparent; }
+.school-wizard-form::-webkit-scrollbar { width: 7px; }
+.school-wizard-form::-webkit-scrollbar-thumb { border-radius: 999px; background: #b9c8dc; }
+.school-wizard-form:focus { outline: none; }
+.school-wizard-form > .school-wizard-panel { min-width: 0; padding: 0; margin: 0; border: 0; }
+.school-wizard-panel[hidden] { display: none; }
+.school-wizard-panel > div + div { margin-top: 14px; }
+.school-wizard-section { padding: 15px 16px; border: 1px solid #dce6f4; border-radius: 9px; background: #fff; }
+.school-wizard-section .school-wizard-section-title { display: flex; align-items: center; gap: 9px; margin: 0 0 12px; color: #173e79; font-size: 15px; font-weight: 600; letter-spacing: normal; text-transform: none; }
+.school-wizard-section-title svg { flex-shrink: 0; color: #1765df; }
+.school-wizard-basics { padding: 24px; }
+.school-wizard-basics > div + div { margin-top: 24px; }
+.school-wizard-basics .school-wizard-section-title { margin-bottom: 20px; }
+.school-wizard-basics label { font-size: 13px; }
+.school-wizard-image { display: grid; grid-template-columns: 200px minmax(0, 1fr); align-items: center; gap: 24px; margin-top: 10px; padding: 20px; border: 1px dashed var(--brand-input-border); border-radius: 12px; background: var(--brand-background); }
+.school-wizard-image-preview { display: grid; place-items: center; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; border: 1px solid var(--brand-border); border-radius: 9px; background: var(--brand-surface); }
+.school-wizard-image-preview img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.school-wizard-image-placeholder { display: grid; justify-items: center; gap: 12px; color: var(--brand-info); }
+.school-wizard-image-placeholder span { color: var(--brand-muted); font-size: 12px; }
+.school-wizard-image-content { min-width: 0; }
+.school-wizard-image-name { margin: 0; overflow-wrap: anywhere; color: var(--brand-heading); font-size: 14px; font-weight: 600; }
+.school-wizard-image-meta { margin: 6px 0 0; color: var(--brand-muted); font-size: 12px; line-height: 1.6; }
+.school-wizard-image-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.school-wizard-image-actions .ui-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; }
+.school-wizard-image-actions .school-wizard-image-remove { color: var(--brand-danger); }
+.school-wizard-panel label { color: #526b8f; font-size: 12px; font-weight: 600; }
+.school-wizard-panel .ui-input:not([type=checkbox]):not([type=file]) { height: 44px; border: 1px solid #cfddee; border-radius: 7px; background: #fff; color: #173e79; font-size: 13px; }
+.school-wizard-panel .ui-input::placeholder { color: #8b9db5; }
+.school-wizard-panel .ui-input:focus-visible { outline: 2px solid #8db9f5; outline-offset: 1px; }
+.school-wizard-panel .weekly-schedule { padding: 15px 16px; border: 1px solid #dce6f4; border-radius: 9px; background: #fff; }
+.school-wizard-panel .weekly-schedule-heading > label { color: #173e79; font-size: 15px; font-weight: 600; }
+.school-wizard-panel .weekly-schedule-heading > span { color: #7187a6; font-size: 11px; }
+.school-wizard-panel .weekly-schedule > div:last-child { border-color: #dce6f4; border-radius: 8px; background: #fbfdff; }
+.school-wizard-panel .weekly-schedule-row { border-radius: 8px; box-shadow: none; }
+.school-wizard-panel .weekly-schedule-row:has(input[type=checkbox]:checked) { border-color: #ecdcae; background: #fffcf3; }
+.school-wizard-panel .weekly-schedule-table { margin-top: 14px; }
+.school-wizard-panel .weekly-schedule-table > div:last-child { padding: 0; border: 0; border-radius: 0; background: transparent; }
+.school-wizard-panel .weekly-schedule-table .weekly-schedule-row { min-height: 44px; margin: 0; padding: 6px 8px; border: 0; border-bottom: 1px solid #e8eef5; border-radius: 0; opacity: 1; background: transparent; }
+.school-wizard-panel .weekly-schedule-table .weekly-schedule-row:last-child { border-bottom: 0; }
+.school-wizard-panel .weekly-schedule-table .weekly-schedule-row:has(input[type=checkbox]:checked) { border-color: #e8eef5; background: #fffdf7; }
+.school-wizard-panel .weekly-schedule-table .weekly-schedule-row:not(:has(input[type=checkbox]:checked)) .weekly-schedule-day label { color: #7890aa; }
+.school-wizard-panel .weekly-schedule-table .ui-input[type=time] { height: 36px; min-height: 36px; }
+.school-wizard-dialog > .school-wizard-footer { flex-shrink: 0; margin: 0 -24px; padding: 12px 20px; border-top: 1px solid #e5edf7; background: #fff; }
+.school-wizard-footer-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.school-wizard-footer .ui-button { min-height: 40px; border-radius: 8px; font-size: 12px; font-weight: 600; }
+@media (max-width: 540px) {
+  .school-wizard-dialog.ui-dialog-panel { width: calc(100vw - 20px); height: auto; max-height: calc(100dvh - 20px); padding: 15px 15px 0; }
+  .school-wizard-header h2 { font-size: 20px; }
+  .school-wizard-header p { font-size: 12px; }
+  .school-wizard-navigation { padding: 9px 7px; }
+  .school-wizard-navigation ol { gap: 6px; }
+  .school-wizard-navigation li { display: block; }
+  .school-wizard-navigation li::after { display: none; }
+  .school-wizard-navigation button { flex-direction: column; justify-content: center; gap: 5px; width: 100%; padding: 2px; text-align: center; font-size: 11px; }
+  .school-wizard-step-number { width: 28px; height: 28px; font-size: 12px; }
+  .school-wizard-form { padding: 4px 4px 10px; }
+  .school-wizard-section, .school-wizard-panel .weekly-schedule { padding: 12px; }
+  .school-wizard-basics { padding: 16px; }
+  .school-wizard-image { grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 16px; }
+  .school-wizard-image-preview { width: min(100%, 200px); margin-inline: auto; }
+  .school-wizard-image-content { text-align: center; }
+  .school-wizard-image-actions { justify-content: center; }
+  .school-wizard-section .school-wizard-section-title, .school-wizard-panel .weekly-schedule-heading > label { font-size: 13px; }
+  .school-wizard-dialog > .school-wizard-footer { margin-inline: -15px; padding: 12px 15px; gap: 8px; flex-wrap: wrap; }
+  .school-wizard-footer-actions { flex-wrap: wrap; }
+}

@@ -7,11 +7,12 @@ import { Tooltip } from '@/components/admin/schools/tooltip';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import type { CreateDriverResponse } from '@/lib/types';
 
 interface AddDriverModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (result: CreateDriverResponse) => void;
 }
 
 export function AddDriverModal({
@@ -41,7 +42,7 @@ export function AddDriverModal({
     setErrorMessage(null);
 
     const trimmedName = fullName.trim();
-    const trimmedEmail = email.trim();
+    const trimmedEmail = email.trim().toLowerCase();
     const trimmedPhone = phone.trim();
 
     if (!trimmedName) {
@@ -49,34 +50,34 @@ export function AddDriverModal({
       return;
     }
 
-    if (!trimmedEmail && !trimmedPhone) {
-      setErrorMessage('Vui lòng cung cấp ít nhất Email hoặc Số điện thoại để làm thông tin đăng nhập.');
+    if (!trimmedEmail) {
+      setErrorMessage('Vui lòng nhập email để nhận mật khẩu tài khoản tài xế.');
       return;
     }
 
-    if (trimmedPhone && !/^(0|\+84|84)?[35789]\d{8}$/.test(trimmedPhone)) {
-      setErrorMessage('Số điện thoại không đúng định dạng di động Việt Nam (ví dụ: 0912345678).');
+    if (trimmedPhone && !/^(0|\+84)[0-9]{9,10}$/.test(trimmedPhone)) {
+      setErrorMessage('Số điện thoại không đúng định dạng (ví dụ: 0987654321).');
       return;
     }
 
-    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
       setErrorMessage('Địa chỉ email không đúng định dạng.');
       return;
     }
 
     try {
       setIsLoading(true);
-      await apiClient.createDriver({
+      const result = await apiClient.createDriver({
         fullName: trimmedName,
-        email: trimmedEmail || undefined,
+        email: trimmedEmail,
         phone: trimmedPhone || undefined,
       });
 
-      onSuccess();
+      onSuccess(result);
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setErrorMessage(
-        err?.message || 'Không thể tạo tài khoản tài xế. Vui lòng thử lại.'
+        err instanceof Error ? err.message : 'Không thể tạo tài khoản tài xế. Vui lòng thử lại.'
       );
     } finally {
       setIsLoading(false);
@@ -120,10 +121,11 @@ export function AddDriverModal({
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
+            <label htmlFor="add-driver-name" className="block text-xs font-semibold text-slate-700 mb-1">
               Họ và tên <span className="text-red-500">*</span>
             </label>
             <Input
+              id="add-driver-name"
               type="text"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
@@ -136,11 +138,14 @@ export function AddDriverModal({
 
           <div>
             <div className="flex items-center gap-1 mb-1">
-              <label className="text-xs font-semibold text-slate-700">Email</label>
-              <Tooltip content="Địa chỉ email đăng nhập của tài xế. Tùy chọn nếu đã cung cấp Số điện thoại." />
+              <label htmlFor="add-driver-email" className="text-xs font-semibold text-slate-700">Email <span className="text-red-500">*</span></label>
+              <Tooltip content="Email bắt buộc để nhận mật khẩu tài khoản tài xế." />
             </div>
             <Input
+              id="add-driver-email"
               type="email"
+              required
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="nam.lh@roadtoschool.vn"
@@ -151,11 +156,13 @@ export function AddDriverModal({
 
           <div>
             <div className="flex items-center gap-1 mb-1">
-              <label className="text-xs font-semibold text-slate-700">Số điện thoại</label>
-              <Tooltip content="Số điện thoại di động đăng nhập của tài xế. Tùy chọn nếu đã cung cấp Email." />
+              <label htmlFor="add-driver-phone" className="text-xs font-semibold text-slate-700">Số điện thoại <span className="font-normal text-slate-500">(tùy chọn)</span></label>
+              <Tooltip content="Số điện thoại liên hệ của tài xế." />
             </div>
             <Input
+              id="add-driver-phone"
               type="tel"
+              autoComplete="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="0987654321"
@@ -165,7 +172,7 @@ export function AddDriverModal({
           </div>
 
           <p className="text-[11px] text-slate-500 italic bg-amber-50/50 p-2.5 rounded-lg border border-amber-100">
-            * Tài xế thuộc biên chế chung của hệ thống Nhà xe. Mật khẩu được khởi tạo ngẫu nhiên.
+            Mật khẩu được tạo tự động và gửi qua email tài xế.
           </p>
 
           <div className="border-t border-slate-200 pt-4 flex items-center justify-end gap-3">

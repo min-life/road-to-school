@@ -631,7 +631,7 @@ class ApiClient {
 
   async createDriver(body: {
     fullName: string;
-    email?: string;
+    email: string;
     phone?: string;
   }): Promise<CreateDriverResponse> {
     return this.request<CreateDriverResponse>('/drivers', {

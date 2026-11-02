@@ -16,7 +16,7 @@ import {
   StudentIcon,
   CalendarIcon,
 } from '@/components/icons';
-import { RequestDetailModal } from './request-detail-modal';
+import { RequestDetailModal } from '@/components/admin/requests/request-detail-modal';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/ui/page-header';
@@ -132,6 +132,8 @@ export default function AdminRequestsPage() {
             Đã từ chối
           </Badge>
         );
+      case 'CANCELLED':
+        return <Badge className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-300">Phụ huynh đã hủy</Badge>;
       default:
         return null;
     }

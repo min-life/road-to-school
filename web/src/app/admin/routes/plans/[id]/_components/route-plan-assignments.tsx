@@ -188,7 +188,14 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
 
         <div className="divide-y divide-slate-100">
           {groups.map((group, idx) => (
-            <div key={idx} className="assignment-group p-6 hover:bg-slate-50/40 transition-colors space-y-4">
+            <div key={idx} className="assignment-group p-6 hover:bg-slate-50/40 transition-colors space-y-4"
+              data-system-pending={compact ? group.routes.some(route => !route.proposedVehicleId || !route.defaultDriverId) : undefined}
+              tabIndex={compact ? -1 : undefined}>
+              {compact && <div className="assignment-group-status" data-pending={group.routes.some(route => !route.proposedVehicleId || !route.defaultDriverId)}>
+                {!group.vehicleId
+                  ? group.routes.some(route => !route.defaultDriverId) ? 'Thiếu xe và tài xế' : 'Thiếu xe'
+                  : group.routes.some(route => !route.defaultDriverId) ? 'Thiếu tài xế' : 'Đã đủ xe và tài xế'}
+              </div>}
               <div className="assignment-fields flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                 {/* Vehicle Column */}
                 <div className="flex-1 space-y-1">
@@ -201,6 +208,7 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
                         variant={compact ? 'outline' : undefined}
                         size={compact ? 'sm' : undefined}
                         onClick={() => openModal('VEHICLE', group)}
+                        data-assignment-action={compact ? 'VEHICLE' : undefined}
                         className={compact ? 'assignment-action-button' : 'text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer'}
                       >
                         {compact ? (group.vehicleId ? 'Đổi xe' : 'Chọn xe') : '[Đổi xe]'}
@@ -209,7 +217,7 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
                   </div>
                   {group.vehiclePlate ? (
                     <div>
-                      <span className="text-base font-bold text-slate-900">{group.vehiclePlate}</span>
+                      <span className="text-base font-bold text-slate-900">{compact ? `Xe ${group.vehiclePlate}` : group.vehiclePlate}</span>
                       <span className="text-xs text-slate-500 block">
                         {group.vehicleSeats} chỗ • {group.vehicleBrand || 'Xe buýt'}
                       </span>
@@ -230,6 +238,7 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
                         variant={compact && !group.driverId ? 'primary' : compact ? 'outline' : undefined}
                         size={compact ? 'sm' : undefined}
                         onClick={() => openModal('DRIVER', group)}
+                        data-assignment-action={compact ? 'DRIVER' : undefined}
                         className={compact ? 'assignment-action-button' : 'text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer'}
                       >
                         {compact ? (group.driverId ? 'Đổi tài xế' : '+ Phân công tài xế') : `[${group.driverId ? 'Đổi tài xế' : 'Phân công'}]`}

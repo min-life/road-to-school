@@ -1,4 +1,5 @@
 'use client';
+import { getTripStatusLabel } from '@/lib/status-labels';
 
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
@@ -106,7 +107,7 @@ export function DriverSchedule({ driverId }: { driverId: string }) {
                       <td><strong>{item.routeName}</strong><span className="driver-schedule-school">{item.schoolName}</span></td>
                       <td>{item.direction === 'TO_SCHOOL' ? 'Đến trường' : 'Về bãi'}</td>
                       <td className="whitespace-nowrap">{item.vehiclePlate || 'Chưa gán'}</td>
-                      <td><Badge className={status?.className}>{status?.label || item.status}</Badge></td>
+                      <td><Badge className={status?.className}>{getTripStatusLabel(virtual ? 'NOT_CREATED' : item.status)}</Badge></td>
                       <td><TableActions actions={[{ label: virtual ? 'Xem tuyến' : 'Xem chuyến', href: virtual ? `/admin/routes/${item.routeId}` : `/admin/trips/${item.id}` }]} /></td>
                     </tr>;
                   })}</tbody>

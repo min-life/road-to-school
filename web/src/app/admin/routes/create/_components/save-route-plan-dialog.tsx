@@ -48,7 +48,7 @@ export function SaveRoutePlanDialog({ isOpen, outboundCount, returnCount, isSavi
       <header className="save-route-dialog-header">
         <span className="save-route-dialog-icon" aria-hidden="true"><RouteIcon className="w-6 h-6" /></span>
         <div className="save-route-dialog-heading">
-          <h2 id="save-route-title">Lưu phương án nháp?</h2>
+          <h2 id="save-route-title">Lưu phương án chưa duyệt?</h2>
           <p>Xác nhận lưu phương án tuyến đưa đón</p>
         </div>
         <Button variant="ghost" size="icon" aria-label="Đóng" disabled={isSaving} onClick={close}><CloseIcon className="w-4 h-4" /></Button>
@@ -78,7 +78,7 @@ export function SaveRoutePlanDialog({ isOpen, outboundCount, returnCount, isSavi
           try { await onConfirm(); } finally { submittingRef.current = false; }
         }}>
           {isSaving && <SpinnerIcon className="w-4 h-4 animate-spin" />}
-          {isSaving ? 'Đang lưu…' : 'Lưu bản nháp'}
+          {isSaving ? 'Đang lưu…' : 'Lưu phương án chưa duyệt'}
         </Button>
       </footer>
     </dialog>

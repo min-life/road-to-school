@@ -1,4 +1,5 @@
 'use client';
+import { getRoutePlanStatusLabel } from '@/lib/status-labels';
 
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
@@ -187,7 +188,7 @@ export function InsertStudentModal({
             <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1">
               <strong className="font-bold">Học sinh đã thuộc tuyến hiệu lực:</strong>
               <p>
-                Em đã được phân vào phương án tuyến DRAFT hoặc ACTIVE. Chỉ có thể thêm vào tuyến cho học sinh chưa có tuyến.
+                Em đã được phân vào phương án tuyến chưa duyệt hoặc đang hoạt động. Chỉ có thể thêm vào tuyến cho học sinh chưa có tuyến.
               </p>
             </div>
           ) : options && candidatePairs.length === 0 ? (
@@ -224,7 +225,7 @@ export function InsertStudentModal({
                         <div className="flex items-center justify-between font-semibold text-slate-800 mb-1">
                           <span>{pair.planName}</span>
                           <Badge className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
-                            {pair.planStatus}
+                            {getRoutePlanStatusLabel(pair.planStatus)}
                           </Badge>
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600">

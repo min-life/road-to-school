@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { SchoolAdminGuard } from '@/components/admin/school-admin-guard';
 import { StudentTable } from '@/components/admin/students/student-table';
-import { AddStudentModal } from '@/components/admin/students/add-student-modal';
+import { AddStudentModal } from './_components/add-student-modal';
 import { PlusIcon, AlertIcon, } from '@/components/icons';
 import type { StudentListItem } from '@/lib/types';
 import { Button } from '@/components/ui/button';

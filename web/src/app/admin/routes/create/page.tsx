@@ -25,7 +25,9 @@ import {
 } from '@/components/icons';
 import { RouteMap, MapPoint } from '@/components/admin/routes/route-map';
 import { RoutePlanningWorkspace, PlanningTabs } from '@/components/admin/routes/route-planning-workspace';
-import { SaveRoutePlanDialog } from '@/components/admin/routes/save-route-plan-dialog';
+import { SaveRoutePlanDialog } from './_components/save-route-plan-dialog';
+import { PreviewRouteSelector, PREVIEW_ROUTE_COLORS } from '@/components/admin/routes/preview-route-selector';
+import { PreviewStudentsPanel } from './_components/preview-students-panel';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -33,7 +35,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/components/auth/auth-provider';
 import { useShallow } from 'zustand/react/shallow';
-import { RoutePlanDraftProvider, useRoutePlanDraft } from '@/components/admin/routes/route-plan-draft-provider';
+import { RoutePlanDraftProvider, useRoutePlanDraft } from './_components/route-plan-draft-provider';
 
 const DraftRouteMap = memo(RouteMap);
 
@@ -43,7 +45,8 @@ function CreateRoutePlanContent() {
   const schoolId = searchParams.get('schoolId');
 
   const [setupTab, setSetupTab] = useState<'STUDENTS' | 'VEHICLES'>('STUDENTS');
-  const [studentMapSnapshot, setStudentMapSnapshot] = useState<{ route: PreviewRoute | undefined; points: MapPoint[] } | null>(null);
+  const [previewDirection, setPreviewDirection] = useState<'OUTBOUND' | 'RETURN'>('OUTBOUND');
+  const [hiddenRouteIndices, setHiddenRouteIndices] = useState<{ OUTBOUND: Set<number>; RETURN: Set<number> }>({ OUTBOUND: new Set(), RETURN: new Set() });
 
   // Preparation Data
   const [prepData, setPrepData] = useState<RoutePreparationData | null>(null);
@@ -276,6 +279,8 @@ function CreateRoutePlanContent() {
       });
 
       setPreviewResult(res);
+      setHiddenRouteIndices({ OUTBOUND: new Set(), RETURN: new Set() });
+      setPreviewDirection('OUTBOUND');
       setActivePreviewTab('OUTBOUND');
       setActiveRouteIndex(0);
     } catch (err: any) {
@@ -299,6 +304,7 @@ function CreateRoutePlanContent() {
       const updated = await apiClient.cancelReturnRoute(previewResult.previewToken, index);
       toast.info('Đã bỏ tuyến chiều về khỏi bản xem trước.');
       setPreviewResult(updated);
+      setHiddenRouteIndices({ OUTBOUND: new Set(), RETURN: new Set() });
       setActiveRouteIndex(0);
     } catch (err: any) {
       setOptimizeError(err?.message || 'Không thể hủy tuyến về này');
@@ -360,15 +366,27 @@ function CreateRoutePlanContent() {
       }));
   }, [prepData, selectedStudentIds]);
 
-  // Map Points for Preview state
+  const previewRoutes = useMemo(() => (previewDirection === 'RETURN' ? previewResult?.returnRoutes : previewResult?.outboundRoutes) ?? [], [previewResult, previewDirection]);
+  const togglePreviewRoute = (index: number) => {
+    setHiddenRouteIndices(previous => {
+      const hidden = new Set(previous[previewDirection]);
+      if (hidden.has(index)) hidden.delete(index);
+      else hidden.add(index);
+      return { ...previous, [previewDirection]: hidden };
+    });
+  };
+  const previewMapRoutes = useMemo(() => previewRoutes.flatMap((route, index) => hiddenRouteIndices[previewDirection].has(index) ? [] : [{
+    id: `${previewDirection}-${index}`, polylineGeometry: route.polylineGeometry,
+    color: PREVIEW_ROUTE_COLORS[index % PREVIEW_ROUTE_COLORS.length], active: index === activeRouteIndex,
+  }]), [previewRoutes, hiddenRouteIndices, previewDirection, activeRouteIndex]);
+
+  // Only the inspected visible route gets numbered markers, keeping the overview readable.
   const activePreviewRoute: PreviewRoute | undefined = useMemo(() => {
-    if (!previewResult) return undefined;
-    const routes = activePreviewTab === 'RETURN' ? previewResult.returnRoutes : previewResult.outboundRoutes;
-    return routes[activeRouteIndex] || routes[0];
-  }, [previewResult, activePreviewTab, activeRouteIndex]);
+    return previewRoutes[activeRouteIndex] || previewRoutes[0];
+  }, [previewRoutes, activeRouteIndex]);
 
   const previewMapPoints: MapPoint[] = useMemo(() => {
-    if (!activePreviewRoute) return [];
+    if (!activePreviewRoute || hiddenRouteIndices[previewDirection].has(activeRouteIndex)) return [];
     return activePreviewRoute.stops
       .filter((st) => st.type === 'PICKUP' || st.type === 'DROPOFF' || st.stopType === 'PICKUP' || st.stopType === 'DROPOFF')
       .map((st) => ({
@@ -379,10 +397,11 @@ function CreateRoutePlanContent() {
         longitude: st.longitude,
         type: 'STUDENT',
         order: st.stopOrder,
+        color: PREVIEW_ROUTE_COLORS[activeRouteIndex % PREVIEW_ROUTE_COLORS.length],
         eta: st.plannedArrivalTime,
         isSelected: true,
       }));
-  }, [activePreviewRoute]);
+  }, [activePreviewRoute, hiddenRouteIndices, previewDirection, activeRouteIndex]);
 
   // Memoized School Location & Parking Location
   const schoolLocation = useMemo(() => {
@@ -426,9 +445,6 @@ function CreateRoutePlanContent() {
   const scheduleEntries = weeklySchedule
     ? Object.entries(weeklySchedule).filter(([_, v]) => v && v.start && v.end)
     : [];
-
-  const visibleMapRoute = activePreviewTab === 'STUDENTS' ? studentMapSnapshot?.route : activePreviewRoute;
-  const visibleMapPoints = activePreviewTab === 'STUDENTS' ? (studentMapSnapshot?.points ?? previewMapPoints) : previewMapPoints;
 
   return (
     <div className="route-planning-page">
@@ -600,8 +616,8 @@ function CreateRoutePlanContent() {
               </div>
             </Card>) : undefined}
         map={<DraftRouteMap schoolLocation={schoolLocation} parkingLocation={parkingLocation}
-          points={previewResult ? visibleMapPoints : initialMapPoints}
-          polylineGeometry={previewResult ? visibleMapRoute?.polylineGeometry : undefined}
+          points={previewResult ? previewMapPoints : initialMapPoints}
+          routes={previewResult ? previewMapRoutes : undefined}
           focusPoint={focusPoint} onPointClick={handleMapPointClick} height="100%" />}
         panel={previewResult ? <>
           <div className="route-workspace-summary" aria-live="polite">
@@ -615,146 +631,38 @@ function CreateRoutePlanContent() {
             {value: 'STUDENTS', label: 'Học sinh'},
           ]} onChange={tab => {
             if (tab === 'STUDENTS') {
-              if (activePreviewTab !== 'STUDENTS') setStudentMapSnapshot({route: activePreviewRoute, points: previewMapPoints});
               setActivePreviewTab('STUDENTS');
-            } else { setActivePreviewTab(tab); setActiveRouteIndex(0); }
+            } else { setPreviewDirection(tab); setActivePreviewTab(tab); setActiveRouteIndex(0); }
           }} />
-          <div className="route-workspace-content" role="tabpanel" id={`planning-panel-${activePreviewTab}`} aria-labelledby={`planning-tab-${activePreviewTab}`} tabIndex={0}>
-            {activePreviewTab === 'STUDENTS' ? (<Card className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 space-y-6">
-              <div>
-                <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                  <span>Học sinh được phân tuyến thành công (Đủ cả 2 chiều): {previewResult.summary.assignedBothWaysCount} em</span>
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {previewResult.outboundRoutes.flatMap((r) =>
-                    r.students.map((s) => (
-                      <div key={s.id} className="p-3 rounded-xl border border-emerald-100 bg-emerald-50/20 text-xs">
-                        <p className="font-bold text-slate-800">{s.fullName}</p>
-                        <p className="text-slate-500 truncate mt-0.5">{s.addressText}</p>
-                        <p className="text-[11px] text-emerald-700 font-semibold mt-1">Tuyến: {r.name}</p>
-                      </div>
-                    )),
-                  )}
-                </div>
-              </div>
-
-              {previewResult.summary.unassignedStudents.length > 0 && (
-                <div className="pt-4 border-t border-slate-100">
-                  <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                    <span>Học sinh chưa thể phân tuyến: {previewResult.summary.unassignedStudents.length} em</span>
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {previewResult.summary.unassignedStudents.map((s) => (
-                      <div key={s.id} className="p-3 rounded-xl border border-amber-200 bg-amber-50/40 text-xs space-y-1">
-                        <div className="flex items-center justify-between">
-                          <p className="font-bold text-slate-800">{s.fullName}</p>
-                          {s.missingDirection && (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 shrink-0">
-                              {s.missingDirection === 'RETURN' && 'Chỉ có tuyến đi (thiếu về)'}
-                              {s.missingDirection === 'OUTBOUND' && 'Chỉ có tuyến về (thiếu đi)'}
-                              {s.missingDirection === 'BOTH' && 'Không xếp được 2 chiều'}
-                            </span>
-                          )}
-                        </div>
-                        {s.addressText && <p className="text-slate-500 truncate">{s.addressText}</p>}
-                        <p className="text-amber-800 font-medium">Lý do: {s.reason || 'Vượt quá ràng buộc xe/thời gian'}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </Card>) : activePreviewRoute ? (<>
+          <div className={`route-workspace-content${activePreviewTab !== 'STUDENTS' ? ' preview-routes-content' : ' preview-students-content'}`} role="tabpanel" id={`planning-panel-${activePreviewTab}`} aria-labelledby={`planning-tab-${activePreviewTab}`} tabIndex={0}>
+            {activePreviewTab === 'STUDENTS' ? <PreviewStudentsPanel preview={previewResult} /> : activePreviewRoute ? (<>
                             {/* Route Selector & Info (5 cols) */}
-              <div className="lg:col-span-5 space-y-4">
-                {/* Routes Selector List */}
-                <div className="space-y-2">
-                  {(activePreviewTab === 'RETURN'
-                    ? previewResult.returnRoutes
-                    : previewResult.outboundRoutes
-                  ).map((route, idx) => {
-                    const isSelected = activeRouteIndex === idx;
-                    const distanceKm = (route.totalDistanceMeters / 1000).toFixed(1);
-                    const durationMins = Math.round(route.estimatedDurationSeconds / 60);
-
-                    return (
-                      <div
-                        key={route.proposedVehiclePlate + idx}
-                        onClick={() => setActiveRouteIndex(idx)}
-                        className={`p-4 rounded-2xl border transition-all cursor-pointer ${
-                          isSelected
-                            ? activePreviewTab === 'RETURN'
-                              ? 'border-amber-400 bg-amber-50/40 ring-1 ring-amber-400'
-                              : 'border-blue-400 bg-blue-50/40 ring-1 ring-blue-400'
-                            : 'border-slate-200 bg-white hover:bg-slate-50/60'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm font-bold text-slate-800">{route.name}</p>
-                          <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
-                            {route.proposedVehiclePlate}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between mt-2 text-xs text-slate-500">
-                          <span>
-                            {route.studentCount} / {route.proposedVehicleSeatCount || route.seatCount} chỗ
-                          </span>
-                          <span>
-                            {distanceKm} km • Tổng ~{durationMins} phút
-                          </span>
-                        </div>
-
-                        <p className="text-[11px] text-slate-400 mt-1">
-                          Lộ trình chuẩn: {route.departureTime} → {route.arrivalTime}
-                        </p>
-
-                        {/* Derived Weekly Schedule Chip */}
-                        {route.derivedWeeklySchedule && Object.keys(route.derivedWeeklySchedule).length > 0 && (
-                          <div className="mt-2 pt-2 border-t border-slate-100/80 flex flex-wrap gap-1">
-                            {Object.entries(route.derivedWeeklySchedule).map(([day, sched]) => (
-                              <span
-                                key={day}
-                                className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded"
-                              >
-                                {day.substring(0, 3)}: {sched.departureTime} - {sched.arrivalTime}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Return Route Individual Cancellation (Section 14.3) */}
-                        {activePreviewTab === 'RETURN' && (
-                          <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-end">
-                            <Button
-                              disabled={cancellingReturnIndex === idx}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCancelReturnRoute(idx);
-                              }}
-                              className="text-xs font-semibold text-rose-600 hover:text-rose-800 flex items-center gap-1.5 p-1 rounded-lg hover:bg-rose-50 transition-colors"
-                            >
-                              {cancellingReturnIndex === idx ? (
-                                <SpinnerIcon className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <TrashIcon className="w-3.5 h-3.5" />
-                              )}
-                              <span>Hủy tuyến về này</span>
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+              <div className="preview-routes-layout">
+                <PreviewRouteSelector routes={previewRoutes} hiddenIndices={hiddenRouteIndices[previewDirection]}
+                  activeIndex={activeRouteIndex} onToggle={togglePreviewRoute}
+                  onSelectAll={visible => setHiddenRouteIndices(previous => ({ ...previous,
+                    [previewDirection]: visible ? new Set<number>() : new Set(previewRoutes.map((_, index) => index)),
+                  }))}
+                  onInspect={index => {
+                    setActiveRouteIndex(index);
+                    setHiddenRouteIndices(previous => {
+                      const hidden = new Set(previous[previewDirection]);
+                      hidden.delete(index);
+                      return { ...previous, [previewDirection]: hidden };
+                    });
+                  }} />
 
                 {/* Stops Sequence for Active Route with Normalized Elapsed Time */}
-                <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
+                <section className="preview-route-stops" aria-label="Điểm dừng của tuyến đang xem">
                   <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                    Thứ tự điểm dừng ({activePreviewRoute.stops.length} điểm)
+                    Điểm dừng · {activePreviewRoute.name}
                   </h4>
-                  <div className="space-y-2  pr-1">
+                  {activePreviewTab === 'RETURN' && <Button type="button" size="sm" variant="outline" disabled={cancellingReturnIndex !== null}
+                    onClick={() => handleCancelReturnRoute(activeRouteIndex)}>
+                    {cancellingReturnIndex === activeRouteIndex ? <SpinnerIcon className="w-3.5 h-3.5 animate-spin" /> : <TrashIcon className="w-3.5 h-3.5" />}
+                    Hủy tuyến về này
+                  </Button>}
+                  <div className="preview-route-stops-list space-y-2" tabIndex={0} role="region" aria-label={`Điểm dừng của ${activePreviewRoute.name}`}>
                     {activePreviewRoute.stops.map((stop) => {
                       const isDepot =
                         stop.type === 'PARKING_START' ||
@@ -770,14 +678,16 @@ function CreateRoutePlanContent() {
                       const elapsedMins = Math.round((stop.elapsedArrivalSeconds || 0) / 60);
 
                       return (
-                        <div
+                        <button
                           key={stop.stopOrder}
+                          type="button"
+                          title={stop.addressText}
                           onClick={() => {
                             if (stop.latitude && stop.longitude) {
                               setFocusPoint({ latitude: stop.latitude, longitude: stop.longitude, zoom: 16 });
                             }
                           }}
-                          className="flex items-start gap-2.5 p-2 rounded-xl border border-slate-100 hover:bg-slate-50/70 cursor-pointer text-xs transition-colors"
+                          className="preview-stop-row"
                         >
                           <span
                             className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 ${
@@ -790,34 +700,32 @@ function CreateRoutePlanContent() {
                           >
                             {isDepot ? 'P' : isSchool ? 'S' : stop.stopOrder}
                           </span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between">
-                              <p className="font-semibold text-slate-800 truncate">
+                          <span className="preview-stop-body">
+                            <span className="preview-stop-heading">
+                              <span className="preview-stop-name">
                                 {stop.studentName || stop.addressText}
-                              </p>
-                              <div className="flex items-center gap-1.5 ml-2">
-                                <span className="font-mono text-emerald-700 font-bold">
+                              </span>
+                              <span className="preview-stop-time">
+                                <time>
                                   {stop.plannedArrivalTime}
-                                </span>
-                                <span className="text-[10px] text-slate-400 font-mono">
+                                </time>
+                                <small>
                                   (+{elapsedMins}p)
-                                </span>
-                              </div>
-                            </div>
-                            <div className="flex items-center justify-between text-[11px] text-slate-400 mt-0.5">
-                              <p className="truncate mr-2">{stop.addressText}</p>
+                                </small>
+                              </span>
+                            </span>
+                              <span className="preview-stop-address">{stop.addressText}</span>
                               {stop.serviceDurationSeconds && !isDepot && !isSchool ? (
-                                <span className="text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded shrink-0">
-                                  Dừng {stop.serviceDurationSeconds}s
+                                <span className="preview-stop-service">
+                                  Dừng {stop.serviceDurationSeconds} giây
                                 </span>
                               ) : null}
-                            </div>
-                          </div>
-                        </div>
+                          </span>
+                        </button>
                       );
                     })}
                   </div>
-                </Card>
+                </section>
               </div>
 
 
@@ -1130,7 +1038,7 @@ function CreateRoutePlanContent() {
             <Button variant="outline" size="sm" onClick={() => setPreviewResult(null)}>Chỉnh thiết lập</Button>
             <Button variant="outline" size="sm" onClick={handleCancelAllAndRecreate}>Hủy kết quả</Button>
             <Button variant="primary" size="sm" disabled={isConfirming} onClick={() => { setOptimizeError(null); setShowSaveConfirmation(true); }}>
-              {isConfirming && <SpinnerIcon className="w-4 h-4 animate-spin" />} Lưu phương án nháp
+              {isConfirming && <SpinnerIcon className="w-4 h-4 animate-spin" />} Lưu phương án chưa duyệt
             </Button>
           </div> : (<>
                         {/* Run VRP Button */}

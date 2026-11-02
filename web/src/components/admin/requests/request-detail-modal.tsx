@@ -561,7 +561,7 @@ export function RequestDetailModal({
 
                         {routingPreview.routes.length === 0 ? (
                           <p className="text-slate-500 italic">
-                            Học sinh chưa tham gia tuyến DRAFT/ACTIVE nào. Có thể duyệt cập nhật hồ sơ trực tiếp.
+                            Học sinh chưa tham gia tuyến chưa duyệt hoặc đang hoạt động nào. Có thể duyệt cập nhật hồ sơ trực tiếp.
                           </p>
                         ) : (
                           <div className="space-y-1.5">
@@ -593,7 +593,7 @@ export function RequestDetailModal({
                             ))}
 
                             <div className="text-[11px] text-slate-500 pt-1">
-                              {routingPreview.affectedScheduledTripsCount} chuyến SCHEDULED sẽ cập nhật • {routingPreview.preservedTripsCount} chuyến đang chạy giữ nguyên dữ liệu cũ.
+                              {routingPreview.affectedScheduledTripsCount} chuyến đã lên lịch sẽ cập nhật • {routingPreview.preservedTripsCount} chuyến đang chạy giữ nguyên dữ liệu cũ.
                             </div>
                           </div>
                         )}
@@ -666,9 +666,9 @@ export function RequestDetailModal({
                   </div>
                   <p className="text-xs text-emerald-800">
                     {selectedOutcome === 'REOPTIMIZED'
-                      ? `Phê duyệt và áp dụng tuyến mới cho học sinh ${detail.studentName}. Các chuyến xe SCHEDULED chưa điểm danh sẽ được cập nhật.`
+                      ? `Phê duyệt và áp dụng tuyến mới cho học sinh ${detail.studentName}. Các chuyến xe đã lên lịch chưa điểm danh sẽ được cập nhật.`
                       : selectedOutcome === 'REMOVED_FROM_ROUTES'
-                      ? `Phê duyệt cập nhật địa chỉ và loại học sinh ${detail.studentName} khỏi mọi tuyến DRAFT/ACTIVE hiện tại.`
+                      ? `Phê duyệt cập nhật địa chỉ và loại học sinh ${detail.studentName} khỏi mọi tuyến chưa duyệt hoặc đang hoạt động hiện tại.`
                       : `Dữ liệu của học sinh ${detail.studentName} sẽ được cập nhật trực tiếp trên hệ thống.`}
                   </p>
                   <div className="flex justify-end gap-2">

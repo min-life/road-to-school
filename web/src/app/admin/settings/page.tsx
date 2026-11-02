@@ -753,7 +753,7 @@ export default function AdminSettingsPage() {
             {/* Thống kê tác động */}
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2 text-sm text-slate-700">
               <div className="flex items-center justify-between">
-                <span>Phương án DRAFT/ACTIVE bị hủy toàn hệ thống:</span>
+                <span>Phương án chưa duyệt hoặc đang hoạt động bị hủy toàn hệ thống:</span>
                 <span className="font-bold text-rose-600">
                   {parkingImpact.cancelledPlansCount ??
                     ((parkingImpact.totalDraftPlansCount || 0) + (parkingImpact.totalActivePlansCount || 0))}{' '}
@@ -761,13 +761,13 @@ export default function AdminSettingsPage() {
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span>Chuyến xe SCHEDULED liên quan bị hủy:</span>
+                <span>Chuyến xe đã lên lịch liên quan bị hủy:</span>
                 <span className="font-bold text-rose-600">
                   {parkingImpact.cancelledTripsCount ?? (parkingImpact.totalScheduledTripsCount || 0)} chuyến
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span>Chuyến xe đang chạy (IN_PROGRESS) giữ nguyên:</span>
+                <span>Chuyến xe đang chạy giữ nguyên:</span>
                 <span className="font-bold text-emerald-600">
                   {parkingImpact.inProgressTripsPreservedCount ?? (parkingImpact.totalInProgressTripsCount || 0)} chuyến
                 </span>

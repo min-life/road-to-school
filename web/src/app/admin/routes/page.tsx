@@ -1,4 +1,5 @@
 'use client';
+import { getRoutePlanStatusLabel } from '@/lib/status-labels';
 import { TableActions } from '@/components/admin/common/table-actions';
 import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
 
@@ -17,7 +18,7 @@ import {
   ChevronRightIcon,
   InfoIcon,
 } from '@/components/icons';
-import { SchoolSelectModal } from '@/components/admin/routes/school-select-modal';
+import { SchoolSelectModal } from './_components/school-select-modal';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
 import { SchoolSelectFilter } from '@/components/admin/common/school-select-filter';
 import { authStorage } from '@/lib/auth-storage';
@@ -141,7 +142,7 @@ export default function RoutePlansPage() {
         <div className="text-xs text-amber-900 leading-relaxed">
           <strong className="font-semibold text-amber-950">Nguyên tắc quản lý Phương án tuyến:</strong>{' '}
           Phương án tuyến (RoutePlan) là tập hợp toàn bộ các tuyến đi và về được tối ưu đồng thời cho trường học.
-          Chỉ có phương án sở hữu trạng thái vòng đời (Bản nháp / Đã hủy). Không thể hủy hoặc kích hoạt riêng lẻ từng tuyến.
+          Chỉ phương án có trạng thái vòng đời (Chưa duyệt / Đang hoạt động / Đã hủy / Hết hạn hợp đồng). Không thể hủy hoặc kích hoạt riêng lẻ từng tuyến.
         </div>
       </div>
 
@@ -198,10 +199,10 @@ export default function RoutePlansPage() {
               className="w-full"
             >
               <option value="">Tất cả trạng thái</option>
-              <option value="ACTIVE">Đang hoạt động (ACTIVE)</option>
-              <option value="DRAFT">Bản nháp (DRAFT)</option>
-              <option value="CANCELLED">Đã hủy (CANCELLED)</option>
-              <option value="EXPIRED">Hết hạn hợp đồng (EXPIRED)</option>
+              <option value="ACTIVE">Đang hoạt động</option>
+              <option value="DRAFT">Chưa duyệt</option>
+              <option value="CANCELLED">Đã hủy</option>
+              <option value="EXPIRED">Hết hạn hợp đồng</option>
             </Select>
         </FilterField>
         <Button type="button" onClick={() => fetchRoutePlans()} className="ui-filter-refresh">Làm mới</Button>
@@ -304,19 +305,19 @@ export default function RoutePlansPage() {
                         <td className="py-3.5 px-4">
                           {plan.status === 'ACTIVE' ? (
                             <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              ACTIVE
+                              {getRoutePlanStatusLabel(plan.status)}
                             </Badge>
                           ) : plan.status === 'DRAFT' ? (
                             <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                              DRAFT
+                              {getRoutePlanStatusLabel(plan.status)}
                             </Badge>
                           ) : plan.status === 'EXPIRED' ? (
                             <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300">
-                              EXPIRED
+                              {getRoutePlanStatusLabel(plan.status)}
                             </Badge>
                           ) : (
                             <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                              CANCELLED
+                              {getRoutePlanStatusLabel(plan.status)}
                             </Badge>
                           )}
                         </td>

@@ -57,6 +57,7 @@ export function StudentTable({
   });
   // Data state
   const [students, setStudents] = useState<StudentListItem[]>([]);
+  const [routeMembership, setRouteMembership] = useState<Record<string, boolean>>({});
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
@@ -116,10 +117,25 @@ export function StudentTable({
 
       // Only apply if it's the latest request
       if (requestId === latestRequestRef.current) {
+        setRouteMembership({});
         setStudents(res.items);
         setTotal(res.meta.totalItems);
         setTotalPages(res.meta.totalPages);
       }
+      if (requestId !== latestRequestRef.current || currentUserRole !== 'SYSTEM_ADMIN') return;
+      const candidates = res.items.filter(student => student.status === 'AVAILABLE' && student.hasAddress);
+      const memberships: Record<string, boolean> = {};
+      for (let index = 0; index < candidates.length; index += 4) {
+        if (requestId !== latestRequestRef.current) return;
+        const results = await Promise.allSettled(candidates.slice(index, index + 4).map(async student => ({
+          id: student.id,
+          assigned: (await apiClient.getStudentInsertionOptions(student.id)).hasActiveMembership,
+        })));
+        for (const result of results) {
+          if (result.status === 'fulfilled') memberships[result.value.id] = result.value.assigned;
+        }
+      }
+      if (requestId === latestRequestRef.current) setRouteMembership(memberships);
     } catch (err: any) {
       if (requestId === latestRequestRef.current) {
         setErrorMessage(err?.message || 'Không thể tải danh sách học sinh.');
@@ -129,10 +145,11 @@ export function StudentTable({
         setIsLoading(false);
       }
     }
-  }, [schoolId, page, limit, search, statusFilter, addressFilter, routingFilter]);
+  }, [schoolId, page, limit, search, statusFilter, addressFilter, routingFilter, currentUserRole]);
 
   useEffect(() => {
     fetchStudents();
+    return () => { latestRequestRef.current += 1; };
   }, [fetchStudents]);
 
   const handleOpenStatusModal = (student: StudentListItem) => {
@@ -438,7 +455,7 @@ export function StudentTable({
                       {/* Actions */}
                       <td className="px-4 py-3 text-right">
                         <TableActions label={`Thao tác với ${student.fullName}`} actions={[
-                          ...(currentUserRole === 'SYSTEM_ADMIN' && isAvailable && student.hasAddress ? [{
+                          ...(currentUserRole === 'SYSTEM_ADMIN' && isAvailable && student.hasAddress && routeMembership[student.id] === false ? [{
                             label: 'Thêm vào tuyến', primary: true,
                             onClick: () => { setInsertingStudent(student); setIsInsertModalOpen(true); },
                           }] : []),
