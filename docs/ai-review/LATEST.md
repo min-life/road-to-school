@@ -1,61 +1,54 @@
-# AI Review — Implement API improvements for 3.1
+# AI Review — Apply school lifecycle migration
 
 ## 1. Task Information
-2026-10-30 Asia/Saigon. Scope API + documentation + explicitly authorized local environment configuration. Type Implementation. Status IMPLEMENTED / READY_WITH_LIMITATIONS. Real delivery and business mutations NOT_VERIFIED.
+03/11/2026, Asia/Saigon. Database migration / documentation. COMPLETED migration; nghiệp vụ runtime chưa nghiệm thu.
 
 ## 2. Original Request
-Implement the approved 3.1 API plan. Ask before sensitive decisions and environment changes. Absolutely do not run test scripts. Preserve old fields and minimize frontend breakage, with explicitly accepted mandatory-email validation exception.
+PO yêu cầu “tiến hành migrate cho tôi” sau lỗi thiếu public.school_scheduled_changes từ cron đối soát.
 
 ## 3. Approved Scope
-PO authorized implementation and subsequently confirmed: resend allowed during IN_PROGRESS; response includes message and credentialDeliveryStatus; save new password before email, FAILED retains new hash; preserve existing Sessions/tokenVersion/pushToken. PO authorized editing real api/.env while reusing existing email/SMS mode variables. No frontend, schema, migrations, packages, test scripts or live SMS/email/data writes authorized/executed.
+Áp dụng migration 3.2 đã duyệt vào DB đang cấu hình của API; xác minh cấu trúc bằng truy vấn read-only. Không seed, không script test, không thay env/source/schema/dependencies.
 
 ## 4. Analysis & Decisions
-Reused AUTH_EMAIL_MODE for OTP and personnel email, AUTH_SMS_MODE for console/esms. Added only missing ESMS_API_KEY and ESMS_SECRET_KEY to real ignored .env, blank; preserved all existing values. Did not add PERSONNEL_EMAIL_MODE or alter .env.example. eSMS HTTPS POST uses exact Baotrixemay trial template, SmsType=2, IsUnicode=0, Sandbox=0, six-digit local OTP, stable per-challenge/destination RequestId. Console does not call providers and is rejected for NODE_ENV=production. SMTP uses existing Nodemailer with bounded timeouts; no dependency added.
-Personnel email required on old endpoints; response additive SENT/FAILED/CONSOLE. User creation commits before delivery; failure preserves account, creation remains 201 with FAILED/message. New resend saves hash with conditional matching, then sends; never revokes Sessions or edits Trip state. Hash/email/active state rechecked after send; per-process same-user in-flight guard and CAS reject detected conflicts. Create delivery shares guard and verifies current hash before/after sending.
-OTP dispatch reused for all existing purposes. At least one accepted channel keeps fan-out challenge usable; when every channel definitely fails, expiresAt is set to now so retry is possible; uncertain timeout/response preserves cooldown and returns 503, no automatic resend. Channel isConsole now derived from configured transport. No OTP contract fields removed.
+Xác nhận target localhost:5432, database roadtoschool, schema public; không in thông tin đăng nhập. Trước apply có đúng một migration pending: 20261103010000_school_lifecycle_calendar trong tổng 15 migration. Đọc SQL xác nhận chỉ DDL thêm cấu trúc, không DML/backfill. Dùng prisma migrate deploy, không reset hoặc migrate dev.
 
 ## 5. Implementation Details
-New files: api/src/auth/delivery-error.ts, email-delivery.service.ts, esms-sms.service.ts, credential-delivery.dto.ts, personnel-credentials.service.ts.
-Modified: auth.module.ts, otp.service.ts, auth.controller.ts; drivers controller/service/create-driver.dto.ts/driver-response.dto.ts; schools controller/service/create-school-admin.dto.ts/school-employee-response.dto.ts; leave-notices controller/service; parents controller and student-requests parent controller (OTP 503 docs); docs/architecture/auth-technical-design.md; tracker/plan/auth detail and review artifacts.
-Used property injection in existing services/controllers to preserve their constructor call signatures. Service entry points tolerate absent email at type boundary to validate and reject it explicitly; HTTP DTOs require email in both validation and Swagger. Existing tests unchanged and not executed.
+No application code changes. Giữ nguyên toàn bộ uncommitted work. Archive báo cáo/diff implementation trước vào history/20261103-1793642601490-before-school-migration.md/.diff. Cập nhật note FE, tracker, plan, schema contract và CURRENT_STATE để phản ánh migration đã apply; các giới hạn runtime vẫn giữ nguyên. LATEST.diff đánh dấu không thay đổi code trong task này, diff implementation cũ nằm trong archive.
 
 ## 6. Database Changes
-None to schema, constraints or migrations. No DB connection, query, seed, backfill or business mutation executed by this task. Source only implements future User/OtpChallenge writes under authorized API use. .env is ignored and excluded from diff/report contents.
+APPLIED: 20261103010000_school_lifecycle_calendar vào roadtoschool/public tại localhost:5432.
+- Thêm school_scheduled_changes và service_calendar_entries cùng indexes/FK đã duyệt.
+- Thêm trips.admin_finalization JSONB nullable.
+- Không seed/backfill hoặc chủ động sửa business records. Prisma tự ghi migration metadata theo quá trình deploy.
+Sau apply: 15 migrations, Database schema is up to date.
 
 ## 7. API & Swagger Changes
-POST /api/v1/drivers and /api/v1/schools/:id/employees: email required, phone optional; old response fields preserved, credentialDeliveryStatus additive, 201 even if email fails after creation.
-POST /api/v1/drivers/:id/credentials/resend: SYSTEM_ADMIN for DRIVER.
-POST /api/v1/schools/:id/employees/:employeeId/credentials/resend: SYSTEM_ADMIN for SCHOOL_ADMIN, SCHOOL_ADMIN for own-school BUS_ATTENDANT.
-New routes take no required body, 200 message + credentialDeliveryStatus. 400 malformed IDs/inactive/missing valid email; 401/403 auth/role/scope; 404 target; 409 concurrency/state change; 500 DB failure. FAILED on 200 indicates password already changed but delivery not confirmed; retry issues another password.
-OTP request endpoints document 503 delivery failure/uncertainty. Public login/register/reset/refresh field shapes unchanged. Existing self-service change/reset password Session revocation behavior unchanged.
-Swagger decorators updated and live UI/JSON checked at localhost:3000/api/docs and api/docs-json using actual AppModule/controller DTO metadata with a documentation-only HTTP server. Did not call app.init/app.listen: no Prisma lifecycle hooks, cron or application routes activated. UI HTTP 200; JSON showed fullName/email required on both DTOs, SENT/FAILED/CONSOLE on both creation responses and both resend paths. Documentation server stopped after inspection. This is documentation verification, not live application business acceptance.
+None trong task này. API contract/Swagger giữ source trước; không cần sinh lại Prisma Client vì đã generate ở task implementation. Cron của BE người dùng đang chạy có thể truy cập các bảng mới từ lần gọi tiếp theo. Chưa khẳng định toàn bộ cron/business flow đã chạy thành công.
 
 ## 8. UI/UX Changes
-None. Web currently permits phone-only input; these submissions now receive 400, explicitly accepted by PO. FE can ignore additive fields but will not gain a resend button automatically. No new UI/wireframe work.
+None.
 
 ## 9. Verification & Testing
-PASS: final api npx --no-install tsc --noEmit --incremental false, exit 0.
-PASS: final api npx --no-install tsc --project tsconfig.build.json --incremental false, exit 0 (compilation only).
-PASS: targeted npx --no-install oxlint on delivery/personnel/auth/driver/school files, exit 0; one existing unused SchoolEmployeeRoleFilter import warning in schools.service.ts. Not a test run.
-PASS: read-only Swagger UI HTTP 200 and schema/path inspection as described above; dependency wiring instantiated successfully without lifecycle hooks.
-PASS: git diff --check after EOF correction; only repository LF/CRLF notices.
-Initial typecheck found inherited message property declarations and old spec calls lacking email; fixed declaration overrides and explicit service-boundary validation typing, final check passed. No test fixtures changed.
-NOT RUN: all unit/integration/E2E/test scripts, explicitly prohibited by PO. No fake data or mocks executed. No package installation.
-NOT_VERIFIED: actual eSMS/SMTP delivery, actual personnel create/resend/OTP writes, active Session continuity, real concurrent PostgreSQL/API requests. Write UAT remains BLOCKED_BY_TEST_DATA_POLICY without approved existing records/environment/side-effect scope; two newly added eSMS secrets are empty. No provider send attempted.
+- PASS: prisma migrate status trước apply xác nhận đúng một pending migration; exit 1 của status trước apply thể hiện còn pending, không phải lỗi deploy.
+- PASS: npx --no-install prisma migrate deploy; All migrations have been successfully applied.
+- PASS: npx --no-install prisma migrate status sau apply; Database schema is up to date.
+- PASS: truy vấn read-only pg_catalog.pg_tables xác nhận hai bảng mới tồn tại; information_schema.columns xác nhận trips.admin_finalization là jsonb, nullable YES.
+- PASS: npx --no-install tsc --noEmit --incremental false tại api.
+- NOT_VERIFIED: log cron tiếp theo trên terminal BE của người dùng; không chủ động gọi đối soát hoặc API mutation để test.
+- NOT_VERIFIED / BLOCKED_BY_TEST_DATA_POLICY: UAT nghiệp vụ/calendars/concurrency; không chạy bất kỳ script test, không tạo dữ liệu giả hoặc gọi provider.
 
 ## 10. Issues & Risks
-SENT means SMTP/provider accepted, not actual inbox/device delivery. eSMS trial Brandname/template must be available for account; no RoadToSchool custom text added.
-PO explicitly accepts loss of old-password login after resend even when email fails; existing Sessions remain. Operator must resend to recover credentials.
-Per-process in-flight guard is not a distributed lock. CAS and post-send recheck detect many races but cannot make provider delivery atomic with password persistence or prevent late old emails across multiple processes/other password flows; use latest successfully issued password. Do not claim multi-instance exactly-once delivery.
-OTP fan-out returns success when any eligible channel accepted, not proof all channels delivered. Timeout retains cooldown; operator/user may need to wait for expiry.
-Local real .env changed only by adding missing blank secret keys; no existing secret or mode overwritten. No secrets printed, copied to diff or committed.
-Existing automated tests still contain old phone-only assumptions/manual construction and have not been run or adapted; no suite-passing claim. Document-only Swagger check does not certify full app runtime.
+Lỗi missing-table đã được xử lý ở mức cấu trúc DB được kiểm chứng. Không suy ra mọi nghiệp vụ 3.2 đã nghiệm thu từ migration thành công. Không khởi động/tắt/restart BE của người dùng trong task này; tác vụ chạy sẵn có thể tự đối soát sau khi schema sẵn sàng.
 
 ## 11. Reviewer Focus
-Required email validation and preservation of response fields; accepted phone-only break; sender template/modes/no outbound console; OTP definitive versus uncertain failure and partial fan-out; authorization on resend; no Session/push/Trip mutation; write-before-send semantics; per-process versus distributed concurrency limits; honest non-test/static verification.
+Đúng DB local, chỉ một migration được apply, hai bảng và cột JSONB tồn tại; không reset/seed/backfill/env changes; phân biệt migration verification với runtime business acceptance.
 
 ## 12. Suggested Next Step
-PO provide/configure eSMS credentials locally and authorize a narrowly scoped existing-recipient delivery acceptance check with explicit cost/data limits; keep test scripts prohibited unless PO changes that instruction.
+Theo dõi lần cron đối soát tiếp theo trên terminal BE để xác nhận không còn lỗi thiếu bảng.
 
 ## 13. Approval Status
-Implementation and sensitive choices authorized in chat; code implemented, pending PO review and runtime acceptance. Not marked VERIFIED for real delivery/business workflows. No commit/push performed.
+PO đã cho phép apply migration trong chat; migration COMPLETED. Báo cáo WAITING FOR USER REVIEW / APPROVAL; runtime acceptance chưa được tự đánh dấu APPROVED.
+
+### Bàn giao Git — 03/11/2026
+
+PO yêu cầu commit ngắn gọn và push code. Nhánh hiện tại chuongtv/update-be, remote origin https://github.com/min-life/road-to-school.git; fetch xác nhận HEAD đồng bộ remote trước commit. Phạm vi bàn giao: source API 3.2, migration và tài liệu/tracking/history liên quan đang có trong working tree. Commit message: feat: improve school lifecycle. Không sửa application code thêm, không chạy script test, không sửa env hoặc reset/rebase. Kết quả commit/push được xác nhận bằng Git và trả trong chat sau thực hiện.

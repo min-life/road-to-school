@@ -1,7 +1,8 @@
+import { EffectiveDateDto } from './effective-date.dto.js';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsBoolean, IsNotEmpty } from 'class-validator';
 
-export class UpdateSchoolStatusDto {
+export class UpdateSchoolStatusDto extends EffectiveDateDto {
   @ApiProperty({
     description: 'Trạng thái hoạt động của trường học (true: Hoạt động, false: Ngừng hoạt động)',
     example: false,

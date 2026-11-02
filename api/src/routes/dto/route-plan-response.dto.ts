@@ -18,6 +18,12 @@ export class RoutePlanResponseDto {
   @ApiProperty({ enum: RoutePlanStatus, example: RoutePlanStatus.DRAFT })
   status: RoutePlanStatus;
 
+  @ApiProperty({ enum: RoutePlanStatus, description: 'Trạng thái hiệu lực theo ngày Việt Nam; status cũ vẫn là giá trị đã lưu. DRAFT/ACTIVE hết hợp đồng có hiệu lực CANCELLED dù cron chưa ghi.' })
+  effectiveStatus: RoutePlanStatus;
+
+  @ApiProperty({ nullable: true, enum: ['CONTRACT_EXPIRED', 'SCHOOL_INACTIVE', 'LOCATION_CHANGED'], description: 'Lý do hết hiệu lực theo ngày; null nếu không có. Không thay thế cancellationReason đã lưu.' })
+  effectiveStatusReason: string | null;
+
   @ApiProperty({ example: 28 })
   totalStudents: number;
 

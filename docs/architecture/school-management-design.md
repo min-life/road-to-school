@@ -678,3 +678,7 @@ Các quyết định chính thức của Product Owner đã được giải quy�
 3. **Chế độ Mock VietMap trong Development**:
    - **QUYẾT ĐỊNH: NOT APPROVED.**
    - Không tạo chức năng giả lập tọa độ cố định giả (Hà Nội). Nếu VietMap API chưa được cấu hình, báo rõ dịch vụ tìm kiếm bản đồ chưa khả dụng và cho phép nhập tọa độ thủ công hợp lệ.
+
+## Cập nhật 03/11/2026 — School lifecycle 3.2
+
+Thiết kế cũ về cập nhật tức thì/hết hạn đã được thay thế bởi lịch hẹn effectiveDate (mặc định ngày mai), calendar âm/dương và học bù có duyệt. RoutePlan giữ status đã lưu, thêm effectiveStatus/reason; hết hạn/inactive/relocation làm hủy phương án cũ, giữ route/history. Trip ngoại lệ giữ trạng thái và audit adminFinalization; không bịa điểm danh/actualEndTime. Xem [contract và note FE](../ai-review/school-3.2-fe-pr-notes.md), [schema được duyệt](../ai-review/school-3.2-schema-contract.md), [kế hoạch mục 17](../ai-review/school-api-improvement-plan.md). Migration chỉ mới tạo, chưa apply; nghiệp vụ runtime NOT_VERIFIED.

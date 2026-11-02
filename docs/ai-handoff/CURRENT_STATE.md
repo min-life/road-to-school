@@ -1,3 +1,9 @@
+# Cập nhật 03/11/2026 — Migration nghiệp vụ trường 3.2
+
+- Đã apply 20261103010000_school_lifecycle_calendar theo yêu cầu PO vào DB local roadtoschool/public (localhost:5432); 15 migrations up to date.
+- Hai bảng school_scheduled_changes/service_calendar_entries và trips.admin_finalization JSONB nullable đã xác minh tồn tại bằng metadata read-only.
+- Không reset/seed/backfill, không test scripts hoặc sửa env. Source 3.2 còn uncommitted; nghiệp vụ runtime chưa nghiệm thu. Báo cáo: docs/ai-review/LATEST.md; note FE: docs/ai-review/school-3.2-fe-pr-notes.md.
+
 # ROADTOSCHOOL V2.0 — CURRENT IMPLEMENTATION STATE
 # SNAPSHOT AT CODEX HANDOFF · IMPLEMENTATION INVENTORY · ACTIVE WORK · NEXT STEPS
 
