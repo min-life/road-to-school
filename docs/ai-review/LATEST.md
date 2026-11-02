@@ -1,54 +1,46 @@
-# AI Review — Apply school lifecycle migration
+# Local School Admin account from documented examples
 
 ## 1. Task Information
-03/11/2026, Asia/Saigon. Database migration / documentation. COMPLETED migration; nghiệp vụ runtime chưa nghiệm thu.
+2026-11-01 Asia/Saigon. Scope: local application account provisioning / Documentation. Type: Implementation. Status: COMPLETED — account ready for user login; browser login acceptance NOT_VERIFIED.
 
 ## 2. Original Request
-PO yêu cầu “tiến hành migrate cho tôi” sau lỗi thiếu public.school_scheduled_changes từ cron đối soát.
+User has no backup or account details and explicitly requested searching docs for School Admin account information and setting it up locally: “bạn dò trong docs xem có thông tin gì về tài khoản schooladmin không làm cho tôi đi”. This follows the explicit question requesting permission/data for local school/account creation.
 
 ## 3. Approved Scope
-Áp dụng migration 3.2 đã duyệt vào DB đang cấu hình của API; xác minh cấu trúc bằng truy vấn read-only. Không seed, không script test, không thay env/source/schema/dependencies.
+Interpret latest user request as authorization for the minimum local school/account based on docs examples. Exactly one School and one SCHOOL_ADMIN User created in localhost roadtoschool for user access. No blanket test seed, no additional users/roles, students, trips, vehicles, route plans or fixtures. No UI/source changes or outbound email/SMS. Existing Test Data Policy remains for all other unapproved records/mutations.
 
 ## 4. Analysis & Decisions
-Xác nhận target localhost:5432, database roadtoschool, schema public; không in thông tin đăng nhập. Trước apply có đúng một migration pending: 20261103010000_school_lifecycle_calendar trong tổng 15 migration. Đọc SQL xác nhận chỉ DDL thêm cấu trúc, không DML/backfill. Dùng prisma migrate deploy, không reset hoặc migrate dev.
+Docs contain illustrative School Admin identities, not an existing usable account/password. docs/architecture/school-management-design.md section 7.6 (around line 449) provides Nguyễn Văn Hùng / hung.nv@school.edu.vn. Section 7.2 (around line 360) provides Trường Tiểu học Lê Quý Đôn, address, coordinates, contract dates and Monday/Tuesday schedule. Used those exact example fields (optional phone omitted). Clearly described as local example provisioning, not a real school account or recovered team database.
+
+Verified actual Prisma User/School fields, school creation and SchoolAdmin service behavior, bcrypt rounds 10, active/verified flags, schoolId relationship and web allowed roles. Created minimum local records directly in one Prisma transaction to avoid bootstrapping an extra System Admin and provider delivery. Unique email check, expected empty database guard and explicit localhost/database gate prevent accidental overwrite or execution against another DB. Random password generated, bcrypt hashed; plaintext only in a user-facing artifact outside repo, not reports/diffs or env.
 
 ## 5. Implementation Details
-No application code changes. Giữ nguyên toàn bộ uncommitted work. Archive báo cáo/diff implementation trước vào history/20261103-1793642601490-before-school-migration.md/.diff. Cập nhật note FE, tracker, plan, schema contract và CURRENT_STATE để phản ánh migration đã apply; các giới hạn runtime vẫn giữ nguyên. LATEST.diff đánh dấu không thay đổi code trong task này, diff implementation cũ nằm trong archive.
+No application code/configuration changes. One task-specific provisioning helper at E:\ChatGPT\road-to-school-startup-2026-11-01\provision-local-school-admin.mjs (outside repo; contains no literal password). Login credentials artifact at E:\ChatGPT\road-to-school-startup-2026-11-01\school-admin-login.txt. Prior report archived to before-school-admin-provision-LATEST.md in that folder. LATEST.md/LATEST.diff updated. Existing staged source work untouched; prior report conflicts remain resolved. No commit/push/reset/discard.
 
 ## 6. Database Changes
-APPLIED: 20261103010000_school_lifecycle_calendar vào roadtoschool/public tại localhost:5432.
-- Thêm school_scheduled_changes và service_calendar_entries cùng indexes/FK đã duyệt.
-- Thêm trips.admin_finalization JSONB nullable.
-- Không seed/backfill hoặc chủ động sửa business records. Prisma tự ghi migration metadata theo quá trình deploy.
-Sau apply: 15 migrations, Database schema is up to date.
+Created exactly 1 school and 1 user under current user authorization in local roadtoschool. User email hung.nv@school.edu.vn, fullName Nguyễn Văn Hùng, role SCHOOL_ADMIN, active=true, verified=true, schoolId references the active created school. Password random; bcrypt hash stored. School fields from cited example, contract 2026-09-01 through 2027-08-31, Monday and Tuesday 07:00–17:30. No schema/migration changes in this account task. Read-only counts: users=1, schools=1, students=0, trips=0, sessions=0. No application login/write tests performed.
 
 ## 7. API & Swagger Changes
-None trong task này. API contract/Swagger giữ source trước; không cần sinh lại Prisma Client vì đã generate ở task implementation. Cron của BE người dùng đang chạy có thể truy cập các bảng mới từ lần gọi tiếp theo. Chưa khẳng định toàn bộ cron/business flow đã chạy thành công.
+None. Backend running at http://localhost:3000. Swagger /api/docs HTTP 200. GET /api/v1/health/db confirms connected after the dev watcher startup completed. No mutation HTTP endpoints or external providers invoked.
 
 ## 8. UI/UX Changes
-None.
+None. Web http://localhost:5173/login HTTP 200; /admin HTTP 200 server shell only (client auth guard still requires login). User should log in with new credentials and inspect current School Admin. No role bypass, mock token or auth guard modifications. Lists empty because only requested access records were provisioned.
 
 ## 9. Verification & Testing
-- PASS: prisma migrate status trước apply xác nhận đúng một pending migration; exit 1 của status trước apply thể hiện còn pending, không phải lỗi deploy.
-- PASS: npx --no-install prisma migrate deploy; All migrations have been successfully applied.
-- PASS: npx --no-install prisma migrate status sau apply; Database schema is up to date.
-- PASS: truy vấn read-only pg_catalog.pg_tables xác nhận hai bảng mới tồn tại; information_schema.columns xác nhận trips.admin_finalization là jsonb, nullable YES.
-- PASS: npx --no-install tsc --noEmit --incremental false tại api.
-- NOT_VERIFIED: log cron tiếp theo trên terminal BE của người dùng; không chủ động gọi đối soát hoặc API mutation để test.
-- NOT_VERIFIED / BLOCKED_BY_TEST_DATA_POLICY: UAT nghiệp vụ/calendars/concurrency; không chạy bất kỳ script test, không tạo dữ liệu giả hoặc gọi provider.
+PASS: provisioning script created school and user atomically with exact source-compatible fields.
+PASS: separate read-only verification bcrypt.compare generated password against stored hash=true, SCHOOL_ADMIN role, isActive/isVerified=true, linked active school, sessions=0.
+PASS: Web /login and /admin HTTP 200, Swagger HTTP 200, final DB health HTTP 200 with database=connected. One initial health request hit connection refused while Nest dev watcher was restarting; recheck after ready succeeded.
+PASS: no unmerged files; no application source content changes detected by git diff. Diff checks repeated at handoff.
+No unit/integration/E2E/test scripts executed; no source edits requiring new typecheck. Prior task API/Web typechecks already passed. Actual browser login and authenticated business pages NOT_VERIFIED; intentionally left to user, without creating a test Session or additional data.
 
 ## 10. Issues & Risks
-Lỗi missing-table đã được xử lý ở mức cấu trúc DB được kiểm chứng. Không suy ra mọi nghiệp vụ 3.2 đã nghiệm thu từ migration thành công. Không khởi động/tắt/restart BE của người dùng trong task này; tác vụ chạy sẵn có thể tự đối soát sau khi schema sẵn sàng.
+Docs examples do not represent production identities, real verified map coordinates or real email ownership. Account is local only and no email/SMS sent. Only two days of schedule exist as documented; do not infer operational readiness for real routes. No students/trips/vehicles/route plans, so related lists will be empty. Do not expand data without user scope. Credential artifact contains the generated password and is excluded from repository/report/diff.
 
 ## 11. Reviewer Focus
-Đúng DB local, chỉ một migration được apply, hai bảng và cột JSONB tồn tại; không reset/seed/backfill/env changes; phân biệt migration verification với runtime business acceptance.
+Latest explicit local provisioning authorization; minimum two records, transaction, local target guard, no extra bootstrap admin, no existing password overwrite, random bcrypt password, correct school FK/role/active flags, no source/UI changes and no production identity claims. Login readiness verified by stored state/hash, not falsely reported as end-to-end browser acceptance.
 
 ## 12. Suggested Next Step
-Theo dõi lần cron đối soát tiếp theo trên terminal BE để xác nhận không còn lỗi thiếu bảng.
+User open http://localhost:5173/login, use credentials in school-admin-login.txt and review the current School Admin interface before requesting UI changes.
 
 ## 13. Approval Status
-PO đã cho phép apply migration trong chat; migration COMPLETED. Báo cáo WAITING FOR USER REVIEW / APPROVAL; runtime acceptance chưa được tự đánh dấu APPROVED.
-
-### Bàn giao Git — 03/11/2026
-
-PO yêu cầu commit ngắn gọn và push code. Nhánh hiện tại chuongtv/update-be, remote origin https://github.com/min-life/road-to-school.git; fetch xác nhận HEAD đồng bộ remote trước commit. Phạm vi bàn giao: source API 3.2, migration và tài liệu/tracking/history liên quan đang có trong working tree. Commit message: feat: improve school lifecycle. Không sửa application code thêm, không chạy script test, không sửa env hoặc reset/rebase. Kết quả commit/push được xác nhận bằng Git và trả trong chat sau thực hiện.
+User-authorized local school/account provisioning completed. WAITING FOR USER REVIEW / APPROVAL of current School Admin UI. STOP-AFTER-TASK; no UI redesign or extra data work begun.

@@ -1,5 +1,5 @@
 'use client';
-import { getRoutePlanStatusLabel } from '@/lib/status-labels';
+import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
 import { BackLink } from '@/components/admin/common/context-navigation';
 
 import React, { useState, useEffect, useMemo } from 'react';

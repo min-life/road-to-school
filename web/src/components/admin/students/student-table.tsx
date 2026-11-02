@@ -29,12 +29,15 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Table } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { StudentCardSelectionCheckbox, StudentCardSelectionToolbar, useStudentCardSelection } from './student-card-selection';
+import { StudentCardPrinter } from './student-card-printer';
 
 interface StudentTableProps {
   schoolId: string;
   readOnly?: boolean;
   baseDetailUrl?: string; // e.g. "/admin/students" or "/admin/schools/:schoolId/students"
   onAddClick?: () => void;
+  allowCardPrinting?: boolean;
 }
 
 export function StudentTable({
@@ -42,6 +45,7 @@ export function StudentTable({
   readOnly = false,
   baseDetailUrl = '/admin/students',
   onAddClick,
+  allowCardPrinting = false,
 }: StudentTableProps) {
   // Query state
   const [search, setSearch] = useState('');
@@ -62,6 +66,10 @@ export function StudentTable({
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const selection = useStudentCardSelection(schoolId, students);
+  const [printRequest, setPrintRequest] = useState<{ schoolId: string; studentIds: string[] } | null>(null);
+  const closePrint = useCallback(() => setPrintRequest(null), []);
+  const handlePrintError = useCallback((message: string) => { toast.error(message); setPrintRequest(null); }, []);
 
 
   // Status toggle modal state
@@ -325,12 +333,19 @@ export function StudentTable({
       )}
 
       {/* Table Container */}
+      {allowCardPrinting && <StudentCardSelectionToolbar count={selection.values.length} onClear={selection.clear}
+        printing={printRequest?.schoolId === schoolId} onCancel={closePrint}
+        onPrint={() => setPrintRequest({ schoolId, studentIds: selection.values.map(student => student.id) })} />}
       <Card className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <Table className="w-full text-left text-sm text-slate-700" minWidth={1330}>
-            <colgroup><col /><col style={{ width: 160 }} /><col style={{ width: 170 }} /><col style={{ width: 190 }} /><col style={{ width: 180 }} /><col style={{ width: 390 }} /></colgroup>
+          <Table className="w-full text-left text-sm text-slate-700" minWidth={allowCardPrinting ? 1378 : 1330}>
+            <colgroup>{allowCardPrinting && <col style={{ width: 48 }} />}<col /><col style={{ width: 160 }} /><col style={{ width: 170 }} /><col style={{ width: 190 }} /><col style={{ width: 180 }} /><col style={{ width: 390 }} /></colgroup>
             <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
               <tr>
+                {allowCardPrinting && <th className="px-4 py-3" scope="col">
+                  <StudentCardSelectionCheckbox checked={selection.allOnPage} mixed={selection.someOnPage && !selection.allOnPage}
+                    disabled={isLoading || !students.length} label="Chọn tất cả học sinh trên trang này" onChange={selection.togglePage} />
+                </th>}
                 <th className="px-4 py-3">Học sinh</th>
                 <th className="px-4 py-3">Mã học sinh</th>
                 <th className="px-4 py-3">SĐT Phụ huynh</th>
@@ -342,7 +357,7 @@ export function StudentTable({
             <tbody className="divide-y divide-slate-100">
               {isLoading && students.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
+                  <td colSpan={allowCardPrinting ? 7 : 6} className="px-4 py-12 text-center text-slate-400">
                     <div className="inline-flex items-center gap-2">
                       <SpinnerIcon className="w-5 h-5 animate-spin text-amber-500" />
                       <span>Đang tải danh sách học sinh...</span>
@@ -351,7 +366,7 @@ export function StudentTable({
                 </tr>
               ) : students.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
+                  <td colSpan={allowCardPrinting ? 7 : 6} className="px-4 py-12 text-center text-slate-500">
                     <div className="max-w-xs mx-auto space-y-2">
                       <div className="w-12 h-12 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
                         <StudentIcon className="w-6 h-6" />
@@ -384,6 +399,10 @@ export function StudentTable({
                       key={student.id}
                       className="hover:bg-amber-50/30 transition-colors group"
                     >
+                      {allowCardPrinting && <td className="px-4 py-3">
+                        <StudentCardSelectionCheckbox checked={!!selection.selected[student.id]} disabled={isLoading}
+                          label={`Chọn ${student.fullName}, mã ${student.code}`} onChange={() => selection.toggle(student)} />
+                      </td>}
                       {/* Avatar + Full Name */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
@@ -487,6 +506,10 @@ export function StudentTable({
       </Card>
 
       {/* Status Confirm Modal */}
+      {allowCardPrinting && printRequest?.schoolId === schoolId && printRequest.studentIds.length > 0 &&
+        <StudentCardPrinter schoolId={schoolId} studentIds={printRequest.studentIds}
+          onClose={closePrint} onError={handlePrintError} />}
+
       {selectedStudent && targetStatus && (
         <StatusConfirmModal
           isOpen={isStatusModalOpen}

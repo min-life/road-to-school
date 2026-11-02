@@ -78,14 +78,15 @@ kiểm tra import trước khi tạo file style mới. Entry dưới `src/app/ad
 
 | Role | UI đang dùng | Ranh giới |
 | --- | --- | --- |
-| SYSTEM_ADMIN | `src/app/admin/routes/plans/[id]/_components/saved-route-plan-workspace.tsx/.css` | Map + tabs Tuyến/Phân công; trạng thái nhà xe cạnh lifecycle badge |
-| SCHOOL_ADMIN | `LegacyRoutePlanDetailPage` trong page trên | Giữ giao diện/duyệt hiện tại; không tự chuyển sang System workspace |
+| SYSTEM_ADMIN | `src/app/admin/routes/plans/[id]/_components/saved-route-plan-workspace.tsx/.css` | Map + tabs Tuyến/Phân công; thao tác nhà xe theo quyền |
+| SCHOOL_ADMIN | Cùng `SavedRoutePlanWorkspace` | School scope, phân giáo viên và duyệt qua `src/components/admin/routes/school-route-plan-approval.tsx` |
 
-Trong `_components` của plan detail, `route-map-visibility-control.tsx`: checkbox trên map cho 0/nhiều đường, độc lập với `routeId`
-và target phân công. `route-plan-assignments.tsx`: nhóm xe, handlers ứng viên/phân công;
-`compact` là opt-in của System workspace. `route-plan-assignment-state.ts`: tiến độ nhà xe
-và tab mặc định, không phải readiness phê duyệt. `approval-readiness-card.tsx` vẫn được
-legacy dùng và nằm cạnh workspace trong `_components`; không xoá vì System workspace đã bỏ khối readiness.
+Sau merge giao diện School Admin, workspace chung dùng quyền theo role và readiness hiện có.
+`route-plan-assignments.tsx` trong `_components`: nhóm xe, handlers ứng viên/phân công;
+`compact` là opt-in của workspace. `route-plan-assignment-state.ts` trong shared domain:
+tiến độ nhà xe và tab mặc định, không phải readiness phê duyệt. `approval-readiness-card.tsx`
+vẫn được legacy dùng và nằm cạnh workspace; không xoá nếu chưa kiểm tra caller.
+`route-map-visibility-control.tsx` còn trong source nhưng workspace mới từ nhánh merge không dùng control này.
 
 Cả hai role hiện đi qua `/admin`, không có router `SchoolApiGate` như repo tham chiếu.
 Source menu tại `admin-nav.config.ts` chỉ là hiển thị; guard và backend vẫn quyết định quyền.

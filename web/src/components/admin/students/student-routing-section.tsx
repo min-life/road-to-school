@@ -1,4 +1,5 @@
 'use client';
+import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
 
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
@@ -110,7 +111,7 @@ export function StudentRoutingSection({
               <span>Tuyến đường đưa đón</span>
             </h2>
             <Badge className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-              Đã phân tuyến (Chưa duyệt)
+              Đã phân tuyến ({getRoutePlanStatusLabel('DRAFT')})
             </Badge>
           </div>
           <p className="text-xs text-slate-500 mt-1">

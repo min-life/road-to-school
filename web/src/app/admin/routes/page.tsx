@@ -1,6 +1,5 @@
 'use client';
-import { getRoutePlanStatusLabel } from '@/lib/status-labels';
-import { TableActions } from '@/components/admin/common/table-actions';
+import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
 import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
 
 import { useRouteQuery } from '@/hooks/use-route-query';
@@ -18,7 +17,7 @@ import {
   ChevronRightIcon,
   InfoIcon,
 } from '@/components/icons';
-import { SchoolSelectModal } from './_components/school-select-modal';
+import { SchoolSelectModal } from '@/app/admin/routes/_components/school-select-modal';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
 import { SchoolSelectFilter } from '@/components/admin/common/school-select-filter';
 import { authStorage } from '@/lib/auth-storage';
@@ -199,10 +198,10 @@ export default function RoutePlansPage() {
               className="w-full"
             >
               <option value="">Tất cả trạng thái</option>
-              <option value="ACTIVE">Đang hoạt động</option>
-              <option value="DRAFT">Chưa duyệt</option>
-              <option value="CANCELLED">Đã hủy</option>
-              <option value="EXPIRED">Hết hạn hợp đồng</option>
+              <option value="ACTIVE">{getRoutePlanStatusLabel('ACTIVE')}</option>
+              <option value="DRAFT">{getRoutePlanStatusLabel('DRAFT')}</option>
+              <option value="CANCELLED">{getRoutePlanStatusLabel('CANCELLED')}</option>
+              <option value="EXPIRED">{getRoutePlanStatusLabel('EXPIRED')}</option>
             </Select>
         </FilterField>
         <Button type="button" onClick={() => fetchRoutePlans()} className="ui-filter-refresh">Làm mới</Button>
@@ -323,7 +322,12 @@ export default function RoutePlansPage() {
                         </td>
 
                         <td className="py-3.5 px-4 text-right">
-                          <TableActions actions={[{ label: 'Chi tiết', href: `/admin/routes/plans/${plan.id}` }]} />
+                          <ContextLink  data-size="sm"
+                            href={`/admin/routes/plans/${plan.id}`}
+                            className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-primary hover:text-slate-900 transition-colors"
+                          >
+                            Chi tiết
+                          </ContextLink>
                         </td>
                       </tr>
                     );

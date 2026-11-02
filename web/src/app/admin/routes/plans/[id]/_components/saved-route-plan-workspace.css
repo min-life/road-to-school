@@ -1,16 +1,10 @@
 .saved-plan-heading { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.saved-plan-status { padding: 5px 10px; border-radius: 8px; color: #047857; background: #ecfdf5; font-size: 12px; white-space: nowrap; }
-.saved-plan-heading-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 100%; }
-.saved-plan-assignment-progress { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid #a7f3d0; border-radius: 8px; background: #ecfdf5; color: #065f46; font-size: 12px; font-weight: 600; }
-.saved-plan-assignment-progress svg { flex-shrink: 0; }
-.saved-plan-assignment-progress[data-pending=true] { border-color: #fcd34d; background: #fffbeb; color: #92400e; }
-.saved-plan-heading-actions > button { flex-shrink: 0; }
-.saved-plan-assignments .assignment-group-status { display: inline-flex; align-items: center; padding: 4px 8px; border: 1px solid #a7f3d0; border-radius: 6px; color: #065f46; background: #ecfdf5; font-size: 12px; font-weight: 600; }
-.saved-plan-assignments .assignment-group-status[data-pending=true] { border-color: #fcd34d; background: #fffbeb; color: #92400e; }
-.saved-plan-assignments .assignment-group:focus { outline: 2px solid var(--brand-info); outline-offset: -2px; }
+.saved-plan-heading > span { padding: 5px 10px; border-radius: 8px; color: #047857; background: #ecfdf5; font-size: 12px; }
 .saved-plan-panel-heading { padding: 16px; border-bottom: 1px solid var(--brand-border); }
 .saved-plan-panel-heading h2 { font-weight: 700; font-size: 16px; }
 .saved-plan-panel-heading p { margin-top: 4px; color: var(--brand-muted); font-size: 13px; }
+.saved-plan-route-select { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; font-size: 13px; font-weight: 600; }
+.saved-plan-route-select select { width: 100%; min-width: 0; border: 1px solid var(--brand-border); border-radius: 10px; padding: 10px; background: white; }
 .saved-plan-assignments > .ui-card { border: 0; box-shadow: none; background: transparent; overflow: visible; }
 .saved-plan-assignments .assignment-heading { padding: 0 0 12px; background: transparent; border: 0; }
 .saved-plan-assignments .assignment-heading > span { display: none; }
@@ -20,14 +14,16 @@
 .saved-plan-error { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 12px; margin-bottom: 12px; color: #be123c; background: #fff1f2; border-radius: 10px; font-size: 13px; }
 .saved-plan-map-error { position: absolute; bottom: 58px; left: 12px; right: 12px; display: flex; align-items: center; gap: 8px; padding: 12px; border-radius: 10px; background: white; color: #be123c; font-size: 13px; }
 .saved-plan-page .route-workspace-map > .saved-plan-map-error { height: auto; }
-/* Only the System Admin saved-plan workspace opts into these styles. */
+/* Shared saved-plan workspace for System Admin and School Admin. */
 .saved-plan-page .route-workspace-without-footer { grid-template-rows: minmax(0, 1fr); }
-.saved-plan-heading > .saved-plan-heading-title { flex: 1 1 520px; min-width: 0; }
+.saved-plan-heading > div { flex: 1; min-width: 0; }
 .saved-plan-heading h1 { overflow-wrap: anywhere; }
-.saved-plan-heading-title > p { font-size: 13px; color: var(--brand-muted); margin-top: 4px; }
-.saved-plan-status[data-status=DRAFT] { color: #92400e; background: #fffbeb; }
-.saved-plan-status[data-status=CANCELLED], .saved-plan-status[data-status=EXPIRED] { color: #475569; background: #f1f5f9; }
+.saved-plan-heading > div > p { font-size: 13px; color: var(--brand-muted); margin-top: 4px; }
+.saved-plan-heading > span[data-status=DRAFT] { color: #92400e; background: #fffbeb; }
+.saved-plan-heading > span[data-status=CANCELLED], .saved-plan-heading > span[data-status=EXPIRED] { color: #475569; background: #f1f5f9; }
 .saved-plan-cancel-button { flex-shrink: 0; white-space: nowrap; }
+.saved-plan-route-toolbar { padding: 12px 14px 0; }
+.saved-plan-route-toolbar .saved-plan-route-select { margin-bottom: 12px; }
 .saved-plan-readiness { padding: 12px; margin-bottom: 12px; background: #f8fafc; border: 1px solid var(--brand-border); border-radius: 10px; font-size: 12px; overflow-wrap: anywhere; }
 .saved-plan-readiness summary { cursor: pointer; font-weight: 600; }
 .saved-plan-readiness p, .saved-plan-readiness ul { margin-top: 8px; color: var(--brand-muted); }
@@ -48,40 +44,22 @@
 .saved-plan-stops time { flex-shrink: 0; font-size: 11px; color: #047857; }
 .saved-plan-notice { padding: 10px 14px; background: #fffbeb; border-radius: 10px; font-size: 13px; color: #92400e; }
 .saved-plan-assignments .assignment-heading { display: none; }
+.saved-plan-assignment-status { display: flex; flex-direction: column; gap: 3px; margin-bottom: 12px; padding: 12px 14px; border: 1px solid #a7f3d0; border-radius: 10px; background: #ecfdf5; color: #065f46; font-size: 12px; line-height: 1.45; }
+.saved-plan-assignment-status[data-pending=true] { border-color: #fcd34d; background: #fffbeb; color: #92400e; }
+.saved-plan-assignment-status strong { font-size: 13px; }
 .saved-plan-assignments .assignment-action-button { min-height: 34px; padding-inline: 11px; white-space: nowrap; font-size: 12px; font-weight: 650; }
 .saved-plan-assignments .assignment-fields > div > div:first-child { justify-content: space-between; }
-.saved-plan-page .route-workspace-map { container-type: inline-size; container-name: saved-plan-map; }
-.saved-plan-page .route-workspace-map > .route-map-visibility { position: absolute; top: 12px; right: 60px; height: auto; z-index: 6; }
-.route-map-visibility-trigger { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 7px 10px; border: 1px solid var(--brand-border); border-radius: 9px; background: white; color: var(--brand-navy); font-size: 12px; font-weight: 600; box-shadow: var(--brand-shadow); cursor: pointer; }
-.route-map-visibility-trigger:hover, .route-map-visibility-trigger[aria-expanded=true] { background: var(--brand-accent); }
-.route-map-visibility-popover { position: fixed; inset: auto; margin: 0; padding: 0; border: 1px solid var(--brand-border); border-radius: 12px; background: white; color: var(--brand-foreground); box-shadow: 0 8px 28px #19365226; overflow: hidden; font-size: 12px; }
-.route-map-visibility-popover:popover-open { display: flex; flex-direction: column; }
-.route-map-visibility-popover > header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--brand-border); flex-shrink: 0; }
-.route-map-visibility-popover h2 { font-size: 13px; font-weight: 700; }
-.route-map-visibility-popover > header button { width: 28px; height: 28px; border-radius: 6px; font-size: 22px; color: var(--brand-muted); cursor: pointer; }
-.route-map-visibility-popover button:focus-visible, .route-map-visibility-popover input:focus-visible { outline: 2px solid var(--brand-info); outline-offset: 2px; }
-.route-map-visibility-tools { padding: 10px 12px; border-bottom: 1px solid var(--brand-border); flex-shrink: 0; }
-.route-map-visibility-tools > input { width: 100%; min-height: 36px; padding: 7px 10px; border: 1px solid var(--brand-input-border, #cbd5e1); border-radius: 8px; background: white; font-size: 12px; }
-.route-map-visibility-tools > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; }
-.route-map-visibility-tools button { color: var(--brand-info); cursor: pointer; }
-.route-map-visibility-tools button:disabled { opacity: .5; cursor: default; }
-.route-map-visibility-tools span { margin-left: auto; color: var(--brand-muted); }
-.route-map-visibility-options { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 8px 12px 12px; }
-.route-map-visibility-options fieldset { min-width: 0; border: 0; padding: 0; margin: 0; }
-.route-map-visibility-options fieldset + fieldset { margin-top: 12px; }
-.route-map-visibility-options legend { padding: 4px 0; font-weight: 600; color: var(--brand-muted); }
-.route-map-visibility-options label { display: flex; align-items: flex-start; gap: 8px; padding: 9px 4px; border-radius: 6px; cursor: pointer; }
-.route-map-visibility-options label:hover { background: var(--brand-hover); }
-.route-map-visibility-options input { width: 17px; height: 17px; margin-top: 2px; accent-color: #2563eb; flex-shrink: 0; }
-.route-map-visibility-options i, .saved-plan-route-list i { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
-.route-map-visibility-options label > span, .saved-plan-route-list button > span { min-width: 0; overflow-wrap: anywhere; }
-.route-map-visibility-options strong { display: block; font-size: 12px; font-weight: 600; }
-.route-map-visibility-options small { display: block; margin-top: 2px; color: var(--brand-muted); font-size: 11px; }
-.saved-plan-route-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-.saved-plan-route-list button { display: flex; gap: 8px; padding: 10px 12px; border: 1px solid var(--brand-border); border-radius: 10px; text-align: left; background: white; cursor: pointer; }
-.saved-plan-route-list button[aria-pressed=true] { border-color: var(--brand-info); background: #f5f9ff; }
-.saved-plan-route-list strong { display: block; font-size: 12px; font-weight: 600; }
-.saved-plan-route-list small { display: block; margin-top: 3px; font-size: 11px; color: var(--brand-muted); }
-@container saved-plan-map (max-width: 440px) {
-  .saved-plan-page .route-workspace-map > .route-map-visibility { top: 60px; }
+.school-plan-readiness { flex: 1; min-width: 0; font-size: 13px; }
+.school-plan-readiness details { margin-top: 4px; font-size: 12px; }
+.school-plan-readiness summary { cursor: pointer; color: var(--brand-muted); }
+.school-plan-readiness ul { max-height: 120px; overflow-y: auto; padding: 8px 0 0 18px; list-style: disc; color: var(--brand-muted); }
+.school-plan-readiness li + li { margin-top: 4px; }
+.school-plan-approval-dialog { position: fixed; inset: 0; margin: auto; width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; padding: 24px; border: 1px solid var(--brand-border); border-radius: 16px; background: var(--brand-surface); color: var(--brand-foreground); }
+.school-plan-approval-dialog::backdrop { background: color-mix(in srgb, var(--brand-navy) 45%, transparent); }
+.school-plan-approval-dialog h2 { font-weight: 700; font-size: 18px; }
+.school-plan-approval-dialog p { margin-top: 12px; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.school-plan-approval-dialog .route-workspace-actions { justify-content: flex-end; margin-top: 20px; }
+body:has(.school-plan-approval-dialog[open]) { overflow: hidden; }
+@media (min-width: 1200px) and (max-height: 700px) {
+  .saved-plan-page .route-workspace-footer { position: sticky; bottom: 0; z-index: 5; }
 }

@@ -1,0 +1,15 @@
+.trips-table-scroll { container-type: inline-size; }
+.trips-table-scroll:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: -2px; }
+.trips-table.ui-table { table-layout: fixed; border-collapse: separate; border-spacing: 0; }
+.trips-table .trip-pin { position: sticky; z-index: 10; background: var(--brand-surface); }
+.trips-table thead .trip-pin { z-index: 20; background: var(--brand-hover); }
+.trips-table tbody tr:hover > .trip-pin { background: var(--brand-row-hover); }
+.trips-table .trip-pin-date { left: 0; }
+.trips-table .trip-pin-route { left: 125px; }
+.trips-table .trip-pin-school { left: 365px; }
+.trips-table .trip-pin-direction { left: 575px; box-shadow: 3px 0 0 var(--brand-border); }
+/* Four fixed columns need 690px; retain access to the remaining cells on narrow screens. */
+@container (max-width: 849px) {
+  .trips-table .trip-pin-route, .trips-table .trip-pin-school, .trips-table .trip-pin-direction { position: static; box-shadow: none; }
+  .trips-table .trip-pin-date { box-shadow: 3px 0 0 var(--brand-border); }
+}

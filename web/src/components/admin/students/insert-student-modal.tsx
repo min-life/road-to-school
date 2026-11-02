@@ -1,5 +1,5 @@
 'use client';
-import { getRoutePlanStatusLabel } from '@/lib/status-labels';
+import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
 
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
@@ -188,7 +188,7 @@ export function InsertStudentModal({
             <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1">
               <strong className="font-bold">Học sinh đã thuộc tuyến hiệu lực:</strong>
               <p>
-                Em đã được phân vào phương án tuyến chưa duyệt hoặc đang hoạt động. Chỉ có thể thêm vào tuyến cho học sinh chưa có tuyến.
+                Em đã được phân vào phương án tuyến DRAFT hoặc ACTIVE. Chỉ có thể thêm vào tuyến cho học sinh chưa có tuyến.
               </p>
             </div>
           ) : options && candidatePairs.length === 0 ? (

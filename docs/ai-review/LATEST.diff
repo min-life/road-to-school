@@ -1,1 +1,1 @@
-No code changes for this task. Applied existing migration 20261103010000_school_lifecycle_calendar. Previous implementation diff archived in history/20261103-1793642601490-before-school-migration.diff.
+No application code changes for this task. Only user-authorized local School/User provisioning and report updates; no secrets included. Prior staged source changes are excluded.

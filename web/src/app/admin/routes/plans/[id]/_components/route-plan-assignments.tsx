@@ -39,8 +39,9 @@ interface VehicleGroup {
 }
 
 export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact = false }: RoutePlanAssignmentsProps) {
-  const isSystemAdmin = currentUserRole === 'SYSTEM_ADMIN';
-  const isSchoolAdmin = currentUserRole === 'SCHOOL_ADMIN';
+  const editable = plan.status === 'DRAFT' || plan.status === 'ACTIVE';
+  const isSystemAdmin = editable && currentUserRole === 'SYSTEM_ADMIN';
+  const isSchoolAdmin = editable && currentUserRole === 'SCHOOL_ADMIN';
   const isActive = plan.status === 'ACTIVE';
 
   // Group routes by vehicleId
@@ -85,6 +86,7 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
   const [actionError, setActionError] = useState<string | null>(null);
 
   const openModal = async (type: 'VEHICLE' | 'DRIVER' | 'ATTENDANT', group: VehicleGroup) => {
+    if (type === 'ATTENDANT' ? !isSchoolAdmin : !isSystemAdmin) return;
     setSelectedGroup(group);
     setModalType(type);
     setSelectedResourceId('');
@@ -117,7 +119,8 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
   };
 
   const handleSubmit = async () => {
-    if (!selectedGroup || !selectedResourceId) return;
+    if (!selectedGroup || !selectedResourceId || submitting) return;
+    if (modalType === 'ATTENDANT' ? !isSchoolAdmin : !isSystemAdmin) return;
     setSubmitting(true);
     setActionError(null);
 
@@ -253,7 +256,7 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
                       )}
                     </div>
                   ) : (
-                    <span className="text-xs text-rose-600 font-semibold italic">Chưa phân công</span>
+                    <span className="text-xs text-rose-600 font-semibold italic">{compact && isSchoolAdmin ? 'Nhà xe chưa phân công tài xế' : 'Chưa phân công'}</span>
                   )}
                 </div>
 
@@ -265,10 +268,12 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
                     </span>
                     {isSchoolAdmin && group.vehicleId && (
                       <Button
+                        variant={compact && !group.busAttendantId ? 'primary' : compact ? 'outline' : undefined}
+                        size={compact ? 'sm' : undefined}
                         onClick={() => openModal('ATTENDANT', group)}
-                        className="text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                        className={compact ? 'assignment-action-button' : 'text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer'}
                       >
-                        [{group.busAttendantId ? 'Đổi giáo viên' : 'Phân công'}]
+                        {compact ? (group.busAttendantId ? 'Đổi giáo viên' : '+ Phân công giáo viên') : `[${group.busAttendantId ? 'Đổi giáo viên' : 'Phân công'}]`}
                       </Button>
                     )}
                   </div>
@@ -309,7 +314,7 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
       </Card>
 
       {/* Assignment Modal */}
-      {modalType && selectedGroup && (
+      {editable && modalType && selectedGroup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in">
           <Card className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100 space-y-4">
             <h3 className="text-base font-bold text-slate-800">

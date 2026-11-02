@@ -1,18 +1,14 @@
 ﻿# School Admin — Hướng dẫn đồng bộ trang chi tiết phương án tuyến
 
-Ngày: 30/10/2026. Trạng thái: **ĐỀ XUẤT / CHƯA TRIỂN KHAI CHO SCHOOL ADMIN**.
+Ngày: 30/10/2026. Cập nhật: 01/11/2026. Trạng thái: **ĐÃ TRIỂN KHAI / CHỜ NGHIỆM THU TRÊN DỮ LIỆU PHƯƠNG ÁN**.
 
 ## 1. Phạm vi hiện tại
 
-System Admin đã dùng giao diện bản đồ + hai tab Tuyến / Phân công tại `/admin/routes/plans/[id]`. Sau tạo nháp chuyển đến URL này với `tab=assignments`. Vào từ danh sách không có tab thì mặc định Phân công nếu còn nhóm thiếu xe/tài xế có thể xử lý; nếu không thì mở Tuyến. Tab được chỉ định rõ trên URL luôn được giữ. `routeId` lưu tuyến đang xem; `returnTo` giữ nơi quay lại. Không có bước phân công bắt buộc.
+System Admin đã dùng giao diện bản đồ + hai tab Tuyến / Phân công tại `/admin/routes/plans/[id]`. Sau tạo nháp chuyển đến URL này với `tab=assignments`. Vào từ danh sách không có tab thì mặc định Tuyến. `routeId` lưu tuyến đang xem; `returnTo` giữ nơi quay lại. Không có bước phân công bắt buộc.
 
-Cập nhật 02/11/2026: System Admin hiển thị tiến độ nhà xe cạnh trạng thái Nháp/Đã duyệt, ngoài vùng cuộn. Khi còn việc có nút Phân công mở đúng tab và đưa tới nhóm xe thiếu đầu tiên. Mỗi nhóm có nhãn Thiếu xe / Thiếu tài xế / Đã đủ xe và tài xế; bỏ banner dài trong panel. Tiến độ này chỉ tính xe và tài xế, không đồng nghĩa đủ điều kiện duyệt. Khi School Admin đồng bộ giao diện, cần tính tiến độ giáo viên theo trách nhiệm trường và giữ readiness riêng; không sao chép bộ đếm công việc của nhà xe làm trạng thái hoàn tất của trường.
+School Admin và System Admin dùng chung `SavedRoutePlanWorkspace` tại `/admin/routes/plans/[id]`. School Admin có phân công giáo viên và thanh điều kiện duyệt riêng; xe/tài xế chỉ xem. Legacy vẫn được giữ trong source để đối chiếu trong giai đoạn nghiệm thu.
 
-Bộ chọn Hiển thị tuyến (x/y) của System Admin nằm trên bản đồ, mở popover checkbox nhóm theo chiều đi/về, có tìm kiếm và chọn/bỏ chọn tất cả. Checkbox chỉ thay đổi các đường đang vẽ, không thay đổi nhóm phân công hay dữ liệu. Tab Tuyến chọn tuyến đang xem chi tiết; lựa chọn này không tự ẩn/hiện tuyến khác. Tab Phân công không có dropdown chọn tuyến. Khi School Admin đồng bộ, cũng cần giữ hai trạng thái này độc lập; không coi checkbox trên bản đồ là phạm vi áp dụng phân công giáo viên.
-
-School Admin tiếp tục dùng `LegacyRoutePlanDetailPage` trong `web/src/app/admin/routes/plans/[id]/page.tsx`. Không sửa JSX, API hoặc logic phê duyệt của component này trong task System Admin. Không tự bật workspace System Admin cho School Admin: workspace này hiện không cung cấp thao tác phân công giáo viên hoặc phê duyệt.
-
-## 2. Wireframe đề xuất — cần Product Owner duyệt trước khi code
+## 2. Wireframe — Product Owner đã duyệt triển khai ngày 01/11/2026
 
 ```text
 ← Danh sách phương án
@@ -51,10 +47,11 @@ Thanh duyệt chỉ hiện khi phù hợp trạng thái/quyền, nằm ngoài v�
 
 ## 5. File và API cần xem khi triển khai
 
-- `web/src/app/admin/routes/plans/[id]/page.tsx`: tách vai trò, LegacyRoutePlanDetailPage.
-- `web/src/app/admin/routes/plans/[id]/_components/saved-route-plan-workspace.tsx`: bố cục System Admin tham khảo; hiện guard chỉ fetch cho SYSTEM_ADMIN.
+- `web/src/app/admin/routes/plans/[id]/page.tsx`: hai vai trò dùng workspace chung, key theo user/role/school/plan để không giữ dữ liệu phiên cũ.
+- `web/src/components/admin/routes/saved-route-plan-workspace.tsx`: khung chung; kiểm tra vai trò và schoolId, tab mặc định Tuyến cho trường.
+- `web/src/components/admin/routes/school-route-plan-approval.tsx`: thanh điều kiện duyệt và dialog xác nhận; chỉ hiển thị cho trường trên DRAFT.
 - `web/src/components/admin/routes/route-planning-workspace.tsx`: khung map/panel responsive, footer tùy chọn.
-- `web/src/app/admin/routes/plans/[id]/_components/route-plan-assignments.tsx`: handlers ứng viên/phân công hiện có; `compact` opt-in, mặc định false để không đổi giao diện cũ.
+- `web/src/components/admin/routes/route-plan-assignments.tsx`: handlers ứng viên/phân công hiện có; `compact` opt-in, mặc định false để không đổi giao diện cũ.
 - `web/src/components/admin/routes/approval-readiness-card.tsx`: hành vi phê duyệt cần giữ, kiểm tra câu chữ theo business rule trước khi tái sử dụng.
 - `web/src/components/admin/routes/cancel-route-plan-modal.tsx`: tác động hủy, lý do và API.
 - `getRoutePlanDetail`, `getRouteDetail`, `getApprovalReadiness`, `getCandidateBusAttendants`, `assignBusAttendantGroup`, `approveRoutePlan`; không cần thay API để đồng bộ bố cục.
@@ -80,4 +77,12 @@ Thanh duyệt chỉ hiện khi phù hợp trạng thái/quyền, nằm ngoài v�
 - Desktop/tablet/mobile, danh sách nhiều xe/học sinh, tên dài, bàn phím và focus modal.
 - Dùng mock/in-memory cho kiểm thử; không tự seed, sửa DB hoặc gọi mutation API nếu PO chưa cấp quyền kiểm thử dữ liệu.
 
-Không coi tài liệu này là phê duyệt triển khai School Admin.
+## 8. Ghi nhận triển khai ngày 01/11/2026
+
+PO yêu cầu đồng bộ với System Admin theo tài liệu này và xác nhận sau khi wireframe được trình bày trong chat. Đã triển khai workspace chung, quyền/phân công/duyệt theo vai trò, footer ngoài vùng cuộn, trạng thái chỉ xem và URL hiện có. Giữ API phân công/duyệt/hủy hiện có.
+
+Readiness dùng đúng contract `summary.totalRoutes`, `routesWithVehicle`, `routesWithDriver`, `routesWithBusAttendant`; điều kiện duyệt lấy từ `isReadyForApproval` và blockers, không tự suy ra từ số lượng nhân sự. Response readiness không có schoolName/totalVehicles; thông tin trường lấy từ plan. Vô hiệu hóa điều kiện cũ ngay khi refresh/phân công, có retry khi lỗi.
+
+Form thêm giáo viên bắt buộc email và SĐT ở Web. Theo yêu cầu PO ngày 01/11/2026, BE được giữ nguyên như trước task UI: email bắt buộc, SĐT tùy chọn tại API. Tooltip dùng portal ra ngoài vùng cuộn modal và định vị theo viewport.
+
+Typecheck/kiểm tra source không thay nghiệm thu thao tác với phương án thật. Không tự tạo tuyến, xe, học sinh hoặc giáo viên để nghiệm thu; xem kết quả và giới hạn tại `docs/ai-review/LATEST.md`.

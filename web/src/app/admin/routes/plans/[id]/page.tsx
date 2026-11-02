@@ -1,6 +1,5 @@
 'use client';
-import { getRoutePlanStatusLabel } from '@/lib/status-labels';
-import { TableActions } from '@/components/admin/common/table-actions';
+import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
 import { BackLink, ContextLink } from '@/components/admin/common/context-navigation';
 
 import React, { useState, useEffect, useCallback, use } from 'react';
@@ -13,8 +12,8 @@ import {
   InfoIcon,
 } from '@/components/icons';
 import { CancelRoutePlanModal } from '@/components/admin/routes/cancel-route-plan-modal';
-import { ApprovalReadinessCard } from './_components/approval-readiness-card';
-import { RoutePlanAssignments } from './_components/route-plan-assignments';
+import { ApprovalReadinessCard } from '@/app/admin/routes/plans/[id]/_components/approval-readiness-card';
+import { RoutePlanAssignments } from '@/app/admin/routes/plans/[id]/_components/route-plan-assignments';
 import { authStorage } from '@/lib/auth-storage';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,14 +21,14 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Table } from '@/components/ui/table';
 import { useAuth } from '@/components/auth/auth-provider';
-import { SavedRoutePlanWorkspace } from './_components/saved-route-plan-workspace';
+import { SavedRoutePlanWorkspace } from '@/app/admin/routes/plans/[id]/_components/saved-route-plan-workspace';
 
 export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { user, isLoading } = useAuth();
   if (isLoading || !user) return <div className="py-20 text-center" role="status">Đang tải phương án…</div>;
-  if (user.role === 'SYSTEM_ADMIN') {
-    return <SavedRoutePlanWorkspace key={`${user.id}:${id}`} planId={id} role={user.role} />;
+  if (user.role === 'SYSTEM_ADMIN' || user.role === 'SCHOOL_ADMIN') {
+    return <SavedRoutePlanWorkspace key={`${user.id}:${user.role}:${user.schoolId}:${id}`} planId={id} role={user.role} schoolId={user.schoolId} />;
   }
   return <LegacyRoutePlanDetailPage params={params} />;
 }
@@ -463,7 +462,12 @@ function LegacyRoutePlanDetailPage({ params }: { params: Promise<{ id: string }>
                       </td>
 
                       <td className="py-3.5 px-4 text-right">
-                        <TableActions actions={[{ label: 'Xem bản đồ', href: `/admin/routes/${route.id}` }]} />
+                        <ContextLink  data-size="sm"
+                          href={`/admin/routes/${route.id}`}
+                          className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-primary hover:text-slate-900 transition-colors"
+                        >
+                          Xem bản đồ
+                        </ContextLink>
                       </td>
                     </tr>
                   );
