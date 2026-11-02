@@ -1,0 +1,54 @@
+diff --git a/mobile/app/trip/[id].tsx b/mobile/app/trip/[id].tsx
+index 9f0b713..3243786 100644
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -98,0 +99 @@ export default function MobileTripDetailScreen() {
++  const [staffHeaderHeight, setStaffHeaderHeight] = useState(0);
+@@ -109,0 +111,6 @@ export default function MobileTripDetailScreen() {
++  const showTripAction = hasTripAction(user?.role, operationalState?.status);
++  const bottomActionOffset = showTripAction ? bottomActionHeight : 0;
++  const sheetBottomPadding = showTripAction ? 10 : insets.bottom + 10;
++  const collapsedHeight = isDriverOrAttendant && staffHeaderHeight > 0
++    ? staffHeaderHeight + sheetBottomPadding
++    : COLLAPSED_HEIGHT;
+@@ -140,0 +148,4 @@ export default function MobileTripDetailScreen() {
++  useEffect(() => {
++    if (!isExpandedRef.current) sheetHeightAnim.setValue(collapsedHeight);
++  }, [collapsedHeight, sheetHeightAnim]);
++
+@@ -162 +173 @@ export default function MobileTripDetailScreen() {
+-      animateTo(COLLAPSED_HEIGHT);
++      animateTo(collapsedHeight);
+@@ -166 +177 @@ export default function MobileTripDetailScreen() {
+-  }, [animateTo]);
++  }, [animateTo, collapsedHeight]);
+@@ -182 +193 @@ export default function MobileTripDetailScreen() {
+-            Math.max(COLLAPSED_HEIGHT, newHeight)
++            Math.max(collapsedHeight, newHeight)
+@@ -184 +195 @@ export default function MobileTripDetailScreen() {
+-          if (clampedHeight > COLLAPSED_HEIGHT + 15 && !isExpandedRef.current) {
++          if (clampedHeight > collapsedHeight + 15 && !isExpandedRef.current) {
+@@ -192 +203 @@ export default function MobileTripDetailScreen() {
+-              animateTo(COLLAPSED_HEIGHT);
++              animateTo(collapsedHeight);
+@@ -204 +215 @@ export default function MobileTripDetailScreen() {
+-            animateTo(COLLAPSED_HEIGHT);
++            animateTo(collapsedHeight);
+@@ -208 +219 @@ export default function MobileTripDetailScreen() {
+-          const midpoint = (COLLAPSED_HEIGHT + EXPANDED_HEIGHT) / 2;
++          const midpoint = (collapsedHeight + EXPANDED_HEIGHT) / 2;
+@@ -212 +223 @@ export default function MobileTripDetailScreen() {
+-            animateTo(COLLAPSED_HEIGHT);
++            animateTo(collapsedHeight);
+@@ -216 +227 @@ export default function MobileTripDetailScreen() {
+-    [animateTo, sheetHeightAnim]
++    [animateTo, collapsedHeight, sheetHeightAnim]
+@@ -833,2 +844 @@ export default function MobileTripDetailScreen() {
+-  const showTripAction = hasTripAction(user?.role, operationalState?.status);
+-  const bottomActionOffset = showTripAction ? bottomActionHeight : 0;
++
+@@ -1021 +1031 @@ export default function MobileTripDetailScreen() {
+-            paddingBottom: showTripAction ? 10 : insets.bottom + 10,
++            paddingBottom: sheetBottomPadding,
+@@ -1027,0 +1038 @@ export default function MobileTripDetailScreen() {
++          onLayout={isDriverOrAttendant ? event => setStaffHeaderHeight(event.nativeEvent.layout.height) : undefined}

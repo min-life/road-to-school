@@ -96,7 +96,10 @@ export default function MobileTripDetailScreen() {
   // Bottom Sheet 2-State Animation & Gesture
   const [isExpanded, setIsExpanded] = useState(false);
   const [bottomActionHeight, setBottomActionHeight] = useState(0);
+  const [staffHeaderHeight, setStaffHeaderHeight] = useState(0);
   const isExpandedRef = useRef(false);
+  const isSheetDragging = useRef(false);
+  const collapsedHeightRef = useRef(COLLAPSED_HEIGHT);
   const sheetHeightAnim = useRef(new Animated.Value(COLLAPSED_HEIGHT)).current;
   const currentHeight = useRef(COLLAPSED_HEIGHT);
   const dragStartHeight = useRef(COLLAPSED_HEIGHT);
@@ -107,6 +110,13 @@ export default function MobileTripDetailScreen() {
   const isBusAttendant = user?.role === 'BUS_ATTENDANT';
   const isDriver = user?.role === 'DRIVER';
   const isParent = user?.role === 'PARENT';
+  const showTripAction = hasTripAction(user?.role, operationalState?.status);
+  const bottomActionOffset = showTripAction ? bottomActionHeight : 0;
+  const sheetBottomPadding = showTripAction ? 10 : insets.bottom + 10;
+  const collapsedHeight = isDriverOrAttendant && staffHeaderHeight > 0
+    ? staffHeaderHeight + sheetBottomPadding
+    : COLLAPSED_HEIGHT;
+  collapsedHeightRef.current = collapsedHeight;
 
   const [activeTab, setActiveTab] = useState<'INFO' | 'STOPS' | 'ATTENDANCE' | 'INCIDENTS'>(
     isBusAttendant ? 'ATTENDANCE' : 'INFO'
@@ -138,10 +148,15 @@ export default function MobileTripDetailScreen() {
     };
   }, [sheetHeightAnim]);
 
+  useEffect(() => {
+    if (!isExpandedRef.current && !isSheetDragging.current) sheetHeightAnim.setValue(collapsedHeight);
+  }, [collapsedHeight, sheetHeightAnim]);
+
   const animateTo = useCallback(
     (toValue: number, callback?: () => void) => {
       const willExpand = toValue === EXPANDED_HEIGHT;
       if (willExpand) {
+        isExpandedRef.current = true;
         setIsExpanded(true);
       }
       Animated.spring(sheetHeightAnim, {
@@ -149,7 +164,9 @@ export default function MobileTripDetailScreen() {
         friction: 8,
         tension: 40,
         useNativeDriver: false,
-      }).start(() => {
+      }).start(({ finished }) => {
+        if (!finished) return;
+        isExpandedRef.current = willExpand;
         setIsExpanded(willExpand);
         callback?.();
       });
@@ -159,11 +176,11 @@ export default function MobileTripDetailScreen() {
 
   const toggleSheet = useCallback(() => {
     if (isExpandedRef.current) {
-      animateTo(COLLAPSED_HEIGHT);
+      animateTo(collapsedHeight);
     } else {
       animateTo(EXPANDED_HEIGHT);
     }
-  }, [animateTo]);
+  }, [animateTo, collapsedHeight]);
 
   const panResponder = useMemo(
     () =>
@@ -172,24 +189,30 @@ export default function MobileTripDetailScreen() {
         onMoveShouldSetPanResponder: (_, gestureState) => {
           return Math.abs(gestureState.dy) > 4;
         },
+        onPanResponderTerminationRequest: () => false,
+        onShouldBlockNativeResponder: () => true,
         onPanResponderGrant: () => {
+          isSheetDragging.current = true;
+          sheetHeightAnim.stopAnimation();
           dragStartHeight.current = currentHeight.current;
         },
         onPanResponderMove: (_, gestureState) => {
           const newHeight = dragStartHeight.current - gestureState.dy;
           const clampedHeight = Math.min(
             EXPANDED_HEIGHT,
-            Math.max(COLLAPSED_HEIGHT, newHeight)
+            Math.max(collapsedHeightRef.current, newHeight)
           );
-          if (clampedHeight > COLLAPSED_HEIGHT + 15 && !isExpandedRef.current) {
+          if (clampedHeight > collapsedHeightRef.current + 15 && !isExpandedRef.current) {
+            isExpandedRef.current = true;
             setIsExpanded(true);
           }
           sheetHeightAnim.setValue(clampedHeight);
         },
         onPanResponderRelease: (_, gestureState) => {
+          isSheetDragging.current = false;
           if (Math.abs(gestureState.dy) < 6 && Math.abs(gestureState.dx) < 6) {
             if (isExpandedRef.current) {
-              animateTo(COLLAPSED_HEIGHT);
+              animateTo(collapsedHeightRef.current);
             } else {
               animateTo(EXPANDED_HEIGHT);
             }
@@ -201,16 +224,21 @@ export default function MobileTripDetailScreen() {
             return;
           }
           if (gestureState.vy > 0.4) {
-            animateTo(COLLAPSED_HEIGHT);
+            animateTo(collapsedHeightRef.current);
             return;
           }
 
-          const midpoint = (COLLAPSED_HEIGHT + EXPANDED_HEIGHT) / 2;
+          const midpoint = (collapsedHeightRef.current + EXPANDED_HEIGHT) / 2;
           if (currentHeight.current >= midpoint) {
             animateTo(EXPANDED_HEIGHT);
           } else {
-            animateTo(COLLAPSED_HEIGHT);
+            animateTo(collapsedHeightRef.current);
           }
+        },
+        onPanResponderTerminate: () => {
+          isSheetDragging.current = false;
+          const midpoint = (collapsedHeightRef.current + EXPANDED_HEIGHT) / 2;
+          animateTo(currentHeight.current >= midpoint ? EXPANDED_HEIGHT : collapsedHeightRef.current);
         },
       }),
     [animateTo, sheetHeightAnim]
@@ -830,8 +858,7 @@ export default function MobileTripDetailScreen() {
     ? operationalState?.status === 'IN_PROGRESS' && !operationalState.isSchoolArrived
     : operationalState?.status === 'IN_PROGRESS' ||
       (operationalState?.status === 'SCHEDULED' && operationalState.isAttendantReady));
-  const showTripAction = hasTripAction(user?.role, operationalState?.status);
-  const bottomActionOffset = showTripAction ? bottomActionHeight : 0;
+
 
   const canReady = Boolean(operationalState?.canMarkReady ?? operationalState?.canAttendantReady);
   const canStart = Boolean(operationalState?.canStartTrip ?? operationalState?.canDriverStart);
@@ -1018,13 +1045,16 @@ export default function MobileTripDetailScreen() {
           {
             height: sheetHeightAnim,
             bottom: bottomActionOffset,
-            paddingBottom: showTripAction ? 10 : insets.bottom + 10,
+            paddingBottom: sheetBottomPadding,
           },
         ]}
       >
         {/* Drag Handle & Header */}
         <View
           {...panResponder.panHandlers}
+          onLayout={isDriverOrAttendant ? event => {
+            if (!isSheetDragging.current) setStaffHeaderHeight(Math.ceil(event.nativeEvent.layout.height));
+          } : undefined}
           style={styles.sheetHandleArea}
           accessible={true}
           accessibilityRole="button"
@@ -1220,8 +1250,13 @@ export default function MobileTripDetailScreen() {
                   </TouchableOpacity>
                 </View>
               ) : (
-                /* Staff keeps attendance; all four tabs use the Parent's fixed row. */
-                <View style={[styles.tabBarParent, styles.tabBarStaff]}>
+                /* Keep staff labels and counts on one line; allow horizontal scrolling. */
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.tabScrollStaff}
+                  contentContainerStyle={styles.tabBarStaff}
+                >
                   <TouchableOpacity
                     onPress={() => setActiveTab('INFO')}
                     style={[styles.tabButton, styles.tabButtonParent, styles.tabButtonStaff, activeTab === 'INFO' && styles.tabButtonActive]}
@@ -1232,6 +1267,7 @@ export default function MobileTripDetailScreen() {
                       color={activeTab === 'INFO' ? '#D97706' : '#64748B'}
                     />
                     <Text
+                      numberOfLines={1}
                       style={[
                         styles.tabButtonText,
                         styles.tabButtonTextParent,
@@ -1253,6 +1289,7 @@ export default function MobileTripDetailScreen() {
                       color={activeTab === 'STOPS' ? '#D97706' : '#64748B'}
                     />
                     <Text
+                      numberOfLines={1}
                       style={[
                         styles.tabButtonText,
                         styles.tabButtonTextParent,
@@ -1274,6 +1311,7 @@ export default function MobileTripDetailScreen() {
                       color={activeTab === 'ATTENDANCE' ? '#D97706' : '#64748B'}
                     />
                     <Text
+                      numberOfLines={1}
                       style={[
                         styles.tabButtonText,
                         styles.tabButtonTextParent,
@@ -1300,6 +1338,7 @@ export default function MobileTripDetailScreen() {
                       color={activeTab === 'INCIDENTS' ? '#DC2626' : '#64748B'}
                     />
                     <Text
+                      numberOfLines={1}
                       style={[
                         styles.tabButtonText,
                         styles.tabButtonTextParent,
@@ -1311,7 +1350,7 @@ export default function MobileTripDetailScreen() {
                       Sự cố ({tripIncidents.length})
                     </Text>
                   </TouchableOpacity>
-                </View>
+                </ScrollView>
               )}
             </View>
 
@@ -2835,6 +2874,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   sheetHandleArea: {
+    flexShrink: 0,
     paddingTop: 8,
     paddingBottom: 12,
     paddingHorizontal: 16,
@@ -2899,9 +2939,10 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E2E8F0',
     marginBottom: 12,
   },
-  tabBarStaff: { alignItems: 'stretch' },
-  tabButtonStaff: { minWidth: 0 },
-  tabButtonTextStaff: { flexShrink: 1, textAlign: 'center' },
+  tabScrollStaff: { flexGrow: 0 },
+  tabBarStaff: { flexDirection: 'row', flexGrow: 1, alignItems: 'stretch' },
+  tabButtonStaff: { flexGrow: 1, flexShrink: 0, flexBasis: 'auto', minWidth: 0, paddingHorizontal: 0, gap: 3 },
+  tabButtonTextStaff: { flexShrink: 0, textAlign: 'center' },
   tabBarParent: {
     flexDirection: 'row',
     alignItems: 'center',

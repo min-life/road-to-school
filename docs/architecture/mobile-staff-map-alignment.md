@@ -1,5 +1,17 @@
 # Staff map alignment — preserve Parent
 
+## Hiện hành02/11/2026 — Ổn định gesture sau measured height
+
+PO báo kéo giật sau fix min height. Giữ min theo header nhưng PanResponder dùng collapsedHeightRef/deps ổn định; isSheetDragging chặn resize effect/onLayout feedback, header flexShrink0. Grant stop spring, bỏ completion finished=false, expanded ref cập nhật ngay; release/terminate reset dragging và snap theo min mới. Header giữ native responder trong drag. RED4cases→GREEN6gesture+4role/status, typecheck, Chromium callback harness và web/server export PASS; Android/WebView thực tế chưa nghiệm thu. Các self-check min/snap ở task trước không đủ chứng minh lifecycle interaction.
+
+## Hiện hành02/11/2026 — Chiều cao sheet Staff theo header
+
+Khoảng trắng thu gọn do min115px lớn hơn header. Staff nay đo sheetHandleArea, min=headerHeight+paddingBottom hiện hữu; toggle/drag clamp/midpoint/snap cùng dùng min đo được. Effect đồng bộ min khi collapsed, không can thiệp expanded. Parent và fallback trước đo vẫn115px. Footer vàng/offset và joystick không đổi. Typecheck,4role/status tests, actual callback primitive self-check và web/server export PASS; native onLayout/real screenshots chưa nghiệm thu.
+
+## Hiện hành02/11/2026 — Tab Staff một dòng
+
+PO yêu cầu tên/bộ đếm cùng hàng, không wrap. Staff dùng ScrollView ngang với natural button widths, text numberOfLines1/shrink0; font12px giữ Parent, gap/padding nhỏ riêng Staff. Preview390px thấy đủ4tabs;320px cuộn ngang khi thiếu chỗ. Parent/counters/handlers không đổi. Typecheck/source parity/RN-web PASS; native chưa nghiệm thu. Quyết định fixed equal-width/wrap ở phần lịch sử được thay bằng yêu cầu này.
+
 ## Hiện hành02/11/2026 — Trả vận hành về footer ngoài tab
 
 PO đổi ý và yêu cầu nút ở ngoài tab như ban đầu. showTripAction nay render footer sibling sau sheet, độc lập activeTab/isExpanded. Đo footer gồm safe-area/border bằng onLayout; sheet bottom=offset, joystick bottom=sheetHeightAnim+offset+16. Role/status không có action dùng offset0. Giữ nút vàng Home, guards/labels/handlers và Parent mặc định. Typecheck,4role/status tests, source parity/ancestry và web/server export PASS; native layout/touch chưa nghiệm thu. Quyết định đặt action trong INFO bên dưới là lịch sử, được thay thế bởi yêu cầu này.
