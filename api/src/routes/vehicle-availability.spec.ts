@@ -26,6 +26,16 @@ describe('ResourceAvailabilityService — Vehicle Availability & Reservation (BR
         findUnique: vi.fn(),
         findMany: vi.fn(),
       },
+      trip: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      schoolScheduledChange: {
+        findMany: vi.fn().mockResolvedValue([]),
+        findFirst: vi.fn().mockResolvedValue(null),
+      },
+      serviceCalendarEntry: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
     };
 
     service = new ResourceAvailabilityService(prismaMock);
@@ -99,6 +109,7 @@ describe('ResourceAvailabilityService — Vehicle Availability & Reservation (BR
     const targetSchool = {
       id: 'target-school-id',
       name: 'Trường Tiểu học Marie Curie',
+      isActive: true,
       contractStartDate: new Date('2026-10-01'),
       contractEndDate: new Date('2026-12-31'),
     };
@@ -123,6 +134,7 @@ describe('ResourceAvailabilityService — Vehicle Availability & Reservation (BR
             school: {
               id: 'other-school-id',
               name: 'Trường Vinschool',
+              isActive: true,
               contractStartDate: new Date('2026-11-01'),
               contractEndDate: new Date('2027-01-31'),
             },
@@ -244,10 +256,13 @@ describe('ResourceAvailabilityService — Vehicle Availability & Reservation (BR
     it('should throw ConflictException if newVehicle is reserved in an overlapping contract RoutePlan', async () => {
       const plan = {
         id: 'plan-1',
+        status: RoutePlanStatus.DRAFT,
+        createdAt: new Date('2026-10-01'),
         schoolId: 'school-1',
         school: {
           id: 'school-1',
           name: 'THPT Lê Hồng Phong',
+          isActive: true,
           contractStartDate: new Date('2026-10-01'),
           contractEndDate: new Date('2026-12-31'),
         },
@@ -289,6 +304,7 @@ describe('ResourceAvailabilityService — Vehicle Availability & Reservation (BR
             school: {
               id: 'school-2',
               name: 'THPT Nguyễn Thị Minh Khai',
+              isActive: true,
               contractStartDate: new Date('2026-10-15'),
               contractEndDate: new Date('2026-11-15'),
             },
@@ -309,10 +325,13 @@ describe('ResourceAvailabilityService — Vehicle Availability & Reservation (BR
     it('should mark reserved vehicle as ineligible with clear reason message', async () => {
       const plan = {
         id: 'plan-1',
+        status: RoutePlanStatus.DRAFT,
+        createdAt: new Date('2026-10-01'),
         schoolId: 'school-1',
         school: {
           id: 'school-1',
           name: 'THPT Lê Hồng Phong',
+          isActive: true,
           contractStartDate: new Date('2026-10-01'),
           contractEndDate: new Date('2026-12-31'),
         },
@@ -347,6 +366,7 @@ describe('ResourceAvailabilityService — Vehicle Availability & Reservation (BR
             school: {
               id: 'school-3',
               name: 'THCS Bàn Cờ',
+              isActive: true,
               contractStartDate: new Date('2026-09-01'),
               contractEndDate: new Date('2026-11-30'),
             },

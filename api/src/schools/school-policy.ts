@@ -19,14 +19,16 @@ export async function effectiveSchool(
 ) {
   const school = await db.school.findUnique({ where: { id } });
   if (!school) return null;
-  const changes = await db.schoolScheduledChange.findMany({
-    where: {
-      schoolId: id,
-      status: 'PENDING',
-      effectiveDate: { lte: new Date(date) },
-    },
-    orderBy: [{ effectiveDate: 'asc' }, { createdAt: 'asc' }],
-  });
+  const changes = db.schoolScheduledChange
+    ? await db.schoolScheduledChange.findMany({
+        where: {
+          schoolId: id,
+          status: 'PENDING',
+          effectiveDate: { lte: new Date(date) },
+        },
+        orderBy: [{ effectiveDate: 'asc' }, { createdAt: 'asc' }],
+      })
+    : [];
   const result = { ...school };
   for (const change of changes) {
     const payload = change.payload as Prisma.JsonObject;
@@ -52,20 +54,23 @@ export async function planInvalidation(
   if (isContractExpired(school.contractEndDate, date))
     return 'CONTRACT_EXPIRED';
   if (!school.isActive) return 'SCHOOL_INACTIVE';
-  const cutoff = await db.schoolScheduledChange.findFirst({
-    where: {
-      schoolId,
-      type: { in: ['INACTIVE', 'LOCATION'] },
-      status: { in: ['PENDING', 'APPLIED'] },
-      effectiveDate: {
-        lte: new Date(date),
-        gt:
-          new Date(createdAt.getTime() + 7 * 3600000)
-            .toISOString()
-            .slice(0, 10) + 'T00:00:00Z',
-      },
-    },
-  });
+  const planDate = createdAt ?? new Date();
+  const cutoff = db.schoolScheduledChange
+    ? await db.schoolScheduledChange.findFirst({
+        where: {
+          schoolId,
+          type: { in: ['INACTIVE', 'LOCATION'] },
+          status: { in: ['PENDING', 'APPLIED'] },
+          effectiveDate: {
+            lte: new Date(date),
+            gt:
+              new Date(planDate.getTime() + 7 * 3600000)
+                .toISOString()
+                .slice(0, 10) + 'T00:00:00Z',
+          },
+        },
+      })
+    : null;
   return cutoff
     ? cutoff.type === 'LOCATION'
       ? 'LOCATION_CHANGED'
@@ -91,9 +96,11 @@ export async function serviceDay(
     (await planInvalidation(db, schoolId, planCreatedAt, date))
   )
     return null;
-  const entries = await db.serviceCalendarEntry.findMany({
-    where: { status: 'APPROVED', OR: [{ schoolId: null }, { schoolId }] },
-  });
+  const entries = db.serviceCalendarEntry
+    ? await db.serviceCalendarEntry.findMany({
+        where: { status: 'APPROVED', OR: [{ schoolId: null }, { schoolId }] },
+      })
+    : [];
   const matching = entries.filter((entry) => calendarMatches(entry, date));
   if (matching.some((entry) => entry.kind === 'HOLIDAY' && !entry.schoolId))
     return null;
@@ -124,12 +131,14 @@ export async function tripBlockReason(
   if ((trip.adminFinalization as Prisma.JsonObject | null)?.state === 'PENDING')
     return 'ADMIN_FINALIZATION_PENDING';
   const today = vietnamToday();
-  const invalidation = await planInvalidation(
-    db,
-    trip.schoolId,
-    trip.route.routePlan.createdAt,
-  );
-  if (invalidation) return invalidation;
+  if (trip.route?.routePlan?.createdAt) {
+    const invalidation = await planInvalidation(
+      db,
+      trip.schoolId,
+      trip.route.routePlan.createdAt,
+    );
+    if (invalidation) return invalidation;
+  }
   if (
     contractDate(trip.serviceDate) === today &&
     !(await serviceDay(db, trip.schoolId, today))
@@ -137,12 +146,14 @@ export async function tripBlockReason(
     return 'HOLIDAY';
   if (contractDate(trip.serviceDate) <= today) {
     const day = contractDate(trip.serviceDate);
-    const entries = await db.serviceCalendarEntry.findMany({
-      where: {
-        status: { in: ['APPROVED', 'CANCELLED'] },
-        OR: [{ schoolId: null }, { schoolId: trip.schoolId }],
-      },
-    });
+    const entries = db.serviceCalendarEntry
+      ? await db.serviceCalendarEntry.findMany({
+          where: {
+            status: { in: ['APPROVED', 'CANCELLED'] },
+            OR: [{ schoolId: null }, { schoolId: trip.schoolId }],
+          },
+        })
+      : [];
     const eligible = entries.filter(
       (e) =>
         contractDate(new Date(e.createdAt.getTime() + 7 * 3600000)) < day &&
@@ -181,14 +192,16 @@ export async function assertSchoolAccount(
       'Trường đã ngừng hoạt động. Vui lòng đăng nhập lại khi trường hoạt động',
     );
   if (sessionCreatedAt) {
-    const past = await db.schoolScheduledChange.findMany({
-      where: {
-        schoolId: user.schoolId,
-        type: 'INACTIVE',
-        status: { in: ['PENDING', 'APPLIED'] },
-        effectiveDate: { lte: new Date(vietnamToday()) },
-      },
-    });
+    const past = db.schoolScheduledChange
+      ? await db.schoolScheduledChange.findMany({
+          where: {
+            schoolId: user.schoolId,
+            type: 'INACTIVE',
+            status: { in: ['PENDING', 'APPLIED'] },
+            effectiveDate: { lte: new Date(vietnamToday()) },
+          },
+        })
+      : [];
     if (
       past.some(
         (change) =>
@@ -228,22 +241,24 @@ export async function tripPolicyEffectiveDate(
       new Date(trip.school.contractEndDate.getTime() + 86400000),
     );
   if (reason === 'HOLIDAY') return contractDate(trip.serviceDate);
-  const change = await db.schoolScheduledChange.findFirst({
-    where: {
-      schoolId: trip.schoolId,
-      type: reason === 'LOCATION_CHANGED' ? 'LOCATION' : 'INACTIVE',
-      status: { in: ['PENDING', 'APPLIED'] },
-      effectiveDate: {
-        lte: new Date(vietnamToday()),
-        gt: new Date(
-          new Date(trip.route.routePlan.createdAt.getTime() + 7 * 3600000)
-            .toISOString()
-            .slice(0, 10),
-        ),
-      },
-    },
-    orderBy: { effectiveDate: 'asc' },
-  });
+  const change = db.schoolScheduledChange
+    ? await db.schoolScheduledChange.findFirst({
+        where: {
+          schoolId: trip.schoolId,
+          type: reason === 'LOCATION_CHANGED' ? 'LOCATION' : 'INACTIVE',
+          status: { in: ['PENDING', 'APPLIED'] },
+          effectiveDate: {
+            lte: new Date(vietnamToday()),
+            gt: new Date(
+              new Date(trip.route.routePlan.createdAt.getTime() + 7 * 3600000)
+                .toISOString()
+                .slice(0, 10),
+            ),
+          },
+        },
+        orderBy: { effectiveDate: 'asc' },
+      })
+    : null;
   return change ? contractDate(change.effectiveDate) : vietnamToday();
 }
 

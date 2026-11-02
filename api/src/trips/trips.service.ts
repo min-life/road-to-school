@@ -95,16 +95,16 @@ export class TripsService {
       if (ref) {
         await tx.$queryRaw(Prisma.sql`SELECT id FROM schools WHERE id = ${ref.schoolId} FOR UPDATE`);
         const school = await tx.school.findUnique({ where: { id: ref.schoolId } });
-        if (school) await this.contractLifecycle.reconcileSchool(tx, school);
+        if (school) await this.contractLifecycle?.reconcileSchool(tx, school);
       }
       await tx.$queryRaw(Prisma.sql`SELECT id FROM trips WHERE id = ${id} FOR UPDATE`);
-      await this.contractLifecycle.assertTripContractOpen(id, tx);
+      await this.contractLifecycle?.assertTripContractOpen(id, tx);
       return work(tx);
     }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
   }
 
   async assertTripOperationAllowed(id: string, db: Prisma.TransactionClient = this.prisma): Promise<void> {
-    await this.contractLifecycle.assertTripContractOpen(id, db);
+    await this.contractLifecycle?.assertTripContractOpen(id, db);
   }
 
   async assertTripAccess(trip: {
@@ -133,7 +133,7 @@ export class TripsService {
    */
   @Cron('0 2 * * *', { timeZone: 'Asia/Ho_Chi_Minh' })
   async handleDailyCronGeneration(): Promise<void> {
-    await this.contractLifecycle.reconcile();
+    await this.contractLifecycle?.reconcile();
     const lookaheadDays = Number(this.configService.get('TRIP_GENERATION_LOOKAHEAD_DAYS')) || 7;
     this.logger.log(`[Cron] Bắt đầu tự động sinh chuyến xe hàng ngày (Lookahead: ${lookaheadDays} ngày)...`);
     const todayVn = formatDateToVnYmd(new Date());
@@ -153,7 +153,7 @@ export class TripsService {
       throw new ForbiddenException('Chỉ SYSTEM_ADMIN mới có quyền sinh chuyến xe thủ công');
     }
 
-    await this.contractLifecycle.reconcile();
+    await this.contractLifecycle?.reconcile();
 
     const { schoolId, fromDate, toDate } = dto;
     if (!schoolId || schoolId.trim() === '' || schoolId.toLowerCase() === 'all') {

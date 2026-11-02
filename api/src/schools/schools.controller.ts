@@ -51,6 +51,8 @@ import {
   UpdateSchoolContractDto,
   UpdateSchoolScheduleDto,
   UpdateSchoolScheduleResponseDto,
+  EmployeeDeactivationImpactDto,
+  UpdateEmployeeStatusDto,
 } from './dto/index.js';
 
 @ApiResponse({ status: 409, description: 'Lịch trùng/đã đến hạn, nguồn lực không phù hợp hoặc dữ liệu thay đổi đồng thời' })
@@ -485,6 +487,56 @@ export class SchoolsController {
     @CurrentUser() user: User,
   ): Promise<CredentialDeliveryResultDto> {
     return this.credentials.resend(employeeId, user, id);
+  }
+
+  @Get(':id/employees/:employeeId/deactivation-impact')
+  @Roles(Role.SYSTEM_ADMIN, Role.SCHOOL_ADMIN)
+  @ApiOperation({
+    summary: 'Xem trước tác động khi chuyển trạng thái nhân viên trường học',
+    description:
+      'Thống kê số lượng tuyến ACTIVE và chuyến xe SCHEDULED/IN_PROGRESS đang phân công cho nhân viên này trước khi vô hiệu hóa tài khoản.',
+  })
+  @ApiParam({ name: 'id', format: 'uuid', description: 'ID trường học' })
+  @ApiParam({ name: 'employeeId', format: 'uuid', description: 'ID nhân viên' })
+  @ApiResponse({
+    status: 200,
+    description: 'Thông tin tác động khi vô hiệu hóa nhân viên',
+    type: EmployeeDeactivationImpactDto,
+  })
+  @ApiResponse({ status: 403, description: 'Sai role hoặc ngoài phạm vi trường' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy nhân viên trong trường' })
+  async getEmployeeDeactivationImpact(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('employeeId', new ParseUUIDPipe({ version: '4' })) employeeId: string,
+    @CurrentUser() user: User,
+  ): Promise<EmployeeDeactivationImpactDto> {
+    return this.schoolsService.getEmployeeDeactivationImpact(id, employeeId, user);
+  }
+
+  @Patch(':id/employees/:employeeId/status')
+  @Roles(Role.SYSTEM_ADMIN, Role.SCHOOL_ADMIN)
+  @ApiOperation({
+    summary: 'Cập nhật trạng thái hoạt động của nhân viên trường học',
+    description:
+      'Chuyển trạng thái nhân viên giữa hoạt động (isActive=true) và không hoạt động (isActive=false). Nếu nhân viên còn tuyến ACTIVE hoặc chuyến SCHEDULED, bắt buộc truyền replacementUserId cùng trường để bàn giao nguyên tử. Toàn bộ Session trên Mobile App sẽ bị thu hồi lập tức.',
+  })
+  @ApiParam({ name: 'id', format: 'uuid', description: 'ID trường học' })
+  @ApiParam({ name: 'employeeId', format: 'uuid', description: 'ID nhân viên' })
+  @ApiResponse({
+    status: 200,
+    description: 'Cập nhật trạng thái nhân viên thành công',
+    type: SchoolEmployeeDetailResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Nhân viên có chuyến IN_PROGRESS hoặc thiếu nhân sự thay thế hợp lệ' })
+  @ApiResponse({ status: 403, description: 'Sai role hoặc ngoài phạm vi trường' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy nhân sự hoặc nhân sự thay thế' })
+  async updateEmployeeStatus(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('employeeId', new ParseUUIDPipe({ version: '4' })) employeeId: string,
+    @Body() dto: UpdateEmployeeStatusDto,
+    @CurrentUser() user: User,
+  ): Promise<SchoolEmployeeDetailResponseDto> {
+    return this.schoolsService.updateEmployeeStatus(id, employeeId, dto, user);
   }
 
   @Get(':id/settings')

@@ -41,6 +41,8 @@ import {
   UpdateSchoolContractDto,
   UpdateSchoolScheduleDto,
   UpdateSchoolScheduleResponseDto,
+  EmployeeDeactivationImpactDto,
+  UpdateEmployeeStatusDto,
 } from './dto/index.js';
 
 @Injectable()
@@ -828,5 +830,237 @@ export class SchoolsService {
     const schedule = validateWeeklySchedule(dto.weeklySchedule);
     const result = await this.changes.schedule(schoolId, 'SCHEDULE', { weeklySchedule: schedule as unknown as Prisma.InputJsonObject }, dto.effectiveDate, actor);
     return { success: true, message: 'Đã hẹn đổi lịch học', school: { id: schoolId, name: result.school.name, weeklySchedule: result.school.weeklySchedule as Record<string, unknown> }, cancelledTripsCount: 0, updatedTripsCount: 0, scheduledChangeId: result.scheduledChangeId, effectiveDate: result.effectiveDate, changeStatus: result.changeStatus };
+  }
+
+  /**
+   * Xem trước tác động khi chuyển trạng thái nhân sự trường học
+   */
+  async getEmployeeDeactivationImpact(
+    schoolId: string,
+    employeeId: string,
+    currentUser?: User,
+  ): Promise<EmployeeDeactivationImpactDto> {
+    const school = await this.prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { id: true, name: true },
+    });
+    if (!school) {
+      throw new NotFoundException('Không tìm thấy trường học');
+    }
+
+    if (currentUser && currentUser.role === Role.SCHOOL_ADMIN && currentUser.schoolId !== schoolId) {
+      throw new ForbiddenException('Bạn không có quyền truy cập nhân sự của trường khác');
+    }
+
+    const employee = await this.prisma.user.findFirst({
+      where: { id: employeeId, schoolId },
+    });
+    if (!employee) {
+      throw new NotFoundException('Không tìm thấy nhân viên trong trường học này');
+    }
+
+    const defaultRoutes = await this.prisma.route.findMany({
+      where: {
+        defaultBusAttendantId: employeeId,
+        routePlan: { status: RoutePlanStatus.ACTIVE },
+      },
+      include: {
+        routePlan: { select: { id: true, name: true } },
+        school: { select: { name: true } },
+      },
+    });
+
+    const trips = await this.prisma.trip.findMany({
+      where: {
+        assignedBusAttendantId: employeeId,
+        status: { in: [TripStatus.SCHEDULED, TripStatus.IN_PROGRESS] },
+      },
+      include: {
+        school: { select: { name: true } },
+        route: { select: { name: true } },
+      },
+      orderBy: { serviceDate: 'asc' },
+    });
+
+    const inProgressTrips = trips.filter((t) => t.status === TripStatus.IN_PROGRESS);
+    const scheduledTrips = trips.filter((t) => t.status === TripStatus.SCHEDULED);
+
+    const canDeactivateDirectly = defaultRoutes.length === 0 && trips.length === 0;
+    const hasBlockingInProgress = inProgressTrips.length > 0;
+
+    return {
+      employeeId: employee.id,
+      schoolId: school.id,
+      fullName: employee.fullName,
+      role: employee.role,
+      isActive: employee.isActive,
+      defaultRoutesCount: defaultRoutes.length,
+      scheduledTripsCount: scheduledTrips.length,
+      inProgressTripsCount: inProgressTrips.length,
+      canDeactivateDirectly,
+      hasBlockingInProgress,
+      affectedRoutes: defaultRoutes.map((r) => ({
+        id: r.id,
+        name: r.name,
+        direction: r.direction,
+        schoolName: r.school.name,
+        routePlanId: r.routePlan.id,
+        routePlanName: r.routePlan.name,
+      })),
+      affectedTrips: trips.map((t) => ({
+        id: t.id,
+        date: t.serviceDate.toISOString().split('T')[0],
+        direction: t.direction,
+        status: t.status,
+        routeName: t.route.name,
+        schoolName: t.school.name,
+      })),
+    };
+  }
+
+  /**
+   * Cập nhật trạng thái hoạt động của nhân sự trường học (Bắt buộc bàn giao nếu có phân công)
+   */
+  async updateEmployeeStatus(
+    schoolId: string,
+    employeeId: string,
+    dto: UpdateEmployeeStatusDto,
+    currentUser?: User,
+  ): Promise<SchoolEmployeeDetailResponseDto> {
+    const school = await this.prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { id: true },
+    });
+    if (!school) {
+      throw new NotFoundException('Không tìm thấy trường học');
+    }
+
+    if (currentUser && currentUser.role === Role.SCHOOL_ADMIN) {
+      if (currentUser.schoolId !== schoolId) {
+        throw new ForbiddenException('Bạn không có quyền quản lý nhân sự của trường khác');
+      }
+    }
+
+    const employee = await this.prisma.user.findFirst({
+      where: { id: employeeId, schoolId },
+    });
+    if (!employee) {
+      throw new NotFoundException('Không tìm thấy nhân viên trong trường học này');
+    }
+
+    if (currentUser && currentUser.role === Role.SCHOOL_ADMIN && employee.role === Role.SCHOOL_ADMIN) {
+      throw new ForbiddenException('SCHOOL_ADMIN không có quyền thay đổi trạng thái của quản trị viên trường');
+    }
+
+    if (dto.isActive === employee.isActive) {
+      return this.findEmployeeDetail(schoolId, employeeId, currentUser);
+    }
+
+    if (dto.isActive) {
+      await this.prisma.user.update({
+        where: { id: employeeId },
+        data: { isActive: true },
+      });
+      return this.findEmployeeDetail(schoolId, employeeId, currentUser);
+    }
+
+    // Chuyển sang INACTIVE:
+    // 1. Kiểm tra chuyến IN_PROGRESS
+    const inProgressCount = await this.prisma.trip.count({
+      where: {
+        assignedBusAttendantId: employeeId,
+        status: TripStatus.IN_PROGRESS,
+      },
+    });
+    if (inProgressCount > 0) {
+      throw new BadRequestException('Không thể vô hiệu hóa giáo viên đang thực hiện chuyến xe (IN_PROGRESS)');
+    }
+
+    // 2. Kiểm tra các tuyến Route và chuyến SCHEDULED
+    const [defaultRoutesCount, scheduledTripsCount] = await Promise.all([
+      this.prisma.route.count({
+        where: {
+          defaultBusAttendantId: employeeId,
+          routePlan: { status: RoutePlanStatus.ACTIVE },
+        },
+      }),
+      this.prisma.trip.count({
+        where: {
+          assignedBusAttendantId: employeeId,
+          status: TripStatus.SCHEDULED,
+        },
+      }),
+    ]);
+
+    const totalActiveAssignments = defaultRoutesCount + scheduledTripsCount;
+    if (totalActiveAssignments > 0) {
+      if (!dto.replacementUserId) {
+        throw new BadRequestException(
+          `Bắt buộc chọn nhân sự thay thế (replacementUserId) vì nhân sự này đang phụ trách ${defaultRoutesCount} tuyến và ${scheduledTripsCount} chuyến xe chưa hoàn thành`,
+        );
+      }
+      if (dto.replacementUserId === employeeId) {
+        throw new BadRequestException('Nhân sự thay thế không được trùng với nhân sự hiện tại');
+      }
+
+      const replacementEmployee = await this.prisma.user.findFirst({
+        where: { id: dto.replacementUserId, schoolId, role: employee.role },
+      });
+      if (!replacementEmployee) {
+        throw new NotFoundException('Không tìm thấy nhân sự thay thế hợp lệ cùng trường và cùng vai trò');
+      }
+      if (!replacementEmployee.isActive) {
+        throw new BadRequestException('Nhân sự thay thế phải đang ở trạng thái hoạt động (isActive = true)');
+      }
+
+      await this.prisma.$transaction(async (tx) => {
+        await tx.route.updateMany({
+          where: {
+            defaultBusAttendantId: employeeId,
+            routePlan: { status: RoutePlanStatus.ACTIVE },
+          },
+          data: { defaultBusAttendantId: dto.replacementUserId },
+        });
+
+        await tx.trip.updateMany({
+          where: {
+            assignedBusAttendantId: employeeId,
+            status: TripStatus.SCHEDULED,
+          },
+          data: { assignedBusAttendantId: dto.replacementUserId },
+        });
+
+        await tx.session.updateMany({
+          where: { userId: employeeId, revokedAt: null },
+          data: { revokedAt: new Date(), pushToken: null },
+        });
+
+        await tx.user.update({
+          where: { id: employeeId },
+          data: { isActive: false },
+        });
+      });
+
+      this.logger.log(
+        `Đã vô hiệu hóa nhân sự ${employee.fullName} (${employee.id}) và bàn giao ${defaultRoutesCount} tuyến, ${scheduledTripsCount} chuyến cho ${replacementEmployee.fullName}`,
+      );
+
+      return this.findEmployeeDetail(schoolId, employeeId, currentUser);
+    }
+
+    // Không có phân công -> Vô hiệu hóa và thu hồi session
+    await this.prisma.$transaction(async (tx) => {
+      await tx.session.updateMany({
+        where: { userId: employeeId, revokedAt: null },
+        data: { revokedAt: new Date(), pushToken: null },
+      });
+
+      await tx.user.update({
+        where: { id: employeeId },
+        data: { isActive: false },
+      });
+    });
+
+    return this.findEmployeeDetail(schoolId, employeeId, currentUser);
   }
 }

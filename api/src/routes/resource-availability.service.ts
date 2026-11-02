@@ -676,7 +676,10 @@ export class ResourceAvailabilityService {
       let isEligible = true;
       let reason = `Khả dụng (${v.seatCount} chỗ >= ${requiredCapacity} chỗ yêu cầu)`;
 
-      if (heldVehicles.has(v.id)) {
+      if (v.isActive === false) {
+        isEligible = false;
+        reason = 'Phương tiện đang ngừng hoạt động';
+      } else if (heldVehicles.has(v.id)) {
         isEligible = false;
         reason = 'Còn chuyến hết hợp đồng đang chờ quản trị viên chốt';
       } else if (otherVehiclesUsed.has(v.id)) {
