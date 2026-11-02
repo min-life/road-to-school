@@ -1,7 +1,8 @@
+import { EffectiveDateDto } from './effective-date.dto.js';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty } from 'class-validator';
 
-export class UpdateSchoolScheduleDto {
+export class UpdateSchoolScheduleDto extends EffectiveDateDto {
   @ApiProperty({
     description: 'Lịch học theo tuần dạng JSON Object hoặc chuỗi JSON',
     example: {
@@ -17,6 +18,9 @@ export class UpdateSchoolScheduleDto {
 }
 
 export class UpdateSchoolScheduleResponseDto {
+  @ApiProperty({ required: false, description: 'ID lịch thay đổi mới tạo' }) scheduledChangeId?: string;
+  @ApiProperty({ required: false, format: 'date', description: 'Ngày hiệu lực' }) effectiveDate?: string;
+  @ApiProperty({ required: false, enum: ['PENDING'], description: 'Chưa áp dụng ngay' }) changeStatus?: string;
   @ApiProperty({ description: 'Trạng thái thành công' })
   success: boolean;
 

@@ -101,6 +101,24 @@ Cập nhật 30/10/2026: quyết định mới tại mục 12 tài liệu chi ti
 
 ### WF-02 — Trường và dịch vụ
 
+**Cập nhật hiện hành 03/11/2026: IMPLEMENTED trong source, chưa VERIFIED/deployed.** Các đoạn quyết định cũ phía dưới là lịch sử. Checklist P1–P6 và phần còn chờ tại [kế hoạch mục 17](ai-review/school-api-improvement-plan.md#17-triển-khai-sau-phê-duyệt--03112026); [note FE/PR](ai-review/school-3.2-fe-pr-notes.md). Đã duyệt field/schema/lịch âm và package, tạo DDL nhưng chưa apply DB. Không chạy script test.
+
+Chốt 03/11/2026: D3 trước mốc đổi địa điểm plan cũ tiếp tục, đến ngày hủy plan cũ rồi tạo mới; D7 đồng ý hủy đến ngày cho fixed/nonfixed, rút trước ngày giữ Trip gốc và nghỉ nhà xe chặn học bù đã duyệt; D8 đồng ý bảng phân loại + R1 giữ bận tài nguyên Trip ngoại lệ tới khi admin chốt. Xem school-api-improvement-plan.md mục 15. Field/schema cụ thể và một số quy tắc ngày/âm lịch còn chờ; chưa IMPLEMENTED.
+
+Phản hồi plan 02/11/2026: PO đồng ý hai model mới ở mức hướng thiết kế; D1 admin finalization; D2 cấm học bù trùng mọi ngày nghỉ nhà xe; D4 thêm ngày vào API cũ; D5 Parent không cần unlink và hết contract không khóa account; D6 đồng ý hướng đề xuất. D3/mục 8, D7, D8 cần giải thích/chọn tiếp, schema/field/default chưa duyệt và chưa triển khai. Xem school-api-improvement-plan.md mục 14.
+
+Kế hoạch API 3.2: [school-api-improvement-plan.md](ai-review/school-api-improvement-plan.md), lập 02/11/2026; sáu phần P1–P6, contract/schema và tám nhóm quyết định còn mở. WAITING_APPROVAL; chưa triển khai, chưa duyệt bảng/field/migration mới; tiếp tục cấm script test.
+
+PO chốt thêm 02/11/2026: chuyến ngoại lệ chưa hoàn thành giữ trạng thái, admin chốt trạng thái cuối, không tự complete/cancel vì qua ngày. Admin role, trạng thái cuối, dữ liệu điểm danh, giới hạn thao tác trong lúc chờ và ranh giới Trip cần chốt khi thiết kế; không tự mở rộng thành giữ mọi SCHEDULED tương lai. Xem school-business-flow-detail.md mục 17. Chưa triển khai.
+
+PO điều chỉnh 02/11/2026: hết hợp đồng coi như hủy các phương án cũ và giải phóng nguồn lực, thay thế ý kiến trước giữ nguyên trạng thái plan. Giữ lịch sử Trip hoàn thành; ngoại lệ Trip còn IN_PROGRESS qua ngày và quyền hoàn tất của nhân sự vẫn chưa chốt. Xem school-business-flow-detail.md mục 16.
+
+Quyết định mới nhất 02/11/2026 (ưu tiên cập nhật cũ): hết hợp đồng chỉ giải phóng nguồn lực, giữ nguyên thông tin/phân công/lộ trình và không tự chuyển trạng thái phương án; đổi địa chỉ vẫn hủy toàn bộ phương án; giữ Trip COMPLETED, IN_PROGRESS và chiều về đã điểm danh còn chờ PO chốt. Học bù không vượt ngày nghỉ hệ thống cố định, được vượt ngày nghỉ trường sau quy trình duyệt đã chốt. Xem school-business-flow-detail.md mục 15; chưa triển khai.
+
+Cập nhật quyết định PO 30/10/2026: xem mục 13–14 của school-business-flow-detail.md. Đã có phản hồi SCH-01..11: inactive theo ngày từ mai tới hết hợp đồng, hạn chế tài khoản/phụ huynh, gia hạn có kiểm tra nguồn lực, lịch nghỉ âm/dương hệ thống/trường và học bù duyệt, lịch mới không ảnh hưởng hôm nay, giữ giờ/địa chỉ cũ, hết hạn giải phóng và về DRAFT, lưu riêng/liên hệ trực tiếp, đổi địa điểm khi không DRAFT/ACTIVE và có lịch hiệu lực. Chưa IMPLEMENTED; cần giải quyết DRAFT sau hết hạn với giữ nguồn lực/đổi địa điểm và phạm vi hủy lịch sử trước plan API.
+
+Phân tích chi tiết 3.2: [school-business-flow-detail.md](ai-review/school-business-flow-detail.md), gồm SCH-01..11 để PO chốt; chỉ phân tích, chưa triển khai. AUTH-06 được tiếp nhận tại nhóm này.
+
 - Actor: nhà xe quản lý; nhà trường xem cấu hình trường mình.
 - Thao tác: thêm trường, hợp đồng, tọa độ, lịch tuần; xem tác động trước thay đổi.
 - API: POST/GET `/schools`; GET `/schools/:id`; PATCH `/schools/:id/contract`, `/schedule`, `/location`, `/status`; GET `/schools/:id/location-impact`.
@@ -331,3 +349,7 @@ Toàn bộ trạng thái ban đầu là NEEDS_DECISION; chưa tự coi là in sc
 | 2026-10-30 | AUTH-01/02 implementation | Code eSMS/console, email required/email-only, status create/resend, hai API resend; cho Trip đang chạy, lưu password trước gửi và giữ phiên. Bổ sung key eSMS còn thiếu để trống trong .env thật | PO duyệt implementation, chốt câu hỏi nhạy cảm, cho sửa .env thật; cấm chạy script test | api/src/auth/*delivery*, esms-sms.service.ts, personnel-credentials.service.ts; auth-technical-design.md; LATEST.md | IMPLEMENTED — chưa VERIFIED gửi thật/runtime; không chạy test |
 
 Mẫu cho lần cập nhật tiếp: `Ngày | B-xx/P-xx | Thay đổi cụ thể | Link/quyết định PO | File/commit/report + kiểm chứng thực tế | Trạng thái`.
+
+### Cập nhật 03/11/2026 — Migration 3.2
+
+PO cho phép migrate; 20261103010000_school_lifecycle_calendar đã apply vào DB local roadtoschool/public tại localhost:5432. Xác nhận hai bảng mới và trips.admin_finalization JSONB nullable tồn tại, tổng 15 migrations up to date. Chỉ migration verification PASS; nghiệp vụ vẫn IMPLEMENTED/chưa VERIFIED, không test scripts hoặc seed. Xem LATEST.md; báo cáo implementation trước được archive.
