@@ -1,3 +1,5 @@
+import { effectiveSchool, planInvalidation } from '../schools/school-policy.js';
+import { assertResourcesNotAwaitingAdmin } from '../schools/contract-resource-policy.js';
 import { notifyPlan } from '../notifications/notification-events.js';
 import { notifyCancelledTrips } from '../notifications/notification-writer.js';
 import {
@@ -5,6 +7,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Inject,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
@@ -46,12 +49,15 @@ import { metresBetween } from '../trips/utils/navigation-state.js';
 import { AssignVehicleGroupDto } from './dto/assign-vehicle-group.dto.js';
 import { AssignDriverGroupDto } from './dto/assign-driver-group.dto.js';
 import { AssignBusAttendantGroupDto } from './dto/assign-bus-attendant-group.dto.js';
+import { ContractLifecycleService } from '../schools/contract-lifecycle.service.js';
+import { isContractExpired } from '../schools/school-effective-state.js';
 
 interface PreviewSession {
   token: string;
   createdAt: number;
   schoolId: string;
   schoolName: string;
+  schoolVersion: string;
   constraints: any;
   outboundRoutes: PreviewRouteDto[];
   returnRoutes: PreviewRouteDto[];
@@ -60,6 +66,9 @@ interface PreviewSession {
 
 @Injectable()
 export class RoutesService {
+  @Inject(ContractLifecycleService)
+  private readonly contractLifecycle: ContractLifecycleService;
+
   private readonly logger = new Logger(RoutesService.name);
   private readonly previewSessions = new Map<string, PreviewSession>();
   private readonly insertionSessions = new Map<string, any>();
@@ -85,6 +94,16 @@ export class RoutesService {
         }
       }
     }, 5 * 60 * 1000);
+  }
+
+  private async assertMutablePlan(tx: Prisma.TransactionClient, planId: string): Promise<void> {
+    const reference = await tx.routePlan.findUnique({ where: { id: planId }, select: { schoolId: true } });
+    if (!reference) throw new NotFoundException('Không tìm thấy phương án tuyến');
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM schools WHERE id = ${reference.schoolId} FOR UPDATE`);
+    const plan = await tx.routePlan.findUnique({ where: { id: planId }, include: { school: true } });
+    if (!plan || await planInvalidation(tx, plan.schoolId, plan.createdAt) || isContractExpired(plan.school.contractEndDate) || !['DRAFT', 'ACTIVE'].includes(plan.status)) {
+      throw new ConflictException('Phương án không còn hiệu lực để thay đổi');
+    }
   }
 
   /**
@@ -167,9 +186,7 @@ export class RoutesService {
   // ==========================================
 
   async getPreparationData(schoolId: string): Promise<RoutePreparationDto> {
-    const school = await this.prisma.school.findUnique({
-      where: { id: schoolId },
-    });
+    const school = await effectiveSchool(this.prisma, schoolId);
     if (!school) {
       throw new NotFoundException('Không tìm thấy trường học đối tác');
     }
@@ -187,9 +204,10 @@ export class RoutesService {
         schoolId,
         status: { in: [RoutePlanStatus.DRAFT, RoutePlanStatus.ACTIVE] },
       },
-      select: { id: true, status: true, name: true },
+      select: { id: true, status: true, name: true, createdAt: true },
     });
-    const planIds = activeOrDraftPlans.map((p) => p.id);
+    const planIds: string[] = [];
+    for (const p of activeOrDraftPlans) if (!await planInvalidation(this.prisma, schoolId, p.createdAt)) planIds.push(p.id);
 
     // Find student IDs already assigned to DRAFT or ACTIVE routes for this school
     const assignedStudentRows = await this.prisma.routeStop.findMany({
@@ -359,9 +377,7 @@ export class RoutesService {
     dto: OptimizeRouteDto,
     currentUser: User,
   ): Promise<RoutePreviewResponseDto> {
-    const school = await this.prisma.school.findUnique({
-      where: { id: dto.schoolId },
-    });
+    const school = await effectiveSchool(this.prisma, dto.schoolId);
     if (!school || !school.isActive) {
       throw new BadRequestException('Trường học không tồn tại hoặc đã ngừng hoạt động');
     }
@@ -898,6 +914,7 @@ export class RoutesService {
       createdAt: Date.now(),
       schoolId: school.id,
       schoolName: school.name,
+      schoolVersion: JSON.stringify([school.addressText, school.latitude, school.longitude, school.weeklySchedule]),
       constraints: {
         ...dto.constraints,
         defaultStopServiceSeconds,
@@ -1103,6 +1120,14 @@ export class RoutesService {
     // Execute ATOMIC TRANSACTION with Concurrency Protection (Gate 3 - BR-V01, BR-V02, BR-V03, BR-V04)
     try {
       const createdPlan = await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw(Prisma.sql`SELECT id FROM schools WHERE id = ${schoolId} FOR UPDATE`);
+        const storedSchool = await tx.school.findUnique({ where: { id: schoolId } });
+        if (storedSchool) await this.contractLifecycle.reconcileSchool(tx, storedSchool);
+        const currentSchool = await effectiveSchool(tx, schoolId);
+        if (!currentSchool || !currentSchool.isActive || isContractExpired(currentSchool.contractEndDate)) {
+          throw new ConflictException('Hợp đồng trường đã hết hạn. Vui lòng cập nhật hợp đồng trước khi tạo phương án');
+        }
+        if (session.schoolVersion !== JSON.stringify([currentSchool.addressText, currentSchool.latitude, currentSchool.longitude, currentSchool.weeklySchedule])) throw new ConflictException('Thông tin trường đã đổi; cần tạo lại preview');
         // 1. Concurrency Re-validation: Verify no active DRAFT plan exists for this school
         const activeDraft = await tx.routePlan.findFirst({
           where: {
@@ -1126,6 +1151,7 @@ export class RoutesService {
           ),
         );
 
+        for (const vehicleId of proposedVehicleIds) await assertResourcesNotAwaitingAdmin(tx, { vehicleId });
         const vehicleConflicts = await this.resourceAvailabilityService.findConflictingVehicles(
           proposedVehicleIds,
           schoolId,
@@ -1305,7 +1331,7 @@ export class RoutesService {
       this.prisma.routePlan.findMany({
         where,
         include: {
-          school: { select: { name: true } },
+          school: { select: { name: true, contractEndDate: true } },
           routes: {
             select: {
               direction: true,
@@ -1323,7 +1349,8 @@ export class RoutesService {
     const totalPages = Math.max(1, Math.ceil(total / limit));
 
     return {
-      items: plans.map((p) => {
+      items: await Promise.all(plans.map(async (p) => {
+        const invalidation = await planInvalidation(this.prisma, p.schoolId, p.createdAt);
         let totalStudents = p.totalStudents;
         let totalOutboundRoutes = p.totalOutboundRoutes;
         let totalReturnRoutes = p.totalReturnRoutes;
@@ -1352,6 +1379,8 @@ export class RoutesService {
           schoolName: p.school.name,
           name: p.name,
           status: p.status,
+          effectiveStatus: invalidation && ['DRAFT', 'ACTIVE'].includes(p.status) ? RoutePlanStatus.CANCELLED : p.status,
+          effectiveStatusReason: invalidation,
           totalStudents,
           totalOutboundRoutes,
           totalReturnRoutes,
@@ -1359,7 +1388,7 @@ export class RoutesService {
           cancelledAt: p.cancelledAt,
           cancellationReason: p.cancellationReason,
         };
-      }),
+      })),
       total,
       page,
       totalPages,
@@ -1370,7 +1399,7 @@ export class RoutesService {
     const plan = await this.prisma.routePlan.findUnique({
       where: { id },
       include: {
-        school: { select: { name: true, weeklySchedule: true, latitude: true, longitude: true } },
+        school: { select: { name: true, weeklySchedule: true, latitude: true, longitude: true, contractEndDate: true } },
         createdBy: { select: { id: true, fullName: true, email: true } },
         approvedBy: { select: { id: true, fullName: true } },
         routes: {
@@ -1443,6 +1472,8 @@ export class RoutesService {
       schoolName: plan.school.name,
       name: plan.name,
       status: plan.status,
+      effectiveStatus: await planInvalidation(this.prisma, plan.schoolId, plan.createdAt) && ['DRAFT', 'ACTIVE'].includes(plan.status) ? RoutePlanStatus.CANCELLED : plan.status,
+      effectiveStatusReason: await planInvalidation(this.prisma, plan.schoolId, plan.createdAt),
       totalStudents,
       totalOutboundRoutes,
       totalReturnRoutes,
@@ -1675,6 +1706,7 @@ export class RoutesService {
       throw new ForbiddenException('Bạn không có quyền thực hiện thao tác này');
     }
 
+    if (await planInvalidation(this.prisma, plan.schoolId, plan.createdAt)) throw new ConflictException('Phương án đã hết hiệu lực; chuyến ngoại lệ phải được admin chốt');
     if (plan.status === RoutePlanStatus.CANCELLED) {
       throw new BadRequestException('Phương án tuyến này đã được hủy trước đó');
     }
@@ -1688,6 +1720,7 @@ export class RoutesService {
     let notifiedTripIds: string[] = [];
 
     await this.prisma.$transaction(async (tx) => {
+      await this.assertMutablePlan(tx, id);
       // 1. Cascade hủy các chuyến xe SCHEDULED liên quan
       if (routeIds.length > 0) {
         const scheduledTrips = await tx.trip.findMany({
@@ -1752,88 +1785,7 @@ export class RoutesService {
    * Đối soát và cập nhật các phương án hết hạn hợp đồng
    */
   async reconcileExpiredContracts(): Promise<{ expiredPlansCount: number; cancelledTripsCount: number }> {
-    const todayVn = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
-    const expiredSchools = await this.prisma.school.findMany({
-      where: {
-        contractEndDate: { lt: new Date(`${todayVn}T00:00:00.000Z`) },
-      },
-      select: { id: true },
-    });
-
-    if (expiredSchools.length === 0) {
-      return { expiredPlansCount: 0, cancelledTripsCount: 0 };
-    }
-
-    const schoolIds = expiredSchools.map((s) => s.id);
-    const plansToExpire = await this.prisma.routePlan.findMany({
-      where: {
-        schoolId: { in: schoolIds },
-        status: { in: [RoutePlanStatus.DRAFT, RoutePlanStatus.ACTIVE] },
-      },
-      include: {
-        routes: { select: { id: true } },
-      },
-    });
-
-    if (plansToExpire.length === 0) {
-      return { expiredPlansCount: 0, cancelledTripsCount: 0 };
-    }
-
-    const planIds = plansToExpire.map((p) => p.id);
-    const routeIds = plansToExpire.flatMap((p) => p.routes.map((r) => r.id));
-    let cancelledTripsCount = 0;
-    let notificationTripIds: string[] = [];
-
-    await this.prisma.$transaction(async (tx) => {
-      if (routeIds.length > 0) {
-        const scheduledTrips = await tx.trip.findMany({
-          where: {
-            routeId: { in: routeIds },
-            status: TripStatus.SCHEDULED,
-          },
-          select: { id: true },
-        });
-
-        cancelledTripsCount = scheduledTrips.length;
-        const tripIds = scheduledTrips.map((t) => t.id);
-        notificationTripIds = tripIds;
-
-        if (tripIds.length > 0) {
-          await tx.trip.updateMany({
-            where: { id: { in: tripIds } },
-            data: {
-              status: TripStatus.CANCELLED,
-              cancellationReason: 'Hợp đồng trường học đã hết hạn',
-              cancelledAt: new Date(),
-            },
-          });
-
-          await tx.leaveNotice.updateMany({
-            where: {
-              tripId: { in: tripIds },
-              status: LeaveNoticeStatus.PENDING_REPLACEMENT,
-            },
-            data: {
-              status: LeaveNoticeStatus.TRIP_CANCELLED,
-              processedAt: new Date(),
-            },
-          });
-        }
-      }
-
-      await notifyCancelledTrips(tx, notificationTripIds, 'expiry:' + planIds.slice().sort().join(':'));
-      await tx.routePlan.updateMany({
-        where: { id: { in: planIds } },
-        data: {
-          status: RoutePlanStatus.EXPIRED,
-          updatedAt: new Date(),
-        },
-      });
-      for (const planId of planIds) await notifyPlan(tx, planId);
-    });
-
-    this.logger.log(`Reconciled expired contracts: ${planIds.length} plans expired, ${cancelledTripsCount} scheduled trips cancelled.`);
-    return { expiredPlansCount: planIds.length, cancelledTripsCount };
+    return this.contractLifecycle.reconcile();
   }
 
   /**
@@ -2660,6 +2612,9 @@ export class RoutesService {
     const { studentId, outboundRouteId, returnRouteId, outboundRoute, returnRoute } = session;
 
     await this.prisma.$transaction(async (tx) => {
+      const targetRoute = await tx.route.findUnique({ where: { id: outboundRouteId }, select: { routePlanId: true } });
+      if (!targetRoute) throw new NotFoundException('Không tìm thấy tuyến');
+      await this.assertMutablePlan(tx, targetRoute.routePlanId);
       // 1. Revalidate student
       const student = await tx.student.findUnique({ where: { id: studentId } });
       if (!student || student.status !== StudentStatus.AVAILABLE) {
@@ -2943,6 +2898,11 @@ export class RoutesService {
 
     // Atomic Transaction
     await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM schools WHERE id = ${plan.schoolId} FOR UPDATE`);
+      const currentSchool = await effectiveSchool(tx, plan.schoolId);
+      if (!currentSchool || !currentSchool.isActive || await planInvalidation(tx, plan.schoolId, plan.createdAt) || isContractExpired(currentSchool.contractEndDate)) {
+        throw new ConflictException('Hợp đồng đã hết hạn, không thể kích hoạt phương án');
+      }
       const current = await tx.routePlan.findUnique({
         where: { id: planId },
         select: { status: true },
@@ -2982,6 +2942,8 @@ export class RoutesService {
     );
 
     await this.prisma.$transaction(async (tx) => {
+      await this.assertMutablePlan(tx, planId);
+      await assertResourcesNotAwaitingAdmin(tx, { vehicleId: dto.newVehicleId });
       await tx.route.updateMany({
         where: {
           routePlanId: planId,
@@ -3017,6 +2979,8 @@ export class RoutesService {
     }
 
     await this.prisma.$transaction(async (tx) => {
+      await this.assertMutablePlan(tx, planId);
+      await assertResourcesNotAwaitingAdmin(tx, { driverId: dto.driverId });
       await tx.route.updateMany({
         where: {
           routePlanId: planId,
@@ -3053,6 +3017,8 @@ export class RoutesService {
     }
 
     await this.prisma.$transaction(async (tx) => {
+      await this.assertMutablePlan(tx, planId);
+      await assertResourcesNotAwaitingAdmin(tx, { busAttendantId: dto.busAttendantId });
       await tx.route.updateMany({
         where: {
           routePlanId: planId,
@@ -3115,7 +3081,7 @@ export class RoutesService {
       this.prisma.route.findMany({
         where,
         include: {
-          school: { select: { name: true } },
+          school: { select: { name: true, contractEndDate: true } },
           routePlan: { select: { id: true, status: true, name: true } },
           proposedVehicle: { select: { licensePlate: true, brand: true, seatCount: true } },
           stops: { select: { studentId: true } },
@@ -3161,7 +3127,7 @@ export class RoutesService {
     const route = await this.prisma.route.findUnique({
       where: { id },
       include: {
-        school: { select: { name: true, weeklySchedule: true, latitude: true, longitude: true } },
+        school: { select: { name: true, weeklySchedule: true, latitude: true, longitude: true, contractEndDate: true } },
         routePlan: { select: { status: true, name: true, routingConstraints: true } },
         proposedVehicle: { select: { licensePlate: true, brand: true, seatCount: true } },
         stops: {

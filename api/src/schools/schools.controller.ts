@@ -1,3 +1,4 @@
+import { ScheduledLocationResponseDto } from './dto/lifecycle-response.dto.js';
 import {
   Controller,
   Inject,
@@ -52,6 +53,8 @@ import {
   UpdateSchoolScheduleResponseDto,
 } from './dto/index.js';
 
+@ApiResponse({ status: 409, description: 'Lịch trùng/đã đến hạn, nguồn lực không phù hợp hoặc dữ liệu thay đổi đồng thời' })
+@ApiResponse({ status: 500, description: 'Không lưu được thay đổi; không xác nhận thành công' })
 @ApiTags('Schools')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(AuthGuard, RolesGuard)
@@ -250,7 +253,7 @@ export class SchoolsController {
   @ApiOperation({
     summary: 'Cập nhật trạng thái hoạt động của trường học',
     description:
-      'Cho phép SYSTEM_ADMIN chuyển đổi trạng thái trường giữa Hoạt động (ACTIVE) và Ngừng hoạt động (INACTIVE). Khi kích hoạt lại trường, thời hạn hợp đồng phải còn hiệu lực.',
+      'Ngừng hoạt động được hẹn bằng effectiveDate, mặc định ngày mai, tối đa ngày cuối hợp đồng. Response giữ isActive đang hiệu lực và thêm scheduledChangeId/effectiveDate/changeStatus. Kích hoạt lại ngay khi hợp đồng còn hiệu lực; không phục hồi phương án cũ, nhân sự đăng nhập mới.',
   })
   @ApiParam({
     name: 'id',
@@ -291,8 +294,9 @@ export class SchoolsController {
     )
     id: string,
     @Body() dto: UpdateSchoolStatusDto,
+    @CurrentUser() actor?: User,
   ): Promise<UpdateSchoolStatusResponseDto> {
-    return this.schoolsService.updateStatus(id, dto);
+    return this.schoolsService.updateStatus(id, dto, actor);
   }
 
   @Get(':id/employees')
@@ -525,12 +529,12 @@ export class SchoolsController {
   @Patch(':id/location')
   @Roles(Role.SYSTEM_ADMIN)
   @ApiOperation({
-    summary: 'Cập nhật địa chỉ và vị trí trường học kèm cascade hủy các phương án liên quan (Chỉ SYSTEM_ADMIN)',
+    summary: 'Hẹn đổi địa chỉ và vị trí trường học (SYSTEM_ADMIN)',
     description:
-      'Chỉ Quản trị viên hệ thống (SYSTEM_ADMIN) có quyền thực hiện. Khi sửa địa chỉ trường, nếu trường có bất kỳ phương án nào (DRAFT/ACTIVE) thì tự động hủy toàn bộ phương án đó và các chuyến xe SCHEDULED liên quan.',
+      'effectiveDate tùy chọn, mặc định ngày mai, đến hết hợp đồng. Trước ngày đó phương án cũ tiếp tục. Đến ngày hủy toàn bộ phương án cũ; chuyến đã điểm danh/đang chạy giữ cho admin chốt, lịch sử giữ nguyên. Response School là dữ liệu hôm nay, counters đã thực hiện bằng 0 khi mới hẹn; thêm scheduledChangeId/effectiveDate/changeStatus. Phải tạo mới phương án sau đổi địa chỉ; giữ quy tắc sinh ngày sau activation nên có thể gián đoạn ngày chuyển.',
   })
   @ApiParam({ name: 'id', description: 'Mã UUID trường học' })
-  @ApiResponse({ status: 200, description: 'Cập nhật vị trí thành công' })
+  @ApiResponse({ status: 200, description: 'Đã hẹn đổi vị trí; chưa hủy ngay', type: ScheduledLocationResponseDto })
   async updateLocation(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateSchoolLocationDto,
@@ -544,7 +548,7 @@ export class SchoolsController {
   @ApiOperation({
     summary: 'Cập nhật / gia hạn hợp đồng trường học (Chỉ SYSTEM_ADMIN)',
     description:
-      'Chỉ được cập nhật khi trường không còn phương án DRAFT hoặc ACTIVE. Ngày bắt đầu mới phải từ ngày hôm nay trở đi (giờ VN).',
+      'Không DRAFT/ACTIVE: cập nhật kỳ hợp đồng. Còn phương án: chỉ gia hạn thuần giữ ngày bắt đầu, kiểm tra nguồn lực đã phân công và xung đột trong thời gian gia hạn; DRAFT thiếu phân công không tự gán thêm. Hết hạn phải đối soát hủy phương án cũ trước, không làm sống lại chúng.',
   })
   @ApiParam({ name: 'id', description: 'Mã UUID trường học' })
   @ApiResponse({ status: 200, description: 'Cập nhật hợp đồng thành công' })
@@ -561,7 +565,7 @@ export class SchoolsController {
   @ApiOperation({
     summary: 'Cập nhật lịch học tuần của trường học (Chỉ SYSTEM_ADMIN)',
     description:
-      'Cập nhật lịch học theo tuần của trường học. Tự động hủy các chuyến xe SCHEDULED vào các ngày không còn lịch học, và cập nhật lại khung giờ xuất phát/kết thúc cho các chuyến xe SCHEDULED vào các ngày có lịch học mới.',
+      'Hẹn lịch tuần bằng effectiveDate tùy chọn, mặc định ngày mai, đến hết hợp đồng. Không ảnh hưởng hôm nay. Tới ngày cập nhật giờ/hủy chuyến chưa vận hành phù hợp lịch mới; không sửa lịch sử/điểm danh. Giữ response cũ, thêm scheduledChangeId/effectiveDate/changeStatus; counters là số đã thực hiện, bằng 0 khi hẹn.',
   })
   @ApiParam({ name: 'id', description: 'Mã UUID trường học' })
   @ApiResponse({

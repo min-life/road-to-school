@@ -1,3 +1,5 @@
+import { assertTripPolicy } from '../schools/school-policy.js';
+import { assertResourcesNotAwaitingAdmin } from '../schools/contract-resource-policy.js';
 import { notifyLeave } from '../notifications/notification-events.js';
 import { actionableLeaveWhere, adminSchoolScope } from '../overview/operations-policy.js';
 import { notifyAssignment, notifyCancelledTrips } from '../notifications/notification-writer.js';
@@ -219,6 +221,7 @@ export class LeaveNoticesService {
    * Yêu cầu gửi mã OTP để báo nghỉ
    */
   async requestOtp(user: User, dto: RequestLeaveNoticeOtpDto): Promise<LeaveNoticeOtpResponseDto> {
+    await assertTripPolicy(this.prisma, dto.tripId);
     const kind = this.resolveKind(user.role);
     const contacts: { channel: DeliveryChannel; destination: string; isConsole: boolean }[] = [];
 
@@ -348,6 +351,8 @@ export class LeaveNoticesService {
     const expectedPayloadHash = this.buildPayloadHash(dto.tripId, dto.studentId ?? null, user.id, kind);
 
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM trips WHERE id = ${dto.tripId} FOR UPDATE`);
+      await assertTripPolicy(tx, dto.tripId);
       // 1. Xác thực và tiêu thụ OTP
       const challenge = await this.otpService.verifyAndConsumeLeaveNoticeChallenge(
         tx,
@@ -503,6 +508,9 @@ export class LeaveNoticesService {
       }
 
       // Kiểm tra trạng thái chuyến xe
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM trips WHERE id = ${notice.tripId} FOR UPDATE`);
+      Object.assign(notice.trip, await tx.trip.findUnique({ where: { id: notice.tripId } }));
+      await assertTripPolicy(tx, notice.tripId);
       const trip = notice.trip;
       if (trip.status !== TripStatus.SCHEDULED || trip.actualStartTime !== null) {
         throw new BadRequestException('Chuyến xe đã bắt đầu hoặc kết thúc, không thể hủy báo nghỉ');
@@ -799,6 +807,9 @@ export class LeaveNoticesService {
         }
       }
 
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM trips WHERE id = ${notice.tripId} FOR UPDATE`);
+      Object.assign(notice.trip, await tx.trip.findUnique({ where: { id: notice.tripId } }));
+      await assertTripPolicy(tx, notice.tripId);
       const trip = notice.trip;
       if (trip.status !== TripStatus.SCHEDULED || trip.actualStartTime !== null) {
         throw new ConflictException('Chuyến xe không còn ở trạng thái chờ vận hành (SCHEDULED)');
@@ -806,6 +817,7 @@ export class LeaveNoticesService {
 
       // Kiểm tra tính hợp lệ của nhân sự thay thế
       const candidateRole = notice.kind === LeaveNoticeKind.DRIVER ? Role.DRIVER : Role.BUS_ATTENDANT;
+      await assertResourcesNotAwaitingAdmin(tx, { driverId: dto.replacementUserId, busAttendantId: dto.replacementUserId });
       const replacementUser = await tx.user.findUnique({
         where: { id: dto.replacementUserId },
       });
@@ -918,6 +930,9 @@ export class LeaveNoticesService {
         }
       }
 
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM trips WHERE id = ${notice.tripId} FOR UPDATE`);
+      Object.assign(notice.trip, await tx.trip.findUnique({ where: { id: notice.tripId } }));
+      await assertTripPolicy(tx, notice.tripId);
       const trip = notice.trip;
       if (trip.status !== TripStatus.SCHEDULED || trip.actualStartTime !== null) {
         throw new ConflictException('Chuyến xe không còn ở trạng thái chờ vận hành, không thể hủy');

@@ -1,3 +1,4 @@
+import { assertSchoolAccount } from '../schools/school-policy.js';
 import {
   Injectable,
   Logger,
@@ -105,6 +106,7 @@ export class AuthService {
     deviceInfo?: string,
     ipAddress?: string,
   ): Promise<AuthResponseDto> {
+    await assertSchoolAccount(this.prisma, user);
     const rawRefreshToken = this.generateRefreshToken();
     const refreshTokenHash = this.hashRefreshToken(rawRefreshToken);
     const refreshTtlMs = this.getRefreshTokenTtlSeconds() * 1000;
@@ -470,6 +472,8 @@ export class AuthService {
     if (!session.user.isActive) {
       throw new UnauthorizedException('Tài khoản đã bị vô hiệu hóa');
     }
+
+    await assertSchoolAccount(this.prisma, session.user, session.createdAt);
 
     // Atomic Conditional Update: Chỉ thành công khi refreshTokenHash và tokenVersion khớp chính xác
     const newRefreshToken = this.generateRefreshToken();
