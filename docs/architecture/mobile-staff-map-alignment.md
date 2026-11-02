@@ -1,5 +1,9 @@
 # Staff map alignment — preserve Parent
 
+## Hiện hành02/11/2026 — Trả vận hành về footer ngoài tab
+
+PO đổi ý và yêu cầu nút ở ngoài tab như ban đầu. showTripAction nay render footer sibling sau sheet, độc lập activeTab/isExpanded. Đo footer gồm safe-area/border bằng onLayout; sheet bottom=offset, joystick bottom=sheetHeightAnim+offset+16. Role/status không có action dùng offset0. Giữ nút vàng Home, guards/labels/handlers và Parent mặc định. Typecheck,4role/status tests, source parity/ancestry và web/server export PASS; native layout/touch chưa nghiệm thu. Quyết định đặt action trong INFO bên dưới là lịch sử, được thay thế bởi yêu cầu này.
+
 ## Cập nhật mới nhất: nút vàng dùng chung Home — 02/11/2026
 
 PO chốt nút thao tác dùng vàng. primaryActionBtn/Text dùng trực tiếp parentHomeStyles.primaryBtn/Text; modal/QR/report kế thừa cùng style. Nút gọn vàng/chữ tối; secondary vàng nhạt. Bỏ bgReady/Start/Arrive/Complete và confirmBg overrides. Disabled/quyền/handlers giữ nguyên, không sửa Home/Parent reference hoặc badge/progress/camera overlay. Typecheck, actual style identity/palette và callback AST parity PASS; native/modal/font-scale chưa nghiệm thu.

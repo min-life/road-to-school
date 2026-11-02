@@ -95,6 +95,7 @@ export default function MobileTripDetailScreen() {
 
   // Bottom Sheet 2-State Animation & Gesture
   const [isExpanded, setIsExpanded] = useState(false);
+  const [bottomActionHeight, setBottomActionHeight] = useState(0);
   const isExpandedRef = useRef(false);
   const sheetHeightAnim = useRef(new Animated.Value(COLLAPSED_HEIGHT)).current;
   const currentHeight = useRef(COLLAPSED_HEIGHT);
@@ -830,6 +831,7 @@ export default function MobileTripDetailScreen() {
     : operationalState?.status === 'IN_PROGRESS' ||
       (operationalState?.status === 'SCHEDULED' && operationalState.isAttendantReady));
   const showTripAction = hasTripAction(user?.role, operationalState?.status);
+  const bottomActionOffset = showTripAction ? bottomActionHeight : 0;
 
   const canReady = Boolean(operationalState?.canMarkReady ?? operationalState?.canAttendantReady);
   const canStart = Boolean(operationalState?.canStartTrip ?? operationalState?.canDriverStart);
@@ -1004,7 +1006,7 @@ export default function MobileTripDetailScreen() {
       )}
 
       {isDriver && navigation?.testMode && engine.mode === 'TEST_JOYSTICK' && !terminal && !isExpanded && (
-        <Animated.View style={{ position: 'absolute', right: 12, bottom: Animated.add(sheetHeightAnim, 16) }}>
+        <Animated.View style={{ position: 'absolute', right: 12, bottom: Animated.add(sheetHeightAnim, bottomActionOffset + 16) }}>
           <TripJoystick onMove={engine.joystick} />
         </Animated.View>
       )}
@@ -1015,8 +1017,8 @@ export default function MobileTripDetailScreen() {
           styles.bottomSheet,
           {
             height: sheetHeightAnim,
-            bottom: 0,
-            paddingBottom: insets.bottom + 10,
+            bottom: bottomActionOffset,
+            paddingBottom: showTripAction ? 10 : insets.bottom + 10,
           },
         ]}
       >
@@ -1364,88 +1366,7 @@ export default function MobileTripDetailScreen() {
                   <TripContactCallButton phone={trip.busAttendantPhone} contactLabel="giáo viên phụ xe" />
                 </View>
 
-                {showTripAction && (
-                  <View style={styles.tripInfoActions}>
-                    {isBusAttendant ? (
-                      /* BUS ATTENDANT ACTION */
-                      operationalState?.status === 'SCHEDULED' ? (
-                        operationalState.isAttendantReady ? (
-                          <View style={styles.readyBadgeRow}>
-                            <Ionicons name="checkmark-circle" size={20} color="#059669" />
-                            <Text style={styles.readyBadgeText}>
-                              Bạn đã xác nhận sẵn sàng khởi hành
-                            </Text>
-                          </View>
-                        ) : (
-                          <TouchableOpacity
-                            style={[
-                              styles.primaryActionBtn,
-                              !canReady && styles.btnDisabled,
-                            ]}
-                            disabled={!canReady}
-                            onPress={handleMarkReady}
-                            activeOpacity={0.85}
-                          >
-                            <Ionicons name="hand-right-outline" size={18} color={colors.foreground} />
-                            <Text style={styles.primaryActionBtnText}>
-                              {canReady ? 'Xác nhận sẵn sàng' : readyDisabledText}
-                            </Text>
-                          </TouchableOpacity>
-                        )
-                      ) : null
-                    ) : isDriver ? (
-                      /* DRIVER ACTION */
-                      operationalState?.status === 'SCHEDULED' ? (
-                        <TouchableOpacity
-                          style={[
-                            styles.primaryActionBtn,
-                            !canStart && styles.btnDisabled,
-                          ]}
-                          disabled={!canStart}
-                          onPress={handleStartTrip}
-                          activeOpacity={0.85}
-                        >
-                          <Ionicons name="play" size={18} color={colors.foreground} />
-                          <Text style={styles.primaryActionBtnText}>
-                            {canStart ? 'Bắt đầu chuyến xe' : startDisabledText}
-                          </Text>
-                        </TouchableOpacity>
-                      ) : operationalState?.status === 'IN_PROGRESS' ? (
-                        isToSchool && !operationalState?.isSchoolArrived ? (
-                          <TouchableOpacity
-                            style={[
-                              styles.primaryActionBtn,
-                              !canArriveAtSchool && styles.btnDisabled,
-                            ]}
-                            disabled={!canArriveAtSchool}
-                            onPress={handleArriveAtSchool}
-                            activeOpacity={0.85}
-                          >
-                            <Ionicons name="school-outline" size={18} color={colors.foreground} />
-                            <Text style={styles.primaryActionBtnText}>
-                              {canArriveAtSchool ? 'Xác nhận đến trường' : arriveDisabledText}
-                            </Text>
-                          </TouchableOpacity>
-                        ) : (
-                          <TouchableOpacity
-                            style={[
-                              styles.primaryActionBtn,
-                              !canComplete && styles.btnDisabled,
-                            ]}
-                            disabled={!canComplete}
-                            onPress={handleCompleteTrip}
-                            activeOpacity={0.85}
-                          >
-                            <Ionicons name="flag-outline" size={18} color={colors.foreground} />
-                            <Text style={styles.primaryActionBtnText}>
-                              {canComplete ? 'Hoàn thành chuyến xe' : completeDisabledText}
-                            </Text>
-                          </TouchableOpacity>
-                        )
-                      ) : null
-                    ) : null}
-                  </View>
-                )}
+
               </ScrollView>
             )}
 
@@ -2130,6 +2051,90 @@ export default function MobileTripDetailScreen() {
           </View>
         )}
       </Animated.View>
+
+      {showTripAction && (
+        <View onLayout={event => setBottomActionHeight(event.nativeEvent.layout.height)}
+          style={[styles.fixedBottomActionContainer, { paddingBottom: insets.bottom + 8 }]}>
+          {isBusAttendant ? (
+            /* BUS ATTENDANT ACTION */
+            operationalState?.status === 'SCHEDULED' ? (
+              operationalState.isAttendantReady ? (
+                <View style={styles.readyBadgeRow}>
+                  <Ionicons name="checkmark-circle" size={20} color="#059669" />
+                  <Text style={styles.readyBadgeText}>
+                    Bạn đã xác nhận sẵn sàng khởi hành
+                  </Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={[
+                    styles.primaryActionBtn,
+                    !canReady && styles.btnDisabled,
+                  ]}
+                  disabled={!canReady}
+                  onPress={handleMarkReady}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="hand-right-outline" size={18} color={colors.foreground} />
+                  <Text style={styles.primaryActionBtnText}>
+                    {canReady ? 'Xác nhận sẵn sàng' : readyDisabledText}
+                  </Text>
+                </TouchableOpacity>
+              )
+            ) : null
+          ) : isDriver ? (
+            /* DRIVER ACTION */
+            operationalState?.status === 'SCHEDULED' ? (
+              <TouchableOpacity
+                style={[
+                  styles.primaryActionBtn,
+                  !canStart && styles.btnDisabled,
+                ]}
+                disabled={!canStart}
+                onPress={handleStartTrip}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="play" size={18} color={colors.foreground} />
+                <Text style={styles.primaryActionBtnText}>
+                  {canStart ? 'Bắt đầu chuyến xe' : startDisabledText}
+                </Text>
+              </TouchableOpacity>
+            ) : operationalState?.status === 'IN_PROGRESS' ? (
+              isToSchool && !operationalState?.isSchoolArrived ? (
+                <TouchableOpacity
+                  style={[
+                    styles.primaryActionBtn,
+                    !canArriveAtSchool && styles.btnDisabled,
+                  ]}
+                  disabled={!canArriveAtSchool}
+                  onPress={handleArriveAtSchool}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="school-outline" size={18} color={colors.foreground} />
+                  <Text style={styles.primaryActionBtnText}>
+                    {canArriveAtSchool ? 'Xác nhận đến trường' : arriveDisabledText}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[
+                    styles.primaryActionBtn,
+                    !canComplete && styles.btnDisabled,
+                  ]}
+                  disabled={!canComplete}
+                  onPress={handleCompleteTrip}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="flag-outline" size={18} color={colors.foreground} />
+                  <Text style={styles.primaryActionBtnText}>
+                    {canComplete ? 'Hoàn thành chuyến xe' : completeDisabledText}
+                  </Text>
+                </TouchableOpacity>
+              )
+            ) : null
+          ) : null}
+        </View>
+      )}
 
       {/* Confirmation Modal */}
       {confirmModal && (
@@ -3269,9 +3274,18 @@ const styles = StyleSheet.create({
   btnDisabled: {
     opacity: 0.5,
   },
-  tripInfoActions: {
-    paddingTop: 4,
-    paddingBottom: 12,
+  fixedBottomActionContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    backgroundColor: colors.surface,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    elevation: 10,
+    zIndex: 20,
   },
   primaryActionBtn: parentHomeStyles.primaryBtn,
   actionBtnAlight: {

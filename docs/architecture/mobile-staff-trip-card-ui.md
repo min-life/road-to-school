@@ -1,5 +1,13 @@
 # Staff Home trip card — Parent style
 
+## Sửa hàng tên02/11/2026
+
+Tên tài xế/phụ xe dùng flex1/minWidth0 trong row không wrap; nhãn Bạn flexShrink0/căn đầu. Khắc phục chữ Xế rớt dòng do tên bị co, vẫn cho tên dài wrap tự nhiên và không ellipsis. Typecheck và RN-web390/320px với tên từ ảnh PASS (height=lineHeight22px); native chưa nghiệm thu.
+
+## Hiện hành02/11/2026 — Dùng chính disclosure Parent
+
+PO chọn thu gọn/mở rộng giống Parent. StaffTripCard nay render ParentTripCard (key trip.id), bus leading, summary tags chiều/giờ và accessibility label riêng. ParentTripCard thêm ba optional props leading/summaryContent/accessibilityLabel; Parent mặc định giữ avatar/label/state/styles/effects cũ. Staff body/trạng thái/guards/callbacks giữ nguyên; bỏ summary/card styles riêng và body padding để dùng details padding của Parent. Card bắt đầu đóng, mở mới thấy đầy đủ operations. Typecheck/source parity, Chromium shared disclosure390/320px và web/server export PASS; native/full real Staff card chưa nghiệm thu. Phần card luôn mở bên dưới là lịch sử trước yêu cầu mới.
+
 01/11/2026: PO duyệt wireframe `staff-trip-card-wireframe.html`, sau đó triển khai cho cả DRIVER/BUS_ATTENDANT.
 
 ## Source và bố cục

@@ -3,6 +3,7 @@ import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'rea
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { MobileHomeTrip, Role } from '@/services/api-client';
 import { parentHomeStyles } from '@/components/parent/home-styles';
+import { ParentTripCard } from '@/components/parent/trip-card';
 import { colors } from '@/constants/theme';
 import { journeyTones } from '@/constants/parent-journey';
 
@@ -28,22 +29,18 @@ export function StaffTripCard({
     : 'Xem chi tiết & Vận hành';
 
   return (
-    <View style={[parentHomeStyles.tripCard, styles.card]}>
-      <View style={styles.summary}>
-        <View style={styles.summaryRow}>
-          <View style={styles.busIcon}>
-            <Ionicons name="bus-outline" size={25} color={colors.foreground} accessible={false} />
-          </View>
-          <View style={parentHomeStyles.identity}>
-            <View style={styles.titleRow}>
-              <Text accessibilityRole="header" style={styles.routeName}>{trip.routeName}</Text>
-              <View style={[parentHomeStyles.statusPill, { backgroundColor: statusBadge.bg }]}>
-                <Text style={[parentHomeStyles.statusPillText, { color: statusBadge.text }]}>{statusBadge.label}</Text>
-              </View>
-            </View>
-            <Text style={styles.schoolName}>{trip.schoolName}</Text>
-          </View>
+    <ParentTripCard
+      key={trip.id}
+      studentName={trip.routeName}
+      schoolName={trip.schoolName}
+      status={statusBadge}
+      accessibilityLabel={`${trip.routeName}, ${trip.schoolName}, ${statusBadge.label}, ${trip.direction === 'TO_SCHOOL' ? 'Đến trường' : 'Về trạm'}, ${trip.scheduledTime}`}
+      leading={
+        <View style={styles.busIcon}>
+          <Ionicons name="bus-outline" size={25} color={colors.foreground} accessible={false} />
         </View>
+      }
+      summaryContent={
         <View style={styles.tags}>
           <View style={[styles.tag, trip.direction === 'TO_SCHOOL' && styles.schoolTag]}>
             <Ionicons name={trip.direction === 'TO_SCHOOL' ? 'arrow-forward' : 'arrow-back'} size={14}
@@ -57,8 +54,8 @@ export function StaffTripCard({
             <Text style={styles.tagText}>{trip.scheduledTime}</Text>
           </View>
         </View>
-      </View>
-
+      }
+    >
       <View style={styles.body}>
         <View style={styles.infoRow}>
           <Ionicons name="bus-outline" size={20} color={colors.navigationActive} style={styles.rowIcon} accessible={false} />
@@ -74,7 +71,7 @@ export function StaffTripCard({
           <View style={styles.info}>
             <Text style={styles.label}>Tài xế</Text>
             <View style={styles.nameRow}>
-              <Text style={styles.value}>{trip.driver.fullName}</Text>
+              <Text style={[styles.value, styles.personName]}>{trip.driver.fullName}</Text>
               {trip.driver.isCurrentUser && <View style={styles.selfBadge}><Text style={styles.self}>Bạn</Text></View>}
             </View>
           </View>
@@ -84,7 +81,7 @@ export function StaffTripCard({
           <View style={styles.info}>
             <Text style={styles.label}>Giáo viên phụ xe</Text>
             <View style={styles.nameRow}>
-              <Text style={styles.value}>{trip.busAttendant.fullName}</Text>
+              <Text style={[styles.value, styles.personName]}>{trip.busAttendant.fullName}</Text>
               {trip.busAttendant.isCurrentUser && <View style={styles.selfBadge}><Text style={styles.self}>Bạn</Text></View>}
             </View>
           </View>
@@ -143,26 +140,19 @@ export function StaffTripCard({
           )}
         </View>
       </View>
-    </View>
+    </ParentTripCard>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { padding: 0, gap: 0, borderLeftWidth: 4, borderColor: journeyTones.warning.border },
-  summary: { padding: 16, gap: 14, backgroundColor: journeyTones.warning.bg, borderTopLeftRadius: 16, borderTopRightRadius: 19,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: journeyTones.warning.border },
-  summaryRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   busIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  titleRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
-  routeName: { flexShrink: 1, fontSize: 16, lineHeight: 24, fontWeight: '700', color: colors.foreground },
-  schoolName: { marginTop: 6, fontSize: 12, lineHeight: 19, color: colors.mutedText },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   tag: { maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 5,
     borderWidth: 1, borderRadius: 9, borderColor: journeyTones.warning.border, backgroundColor: colors.background },
   tagText: { flexShrink: 1, fontSize: 11, lineHeight: 18, fontWeight: '600', color: journeyTones.warning.text },
   schoolTag: { backgroundColor: journeyTones.info.bg, borderColor: journeyTones.info.border },
   schoolTagText: { color: journeyTones.info.text },
-  body: { padding: 16, gap: 17 },
+  body: { gap: 17 },
   infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   rowIcon: { width: 30, textAlign: 'center', marginTop: 4 },
   info: { flex: 1, minWidth: 0, gap: 3 },
@@ -170,8 +160,9 @@ const styles = StyleSheet.create({
   value: { flexShrink: 1, fontSize: 14, lineHeight: 22, fontWeight: '700', color: colors.foreground },
   secondary: { fontSize: 12, lineHeight: 19, color: colors.mutedText, flexShrink: 1 },
   self: { fontSize: 11, lineHeight: 18, fontWeight: '600', color: colors.navigationActive },
-  nameRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
-  selfBadge: { borderRadius: 6, paddingHorizontal: 6, backgroundColor: colors.navigationHighlight },
+  nameRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  personName: { flex: 1, minWidth: 0 },
+  selfBadge: { flexShrink: 0, marginTop: 2, borderRadius: 6, paddingHorizontal: 6, backgroundColor: colors.navigationHighlight },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
   operation: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 12, borderWidth: 1, borderRadius: 14 },
   ready: { backgroundColor: journeyTones.success.bg, borderColor: journeyTones.success.border },
