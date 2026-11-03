@@ -1,10 +1,10 @@
 import type { RoutePlanStatus } from './types';
 
 export const ROUTE_PLAN_STATUS_LABELS: Record<RoutePlanStatus, string> = {
-  DRAFT: 'Nháp',
-  ACTIVE: 'Đã duyệt',
+  DRAFT: 'Chưa duyệt',
+  ACTIVE: 'Đang hoạt động',
   CANCELLED: 'Đã hủy',
-  EXPIRED: 'Hết hạn',
+  EXPIRED: 'Hết hạn hợp đồng',
 };
 
 export function getRoutePlanStatusLabel(status: string | null | undefined): string {

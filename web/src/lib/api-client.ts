@@ -90,6 +90,33 @@ export class ApiError extends Error {
 type UnauthorizedCallback = () => void;
 
 class ApiClient {
+  async getSchoolOperatingSettings(schoolId: string): Promise<import('./school-lifecycle').SchoolOperatingSettings> {
+    return this.request(`/schools/${schoolId}/settings`, { method: 'GET' });
+  }
+  async getSchoolScheduledChanges(schoolId: string): Promise<import('./school-lifecycle').SchoolScheduledChange[]> {
+    return this.request(`/schools/${schoolId}/scheduled-changes`, { method: 'GET' });
+  }
+  async cancelSchoolScheduledChange(schoolId: string, id: string): Promise<import('./school-lifecycle').SchoolScheduledChange> {
+    return this.request(`/schools/${schoolId}/scheduled-changes/${id}/cancel`, { method: 'POST' });
+  }
+  async getServiceCalendar(schoolId?: string): Promise<import('./school-lifecycle').ServiceCalendarEntry[]> {
+    return this.request(`/service-calendar${schoolId ? `?schoolId=${encodeURIComponent(schoolId)}` : ''}`, { method: 'GET' });
+  }
+  async createServiceCalendar(dto: import('./school-lifecycle').CalendarEntryInput): Promise<import('./school-lifecycle').ServiceCalendarEntry> {
+    return this.request('/service-calendar', { method: 'POST', body: JSON.stringify(dto) });
+  }
+  async decideServiceCalendar(id: string, dto: { status: 'APPROVED' | 'REJECTED'; reason?: string }): Promise<import('./school-lifecycle').ServiceCalendarEntry> {
+    return this.request(`/service-calendar/${id}/decision`, { method: 'POST', body: JSON.stringify(dto) });
+  }
+  async cancelServiceCalendar(id: string): Promise<import('./school-lifecycle').ServiceCalendarEntry> {
+    return this.request(`/service-calendar/${id}/cancel`, { method: 'POST' });
+  }
+  async getAdminFinalizations(): Promise<import('./school-lifecycle').AdminFinalizationTrip[]> {
+    return this.request('/trips/admin-finalizations', { method: 'GET' });
+  }
+  async finalizeTrip(id: string, dto: import('./school-lifecycle').FinalizeTripInput): Promise<import('./school-lifecycle').AdminFinalizationTrip> {
+    return this.request(`/trips/${id}/admin-finalization`, { method: 'POST', body: JSON.stringify(dto) });
+  }
   private refreshPromise: Promise<string | null> | null = null;
   private unauthorizedListeners: Set<UnauthorizedCallback> = new Set();
 
@@ -365,6 +392,7 @@ class ApiClient {
       longitude: number;
       reason?: string;
       expectedFingerprint?: string;
+      effectiveDate?: string;
     },
   ): Promise<{
     success: boolean;
@@ -372,6 +400,9 @@ class ApiClient {
     school: SchoolDetail;
     cancelledPlansCount: number;
     cancelledTripsCount: number;
+    scheduledChangeId?: string;
+    effectiveDate?: string;
+    changeStatus?: 'PENDING';
   }> {
     return this.request(`/schools/${schoolId}/location`, {
       method: 'PATCH',
@@ -397,6 +428,7 @@ class ApiClient {
   async updateSchoolSchedule(
     schoolId: string,
     weeklySchedule: WeeklySchedule,
+    effectiveDate?: string,
   ): Promise<{
     success: boolean;
     message: string;
@@ -407,20 +439,24 @@ class ApiClient {
     };
     cancelledTripsCount: number;
     updatedTripsCount: number;
+    scheduledChangeId?: string;
+    effectiveDate?: string;
+    changeStatus?: 'PENDING';
   }> {
     return this.request(`/schools/${schoolId}/schedule`, {
       method: 'PATCH',
-      body: JSON.stringify({ weeklySchedule }),
+      body: JSON.stringify({ weeklySchedule, effectiveDate }),
     });
   }
 
   async updateSchoolStatus(
     id: string,
     isActive: boolean,
+    effectiveDate?: string,
   ): Promise<UpdateSchoolStatusResponse> {
     return this.request<UpdateSchoolStatusResponse>(`/schools/${id}/status`, {
       method: 'PATCH',
-      body: JSON.stringify({ isActive }),
+      body: JSON.stringify({ isActive, ...(!isActive && effectiveDate ? { effectiveDate } : {}) }),
     });
   }
 
@@ -631,7 +667,7 @@ class ApiClient {
 
   async createDriver(body: {
     fullName: string;
-    email?: string;
+    email: string;
     phone?: string;
   }): Promise<CreateDriverResponse> {
     return this.request<CreateDriverResponse>('/drivers', {

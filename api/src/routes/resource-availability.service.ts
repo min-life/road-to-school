@@ -1,3 +1,6 @@
+import { planInvalidation } from '../schools/school-policy.js';
+import { assertResourcesNotAwaitingAdmin, pendingResourceTrips } from '../schools/contract-resource-policy.js';
+import { isContractExpired } from '../schools/school-effective-state.js';
 import {
   Injectable,
   Logger,
@@ -120,6 +123,7 @@ export class ResourceAvailabilityService {
         routePlan: {
           select: {
             id: true,
+            createdAt: true,
             name: true,
             status: true,
             schoolId: true,
@@ -143,6 +147,7 @@ export class ResourceAvailabilityService {
       }
 
       const otherSchool = r.routePlan.school;
+      if (await planInvalidation(db, r.routePlan.schoolId, r.routePlan.createdAt)) continue;
       const otherStart = toDateString(otherSchool.contractStartDate);
       const otherEnd = toDateString(otherSchool.contractEndDate);
 
@@ -187,6 +192,7 @@ export class ResourceAvailabilityService {
     currentVehicleId: string,
     newVehicleId: string,
   ) {
+    await assertResourcesNotAwaitingAdmin(this.prisma, { vehicleId: newVehicleId });
     const plan = await this.prisma.routePlan.findUnique({
       where: { id: planId },
       include: {
@@ -201,6 +207,9 @@ export class ResourceAvailabilityService {
 
     if (!plan) {
       throw new NotFoundException('Không tìm thấy phương án tuyến');
+    }
+    if (await planInvalidation(this.prisma, plan.schoolId, plan.createdAt) || isContractExpired(plan.school.contractEndDate) || !['DRAFT', 'ACTIVE'].includes(plan.status)) {
+      throw new ConflictException('Phương án không còn hiệu lực phục vụ hoặc hợp đồng đã hết hạn');
     }
 
     const newVehicle = await this.prisma.vehicle.findUnique({
@@ -271,6 +280,7 @@ export class ResourceAvailabilityService {
     vehicleId: string,
     driverId: string,
   ) {
+    await assertResourcesNotAwaitingAdmin(this.prisma, { driverId });
     const plan = await this.prisma.routePlan.findUnique({
       where: { id: planId },
       include: {
@@ -281,6 +291,9 @@ export class ResourceAvailabilityService {
 
     if (!plan) {
       throw new NotFoundException('Không tìm thấy phương án tuyến');
+    }
+    if (await planInvalidation(this.prisma, plan.schoolId, plan.createdAt) || isContractExpired(plan.school.contractEndDate) || !['DRAFT', 'ACTIVE'].includes(plan.status)) {
+      throw new ConflictException('Phương án không còn hiệu lực phục vụ hoặc hợp đồng đã hết hạn');
     }
 
     const driver = await this.prisma.user.findUnique({
@@ -310,7 +323,7 @@ export class ResourceAvailabilityService {
       where: {
         defaultDriverId: driverId,
         routePlan: {
-          status: RoutePlanStatus.ACTIVE,
+          status: { in: [RoutePlanStatus.DRAFT, RoutePlanStatus.ACTIVE] },
           schoolId: { not: plan.schoolId },
         },
       },
@@ -323,6 +336,7 @@ export class ResourceAvailabilityService {
 
     for (const cr of conflictingRoutes) {
       const otherSchool = cr.routePlan.school;
+      if (await planInvalidation(this.prisma, cr.routePlan.schoolId, cr.routePlan.createdAt)) continue;
       const otherStart = new Date(otherSchool.contractStartDate);
       const otherEnd = new Date(otherSchool.contractEndDate);
 
@@ -347,6 +361,7 @@ export class ResourceAvailabilityService {
     busAttendantId: string,
     currentUserSchoolId?: string,
   ) {
+    await assertResourcesNotAwaitingAdmin(this.prisma, { busAttendantId });
     const plan = await this.prisma.routePlan.findUnique({
       where: { id: planId },
       include: {
@@ -357,6 +372,9 @@ export class ResourceAvailabilityService {
 
     if (!plan) {
       throw new NotFoundException('Không tìm thấy phương án tuyến');
+    }
+    if (await planInvalidation(this.prisma, plan.schoolId, plan.createdAt) || isContractExpired(plan.school.contractEndDate) || !['DRAFT', 'ACTIVE'].includes(plan.status)) {
+      throw new ConflictException('Phương án không còn hiệu lực phục vụ hoặc hợp đồng đã hết hạn');
     }
 
     if (currentUserSchoolId && plan.schoolId !== currentUserSchoolId) {
@@ -421,6 +439,10 @@ export class ResourceAvailabilityService {
     }
 
     const blockers: ApprovalBlockerDto[] = [];
+    const invalidation = await planInvalidation(this.prisma, plan.schoolId, plan.createdAt);
+    if (invalidation) {
+      blockers.push({ code: invalidation, message: 'Phương án không còn hiệu lực do hết hợp đồng hoặc thay đổi trường đã đến hạn' });
+    }
     const totalRoutes = plan.routes.length;
     let routesWithVehicle = 0;
     let routesWithDriver = 0;
@@ -612,6 +634,9 @@ export class ResourceAvailabilityService {
     if (!plan) {
       throw new NotFoundException('Không tìm thấy phương án tuyến');
     }
+    if (await planInvalidation(this.prisma, plan.schoolId, plan.createdAt) || isContractExpired(plan.school.contractEndDate) || !['DRAFT', 'ACTIVE'].includes(plan.status)) {
+      throw new ConflictException('Phương án không còn hiệu lực phục vụ hoặc hợp đồng đã hết hạn');
+    }
 
     let requiredCapacity = 0;
     if (currentVehicleId) {
@@ -641,6 +666,8 @@ export class ResourceAvailabilityService {
       plan.id,
     );
 
+    const heldTrips = await pendingResourceTrips(this.prisma);
+    const heldVehicles = new Set(heldTrips.map(t => t.assignedVehicleId));
     const allVehicles = await this.prisma.vehicle.findMany({
       orderBy: { seatCount: 'desc' },
     });
@@ -649,7 +676,10 @@ export class ResourceAvailabilityService {
       let isEligible = true;
       let reason = `Khả dụng (${v.seatCount} chỗ >= ${requiredCapacity} chỗ yêu cầu)`;
 
-      if (otherVehiclesUsed.has(v.id)) {
+      if (heldVehicles.has(v.id)) {
+        isEligible = false;
+        reason = 'Còn chuyến hết hợp đồng đang chờ quản trị viên chốt';
+      } else if (otherVehiclesUsed.has(v.id)) {
         isEligible = false;
         reason = 'Đã được sử dụng trong nhóm tuyến khác của phương án';
       } else if (reservationConflicts.has(v.id)) {
@@ -695,6 +725,9 @@ export class ResourceAvailabilityService {
     if (!plan) {
       throw new NotFoundException('Không tìm thấy phương án tuyến');
     }
+    if (await planInvalidation(this.prisma, plan.schoolId, plan.createdAt) || isContractExpired(plan.school.contractEndDate) || !['DRAFT', 'ACTIVE'].includes(plan.status)) {
+      throw new ConflictException('Phương án không còn hiệu lực phục vụ hoặc hợp đồng đã hết hạn');
+    }
 
     const targetStart = new Date(plan.school.contractStartDate);
     const targetEnd = new Date(plan.school.contractEndDate);
@@ -704,7 +737,7 @@ export class ResourceAvailabilityService {
       where: {
         defaultDriverId: { not: null },
         routePlan: {
-          status: RoutePlanStatus.ACTIVE,
+          status: { in: [RoutePlanStatus.DRAFT, RoutePlanStatus.ACTIVE] },
           schoolId: { not: plan.schoolId },
         },
       },
@@ -719,6 +752,7 @@ export class ResourceAvailabilityService {
     for (const cr of conflictingRoutes) {
       if (!cr.defaultDriverId) continue;
       const otherSchool = cr.routePlan.school;
+      if (await planInvalidation(this.prisma, cr.routePlan.schoolId, cr.routePlan.createdAt)) continue;
       const otherStart = new Date(otherSchool.contractStartDate);
       const otherEnd = new Date(otherSchool.contractEndDate);
 
@@ -730,6 +764,8 @@ export class ResourceAvailabilityService {
       }
     }
 
+    const heldTrips = await pendingResourceTrips(this.prisma);
+    const heldDrivers = new Set(heldTrips.map(t => t.assignedDriverId));
     const allDrivers = await this.prisma.user.findMany({
       where: { role: Role.DRIVER },
       orderBy: { fullName: 'asc' },
@@ -739,7 +775,10 @@ export class ResourceAvailabilityService {
       let isEligible = true;
       let reason = 'Khả dụng';
 
-      if (!d.isActive) {
+      if (heldDrivers.has(d.id)) {
+        isEligible = false;
+        reason = 'Còn chuyến hết hợp đồng đang chờ quản trị viên chốt';
+      } else if (!d.isActive) {
         isEligible = false;
         reason = 'Tài khoản tài xế đã bị vô hiệu hóa';
       } else if (conflictMap.has(d.id)) {
@@ -774,6 +813,9 @@ export class ResourceAvailabilityService {
     if (!plan) {
       throw new NotFoundException('Không tìm thấy phương án tuyến');
     }
+    if (await planInvalidation(this.prisma, plan.schoolId, plan.createdAt) || isContractExpired(plan.school.contractEndDate) || !['DRAFT', 'ACTIVE'].includes(plan.status)) {
+      throw new ConflictException('Phương án không còn hiệu lực phục vụ hoặc hợp đồng đã hết hạn');
+    }
 
     if (currentUserSchoolId && plan.schoolId !== currentUserSchoolId) {
       throw new ForbiddenException(
@@ -789,11 +831,16 @@ export class ResourceAvailabilityService {
       orderBy: { fullName: 'asc' },
     });
 
+    const heldTrips = await pendingResourceTrips(this.prisma);
+    const heldAttendants = new Set(heldTrips.map(t => t.assignedBusAttendantId));
     const candidates = schoolAttendants.map((a) => {
       let isEligible = true;
       let reason = `Khả dụng (Biên chế trường ${plan.school.name})`;
 
-      if (!a.isActive) {
+      if (heldAttendants.has(a.id)) {
+        isEligible = false;
+        reason = 'Còn chuyến hết hợp đồng đang chờ quản trị viên chốt';
+      } else if (!a.isActive) {
         isEligible = false;
         reason = 'Tài khoản giáo viên đã bị vô hiệu hóa';
       }

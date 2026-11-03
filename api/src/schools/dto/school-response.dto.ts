@@ -108,6 +108,9 @@ export class SchoolDetailResponseDto {
 }
 
 export class UpdateSchoolStatusResponseDto {
+  @ApiProperty({ required: false, description: 'ID lịch thay đổi mới tạo' }) scheduledChangeId?: string;
+  @ApiProperty({ required: false, format: 'date', description: 'Ngày hiệu lực' }) effectiveDate?: string;
+  @ApiProperty({ required: false, enum: ['PENDING'], description: 'Chưa áp dụng ngay' }) changeStatus?: string;
   @ApiProperty({ description: 'ID trường học vừa cập nhật', example: 'c1f8a847-75c1-4b36-a3d5-22e3914a8721' })
   id: string;
 

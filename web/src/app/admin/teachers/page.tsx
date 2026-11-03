@@ -17,7 +17,7 @@ import {
   PhoneIcon,
 } from '@/components/icons';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
-import { AddTeacherModal } from '@/components/admin/teachers/add-teacher-modal';
+import { AddTeacherModal } from './_components/add-teacher-modal';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';

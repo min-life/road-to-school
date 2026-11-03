@@ -1,6 +1,6 @@
 'use client';
 
-import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Building2, BusFront, LocateFixed, Maximize2, UserRound, Warehouse } from 'lucide-react';
 import { Map, MapControls, MapMarker, MapRoute, MarkerContent, MarkerPopup, MarkerTooltip, useMap } from '@/components/ui/map';
 import { decodePolyline } from '@/lib/polyline';
@@ -18,6 +18,7 @@ export interface MapPoint {
   order?: number;
   eta?: string;
   isSelected?: boolean;
+  color?: string;
 }
 
 interface RouteMapProps {
@@ -25,6 +26,7 @@ interface RouteMapProps {
   parkingLocation?: { latitude: number; longitude: number; addressText?: string };
   points?: MapPoint[];
   polylineGeometry?: string | null;
+  routes?: { id: string; polylineGeometry?: string | null; color: string; active?: boolean }[];
   height?: string;
   focusPoint?: { latitude: number; longitude: number; zoom?: number } | null;
   onPointClick?: (point: MapPoint) => void;
@@ -49,7 +51,7 @@ class MapErrorBoundary extends Component<{ children: ReactNode }, { failed: bool
   }
 }
 
-export function RouteMap({ schoolLocation, parkingLocation, points = EMPTY_POINTS, polylineGeometry, height = '480px', focusPoint, onPointClick, className = '', vehiclePosition, recordedTrack }: RouteMapProps) {
+export function RouteMap({ schoolLocation, parkingLocation, points = EMPTY_POINTS, polylineGeometry, routes, height = '480px', focusPoint, onPointClick, className = '', vehiclePosition, recordedTrack }: RouteMapProps) {
   const tilemapKey = process.env.NEXT_PUBLIC_VIETMAP_TILEMAP_KEY || '';
   const styles = useMemo(() => {
     const url = `https://maps.vietmap.vn/maps/styles/tm/style.json?apikey=${tilemapKey}`;
@@ -67,7 +69,7 @@ export function RouteMap({ schoolLocation, parkingLocation, points = EMPTY_POINT
               }
               return { url };
             }}>
-            <RouteScene schoolLocation={schoolLocation} parkingLocation={parkingLocation} points={points} polylineGeometry={polylineGeometry}
+            <RouteScene schoolLocation={schoolLocation} parkingLocation={parkingLocation} points={points} polylineGeometry={polylineGeometry} routes={routes}
               focusPoint={focusPoint} onPointClick={onPointClick} vehiclePosition={vehiclePosition} recordedTrack={recordedTrack} />
           </Map>
         </MapErrorBoundary>
@@ -76,9 +78,10 @@ export function RouteMap({ schoolLocation, parkingLocation, points = EMPTY_POINT
   );
 }
 
-function RouteScene({ schoolLocation, parkingLocation, points = EMPTY_POINTS, polylineGeometry, focusPoint, onPointClick, vehiclePosition, recordedTrack }: RouteMapProps) {
+function RouteScene({ schoolLocation, parkingLocation, points = EMPTY_POINTS, polylineGeometry, routes, focusPoint, onPointClick, vehiclePosition, recordedTrack }: RouteMapProps) {
   const { map, isLoaded } = useMap();
   const fitted = useRef(false);
+  const fittedOverview = useRef(false);
   const lastPolyline = useRef<string | null | undefined>(undefined);
   const [mapError, setMapError] = useState<string | null>(null);
   // Route membership (isSelected) is distinct from the point being inspected.
@@ -87,6 +90,8 @@ function RouteScene({ schoolLocation, parkingLocation, points = EMPTY_POINTS, po
   const focusedPointId = focusPoint ? points.find(point => point.latitude === focusPoint.latitude && point.longitude === focusPoint.longitude)?.id : undefined;
   const activePointId = hoveredPointId ?? (inspectedPoint?.focusPoint === focusPoint ? inspectedPoint?.id : focusedPointId);
   const coordinates = useMemo(() => polylineGeometry ? decodePolyline(polylineGeometry) : [], [polylineGeometry]);
+  const routeLines = useMemo(() => routes?.map(route => ({ ...route, coordinates: route.polylineGeometry ? decodePolyline(route.polylineGeometry) : [] })) ?? [], [routes]);
+  const overviewCoordinates = useMemo(() => routeLines.flatMap(route => route.coordinates), [routeLines]);
 
   const fitAll = useCallback(() => {
     if (!map) return;
@@ -95,8 +100,9 @@ function RouteScene({ schoolLocation, parkingLocation, points = EMPTY_POINTS, po
       if (hasCoordinates(point)) all.push([point!.longitude, point!.latitude]);
     }
     all.push(...coordinates);
+    all.push(...overviewCoordinates);
     fitCoordinates(map, all, 60, 700);
-  }, [map, parkingLocation, schoolLocation, points, recordedTrack, vehiclePosition, coordinates]);
+  }, [map, parkingLocation, schoolLocation, points, recordedTrack, vehiclePosition, coordinates, overviewCoordinates]);
 
   useEffect(() => {
     if (!map) return;
@@ -117,6 +123,7 @@ function RouteScene({ schoolLocation, parkingLocation, points = EMPTY_POINTS, po
 
   useEffect(() => {
     if (!map || !isLoaded) return;
+    if (routes === undefined) fittedOverview.current = false;
     const changed = lastPolyline.current !== polylineGeometry;
     lastPolyline.current = polylineGeometry;
     const initial: [number, number][] = [];
@@ -124,15 +131,20 @@ function RouteScene({ schoolLocation, parkingLocation, points = EMPTY_POINTS, po
       if (hasCoordinates(point)) initial.push([point!.longitude, point!.latitude]);
     }
     if (recordedTrack === undefined) initial.push(...coordinates);
-    if (initial.length && (!fitted.current || changed)) {
+    if (recordedTrack === undefined) initial.push(...overviewCoordinates);
+    const firstOverview = routes !== undefined && !fittedOverview.current;
+    if (initial.length && (!fitted.current || changed || firstOverview)) {
       fitted.current = true;
+      if (routes !== undefined) fittedOverview.current = true;
       fitCoordinates(map, initial, 50, 800);
     }
-  }, [map, isLoaded, parkingLocation, schoolLocation, points, polylineGeometry, coordinates, recordedTrack]);
+  }, [map, isLoaded, parkingLocation, schoolLocation, points, polylineGeometry, coordinates, recordedTrack, routes, overviewCoordinates]);
 
   const focusLocation = (longitude: number, latitude: number) => map?.flyTo({ center: [longitude, latitude], zoom: 15.5, duration: 600 });
   return <>
-    {recordedTrack === undefined && coordinates.length >= 2 && <MapRoute id="planned-route" coordinates={coordinates} color="#2563eb" width={5} opacity={0.85} interactive={false} />}
+    {recordedTrack === undefined && routes === undefined && coordinates.length >= 2 && <MapRoute id="planned-route" coordinates={coordinates} color="#2563eb" width={5} opacity={0.85} interactive={false} />}
+    {recordedTrack === undefined && routeLines.map(route => route.coordinates.length >= 2 && <MapRoute key={route.id} id={`preview-${route.id}`} coordinates={route.coordinates}
+      color={route.color} width={4} opacity={0.65} active={route.active} activeWidth={6} activeOpacity={0.95} interactive={false} />)}
     {/* Preserve recorded run/gap boundaries. Never connect separate parts. */}
     {recordedTrack?.map((part, index) => part.length >= 2
       ? <MapRoute key={index} id={`recorded-${index}`} coordinates={part.map(point => [point.longitude, point.latitude])} color="#059669" width={5} opacity={1} interactive={false} />
@@ -157,6 +169,7 @@ function RouteScene({ schoolLocation, parkingLocation, points = EMPTY_POINTS, po
       onMouseEnter={() => setHoveredPointId(point.id)} onMouseLeave={() => setHoveredPointId(null)}
       onClick={() => { setInspectedPoint({ id: point.id, focusPoint }); onPointClick?.(point); }}>
       <MarkerContent><button type="button" className={`rts-map-stop ${typeof point.order === 'number' ? 'rts-map-pin' : 'rts-map-student'} ${activePointId === point.id ? 'rts-map-stop-active' : ''}`}
+        style={point.color ? { '--rts-stop-color': point.color } as CSSProperties : undefined}
         aria-label={typeof point.order === 'number' ? `${point.order}. ${point.title}` : point.title}
         onFocus={() => setInspectedPoint({ id: point.id, focusPoint })}>
         {typeof point.order === 'number' ? <>

@@ -152,7 +152,7 @@ export function ManualGenerateTripsModal({
         {!result ? (
           <form onSubmit={handleSubmit} className="space-y-4">
             <p className="text-xs text-slate-500 leading-relaxed">
-              Sinh chuyến xe theo khoảng ngày cho các phương án tuyến <strong>Đã duyệt</strong> của trường. Hệ thống chỉ sinh chuyến từ ngày học hợp lệ tiếp theo sau ngày kích hoạt và tự động bỏ qua chuyến đã tồn tại.
+              Sinh chuyến xe theo khoảng ngày cho các phương án tuyến <strong>Đang hoạt động</strong> của trường. Hệ thống chỉ sinh chuyến từ ngày học hợp lệ tiếp theo sau ngày kích hoạt và tự động bỏ qua chuyến đã tồn tại.
             </p>
 
             {/* School selector */}

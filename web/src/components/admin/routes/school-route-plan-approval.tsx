@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { effectivePlanStatus } from '@/lib/school-lifecycle';
 import { apiClient } from '@/lib/api-client';
 import type { ApprovalReadinessResponse, RoutePlanItem } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,7 @@ export function SchoolRoutePlanApproval({ plan, readiness, failed, onRefresh, on
   const busyRef = useRef(false);
   const [approving, setApproving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const ready = readiness?.routePlanId === plan.id && readiness.status === 'DRAFT' && readiness.isReadyForApproval;
+  const ready = effectivePlanStatus(plan) === 'DRAFT' && readiness?.routePlanId === plan.id && readiness.status === 'DRAFT' && readiness.isReadyForApproval;
 
   const approve = async () => {
     if (!ready || busyRef.current) return;
@@ -55,7 +56,7 @@ export function SchoolRoutePlanApproval({ plan, readiness, failed, onRefresh, on
       onCancel={event => { if (busyRef.current) event.preventDefault(); }}>
       <h2 id="school-plan-approval-title">Duyệt phương án?</h2>
       <p>{plan.name}</p>
-      <p>Phương án chuyển sang Đã duyệt. Phân công hiện tại dùng làm mặc định cho các chuyến được tạo sau.</p>
+      <p>Phương án chuyển sang Đang hoạt động. Phân công hiện tại dùng làm mặc định cho các chuyến được tạo sau.</p>
       {error && <p role="alert" className="saved-plan-error">{error}</p>}
       <div className="route-workspace-actions">
         <Button variant="outline" onClick={() => dialogRef.current?.close()} disabled={approving}>Quay lại</Button>

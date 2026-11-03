@@ -1,4 +1,5 @@
 'use client';
+import { TableActions } from '@/components/admin/common/table-actions';
 
 import { toast } from '@/stores/toast-store';
 
@@ -6,7 +7,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ContextLink } from '@/components/admin/common/context-navigation';
 import { AdminSchoolsGuard } from '@/components/admin/schools/admin-schools-guard';
 import { apiClient } from '@/lib/api-client';
-import type { DriverItem } from '@/lib/types';
+import type { DriverItem, CreateDriverResponse } from '@/lib/types';
 import {
   PlusIcon,
   SearchIcon,
@@ -16,7 +17,7 @@ import {
   PhoneIcon,
 } from '@/components/icons';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
-import { AddDriverModal } from '@/components/admin/drivers/add-driver-modal';
+import { AddDriverModal } from './_components/add-driver-modal';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
@@ -93,8 +94,14 @@ function DriversPageContent() {
     setPage(1);
   };
 
-  const handleDriverAdded = () => {
-    toast.success('Đã tạo tài khoản tài xế mới thành công.');
+  const handleDriverAdded = (result: CreateDriverResponse) => {
+    if (result.credentialDeliveryStatus === 'FAILED') {
+      toast.warning(result.message || 'Đã tạo tài khoản tài xế nhưng chưa gửi được email mật khẩu.');
+    } else if (result.credentialDeliveryStatus === 'CONSOLE') {
+      toast.info('Đã tạo tài khoản tài xế. Chế độ thử nghiệm: mật khẩu được ghi tại console API, chưa gửi email.');
+    } else {
+      toast.success(result.message || 'Đã tạo tài khoản tài xế mới thành công.');
+    }
     fetchDrivers();
 
   };
@@ -251,12 +258,7 @@ function DriversPageContent() {
                     </td>
 
                     <td className="px-4 py-3 text-right">
-                      <ContextLink
-                        href={`/admin/drivers/${driver.id}`}
-                        className="text-xs font-medium text-slate-600 hover:text-amber-700 px-2.5 py-1 rounded-lg hover:bg-slate-100 transition-colors"
-                      >
-                        Xem chi tiết
-                      </ContextLink>
+                      <TableActions actions={[{ label: 'Chi tiết', href: `/admin/drivers/${driver.id}` }]} />
                     </td>
                   </tr>
                 ))

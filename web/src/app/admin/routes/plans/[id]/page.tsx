@@ -1,4 +1,5 @@
 'use client';
+import { effectivePlanStatus } from '@/lib/school-lifecycle';
 import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
 import { BackLink, ContextLink } from '@/components/admin/common/context-navigation';
 
@@ -12,8 +13,8 @@ import {
   InfoIcon,
 } from '@/components/icons';
 import { CancelRoutePlanModal } from '@/components/admin/routes/cancel-route-plan-modal';
-import { ApprovalReadinessCard } from '@/components/admin/routes/approval-readiness-card';
-import { RoutePlanAssignments } from '@/components/admin/routes/route-plan-assignments';
+import { ApprovalReadinessCard } from '@/app/admin/routes/plans/[id]/_components/approval-readiness-card';
+import { RoutePlanAssignments } from '@/app/admin/routes/plans/[id]/_components/route-plan-assignments';
 import { authStorage } from '@/lib/auth-storage';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Table } from '@/components/ui/table';
 import { useAuth } from '@/components/auth/auth-provider';
-import { SavedRoutePlanWorkspace } from '@/components/admin/routes/saved-route-plan-workspace';
+import { SavedRoutePlanWorkspace } from '@/app/admin/routes/plans/[id]/_components/saved-route-plan-workspace';
 
 export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -92,8 +93,8 @@ function LegacyRoutePlanDetailPage({ params }: { params: Promise<{ id: string }>
   }, [loadPlanDetail]);
 
   const isSystemAdmin = currentUserRole === 'SYSTEM_ADMIN';
-  const isDraft = plan?.status === 'DRAFT';
-  const isActive = plan?.status === 'ACTIVE';
+  const isDraft = (plan ? effectivePlanStatus(plan) : undefined) === 'DRAFT';
+  const isActive = (plan ? effectivePlanStatus(plan) : undefined) === 'ACTIVE';
 
   const formatDateTime = (isoDate: string) => {
     try {
@@ -163,19 +164,19 @@ function LegacyRoutePlanDetailPage({ params }: { params: Promise<{ id: string }>
             <h1 className="text-2xl font-bold text-slate-800">{plan.name}</h1>
             {isActive ? (
               <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                {getRoutePlanStatusLabel(plan.status)}
+                {getRoutePlanStatusLabel(effectivePlanStatus(plan))}
               </Badge>
             ) : isDraft ? (
               <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                {getRoutePlanStatusLabel(plan.status)}
+                {getRoutePlanStatusLabel(effectivePlanStatus(plan))}
               </Badge>
-            ) : plan.status === 'EXPIRED' ? (
+            ) : effectivePlanStatus(plan) === 'EXPIRED' ? (
               <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300">
-                {getRoutePlanStatusLabel(plan.status)}
+                {getRoutePlanStatusLabel(effectivePlanStatus(plan))}
               </Badge>
             ) : (
               <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                {getRoutePlanStatusLabel(plan.status)}
+                {getRoutePlanStatusLabel(effectivePlanStatus(plan))}
               </Badge>
             )}
           </div>
@@ -223,7 +224,7 @@ function LegacyRoutePlanDetailPage({ params }: { params: Promise<{ id: string }>
       )}
 
       {/* Notice if Expired */}
-      {plan.status === 'EXPIRED' && (
+      {effectivePlanStatus(plan) === 'EXPIRED' && (
         <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 flex items-start gap-3">
           <InfoIcon className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <div className="text-xs text-amber-900 leading-relaxed">
@@ -234,7 +235,7 @@ function LegacyRoutePlanDetailPage({ params }: { params: Promise<{ id: string }>
       )}
 
       {/* Cancellation Notice if Cancelled */}
-      {plan.status === 'CANCELLED' && (
+      {effectivePlanStatus(plan) === 'CANCELLED' && (
         <div className="p-4 rounded-2xl bg-rose-50/80 border border-rose-200 flex items-start gap-3">
           <AlertIcon className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
           <div className="text-xs text-rose-900 leading-relaxed">

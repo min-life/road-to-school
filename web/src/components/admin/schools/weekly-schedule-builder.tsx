@@ -16,12 +16,14 @@ export interface WeeklyScheduleBuilderProps {
   value: WeeklySchedule;
   onChange: (schedule: WeeklySchedule) => void;
   disabled?: boolean;
+  layout?: 'default' | 'table';
 }
 
 export function WeeklyScheduleBuilder({
   value,
   onChange,
   disabled = false,
+  layout = 'default',
 }: WeeklyScheduleBuilderProps) {
   const handleToggleDay = (dayKey: string, checked: boolean) => {
     const next = { ...value };
@@ -53,7 +55,7 @@ export function WeeklyScheduleBuilder({
   };
 
   return (
-    <div className="weekly-schedule space-y-3">
+    <div className={`weekly-schedule space-y-3${layout === 'table' ? ' weekly-schedule-table' : ''}`}>
       <div className="weekly-schedule-heading">
         <label className="block text-sm font-semibold text-slate-800">
           Lịch học theo tuần <span className="text-red-500">*</span>
@@ -64,6 +66,9 @@ export function WeeklyScheduleBuilder({
       </div>
 
       <div className="space-y-2 border border-slate-200 rounded-xl p-3 bg-slate-50/50">
+        {layout === 'table' && <div className="weekly-schedule-columns" aria-hidden="true">
+          <span>Ngày học</span><span>Giờ bắt đầu học</span><span>Giờ kết thúc học</span>
+        </div>}
         {DAYS_OF_WEEK.map((day) => {
           const isEnabled = Boolean(value[day.key]);
           const dayData = value[day.key];

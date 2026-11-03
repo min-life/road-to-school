@@ -31,7 +31,7 @@ import { CancelRoutePlanModal } from '@/components/admin/routes/cancel-route-pla
 import { Tooltip } from '@/components/admin/schools/tooltip';
 import { VietMapPicker } from '@/components/admin/schools/vietmap-picker';
 import { vietmapService, VietmapSuggestion } from '@/lib/vietmap';
-import { RequestDetailModal } from '@/app/admin/requests/request-detail-modal';
+import { RequestDetailModal } from '@/components/admin/requests/request-detail-modal';
 import { StudentRoutingSection } from '@/components/admin/students/student-routing-section';
 import type { EmptyRoutePlanInfo } from '@/lib/types';
 import { Button } from '@/components/ui/button';

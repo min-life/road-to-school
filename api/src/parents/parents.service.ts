@@ -1,3 +1,4 @@
+import { assertSchoolWritable } from '../schools/school-policy.js';
 import {
   Injectable,
   Logger,
@@ -173,6 +174,7 @@ export class ParentsService {
     }
 
     // Quyết định D4: Trường học INACTIVE không được khởi tạo liên kết mới
+    await assertSchoolWritable(this.prisma, student.schoolId);
     if (!student.school.isActive) {
       throw new BadRequestException(
         'Trường học của học sinh đang ngừng hoạt động, không thể thực hiện liên kết',
@@ -253,6 +255,7 @@ export class ParentsService {
         );
       }
 
+      await assertSchoolWritable(tx, student.schoolId);
       if (!student.school.isActive) {
         throw new BadRequestException(
           'Trường học của học sinh đang ngừng hoạt động, không thể hoàn tất liên kết',

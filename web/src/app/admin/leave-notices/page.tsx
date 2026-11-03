@@ -1,4 +1,6 @@
 'use client';
+import { getLeaveNoticeStatusLabel } from '@/lib/status-labels';
+import { TableActions } from '@/components/admin/common/table-actions';
 
 import { SchoolSelectFilter } from '@/components/admin/common/school-select-filter';
 import { ContextLink } from '@/components/admin/common/context-navigation';
@@ -13,6 +15,7 @@ import {
   LeaveNoticeKind,
   LeaveNoticeStatus,
   RouteDirection,
+  TripStatus,
 } from '@/lib/types';
 import {
   SpinnerIcon,
@@ -22,8 +25,8 @@ import {
   TeacherIcon,
 } from '@/components/icons';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
-import { ReplacementModal } from '@/components/admin/leave-notices/replacement-modal';
-import { CancelTripModal } from '@/components/admin/leave-notices/cancel-trip-modal';
+import { ReplacementModal } from './_components/replacement-modal';
+import { CancelTripModal } from './_components/cancel-trip-modal';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -59,6 +62,7 @@ export default function AdminLeaveNoticesPage() {
   const [totalPages, setTotalPages] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [unavailableTripStatuses, setUnavailableTripStatuses] = useState<Record<string, TripStatus>>({});
 
   // Modals state
   const [selectedNoticeForReplacement, setSelectedNoticeForReplacement] =
@@ -95,6 +99,7 @@ export default function AdminLeaveNoticesPage() {
       });
 
       setNotices(res.items || []);
+      setUnavailableTripStatuses({});
       setTotal(res.total || 0);
       setTotalPages(res.totalPages || 1);
     } catch (err) {
@@ -112,6 +117,29 @@ export default function AdminLeaveNoticesPage() {
     fetchNotices();
   }, [fetchNotices]);
 
+  useEffect(() => {
+    let active = true;
+    // Resolve only visible pending staff notices whose API capability is disabled.
+    const tripIds = [...new Set(notices.filter(item => item.kind !== 'STUDENT'
+      && item.status === 'PENDING_REPLACEMENT' && item.canAssignReplacement === false).map(item => item.tripId))];
+    async function loadStatuses() {
+      const statuses: Record<string, TripStatus> = {};
+      for (let index = 0; index < tripIds.length; index += 4) {
+        if (!active) return;
+        const results = await Promise.allSettled(tripIds.slice(index, index + 4).map(async tripId => {
+          const trip = await apiClient.getTripDetail(tripId);
+          return { tripId, status: trip.status };
+        }));
+        for (const result of results) {
+          if (result.status === 'fulfilled') statuses[result.value.tripId] = result.value.status;
+        }
+      }
+      if (active) setUnavailableTripStatuses(statuses);
+    }
+    void loadStatuses();
+    return () => { active = false; };
+  }, [notices]);
+
   // Tab switching resets status and page
   const handleTabChange = (kind: LeaveNoticeKind) => {
     setActiveTab(kind);
@@ -120,6 +148,9 @@ export default function AdminLeaveNoticesPage() {
   };
 
   const renderStatusBadge = (notice: LeaveNoticeItem) => {
+    if (notice.status === 'PENDING_REPLACEMENT' && unavailableTripStatuses[notice.tripId] === 'CANCELLED') {
+      return <Badge className="px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">Chuyến đã hủy</Badge>;
+    }
     if (notice.kind === 'STUDENT') {
       if (notice.status === 'RECORDED') {
         return (
@@ -172,7 +203,7 @@ export default function AdminLeaveNoticesPage() {
       default:
         return (
           <Badge className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-            {notice.status}
+            {getLeaveNoticeStatusLabel(notice.status)}
           </Badge>
         );
     }
@@ -240,7 +271,7 @@ export default function AdminLeaveNoticesPage() {
         </Button>
       </div>
 
-      {focusNotice && <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm"><div className="flex justify-between"><strong>Chi tiết báo nghỉ</strong><button type="button" onClick={() => setFocusNotice(null)}>Đóng</button></div><p className="my-2">{focusNotice.kind === 'STUDENT' ? 'Học sinh' : focusNotice.kind === 'DRIVER' ? 'Tài xế' : 'Giáo viên'} · {focusNotice.status}</p><ContextLink className="font-semibold underline" href={'/admin/trips/' + focusNotice.tripId}>Xem chuyến xe</ContextLink></div>}
+      {focusNotice && <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm"><div className="flex justify-between"><strong>Chi tiết báo nghỉ</strong><button type="button" onClick={() => setFocusNotice(null)}>Đóng</button></div><p className="my-2">{focusNotice.kind === 'STUDENT' ? 'Học sinh' : focusNotice.kind === 'DRIVER' ? 'Tài xế' : 'Giáo viên'} · {renderStatusBadge(focusNotice)}</p><ContextLink className="font-semibold underline" href={'/admin/trips/' + focusNotice.tripId}>Xem chuyến xe</ContextLink></div>}
 
       {actionableOnly && <button type="button" onClick={() => setActionableOnly(false)} className="text-xs font-semibold text-amber-800">Chỉ báo nghỉ cần bố trí ×</button>}
       {/* Filter Toolbar */}
@@ -377,6 +408,12 @@ export default function AdminLeaveNoticesPage() {
                 notices.map((notice) => {
                   const isPending = notice.status === 'PENDING_REPLACEMENT';
                   const canProcess = canProcessNotice(notice);
+                  const tripStatus = unavailableTripStatuses[notice.tripId];
+                  const tripCancelled = notice.status === 'TRIP_CANCELLED' || (isPending && tripStatus === 'CANCELLED');
+                  const unavailableReason = tripCancelled ? 'Chuyến đã hủy'
+                    : tripStatus === 'COMPLETED' ? 'Chuyến đã kết thúc'
+                    : tripStatus === 'IN_PROGRESS' ? 'Chuyến đã bắt đầu'
+                    : notice.disabledReason || 'Hiện không thể bố trí thay thế';
 
                   const subjectName =
                     notice.kind === 'STUDENT'
@@ -445,6 +482,8 @@ export default function AdminLeaveNoticesPage() {
                                   Bởi {notice.processedByName || 'Quản trị'}
                                 </div>
                               </div>
+                            ) : tripCancelled ? (
+                              <span className="text-xs text-slate-500">Không cần bố trí</span>
                             ) : isPending ? (
                               <span className="text-[11px] text-amber-700 italic">
                                 Chưa chỉ định
@@ -455,17 +494,10 @@ export default function AdminLeaveNoticesPage() {
                           </td>
 
                           <td className="px-5 py-3.5 text-right whitespace-nowrap">
-                            {canProcess ? (
-                              <Button variant="primary" size="sm"
-                                type="button"
-                                onClick={() => setSelectedNoticeForReplacement(notice)}
-                                className="px-3 py-1.5 text-xs font-bold bg-primary hover:bg-[#f5c042] text-foreground rounded-xl shadow-xs transition-all cursor-pointer"
-                              >
-                                Xử lý thay thế
-                              </Button>
-                            ) : (
-                              <span className="text-slate-400 text-[11px]">—</span>
-                            )}
+                            <TableActions actions={[
+                              ...(canProcess ? [{ label: 'Xử lý thay thế', primary: true, onClick: () => setSelectedNoticeForReplacement(notice) }] : []),
+                              { label: 'Xem chuyến', href: `/admin/trips/${notice.tripId}`, title: isPending && !canProcess ? unavailableReason : 'Xem chi tiết chuyến xe' },
+                            ]} />
                           </td>
                         </>
                       )}

@@ -1,5 +1,7 @@
 'use client';
-import { BackLink } from '@/components/admin/common/context-navigation';
+import { getTripStatusLabel } from '@/lib/status-labels';
+import { BackLink, ContextLink } from '@/components/admin/common/context-navigation';
+import { effectivePlanStatus, lifecycleError, lifecycleReason, type TripAdminFinalization } from '@/lib/school-lifecycle';
 
 import React, { useState, useEffect, useMemo, useRef, use } from 'react';
 import { apiClient, ApiError } from '@/lib/api-client';
@@ -16,7 +18,7 @@ import {
   MapPinIcon,
 } from '@/components/icons';
 import { RouteMap, MapPoint } from '@/components/admin/routes/route-map';
-import { TripAssignmentModal } from '@/components/admin/trips/trip-assignment-modal';
+import { TripAssignmentModal } from './_components/trip-assignment-modal';
 import { getRecordedHistory, getTripLocation, splitRecordedHistory, type RecordedPoint, type TripLocationState } from '@/lib/trip-location';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,6 +38,7 @@ export default function AdminTripDetailPage({
   const [trip, setTrip] = useState<TripDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [policy, setPolicy] = useState<{ tripId: string; blocked: boolean; audit?: TripAdminFinalization | null; error?: string } | null>(null);
   const [location, setLocation] = useState<TripLocationState | null>(null);
   const [history, setHistory] = useState<RecordedPoint[] | null>(null);
   const [showPlanned, setShowPlanned] = useState(false);
@@ -61,7 +64,26 @@ export default function AdminTripDetailPage({
       if (!isCurrent()) return;
       if (!res && trip && position?.status && trip.status !== position.status) res = await apiClient.getTripDetail(tripId);
       if (!isCurrent()) return;
-      if (res) { setTrip(res); metadataAt.current = Date.now(); }
+      if (res) {
+        setTrip(res); metadataAt.current = Date.now();
+        setPolicy({ tripId, blocked: true, audit: res.adminFinalization });
+        // Fail closed for assignment when current lifecycle eligibility cannot be verified.
+        try {
+          const [plan, pending] = await Promise.all([
+            apiClient.getRoutePlanDetail(res.routePlanId),
+            currentUserRole === 'SYSTEM_ADMIN' && (res.status === 'SCHEDULED' || res.status === 'IN_PROGRESS') ? apiClient.getAdminFinalizations() : Promise.resolve([]),
+          ]);
+          if (!isCurrent()) return;
+          const audit = pending.find(row => row.id === tripId)?.adminFinalization ?? res.adminFinalization;
+          const blocked = !['DRAFT', 'ACTIVE'].includes(effectivePlanStatus(plan)) || audit?.state === 'PENDING';
+          setPolicy({ tripId, blocked, audit });
+          if (blocked) setIsEditModalOpen(false);
+        } catch (reason) {
+          if (!isCurrent()) return;
+          setPolicy({ tripId, blocked: true, error: lifecycleError(reason), audit: res.adminFinalization });
+          setIsEditModalOpen(false);
+        }
+      }
       if (position) setLocation(position);
       else setLocation(previous => previous ? { ...previous, freshness: 'STALE' } : null);
       const status = res?.status ?? position?.status ?? trip?.status;
@@ -91,11 +113,11 @@ export default function AdminTripDetailPage({
 
   const canEditAssignment = useMemo(() => {
     if (!currentUserRole || !trip) return false;
-    if (trip.status !== 'SCHEDULED') return false;
+    if (trip.status !== 'SCHEDULED' || !policy || policy.tripId !== trip.id || policy.blocked) return false;
     if (currentUserRole === 'SYSTEM_ADMIN') return true;
     if (currentUserRole === 'SCHOOL_ADMIN' && currentUserSchoolId === trip.schoolId) return true;
     return false;
-  }, [currentUserRole, currentUserSchoolId, trip]);
+  }, [currentUserRole, currentUserSchoolId, trip, policy]);
 
   // Locations for Map
   const parkingLocation = useMemo(() => {
@@ -212,7 +234,7 @@ export default function AdminTripDetailPage({
             )}
 
             <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
-              {trip.status}
+              {getTripStatusLabel(trip.status)}
             </Badge>
           </div>
 
@@ -235,6 +257,14 @@ export default function AdminTripDetailPage({
           </Button>
         )}
       </Card>
+
+      {(policy?.tripId === trip.id && (policy.blocked || policy.audit)) && <Card className="p-4 space-y-2 border border-amber-200">
+        <h2 className="font-semibold">{policy.audit?.state === 'FINALIZED' ? 'Đã kết thúc hành chính' : 'Cần kiểm tra điều kiện vận hành'}</h2>
+        <p className="text-sm">{policy.error || policy.audit?.reason || lifecycleReason(policy.audit?.trigger) || 'Chuyến không còn đủ điều kiện đổi phân công.'}</p>
+        {policy.audit?.finalizedAt && <p className="text-xs text-slate-500">Ghi nhận: {new Date(policy.audit.finalizedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}. Việc kết thúc hành chính không xác nhận học sinh đã xuống xe.</p>}
+        {currentUserRole === 'SYSTEM_ADMIN' && policy.audit?.state === 'PENDING' && <ContextLink href="/admin/trips?tab=finalizations" className="text-sm font-semibold text-blue-700">Xử lý hành chính</ContextLink>}
+        {policy.error && <Button type="button" variant="outline" size="sm" onClick={loadTripDetail}>Thử lại</Button>}
+      </Card>}
 
       {/* 4 Cards: Thời gian, Xe, Tài xế, Giáo viên */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

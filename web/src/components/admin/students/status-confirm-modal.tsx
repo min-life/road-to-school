@@ -93,19 +93,19 @@ export function StatusConfirmModal({
                 ) : impact ? (
                   <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1.5 text-slate-700">
                     <div className="flex items-center justify-between">
-                      <span>Tuyến thuộc phương án đã duyệt:</span>
+                      <span>Tuyến thuộc phương án đang hoạt động:</span>
                       <span className="font-bold text-amber-700">
                         {impact.activeRoutePlansCount} phương án
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span>Tuyến thuộc phương án nháp:</span>
+                      <span>Tuyến thuộc phương án chưa duyệt:</span>
                       <span className="font-bold text-slate-700">
                         {impact.draftRoutePlansCount} phương án
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span>Chuyến SCHEDULED sẽ loại học sinh:</span>
+                      <span>Chuyến đã lên lịch sẽ loại học sinh:</span>
                       <span className="font-bold text-rose-600">
                         {impact.scheduledTripsCount} chuyến
                       </span>

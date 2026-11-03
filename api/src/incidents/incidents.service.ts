@@ -1,3 +1,5 @@
+import { assertTripPolicy } from '../schools/school-policy.js';
+import { assertResourcesNotAwaitingAdmin } from '../schools/contract-resource-policy.js';
 import { notifyIncident, notifyLeave } from '../notifications/notification-events.js';
 import { actionableIncidentWhere, adminSchoolScope } from '../overview/operations-policy.js';
 import { notifyAssignment, notifyCancelledTrips } from '../notifications/notification-writer.js';
@@ -63,6 +65,7 @@ export class IncidentsService {
     return this.prisma.$transaction(
       async (tx) => {
         await tx.$queryRaw(Prisma.sql`SELECT id FROM trips WHERE id = ${id} FOR UPDATE`);
+        await assertTripPolicy(tx, id);
         return work(tx);
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
@@ -936,8 +939,10 @@ export class IncidentsService {
           ? trip.assignedBusAttendantId
           : trip.assignedDriverId;
 
+        await assertResourcesNotAwaitingAdmin(tx, { driverId: dto.replacementUserId, busAttendantId: dto.replacementUserId });
         // Cập nhật phân công chuyến xe
         if (isAttendantIncident) {
+          await assertResourcesNotAwaitingAdmin(tx, { driverId: dto.replacementUserId, busAttendantId: dto.replacementUserId });
           await tx.trip.update({
             where: { id: trip.id },
             data: {

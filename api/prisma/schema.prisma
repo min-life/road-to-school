@@ -145,6 +145,9 @@ model User {
   school         School?   @relation(fields: [schoolId], references: [id], onDelete: Restrict)
 
   // Relationships
+  scheduledSchoolChanges SchoolScheduledChange[]
+  createdCalendarEntries ServiceCalendarEntry[] @relation("CalendarCreator")
+  reviewedCalendarEntries ServiceCalendarEntry[] @relation("CalendarReviewer")
   sessions           Session[]
   notifications      Notification[]
   otpChallenges      OtpChallenge[]
@@ -238,6 +241,8 @@ model School {
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
   // Quan hệ
+  scheduledChanges SchoolScheduledChange[]
+  calendarEntries ServiceCalendarEntry[]
   users             User[]
   students          Student[]
   updateRequests    StudentUpdateRequest[]
@@ -472,6 +477,7 @@ model Trip {
   cancellationReason     String?        @map("cancellation_reason") @db.VarChar(500)
   cancelledAt            DateTime?      @map("cancelled_at")
   cancelledById          String?        @map("cancelled_by_id")
+  adminFinalization      Json?          @map("admin_finalization")
   navigationState        Json?          @map("navigation_state")
   routeSnapshot          Json?          @map("route_snapshot")
   createdAt              DateTime       @default(now()) @map("created_at")
@@ -622,4 +628,55 @@ model Notification {
   @@index([userId, readAt, createdAt])
   @@index([pushState, pushAfterAt])
   @@map("notifications")
+}
+
+model SchoolScheduledChange {
+  id            String    @id @default(uuid())
+  schoolId      String    @map("school_id")
+  type          String
+  effectiveDate DateTime  @map("effective_date") @db.Date
+  payload       Json
+  status        String    @default("PENDING")
+  createdById   String    @map("created_by_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  appliedAt     DateTime? @map("applied_at")
+  cancelledAt   DateTime? @map("cancelled_at")
+  lastError     String?   @map("last_error")
+  school        School    @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  createdBy     User      @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, type, effectiveDate])
+  @@index([status, effectiveDate])
+  @@map("school_scheduled_changes")
+}
+
+model ServiceCalendarEntry {
+  id           String    @id @default(uuid())
+  schoolId     String?   @map("school_id")
+  title        String
+  kind         String
+  calendar     String
+  recurrence   String
+  year         Int?
+  month        Int
+  day          Int
+  leapMonth    Boolean   @default(false) @map("leap_month")
+  startTime    String?   @map("start_time")
+  endTime      String?   @map("end_time")
+  status       String
+  createdById  String    @map("created_by_id")
+  reviewedById String?   @map("reviewed_by_id")
+  reason       String?
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  reviewedAt   DateTime? @map("reviewed_at")
+  cancelledAt  DateTime? @map("cancelled_at")
+  school       School?   @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  createdBy    User      @relation("CalendarCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  reviewedBy   User?     @relation("CalendarReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([schoolId, status])
+  @@index([kind, calendar, recurrence, year])
+  @@map("service_calendar_entries")
 }

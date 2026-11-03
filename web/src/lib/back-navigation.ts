@@ -1,7 +1,7 @@
 const navigationOrigin = 'https://road-to-school.invalid';
 
-export function schoolTabFromQuery(value: string | null): 'employees' | 'students' | 'routes' | 'trips' {
-  return value === 'students' || value === 'routes' || value === 'trips' ? value : 'employees';
+export function schoolTabFromQuery(value: string | null): 'employees' | 'students' | 'routes' | 'trips' | 'calendar' {
+  return value === 'students' || value === 'routes' || value === 'trips' || value === 'calendar' ? value : 'employees';
 }
 
 /** Accept local admin destinations only; never use browser history as an implicit fallback. */

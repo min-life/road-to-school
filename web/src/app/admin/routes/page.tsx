@@ -1,4 +1,5 @@
 'use client';
+import { effectivePlanStatus } from '@/lib/school-lifecycle';
 import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
 import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
 
@@ -17,7 +18,7 @@ import {
   ChevronRightIcon,
   InfoIcon,
 } from '@/components/icons';
-import { SchoolSelectModal } from '@/components/admin/routes/school-select-modal';
+import { SchoolSelectModal } from '@/app/admin/routes/_components/school-select-modal';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
 import { SchoolSelectFilter } from '@/components/admin/common/school-select-filter';
 import { authStorage } from '@/lib/auth-storage';
@@ -141,7 +142,7 @@ export default function RoutePlansPage() {
         <div className="text-xs text-amber-900 leading-relaxed">
           <strong className="font-semibold text-amber-950">Nguyên tắc quản lý Phương án tuyến:</strong>{' '}
           Phương án tuyến (RoutePlan) là tập hợp toàn bộ các tuyến đi và về được tối ưu đồng thời cho trường học.
-          Chỉ có phương án sở hữu trạng thái vòng đời (Bản nháp / Đã hủy). Không thể hủy hoặc kích hoạt riêng lẻ từng tuyến.
+          Chỉ phương án có trạng thái vòng đời (Chưa duyệt / Đang hoạt động / Đã hủy / Hết hạn hợp đồng). Không thể hủy hoặc kích hoạt riêng lẻ từng tuyến.
         </div>
       </div>
 
@@ -206,6 +207,7 @@ export default function RoutePlansPage() {
         </FilterField>
         <Button type="button" onClick={() => fetchRoutePlans()} className="ui-filter-refresh">Làm mới</Button>
       </FilterToolbar>
+      {selectedStatus && <p className="text-xs text-slate-500">Bộ lọc dùng trạng thái lưu; nhãn trên bảng thể hiện trạng thái hiệu lực hiện tại.</p>}
 
       {/* RoutePlans Table */}
       <Card className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
@@ -260,7 +262,7 @@ export default function RoutePlansPage() {
                   </tr>
                 ) : (
                   plans.map((plan) => {
-                    const isDraft = plan.status === 'DRAFT';
+                    const isDraft = effectivePlanStatus(plan) === 'DRAFT';
 
                     return (
                       <tr key={plan.id} className="hover:bg-slate-50/60 transition-colors">
@@ -302,21 +304,21 @@ export default function RoutePlansPage() {
                         </td>
 
                         <td className="py-3.5 px-4">
-                          {plan.status === 'ACTIVE' ? (
+                          {effectivePlanStatus(plan) === 'ACTIVE' ? (
                             <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              {getRoutePlanStatusLabel(plan.status)}
+                              {getRoutePlanStatusLabel(effectivePlanStatus(plan))}
                             </Badge>
-                          ) : plan.status === 'DRAFT' ? (
+                          ) : effectivePlanStatus(plan) === 'DRAFT' ? (
                             <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                              {getRoutePlanStatusLabel(plan.status)}
+                              {getRoutePlanStatusLabel(effectivePlanStatus(plan))}
                             </Badge>
-                          ) : plan.status === 'EXPIRED' ? (
+                          ) : effectivePlanStatus(plan) === 'EXPIRED' ? (
                             <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300">
-                              {getRoutePlanStatusLabel(plan.status)}
+                              {getRoutePlanStatusLabel(effectivePlanStatus(plan))}
                             </Badge>
                           ) : (
                             <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                              {getRoutePlanStatusLabel(plan.status)}
+                              {getRoutePlanStatusLabel(effectivePlanStatus(plan))}
                             </Badge>
                           )}
                         </td>

@@ -16,7 +16,8 @@ import {
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { Badge } from '@/components/ui/badge';
-import '@/components/admin/drivers/driver-detail.css';
+import './_components/driver-detail.css';
+import { DriverSchedule } from './_components/driver-schedule';
 
 function DriverDetailPageContent() {
   const params = useParams();
@@ -119,6 +120,7 @@ function DriverDetailPageContent() {
           </dl>
         </Card>
       </div>
+      <DriverSchedule key={driver.id} driverId={driver.id} />
     </div>
   );
 }

@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { ContextLink } from '@/components/admin/common/context-navigation';
 
 type SettingsTab = 'ACCOUNT' | 'PARKING_LOT';
 
@@ -376,8 +377,9 @@ export default function AdminSettingsPage() {
         </div>
 
         {/* Tabs switcher nếu là SYSTEM_ADMIN */}
-        {user.role === 'SYSTEM_ADMIN' && (
-          <div className="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200/80 self-start sm:self-auto">
+        {(user.role === 'SYSTEM_ADMIN' || user.role === 'SCHOOL_ADMIN') && (
+          <div className="inline-flex flex-wrap p-1 rounded-xl bg-slate-100 border border-slate-200/80 self-start sm:self-auto">
+            <ContextLink href="/admin/calendar" className="ui-button" data-variant="outline" data-size="sm">Lịch vận hành</ContextLink>
             <Button
               type="button"
               onClick={() => setActiveTab('ACCOUNT')}
@@ -389,7 +391,7 @@ export default function AdminSettingsPage() {
             >
               Tài khoản
             </Button>
-            <Button
+            {user.role === 'SYSTEM_ADMIN' && <Button
               type="button"
               onClick={() => setActiveTab('PARKING_LOT')}
               className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
@@ -399,7 +401,7 @@ export default function AdminSettingsPage() {
               }`}
             >
               Vị trí bãi xe
-            </Button>
+            </Button>}
           </div>
         )}
       </PageHeader>
@@ -753,7 +755,7 @@ export default function AdminSettingsPage() {
             {/* Thống kê tác động */}
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2 text-sm text-slate-700">
               <div className="flex items-center justify-between">
-                <span>Phương án DRAFT/ACTIVE bị hủy toàn hệ thống:</span>
+                <span>Phương án chưa duyệt hoặc đang hoạt động bị hủy toàn hệ thống:</span>
                 <span className="font-bold text-rose-600">
                   {parkingImpact.cancelledPlansCount ??
                     ((parkingImpact.totalDraftPlansCount || 0) + (parkingImpact.totalActivePlansCount || 0))}{' '}
@@ -761,13 +763,13 @@ export default function AdminSettingsPage() {
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span>Chuyến xe SCHEDULED liên quan bị hủy:</span>
+                <span>Chuyến xe đã lên lịch liên quan bị hủy:</span>
                 <span className="font-bold text-rose-600">
                   {parkingImpact.cancelledTripsCount ?? (parkingImpact.totalScheduledTripsCount || 0)} chuyến
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span>Chuyến xe đang chạy (IN_PROGRESS) giữ nguyên:</span>
+                <span>Chuyến xe đang chạy giữ nguyên:</span>
                 <span className="font-bold text-emerald-600">
                   {parkingImpact.inProgressTripsPreservedCount ?? (parkingImpact.totalInProgressTripsCount || 0)} chuyến
                 </span>

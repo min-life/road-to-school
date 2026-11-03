@@ -1,0 +1,15 @@
+.manual-trip-dialog-panel > .manual-trip-form,
+.manual-trip-dialog-panel > .manual-trip-result {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.manual-trip-form-body,
+.manual-trip-result-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}

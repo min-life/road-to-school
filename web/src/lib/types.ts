@@ -89,6 +89,9 @@ export interface SchoolDetail {
 }
 
 export interface UpdateSchoolStatusResponse {
+  scheduledChangeId?: string;
+  effectiveDate?: string;
+  changeStatus?: 'PENDING';
   id: string;
   isActive: boolean;
   message: string;
@@ -178,6 +181,7 @@ export interface DriverListResponse {
 }
 
 export interface CreateDriverResponse {
+  credentialDeliveryStatus: 'SENT' | 'FAILED' | 'CONSOLE';
   id: string;
   fullName: string;
   email: string | null;
@@ -784,6 +788,8 @@ export interface RoutePlanItem {
   schoolName?: string;
   name: string;
   status: RoutePlanStatus;
+  effectiveStatus?: RoutePlanStatus;
+  effectiveStatusReason?: string | null;
   totalStudents: number;
   totalOutboundRoutes: number;
   totalReturnRoutes: number;
@@ -905,6 +911,8 @@ export interface AssignBusAttendantGroupRequest {
 
 export interface TripItem {
   id: string;
+  driverId?: string;
+  type?: 'PERSISTED' | 'VIRTUAL';
   isVirtual?: boolean;
   serviceDate: string;
   routeId: string;
@@ -1013,6 +1021,7 @@ export interface CancelTripFromNoticeDto {
 }
 
 export interface TripDetail {
+  adminFinalization?: import('./school-lifecycle').TripAdminFinalization | null;
   id: string;
   routeId: string;
   routeName: string;

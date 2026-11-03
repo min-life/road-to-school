@@ -1,4 +1,6 @@
 'use client';
+import { getTripStatusLabel } from '@/lib/status-labels';
+import { TableActions } from '@/components/admin/common/table-actions';
 
 import { Badge } from '@/components/ui/badge';
 
@@ -6,7 +8,6 @@ import { useRouteQuery } from '@/hooks/use-route-query';
 
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ContextLink } from '@/components/admin/common/context-navigation';
 import { useVisibleRefresh } from '@/hooks/use-visible-refresh';
 import type { RefreshContext } from '@/lib/refresh-loop';
 import { useAuth } from '@/components/auth/auth-provider';
@@ -202,29 +203,29 @@ export function TripsTable({
       case 'SCHEDULED':
         return (
           <Badge className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-            Lập lịch
+            {getTripStatusLabel(trip.status)}
           </Badge>
         );
       case 'IN_PROGRESS':
         return (
           <Badge className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 animate-pulse">
-            Đang chạy
+            {getTripStatusLabel(trip.status)}
           </Badge>
         );
       case 'COMPLETED':
         return (
           <Badge className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            Hoàn thành
+            {getTripStatusLabel(trip.status)}
           </Badge>
         );
       case 'CANCELLED':
         return (
           <Badge className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-            Hủy
+            {getTripStatusLabel(trip.status)}
           </Badge>
         );
       default:
-        return <span>{trip.status}</span>;
+        return <span>{getTripStatusLabel(trip.status)}</span>;
     }
   };
 
@@ -292,10 +293,10 @@ export function TripsTable({
               className="w-full"
             >
               <option value="">Tất cả trạng thái</option>
-              <option value="SCHEDULED">Lập lịch</option>
+              <option value="SCHEDULED">Đã lên lịch</option>
               <option value="IN_PROGRESS">Đang chạy</option>
-              <option value="COMPLETED">Hoàn thành</option>
-              <option value="CANCELLED">Hủy</option>
+              <option value="COMPLETED">Đã hoàn thành</option>
+              <option value="CANCELLED">Đã hủy</option>
               <option value="NOT_CREATED">Chưa tạo (Dự kiến)</option>
             </Select>
         </FilterField>
@@ -345,7 +346,7 @@ export function TripsTable({
                     <BusIcon className="w-8 h-8 mx-auto mb-2 text-slate-300" />
                     <p className="font-semibold text-slate-600">Không tìm thấy chuyến xe nào</p>
                     <p className="text-[11px] text-slate-400 mt-1">
-                      Thử thay đổi khoảng ngày lọc hoặc sinh chuyến xe mới cho các phương án ACTIVE
+                  Thử thay đổi khoảng ngày lọc hoặc sinh chuyến xe mới cho các phương án đang hoạt động
                     </p>
                   </td>
                 </tr>
@@ -438,12 +439,7 @@ export function TripsTable({
 
                       <td className="py-3 px-4 text-right whitespace-nowrap">
                         {!trip.isVirtual ? (
-                          <ContextLink  data-size="sm"
-                            href={`/admin/trips/${trip.id}`}
-                            className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-primary hover:text-slate-900 transition-colors"
-                          >
-                            Chi tiết
-                          </ContextLink>
+                          <TableActions actions={[{ label: 'Chi tiết', href: `/admin/trips/${trip.id}` }]} />
                         ) : (
                           <span
                             title="Chuyến này chưa được tạo trong cơ sở dữ liệu"

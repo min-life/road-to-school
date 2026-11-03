@@ -1,3 +1,4 @@
+import { assertSchoolWritable } from '../schools/school-policy.js';
 import { notifyCancelledTrips } from '../notifications/notification-writer.js';
 import { notifyRequest } from '../notifications/notification-events.js';
 import { actionableRequestWhere } from '../overview/operations-policy.js';
@@ -239,6 +240,7 @@ export class StudentRequestsService {
     }
 
     const student = link.student;
+    await assertSchoolWritable(this.prisma, student.schoolId);
     if (student.status === StudentStatus.DISABLED) {
       throw new BadRequestException('Học sinh đang bị vô hiệu hóa (DISABLED). Không thể tạo yêu cầu cập nhật.');
     }
@@ -302,6 +304,7 @@ export class StudentRequestsService {
     }
 
     const student = link.student;
+    await assertSchoolWritable(this.prisma, student.schoolId);
     if (student.status === StudentStatus.DISABLED) {
       throw new BadRequestException('Học sinh đang bị vô hiệu hóa (DISABLED). Không thể tạo yêu cầu cập nhật.');
     }
@@ -337,7 +340,7 @@ export class StudentRequestsService {
 
     // 4. Tạo yêu cầu cập nhật trong Database với xử lý concurrency chống trùng lặp PENDING
     try {
-      const createdRequest = await this.prisma.$transaction(async tx => { const created = await tx.studentUpdateRequest.create({
+      const createdRequest = await this.prisma.$transaction(async tx => { await assertSchoolWritable(tx, student.schoolId); const created = await tx.studentUpdateRequest.create({
         data: {
           studentId,
           parentId,
@@ -488,6 +491,7 @@ export class StudentRequestsService {
       throw new ForbiddenException('Bạn không có quyền hủy yêu cầu này');
     }
 
+    await assertSchoolWritable(this.prisma, request.schoolId);
     if (request.status !== RequestStatus.PENDING) {
       throw new ConflictException('Chỉ có thể hủy yêu cầu đang ở trạng thái chờ duyệt (PENDING)');
     }

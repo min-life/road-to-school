@@ -52,7 +52,7 @@ test('forward links avoid self return targets and leave non-admin destinations u
 });
 
 test('school tab has an explicit safe default and labels describe the destination', () => {
-  for (const tab of ['students', 'routes', 'trips'] as const) assert.equal(schoolTabFromQuery(tab), tab);
+  for (const tab of ['students', 'routes', 'trips', 'calendar'] as const) assert.equal(schoolTabFromQuery(tab), tab);
   for (const tab of [null, '', 'unknown', 'employees']) assert.equal(schoolTabFromQuery(tab), 'employees');
   assert.equal(backLabel('/admin/schools/school-1?tab=students'), 'Quay lại học sinh của trường');
   assert.equal(backLabel('/admin/schools/school-1?tab=trips'), 'Quay lại chuyến xe của trường');
