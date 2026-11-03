@@ -1684,18 +1684,6 @@ export default function MobileTripDetailScreen() {
                                     <>
                                       <TouchableOpacity
                                         style={[
-                                          styles.actionBtnPresent,
-                                          !canBoard && styles.btnDisabled,
-                                        ]}
-                                        disabled={!canBoard}
-                                        onPress={() => handleMarkPresent(student)}
-                                      >
-                                        <Ionicons name="checkmark" size={14} color={colors.foreground} />
-                                        <Text style={styles.actionBtnTextLight}>Có mặt</Text>
-                                      </TouchableOpacity>
-
-                                      <TouchableOpacity
-                                        style={[
                                           styles.actionBtnAbsent,
                                           !canBoard && styles.btnDisabled,
                                         ]}
@@ -1704,6 +1692,18 @@ export default function MobileTripDetailScreen() {
                                       >
                                         <Ionicons name="close" size={14} color={colors.foreground} />
                                         <Text style={styles.actionBtnTextLight}>Vắng mặt</Text>
+                                      </TouchableOpacity>
+
+                                      <TouchableOpacity
+                                        style={[
+                                          styles.actionBtnPresent,
+                                          !canBoard && styles.btnDisabled,
+                                        ]}
+                                        disabled={!canBoard}
+                                        onPress={() => handleMarkPresent(student)}
+                                      >
+                                        <Ionicons name="checkmark" size={14} color={colors.foreground} />
+                                        <Text style={styles.actionBtnTextLight}>Có mặt</Text>
                                       </TouchableOpacity>
                                     </>
                                   ) : isPresent ? (
@@ -2184,16 +2184,16 @@ export default function MobileTripDetailScreen() {
               <Text style={styles.modalMessage}>{confirmModal.message}</Text>
               <View style={styles.modalBtnRow}>
                 <TouchableOpacity
-                  style={styles.modalCancelBtn}
-                  onPress={() => setConfirmModal(null)}
-                >
-                  <Text style={styles.modalCancelBtnText}>Hủy bỏ</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
                   style={styles.modalConfirmBtn}
                   onPress={confirmModal.onConfirm}
                 >
                   <Text style={styles.modalConfirmBtnText}>{confirmModal.confirmText}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalCancelBtn}
+                  onPress={() => setConfirmModal(null)}
+                >
+                  <Text style={styles.modalCancelBtnText}>Hủy bỏ</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -2224,6 +2224,12 @@ export default function MobileTripDetailScreen() {
               />
               <View style={styles.modalBtnRow}>
                 <TouchableOpacity
+                  style={styles.modalConfirmBtn}
+                  onPress={handleSubmitAbsence}
+                >
+                  <Text style={styles.modalConfirmBtnText}>Xác nhận vắng</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
                   style={styles.modalCancelBtn}
                   onPress={() => {
                     setAbsenceModalStudent(null);
@@ -2231,12 +2237,6 @@ export default function MobileTripDetailScreen() {
                   }}
                 >
                   <Text style={styles.modalCancelBtnText}>Hủy</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.modalConfirmBtn}
-                  onPress={handleSubmitAbsence}
-                >
-                  <Text style={styles.modalConfirmBtnText}>Xác nhận vắng</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -2409,18 +2409,6 @@ export default function MobileTripDetailScreen() {
 
             <View style={styles.modalBtnRow}>
               <TouchableOpacity
-                style={styles.modalCancelBtn}
-                onPress={() => {
-                  Keyboard.dismiss();
-                  setReportModalVisible(false);
-                  setIncidentNote('');
-                }}
-                disabled={reportingIncident}
-              >
-                <Text style={styles.modalCancelBtnText}>Hủy bỏ</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
                 style={styles.modalConfirmBtn}
                 onPress={() => {
                   Keyboard.dismiss();
@@ -2433,6 +2421,18 @@ export default function MobileTripDetailScreen() {
                 ) : (
                   <Text style={styles.modalConfirmBtnText}>Gửi báo cáo</Text>
                 )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setReportModalVisible(false);
+                  setIncidentNote('');
+                }}
+                disabled={reportingIncident}
+              >
+                <Text style={styles.modalCancelBtnText}>Hủy bỏ</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -2508,21 +2508,6 @@ export default function MobileTripDetailScreen() {
 
             <View style={styles.modalBtnRow}>
               <TouchableOpacity
-                style={styles.modalLaterBtn}
-                onPress={() => {
-                  Keyboard.dismiss();
-                  if (activeConfirmIncident) {
-                    setDismissedPendingIncidentIds((prev) => new Set(prev).add(activeConfirmIncident.id));
-                  }
-                  setActiveConfirmIncident(null);
-                  setConfirmReason('');
-                }}
-                disabled={confirmingIncident}
-              >
-                <Text style={styles.modalLaterBtnText}>Để sau</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
                 style={[
                   styles.modalConfirmBtn,
                   (!confirmReason.trim() || confirmReason.trim().length < 3) && styles.btnDisabled,
@@ -2538,6 +2523,21 @@ export default function MobileTripDetailScreen() {
                 ) : (
                   <Text style={styles.modalConfirmBtnText}>Xác nhận & Gửi</Text>
                 )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalLaterBtn}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  if (activeConfirmIncident) {
+                    setDismissedPendingIncidentIds((prev) => new Set(prev).add(activeConfirmIncident.id));
+                  }
+                  setActiveConfirmIncident(null);
+                  setConfirmReason('');
+                }}
+                disabled={confirmingIncident}
+              >
+                <Text style={styles.modalLaterBtnText}>Để sau</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -2857,7 +2857,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     minHeight: 70,
   },
-  modalLaterBtn: { ...parentHomeStyles.secondaryBtn, flex: 1 },
+  modalLaterBtn: parentHomeStyles.secondaryBtn,
   modalLaterBtnText: parentHomeStyles.secondaryBtnText,
   bottomSheet: {
     position: 'absolute',
@@ -2940,8 +2940,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   tabScrollStaff: { flexGrow: 0 },
-  tabBarStaff: { flexDirection: 'row', flexGrow: 1, alignItems: 'stretch' },
-  tabButtonStaff: { flexGrow: 1, flexShrink: 0, flexBasis: 'auto', minWidth: 0, paddingHorizontal: 0, gap: 3 },
+  tabBarStaff: { flexDirection: 'row', flexGrow: 1, alignItems: 'stretch', gap: 4, paddingRight: 8 },
+  tabButtonStaff: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', minHeight: 44, paddingHorizontal: 4, gap: 6 },
   tabButtonTextStaff: { flexShrink: 0, textAlign: 'center' },
   tabBarParent: {
     flexDirection: 'row',
@@ -3280,7 +3280,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.navigationHighlight,
     paddingVertical: 6,
     borderRadius: 24,
   },
@@ -3438,13 +3438,13 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   modalBtnRow: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     gap: 10,
     marginTop: 8,
   },
-  modalCancelBtn: { ...parentHomeStyles.secondaryBtn, flex: 1 },
+  modalCancelBtn: parentHomeStyles.secondaryBtn,
   modalCancelBtnText: parentHomeStyles.secondaryBtnText,
-  modalConfirmBtn: { ...parentHomeStyles.primaryBtn, flex: 1 },
+  modalConfirmBtn: parentHomeStyles.primaryBtn,
   modalConfirmBtnText: parentHomeStyles.primaryBtnText,
   absenceInput: {
     backgroundColor: '#F8FAFC',

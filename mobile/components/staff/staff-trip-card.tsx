@@ -95,8 +95,8 @@ export function StaffTripCard({
               {trip.operationalState.isAttendantReady
                 ? 'Giáo viên đã xác nhận sẵn sàng khởi hành'
                 : isAttendant
-                ? 'Vui lòng xác nhận sẵn sàng trước khi xe chạy'
-                : 'Chờ giáo viên giám sát xác nhận sẵn sàng'}
+                  ? 'Vui lòng xác nhận sẵn sàng trước khi xe chạy'
+                  : 'Chờ giáo viên giám sát xác nhận sẵn sàng'}
             </Text>
           </View>
         ) : trip.status === 'IN_PROGRESS' ? (
@@ -147,8 +147,10 @@ export function StaffTripCard({
 const styles = StyleSheet.create({
   busIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
-  tag: { maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 5,
-    borderWidth: 1, borderRadius: 9, borderColor: journeyTones.warning.border, backgroundColor: colors.background },
+  tag: {
+    maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 5,
+    borderWidth: 1, borderRadius: 9, borderColor: journeyTones.warning.border, backgroundColor: colors.background
+  },
   tagText: { flexShrink: 1, fontSize: 11, lineHeight: 18, fontWeight: '600', color: journeyTones.warning.text },
   schoolTag: { backgroundColor: journeyTones.info.bg, borderColor: journeyTones.info.border },
   schoolTagText: { color: journeyTones.info.text },

@@ -1,10 +1,10 @@
-import { AppAlert as Alert } from '@/services/app-alert';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { OtpHero } from '@/components/auth/otp-hero';
-import { otpStyles } from '@/constants/otp-styles';
-import { AppHeader } from '@/components/navigation/app-header';
-import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
-import React, { useState, useEffect } from 'react';
+import { AppAlert as Alert } from "@/services/app-alert";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { OtpHero } from "@/components/auth/otp-hero";
+import { otpStyles } from "@/constants/otp-styles";
+import { AppHeader } from "@/components/navigation/app-header";
+import { KeyboardScrollView } from "@/components/keyboard-scroll-view";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -12,13 +12,17 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   TextInput,
-  } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { colors } from '@/constants/theme';
-import { mobileApiClient, MaskedContactChannel } from '@/services/api-client';
-import { OtpRequestSummary } from '@/components/auth/otp-request-summary';
-import { summaryDate, summaryText, summaryTimeRange } from '@/utils/otp-summary';
+} from "react-native";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { colors } from "@/constants/theme";
+import { mobileApiClient, MaskedContactChannel } from "@/services/api-client";
+import { OtpRequestSummary } from "@/components/auth/otp-request-summary";
+import {
+  summaryDate,
+  summaryText,
+  summaryTimeRange,
+} from "@/utils/otp-summary";
 
 export default function LeaveNoticeOtpScreen() {
   const insets = useSafeAreaInsets();
@@ -38,8 +42,8 @@ export default function LeaveNoticeOtpScreen() {
     scheduledEndTime?: string;
   }>();
 
-  const [challengeId, setChallengeId] = useState(params.challengeId || '');
-  const [otp, setOtp] = useState('');
+  const [challengeId, setChallengeId] = useState(params.challengeId || "");
+  const [otp, setOtp] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +58,7 @@ export default function LeaveNoticeOtpScreen() {
   }, [params.maskedChannels]);
 
   // Countdown timer in seconds
-  const initialSeconds = parseInt(params.expiresInSeconds || '60', 10);
+  const initialSeconds = parseInt(params.expiresInSeconds || "60", 10);
   const [countdown, setCountdown] = useState(Math.min(initialSeconds, 60));
 
   useEffect(() => {
@@ -79,12 +83,16 @@ export default function LeaveNoticeOtpScreen() {
 
       setChallengeId(res.challengeId);
       setCountdown(60);
-      setOtp('');
-      Alert.alert('Đã gửi lại mã', 'Mã xác thực mới đã được gửi tới thông tin liên hệ của bạn.');
+      setOtp("");
+      Alert.alert(
+        "Đã gửi lại mã",
+        "Mã xác thực mới đã được gửi tới thông tin liên hệ của bạn.",
+      );
     } catch (err: any) {
-      const msg = err?.message || 'Không thể gửi lại mã OTP. Vui lòng thử lại sau.';
+      const msg =
+        err?.message || "Không thể gửi lại mã OTP. Vui lòng thử lại sau.";
       setError(msg);
-      Alert.alert('Lỗi', msg);
+      Alert.alert("Lỗi", msg);
     } finally {
       setResending(false);
     }
@@ -93,7 +101,7 @@ export default function LeaveNoticeOtpScreen() {
   const handleConfirm = async () => {
     const cleanOtp = otp.trim();
     if (cleanOtp.length !== 6) {
-      setError('Vui lòng nhập đầy đủ 6 chữ số mã OTP');
+      setError("Vui lòng nhập đầy đủ 6 chữ số mã OTP");
       return;
     }
 
@@ -111,35 +119,38 @@ export default function LeaveNoticeOtpScreen() {
       });
 
       Alert.alert(
-        'Báo nghỉ thành công',
-        'Đơn báo nghỉ đã được ghi nhận vào hệ thống.',
+        "Báo nghỉ thành công",
+        "Đơn báo nghỉ đã được ghi nhận vào hệ thống.",
         [
           {
-            text: 'Xem lịch sử',
+            text: "Xem lịch sử",
             onPress: () => {
-              router.replace('/leave-notices' as any);
+              router.replace("/leave-notices" as any);
             },
           },
         ],
-        { cancelable: false }
+        { cancelable: false },
       );
     } catch (err: any) {
-      const msg = err?.message || 'Mã OTP không đúng hoặc đã hết hạn';
+      const msg = err?.message || "Mã OTP không đúng hoặc đã hết hạn";
       setError(msg);
-      Alert.alert('Xác nhận thất bại', msg);
+      Alert.alert("Xác nhận thất bại", msg);
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <View
-      style={styles.container}
-    >
+    <View style={styles.container}>
       {/* Header */}
       <AppHeader title="Xác nhận OTP" onBack={() => router.back()} />
 
-      <KeyboardScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
+      <KeyboardScrollView
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: insets.bottom + 24 },
+        ]}
+      >
         {/* Context Card */}
         <View style={styles.infoCard}>
           <OtpHero />
@@ -150,14 +161,18 @@ export default function LeaveNoticeOtpScreen() {
             {channels.map((ch, idx) => (
               <View key={idx} style={styles.destinationItem}>
                 <Ionicons
-                  name={ch.channel === 'EMAIL' ? 'mail-outline' : 'chatbox-ellipses-outline'}
+                  name={
+                    ch.channel === "EMAIL"
+                      ? "mail-outline"
+                      : "chatbox-ellipses-outline"
+                  }
                   size={15}
                   color="#64748B"
                 />
                 <Text style={styles.destinationText}>
                   {ch.destination}
                   {ch.isConsole ? (
-                    <Text style={styles.consoleBadge}> (SMS console)</Text>
+                    <Text style={styles.consoleBadge}> 0</Text>
                   ) : null}
                 </Text>
               </View>
@@ -165,20 +180,45 @@ export default function LeaveNoticeOtpScreen() {
           </View>
 
           <Text style={styles.infoSubtext}>
-            Mã OTP gồm 6 chữ số đã được gửi tới thông tin liên hệ trên. Vui lòng nhập để hoàn tất báo nghỉ.
+            Mã OTP gồm 6 chữ số đã được gửi tới thông tin liên hệ trên. Vui lòng
+            nhập để hoàn tất báo nghỉ.
           </Text>
         </View>
 
-        <OtpRequestSummary title="Thông tin báo nghỉ"
-          subjectLabel={params.studentId ? 'Học sinh' : 'Người báo nghỉ'} subjectName={params.subjectName}
+        <OtpRequestSummary
+          title="Thông tin báo nghỉ"
+          subjectLabel={params.studentId ? "Học sinh" : "Người báo nghỉ"}
+          subjectName={params.subjectName}
           rows={[
-            { label: 'Ngày', value: summaryDate(params.serviceDate) },
-            { label: 'Chiều', value: params.direction === 'TO_SCHOOL' ? 'Chiều đi (Đến trường)'
-              : params.direction === 'TO_PARKING' ? 'Chiều về (Về nhà)' : 'Chưa có thông tin' },
-            { label: 'Chuyến xe', value: summaryText(params.routeName), stacked: true },
-            { label: 'Giờ dự kiến', value: summaryTimeRange(params.scheduledStartTime, params.scheduledEndTime) },
-            { label: 'Lý do', value: summaryText(params.reason, 'Không nhập'), stacked: true },
-          ]} />
+            { label: "Ngày", value: summaryDate(params.serviceDate) },
+            {
+              label: "Chiều",
+              value:
+                params.direction === "TO_SCHOOL"
+                  ? "Chiều đi (Đến trường)"
+                  : params.direction === "TO_PARKING"
+                    ? "Chiều về (Về nhà)"
+                    : "Chưa có thông tin",
+            },
+            {
+              label: "Chuyến xe",
+              value: summaryText(params.routeName),
+              stacked: true,
+            },
+            {
+              label: "Giờ dự kiến",
+              value: summaryTimeRange(
+                params.scheduledStartTime,
+                params.scheduledEndTime,
+              ),
+            },
+            {
+              label: "Lý do",
+              value: summaryText(params.reason, "Không nhập"),
+              stacked: true,
+            },
+          ]}
+        />
 
         {/* OTP Input */}
         <View style={styles.inputContainer}>
@@ -187,7 +227,7 @@ export default function LeaveNoticeOtpScreen() {
             style={styles.otpInput}
             value={otp}
             onChangeText={(txt) => {
-              const num = txt.replace(/[^0-9]/g, '').slice(0, 6);
+              const num = txt.replace(/[^0-9]/g, "").slice(0, 6);
               setOtp(num);
               if (error) setError(null);
             }}
@@ -211,10 +251,15 @@ export default function LeaveNoticeOtpScreen() {
         <View style={styles.resendRow}>
           {countdown > 0 ? (
             <Text style={styles.countdownText}>
-              Gửi lại mã sau <Text style={{ fontWeight: '700' }}>{countdown}s</Text>
+              Gửi lại mã sau{" "}
+              <Text style={{ fontWeight: "700" }}>{countdown}s</Text>
             </Text>
           ) : (
-            <TouchableOpacity style={otpStyles.linkButton} onPress={handleResend} disabled={resending}>
+            <TouchableOpacity
+              style={otpStyles.linkButton}
+              onPress={handleResend}
+              disabled={resending}
+            >
               {resending ? (
                 <ActivityIndicator size="small" color="#D97706" />
               ) : (
@@ -281,8 +326,8 @@ const styles = StyleSheet.create({
   },
   consoleBadge: {
     fontSize: 11,
-    fontWeight: '600',
-    color: '#D97706',
+    fontWeight: "600",
+    color: "#D97706",
   },
   infoSubtext: {
     ...otpStyles.description,

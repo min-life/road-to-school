@@ -1,5 +1,13 @@
 # Staff map alignment — preserve Parent
 
+## Hiện hành02/11/2026 — Hé tab Sự cố
+
+PO yêu cầu giữ spacing vừa đủ để nhận ra tab Sự cố còn phía sau. Staff tab paddingHorizontal4 và row gap4 (trước12/8), giữ icon gap6/minHeight44/font12/single-line. Preview390px thấy icon và18.25px đầu chữ Sự cố, vuốt hiện đầy đủ;320px cuộn/chọn vẫn được. Gesture/JSX/handlers nguyên trạng, chỉ2styles đổi. Typecheck/source parity/web preview PASS; native chưa nghiệm thu.
+
+## Hiện hành02/11/2026 — Tab thoáng và scroll ngang
+
+Theo yêu cầu PO, Staff tabs dùng paddingHorizontal12, icon/text gap6, row gap8, minHeight44 và không flexGrow từng nút. Giữ font12/single-line, scroll để xem đủ4tabs. Chỉ2styles đổi; toàn bộ screen function/gesture giữ nguyên. Typecheck và RN-web390/320px cuộn/chọn Sự cố PASS; native chưa nghiệm thu.
+
 ## Hiện hành02/11/2026 — Ổn định gesture sau measured height
 
 PO báo kéo giật sau fix min height. Giữ min theo header nhưng PanResponder dùng collapsedHeightRef/deps ổn định; isSheetDragging chặn resize effect/onLayout feedback, header flexShrink0. Grant stop spring, bỏ completion finished=false, expanded ref cập nhật ngay; release/terminate reset dragging và snap theo min mới. Header giữ native responder trong drag. RED4cases→GREEN6gesture+4role/status, typecheck, Chromium callback harness và web/server export PASS; Android/WebView thực tế chưa nghiệm thu. Các self-check min/snap ở task trước không đủ chứng minh lifecycle interaction.
