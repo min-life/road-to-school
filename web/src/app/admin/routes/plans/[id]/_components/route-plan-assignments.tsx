@@ -1,4 +1,5 @@
 'use client';
+import { effectivePlanStatus } from '@/lib/school-lifecycle';
 
 import { toast } from '@/stores/toast-store';
 
@@ -39,10 +40,10 @@ interface VehicleGroup {
 }
 
 export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact = false }: RoutePlanAssignmentsProps) {
-  const editable = plan.status === 'DRAFT' || plan.status === 'ACTIVE';
+  const editable = effectivePlanStatus(plan) === 'DRAFT' || effectivePlanStatus(plan) === 'ACTIVE';
   const isSystemAdmin = editable && currentUserRole === 'SYSTEM_ADMIN';
   const isSchoolAdmin = editable && currentUserRole === 'SCHOOL_ADMIN';
-  const isActive = plan.status === 'ACTIVE';
+  const isActive = effectivePlanStatus(plan) === 'ACTIVE';
 
   // Group routes by vehicleId
   const groups: VehicleGroup[] = [];

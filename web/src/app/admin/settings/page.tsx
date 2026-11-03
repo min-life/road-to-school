@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { ContextLink } from '@/components/admin/common/context-navigation';
 
 type SettingsTab = 'ACCOUNT' | 'PARKING_LOT';
 
@@ -376,8 +377,9 @@ export default function AdminSettingsPage() {
         </div>
 
         {/* Tabs switcher nếu là SYSTEM_ADMIN */}
-        {user.role === 'SYSTEM_ADMIN' && (
-          <div className="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200/80 self-start sm:self-auto">
+        {(user.role === 'SYSTEM_ADMIN' || user.role === 'SCHOOL_ADMIN') && (
+          <div className="inline-flex flex-wrap p-1 rounded-xl bg-slate-100 border border-slate-200/80 self-start sm:self-auto">
+            <ContextLink href="/admin/calendar" className="ui-button" data-variant="outline" data-size="sm">Lịch vận hành</ContextLink>
             <Button
               type="button"
               onClick={() => setActiveTab('ACCOUNT')}
@@ -389,7 +391,7 @@ export default function AdminSettingsPage() {
             >
               Tài khoản
             </Button>
-            <Button
+            {user.role === 'SYSTEM_ADMIN' && <Button
               type="button"
               onClick={() => setActiveTab('PARKING_LOT')}
               className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
@@ -399,7 +401,7 @@ export default function AdminSettingsPage() {
               }`}
             >
               Vị trí bãi xe
-            </Button>
+            </Button>}
           </div>
         )}
       </PageHeader>

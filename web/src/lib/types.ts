@@ -89,6 +89,9 @@ export interface SchoolDetail {
 }
 
 export interface UpdateSchoolStatusResponse {
+  scheduledChangeId?: string;
+  effectiveDate?: string;
+  changeStatus?: 'PENDING';
   id: string;
   isActive: boolean;
   message: string;
@@ -785,6 +788,8 @@ export interface RoutePlanItem {
   schoolName?: string;
   name: string;
   status: RoutePlanStatus;
+  effectiveStatus?: RoutePlanStatus;
+  effectiveStatusReason?: string | null;
   totalStudents: number;
   totalOutboundRoutes: number;
   totalReturnRoutes: number;
@@ -1016,6 +1021,7 @@ export interface CancelTripFromNoticeDto {
 }
 
 export interface TripDetail {
+  adminFinalization?: import('./school-lifecycle').TripAdminFinalization | null;
   id: string;
   routeId: string;
   routeName: string;

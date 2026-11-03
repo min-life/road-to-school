@@ -1,4 +1,5 @@
 'use client';
+import { effectivePlanStatus } from '@/lib/school-lifecycle';
 import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
 import { BackLink } from '@/components/admin/common/context-navigation';
 
@@ -44,7 +45,8 @@ export default function RouteDetailPage() {
       setLoading(true);
       setError(null);
       const data = await apiClient.getRouteDetail(routeId);
-      setRoute(data);
+      const parent = data.routePlanId ? await apiClient.getRoutePlanDetail(data.routePlanId) : null;
+      setRoute(parent ? { ...data, planStatus: effectivePlanStatus(parent) } : data);
     } catch (err: any) {
       setError(err?.message || 'Không thể tải thông tin tuyến đường');
     } finally {
@@ -128,8 +130,8 @@ export default function RouteDetailPage() {
   }
 
   const isToSchool = route.direction === 'TO_SCHOOL';
-  const isDraft = route.planStatus === 'DRAFT' || route.status === 'DRAFT';
-  const isActive = route.planStatus === 'ACTIVE' || route.status === 'ACTIVE';
+  const isDraft = (route.planStatus ?? route.status) === 'DRAFT';
+  const isActive = (route.planStatus ?? route.status) === 'ACTIVE';
   const isSystemAdmin = currentUserRole === 'SYSTEM_ADMIN';
   const distanceKm = (route.totalDistanceMeters / 1000).toFixed(1);
   const durationMins = Math.round(route.estimatedDurationSeconds / 60);

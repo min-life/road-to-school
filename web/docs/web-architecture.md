@@ -48,7 +48,8 @@ kiểm tra import trước khi tạo file style mới. Entry dưới `src/app/ad
 | Trường `/admin/schools` | `src/app/admin/schools/page.tsx`, `C/schools/admin-schools-guard.tsx` | `src/app/admin/schools/layout.tsx` |
 | Tạo trường | `src/app/admin/schools/_components/add-school-modal.tsx` | CSS cạnh modal; builder, picker và helper dùng chung trong `C/schools/` |
 | Chi tiết/sửa trường | `src/app/admin/schools/[id]/page.tsx`, `_components/edit-school-modal.tsx`, `create-school-admin-modal.tsx` cạnh page | `C/schools/school-status-dialog.tsx`; lịch nhóm theo giờ trong `school-schedule.tsx` |
-| Lịch và bản đồ trường | `src/app/admin/schools/[id]/_components/school-schedule.tsx`, `school-detail.css` | Lịch tuần 7 cột có thứ/ngày/giờ, chuyển tuần; nút Xem lịch tháng mở modal rộng, giờ đầy đủ, ngày nghỉ nền xám và hôm nay có viền; suy ra từ weeklySchedule, không phải lịch ngày lễ; map chỉ đọc, mặc định thu gọn |
+| Lịch và bản đồ trường | `C/schools/school-schedule.tsx/.css`, `schools/[id]/_components/school-detail.css` | Lịch tuần/tháng kết hợp weeklySchedule, hợp đồng, ngày nghỉ/học bù và thay đổi đã hẹn; map chỉ đọc, mặc định thu gọn |
+| Lịch vận hành hai vai trò | `src/app/admin/calendar/page.tsx` | School Admin đọc trường mình qua GET schools/:id/settings; System Admin chọn lịch nhà xe hoặc trường; dùng chung `C/schools/school-operating-calendar.tsx` với chi tiết trường |
 | Các tab của trường | `src/app/admin/schools/[id]/_components/school-employees-tab.tsx`, `school-routes-tab.tsx`, `school-trips-tab.tsx` | `C/students/student-table.tsx` dùng chung; school page chọn tab qua URL |
 | Học sinh trong trường | `src/app/admin/schools/[id]/students/[studentId]/page.tsx` | Kiểm tra caller trước khi nhầm với detail dành cho trường |
 | Học sinh School Admin | `src/app/admin/students/page.tsx`, `[id]/page.tsx`, `_components/add-student-modal.tsx` | Filters/table/routing section/insert modal dùng chung trong `C/students/` |
@@ -78,15 +79,17 @@ kiểm tra import trước khi tạo file style mới. Entry dưới `src/app/ad
 
 | Role | UI đang dùng | Ranh giới |
 | --- | --- | --- |
-| SYSTEM_ADMIN | `src/app/admin/routes/plans/[id]/_components/saved-route-plan-workspace.tsx/.css` | Map + tabs Tuyến/Phân công; thao tác nhà xe theo quyền |
-| SCHOOL_ADMIN | Cùng `SavedRoutePlanWorkspace` | School scope, phân giáo viên và duyệt qua `src/components/admin/routes/school-route-plan-approval.tsx` |
+| SYSTEM_ADMIN | `src/app/admin/routes/plans/[id]/_components/system-route-plan-workspace.tsx/.css` | Giao diện nhà xe trước merge: trạng thái/CTA phân công ở header, tick hiển thị tuyến độc lập |
+| SCHOOL_ADMIN | `SchoolRoutePlanWorkspace` trong `saved-route-plan-workspace.tsx` | Giữ giao diện mới từ nhánh School Admin; school scope, phân giáo viên và duyệt qua `src/components/admin/routes/school-route-plan-approval.tsx` |
 
-Sau merge giao diện School Admin, workspace chung dùng quyền theo role và readiness hiện có.
+`SavedRoutePlanWorkspace` chọn giao diện theo role. System dùng lại thiết kế trước merge;
+School giữ nguyên logic từ nhánh mới. CSS System có scope `.system-route-plan-workspace`
+để không đổi giao diện School. Hai nhánh vẫn dùng quyền và component phân công hiện có.
 `route-plan-assignments.tsx` trong `_components`: nhóm xe, handlers ứng viên/phân công;
 `compact` là opt-in của workspace. `route-plan-assignment-state.ts` trong shared domain:
 tiến độ nhà xe và tab mặc định, không phải readiness phê duyệt. `approval-readiness-card.tsx`
 vẫn được legacy dùng và nằm cạnh workspace; không xoá nếu chưa kiểm tra caller.
-`route-map-visibility-control.tsx` còn trong source nhưng workspace mới từ nhánh merge không dùng control này.
+`route-map-visibility-control.tsx` dùng ở System workspace; School workspace không bị đổi bộ chọn tuyến.
 
 Cả hai role hiện đi qua `/admin`, không có router `SchoolApiGate` như repo tham chiếu.
 Source menu tại `admin-nav.config.ts` chỉ là hiển thị; guard và backend vẫn quyết định quyền.
@@ -109,6 +112,18 @@ Tìm caller trước khi sửa shared file. Không đổi defaults của shared 
 một màn hình nếu chưa kiểm tra role/caller khác; dùng prop opt-in như schedule table layout.
 
 ## 5. Kiểm chứng và giữ chỉ mục đúng
+
+### School lifecycle
+
+- Contract bổ sung: `src/lib/school-lifecycle.ts`; request trong `api-client.ts`.
+  Không ghi đè `status` lưu trên server: dùng `effectivePlanStatus` khi trình bày/kiểm tra thao tác.
+- `components/admin/schools/school-operating-calendar.tsx` tách tab ngày nghỉ/học bù và thay đổi đã hẹn, đếm PENDING; dùng chung ở `admin/calendar` và chi tiết trường. Cài đặt dẫn tới trang lịch chung. School Admin chỉ xem lịch hẹn, quản lý lịch trong phạm vi trường.
+- `ServiceCalendarForm` và `LifecycleDialog` dùng native dialog; style giới hạn trong `lifecycle-*`.
+- `components/admin/schools/school-schedule.tsx` lấy calendar + scheduled changes để chiếu lịch dự kiến;
+  `service-calendar.ts` dùng `amlich.js` UTC+7, có kiểm thử ngày không tồn tại/tháng nhuận.
+- `trips` có tab `finalizations`, component riêng `_components/admin-finalizations-panel.tsx`.
+  `trips/[id]` kiểm tra hiệu lực trước đổi phân công và hiển thị audit; không tạo điểm danh.
+- Cách dùng và giới hạn backend: [school-lifecycle-usage.md](school-lifecycle-usage.md).
 
 Từ `web/`: typecheck, lint file đổi, `git diff --check`; xem root policy trước khi chạy test/API.
 Các test cục bộ liên quan gồm `schools.test.ts`, `students.test.ts`, `routes.test.ts` trong

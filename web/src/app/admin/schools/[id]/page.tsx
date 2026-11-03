@@ -1,4 +1,6 @@
 'use client';
+import type { UpdateSchoolStatusResponse } from '@/lib/types';
+import { displayDate } from '@/lib/school-lifecycle';
 import { BackLink } from '@/components/admin/common/context-navigation';
 
 import { toast } from '@/stores/toast-store';
@@ -31,7 +33,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
 import { Badge } from '@/components/ui/badge';
-import { SchoolSchedule } from './_components/school-schedule';
+import { SchoolSchedule } from '@/components/admin/schools/school-schedule';
+import { SchoolOperatingCalendar, type CalendarTab } from '@/components/admin/schools/school-operating-calendar';
 import './_components/school-detail.css';
 
 function formatDate(dateStr: string): string {
@@ -59,6 +62,7 @@ export default function AdminSchoolDetailPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
   const [showSchoolMap, setShowSchoolMap] = useState(false);
+  const [operatingCalendarTab, setOperatingCalendarTab] = useState<CalendarTab>('calendar');
 
   // Horizontal Tabs (employees, students, routes, trips)
   const pathname = usePathname();
@@ -91,11 +95,11 @@ export default function AdminSchoolDetailPage() {
     fetchSchoolDetail();
   }, [fetchSchoolDetail]);
 
-  const handleStatusChangeSuccess = (newStatus: boolean) => {
+  const handleStatusChangeSuccess = (result: UpdateSchoolStatusResponse) => {
     toast.success(
-      newStatus
-        ? 'Đã kích hoạt lại trường học thành công.'
-        : 'Đã chuyển trường học sang trạng thái ngừng hoạt động.',
+      result.changeStatus === 'PENDING' && result.effectiveDate
+        ? `Đã hẹn ngừng hoạt động từ ${displayDate(result.effectiveDate)}.`
+        : result.message || 'Đã cập nhật trạng thái trường học.',
     );
     fetchSchoolDetail();
 
@@ -229,7 +233,7 @@ export default function AdminSchoolDetailPage() {
               <time dateTime={school.contractEndDate}>{formatDate(school.contractEndDate)}</time>
             </p>
           </section>
-          <SchoolSchedule schedule={school.weeklySchedule ?? {}} schoolName={school.name} />
+          <SchoolSchedule schedule={school.weeklySchedule ?? {}} schoolName={school.name} schoolId={school.id} contractStartDate={school.contractStartDate} contractEndDate={school.contractEndDate} isActive={school.isActive} />
         </div>
         {showSchoolMap && (
           <section id="school-detail-location" className="school-detail-location" aria-label="Vị trí trường">
@@ -245,7 +249,8 @@ export default function AdminSchoolDetailPage() {
 
       {/* 14. Horizontal Tabs (Section 14 & Wireframe W6) */}
       <div className="space-y-4">
-        <div className="flex border-b border-slate-200 gap-6">
+        <div className="flex flex-wrap border-b border-slate-200 gap-6">
+          <Button type="button" onClick={() => setActiveTab('calendar')} variant={activeTab === 'calendar' ? 'primary' : 'ghost'} size="sm"><CalendarIcon className="w-4 h-4" />Lịch vận hành</Button>
           <Button
             type="button"
             onClick={() => setActiveTab('employees')}
@@ -300,6 +305,7 @@ export default function AdminSchoolDetailPage() {
         </div>
 
         {/* Tab Content */}
+        {activeTab === 'calendar' && <SchoolOperatingCalendar schoolId={school.id} role={user?.role ?? null} onUpdated={fetchSchoolDetail} activeTab={operatingCalendarTab} onTabChange={setOperatingCalendarTab} />}
         {activeTab === 'employees' && (
           <SchoolEmployeesTab
             schoolId={school.id}
@@ -340,9 +346,10 @@ export default function AdminSchoolDetailPage() {
         school={school}
         userRole={user?.role}
         onClose={() => setIsEditModalOpen(false)}
-        onSuccess={(msg?: string) => {
+        onSuccess={(msg?: string, partial?: boolean) => {
           setIsEditModalOpen(false);
-          toast.success(msg || 'Cập nhật thông tin trường học thành công.');
+          if (partial) toast.warning(msg || 'Chỉ lưu được một phần thay đổi.');
+          else toast.success(msg || 'Cập nhật thông tin trường học thành công.');
           fetchSchoolDetail();
         }}
       />
@@ -353,6 +360,7 @@ export default function AdminSchoolDetailPage() {
         schoolId={school.id}
         schoolName={school.name}
         currentIsActive={school.isActive}
+        contractEndDate={school.contractEndDate}
         onClose={() => setIsStatusDialogOpen(false)}
         onSuccess={handleStatusChangeSuccess}
       />

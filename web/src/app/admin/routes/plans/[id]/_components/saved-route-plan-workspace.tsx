@@ -1,4 +1,5 @@
 'use client';
+import { effectivePlanStatus, lifecycleReason } from '@/lib/school-lifecycle';
 import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
 
 import { useEffect, useState } from 'react';
@@ -14,12 +15,21 @@ import { RoutePlanAssignments } from '@/app/admin/routes/plans/[id]/_components/
 import { CancelRoutePlanModal } from '@/components/admin/routes/cancel-route-plan-modal';
 import { getAssignmentProgress, resolveSavedRoutePlanTab } from '@/components/admin/routes/route-plan-assignment-state';
 import { SchoolRoutePlanApproval } from '@/components/admin/routes/school-route-plan-approval';
+import { SystemRoutePlanWorkspace } from './system-route-plan-workspace';
 import '@/app/admin/routes/plans/[id]/_components/saved-route-plan-workspace.css';
 
 
 
-/** Shared layout; role-specific actions still use the existing authorized APIs. */
-export function SavedRoutePlanWorkspace({ planId, role, schoolId }: { planId: string; role: Role | null; schoolId?: string | null }) {
+type SavedRoutePlanWorkspaceProps = { planId: string; role: Role | null; schoolId?: string | null };
+
+export function SavedRoutePlanWorkspace(props: SavedRoutePlanWorkspaceProps) {
+  return props.role === 'SYSTEM_ADMIN'
+    ? <SystemRoutePlanWorkspace planId={props.planId} role={props.role} />
+    : <SchoolRoutePlanWorkspace {...props} />;
+}
+
+/** Incoming School Admin UI and its authorization/data flow remain unchanged. */
+function SchoolRoutePlanWorkspace({ planId, role, schoolId }: SavedRoutePlanWorkspaceProps) {
   const isSchoolAdmin = role === 'SCHOOL_ADMIN';
   const allowed = role === 'SYSTEM_ADMIN' || isSchoolAdmin;
   const router = useRouter();
@@ -64,17 +74,18 @@ export function SavedRoutePlanWorkspace({ planId, role, schoolId }: { planId: st
     return () => { current = false; };
   }, [planId, allowed, isSchoolAdmin, schoolId, revision]);
 
+  const planEffectiveStatus = plan ? effectivePlanStatus(plan) : undefined;
   useEffect(() => {
     let current = true;
-    if (!allowed || plan?.id !== planId || plan.status !== 'DRAFT') return;
+    if (!allowed || plan?.id !== planId || planEffectiveStatus !== 'DRAFT') return;
     apiClient.getApprovalReadiness(planId).then(value => {
       if (current) { setReadinessResult({ planId, revision, value }); setReadinessFailure(null); }
     }).catch(() => { if (current) setReadinessFailure(revision); });
     return () => { current = false; };
-  }, [planId, allowed, plan?.id, plan?.status, revision]);
+  }, [planId, allowed, plan?.id, planEffectiveStatus, revision]);
 
   const routes = plan?.routes ?? [];
-  const { editable: assignmentEditable, actionableSystemPendingGroupCount, schoolPendingGroupCount } = getAssignmentProgress(routes, plan?.status);
+  const { editable: assignmentEditable, actionableSystemPendingGroupCount, schoolPendingGroupCount } = getAssignmentProgress(routes, (plan ? effectivePlanStatus(plan) : undefined));
   const tab = resolveSavedRoutePlanTab(requestedTab, 0);
   const pendingCount = isSchoolAdmin && assignmentEditable ? schoolPendingGroupCount : actionableSystemPendingGroupCount;
   const activeRoute = routes.find(item => item.id === selectedId) ?? routes[0];
@@ -104,7 +115,7 @@ export function SavedRoutePlanWorkspace({ planId, role, schoolId }: { planId: st
       title: stop.studentName || 'Điểm đón/trả', subtitle: stop.addressText,
       type: 'STUDENT', order: stop.stopOrder, isSelected: true }));
   const editable = assignmentEditable;
-  const canCancel = editable && (!isSchoolAdmin || plan?.status === 'ACTIVE');
+  const canCancel = editable && (!isSchoolAdmin || (plan ? effectivePlanStatus(plan) : undefined) === 'ACTIVE');
   const chooseRoute = (id: string) => { setFocusPoint(null); updateQuery({ routeId: id }); };
 
   if (!allowed) return <p role="alert">Bạn không có quyền xem phương án tuyến.</p>;
@@ -118,16 +129,17 @@ export function SavedRoutePlanWorkspace({ planId, role, schoolId }: { planId: st
     <BackLink fallback="/admin/routes" />
     <header className="saved-plan-heading">
       <div><h1>{plan.name}</h1><p>{plan.schoolName} · {routes.length} tuyến · {plan.totalStudents} học sinh</p></div>
-      <span data-status={plan.status}>{getRoutePlanStatusLabel(plan.status)}</span>
+      <span data-status={effectivePlanStatus(plan)}>{getRoutePlanStatusLabel(effectivePlanStatus(plan))}</span>
       {canCancel && <Button className="saved-plan-cancel-button" variant="danger" size="sm" onClick={() => setCancelOpen(true)}>
         <AlertIcon className="w-4 h-4" aria-hidden="true" />
         Hủy phương án
       </Button>}
     </header>
-    {plan.status === 'CANCELLED' && <p className="saved-plan-notice">Phương án đã hủy{plan.cancellationReason ? `: ${plan.cancellationReason}` : '.'}</p>}
-    {plan.status === 'EXPIRED' && <p className="saved-plan-notice">Phương án hết hạn hợp đồng. Thông tin được giữ để tra cứu.</p>}
+    {plan.effectiveStatusReason && <p className="saved-plan-notice" role="status">{lifecycleReason(plan.effectiveStatusReason)}. Phương án chỉ còn để tra cứu.</p>}
+    {effectivePlanStatus(plan) === 'CANCELLED' && <p className="saved-plan-notice">Phương án đã hủy{plan.cancellationReason ? `: ${plan.cancellationReason}` : '.'}</p>}
+    {effectivePlanStatus(plan) === 'EXPIRED' && <p className="saved-plan-notice">Phương án hết hạn hợp đồng. Thông tin được giữ để tra cứu.</p>}
     <RoutePlanningWorkspace preview panelLabel={tab === 'assignments' ? `Phân công${pendingCount ? ` (${pendingCount})` : ''}` : 'Tuyến'}
-      footer={isSchoolAdmin && plan.status === 'DRAFT' ? <SchoolRoutePlanApproval
+      footer={isSchoolAdmin && effectivePlanStatus(plan) === 'DRAFT' ? <SchoolRoutePlanApproval
         plan={plan} readiness={readiness} failed={readinessError}
         onRefresh={() => setRevision(value => value + 1)}
         onApproved={updated => { setPlan(updated); setRevision(value => value + 1); }} /> : undefined}
@@ -159,7 +171,7 @@ export function SavedRoutePlanWorkspace({ planId, role, schoolId }: { planId: st
                 <span>Xe, tài xế và giáo viên phụ xe đã đầy đủ.</span>
               </>}
             </div>
-            {!isSchoolAdmin && plan.status === 'DRAFT' && <details className="saved-plan-readiness">
+            {!isSchoolAdmin && effectivePlanStatus(plan) === 'DRAFT' && <details className="saved-plan-readiness">
               <summary>{readinessError ? 'Chưa tải được điều kiện duyệt' : !readiness ? 'Đang kiểm tra điều kiện duyệt…' : readiness.isReadyForApproval ? 'Đủ điều kiện để trường phê duyệt' : `Còn ${readiness.blockers.length} mục cần bổ sung trước khi duyệt`}</summary>
               {readinessError ? <Button size="sm" variant="outline" onClick={() => setRevision(value => value + 1)}>Thử lại</Button>
                 : <ul>{readiness?.blockers.map((item, index) => <li key={index}>{item.message}</li>)}</ul>}

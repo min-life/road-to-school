@@ -1,0 +1,10 @@
+.school-operating-calendar { min-width: 0; display: grid; gap: 14px; }
+.school-operating-calendar-tabs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-self: start; max-width: 100%; padding: 5px; border: 1px solid var(--brand-border); border-radius: 12px; background: var(--brand-hover); }
+.school-operating-calendar-tabs .ui-button { min-height: 38px; }
+.school-operating-calendar-tabs .ui-button[aria-selected=false] { color: var(--brand-foreground); }
+.school-operating-calendar-count { min-width: 20px; padding: 1px 6px; border-radius: 999px; background: var(--brand-accent); color: #92400e; font-size: 12px; font-variant-numeric: tabular-nums; }
+.school-operating-calendar > [role=tabpanel] > .lifecycle-panel { margin-top: 0; }
+@media (max-width: 540px) {
+  .school-operating-calendar-tabs { justify-self: stretch; }
+  .school-operating-calendar-tabs .ui-button { flex: 1 1 auto; }
+}

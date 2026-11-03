@@ -1,4 +1,5 @@
 'use client';
+import { effectivePlanStatus } from '@/lib/school-lifecycle';
 import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
 
 import { Badge } from '@/components/ui/badge';
@@ -121,7 +122,7 @@ export function SchoolRoutesTab({
                 </tr>
               ) : (
                 plans.map((plan) => {
-                  const isDraft = plan.status === 'DRAFT';
+                  const isDraft = effectivePlanStatus(plan) === 'DRAFT';
 
                   return (
                     <tr key={plan.id} className="hover:bg-slate-50/60 transition-colors">
@@ -161,14 +162,14 @@ export function SchoolRoutesTab({
                       <td className="py-3 px-4">
                         <Badge
                           className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold ${
-                            plan.status === 'ACTIVE'
+                            effectivePlanStatus(plan) === 'ACTIVE'
                               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                               : isDraft
                               ? 'bg-amber-50 text-amber-800 border border-amber-200'
                               : 'bg-rose-50 text-rose-700 border border-rose-200'
                           }`}
                         >
-                          {getRoutePlanStatusLabel(plan.status)}
+                          {getRoutePlanStatusLabel(effectivePlanStatus(plan))}
                         </Badge>
                       </td>
 

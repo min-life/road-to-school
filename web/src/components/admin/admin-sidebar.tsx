@@ -60,6 +60,7 @@ export function AdminSidebar({
       case 'trips':
         return <BusIcon className={iconClass} />;
       case 'leave-notices':
+      case 'calendar':
         return <CalendarIcon className={iconClass} />;
       case 'incidents':
         return <AlertTriangleIcon className={iconClass} />;

@@ -1,4 +1,6 @@
 'use client';
+import type { UpdateSchoolStatusResponse } from '@/lib/types';
+import { displayDate } from '@/lib/school-lifecycle';
 import { TableActions } from '@/components/admin/common/table-actions';
 
 import { toast } from '@/stores/toast-store';
@@ -110,11 +112,11 @@ export default function AdminSchoolsPage() {
 
   };
 
-  const handleStatusSuccess = (newStatus: boolean) => {
+  const handleStatusSuccess = (result: UpdateSchoolStatusResponse) => {
     toast.success(
-      newStatus
-        ? 'Đã kích hoạt lại trường học thành công.'
-        : 'Đã chuyển trường học sang trạng thái ngừng hoạt động.',
+      result.changeStatus === 'PENDING' && result.effectiveDate
+        ? `Đã hẹn ngừng hoạt động từ ${displayDate(result.effectiveDate)}.`
+        : result.message || 'Đã cập nhật trạng thái trường học.',
     );
     fetchSchools(page, limit, search, statusFilter);
 
@@ -329,6 +331,7 @@ export default function AdminSchoolsPage() {
           schoolId={statusModalSchool.id}
           schoolName={statusModalSchool.name}
           currentIsActive={statusModalSchool.isActive}
+          contractEndDate={statusModalSchool.contractEndDate}
           onClose={() => setStatusModalSchool(null)}
           onSuccess={handleStatusSuccess}
         />

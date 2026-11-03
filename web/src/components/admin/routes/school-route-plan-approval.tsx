@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { effectivePlanStatus } from '@/lib/school-lifecycle';
 import { apiClient } from '@/lib/api-client';
 import type { ApprovalReadinessResponse, RoutePlanItem } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,7 @@ export function SchoolRoutePlanApproval({ plan, readiness, failed, onRefresh, on
   const busyRef = useRef(false);
   const [approving, setApproving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const ready = readiness?.routePlanId === plan.id && readiness.status === 'DRAFT' && readiness.isReadyForApproval;
+  const ready = effectivePlanStatus(plan) === 'DRAFT' && readiness?.routePlanId === plan.id && readiness.status === 'DRAFT' && readiness.isReadyForApproval;
 
   const approve = async () => {
     if (!ready || busyRef.current) return;

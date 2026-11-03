@@ -17,6 +17,9 @@
 
 ## Vai trò của từng tài liệu
 
+- [school-lifecycle-usage.md](school-lifecycle-usage.md): màn hình, quyền, cách hẹn thay đổi trường,
+  ngày nghỉ/học bù, hiệu lực phương án và xử lý hành chính chuyến; kèm giới hạn tích hợp.
+
 - [../AGENTS.md](../AGENTS.md): quy tắc ngắn agent tự đọc khi làm trong `web/`.
 - [design.md](design.md): màu, component chuẩn và cách trình bày; không chứa danh sách API.
 - [web-architecture.md](web-architecture.md): bản đồ route → component → CSS/state; không chép lại design.

@@ -24,11 +24,12 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { displayDate, vietnamDate } from '@/lib/school-lifecycle';
 
 interface EditSchoolModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (message?: string) => void;
+  onSuccess: (message?: string, partial?: boolean) => void;
   school: SchoolDetail;
   userRole?: string;
 }
@@ -79,6 +80,7 @@ export function EditSchoolModal({
   // Submission state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [effectiveDate, setEffectiveDate] = useState('');
 
   const clearImagePreview = useCallback(() => {
     if (imagePreviewUrl) {
@@ -112,6 +114,7 @@ export function EditSchoolModal({
       setSuggestions([]);
       setShowSuggestions(false);
       setErrorMessage(null);
+      setEffectiveDate('');
       setLocationImpact(null);
       setIsImpactModalOpen(false);
       setRelocateReason('');
@@ -200,11 +203,16 @@ export function EditSchoolModal({
   };
 
   const executeSave = async (reason?: string, expectedFingerprint?: string) => {
+    if (isSubmitting) return;
+    const date = effectiveDate || vietnamDate(1);
+    if (JSON.stringify(weeklySchedule) !== JSON.stringify(school.weeklySchedule || {}) && (date < vietnamDate(1) || date > school.contractEndDate.slice(0, 10))) {
+      setErrorMessage('Ngày đổi lịch học phải từ ngày mai đến hết hợp đồng hiện tại.');
+      return;
+    }
+    const messages: string[] = [];
     try {
       setIsSubmitting(true);
       setErrorMessage(null);
-
-      const messages: string[] = [];
 
       // 1. Cập nhật vị trí & địa chỉ trường học nếu có thay đổi
       const addressChanged = addressText.trim() !== (school.addressText || '').trim();
@@ -222,8 +230,9 @@ export function EditSchoolModal({
           longitude: longitude!,
           reason,
           expectedFingerprint,
+          effectiveDate: date,
         });
-        if (locRes?.message) messages.push(locRes.message);
+        if (locRes?.message) messages.push(locRes.changeStatus === 'PENDING' ? `Đã hẹn đổi vị trí từ ${displayDate(locRes.effectiveDate || date)}.` : locRes.message);
       }
 
       // 2. Cập nhật lịch học tuần nếu có thay đổi
@@ -235,8 +244,8 @@ export function EditSchoolModal({
         JSON.stringify(weeklySchedule) !== JSON.stringify(origWeeklySched);
 
       if (isScheduleChanged) {
-        const schedRes = await apiClient.updateSchoolSchedule(school.id, weeklySchedule);
-        if (schedRes?.message) messages.push(schedRes.message);
+        const schedRes = await apiClient.updateSchoolSchedule(school.id, weeklySchedule, date);
+        if (schedRes?.message) messages.push(schedRes.changeStatus === 'PENDING' ? `Đã hẹn đổi lịch học từ ${displayDate(schedRes.effectiveDate || date)}.` : schedRes.message);
       }
 
       // 3. Nếu SYSTEM_ADMIN có thay đổi thời hạn hợp đồng, cập nhật tiếp qua API hợp đồng
@@ -258,7 +267,10 @@ export function EditSchoolModal({
       setIsImpactModalOpen(false);
       onSuccess(messages.join(' '));
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Cập nhật trường học thất bại.');
+      if (messages.length) {
+        setIsImpactModalOpen(false);
+        onSuccess(`${messages.join(' ')} Phần còn lại chưa lưu: ${err?.message || 'Có lỗi xảy ra'}. Kiểm tra lịch hẹn trước khi gửi lại.`, true);
+      } else setErrorMessage(err?.message || 'Cập nhật trường học thất bại.');
     } finally {
       setIsSubmitting(false);
     }
@@ -303,6 +315,11 @@ export function EditSchoolModal({
     const isLocationChanged = addressChanged || coordChanged;
 
     if (isLocationChanged) {
+      const date = effectiveDate || vietnamDate(1);
+      if (date < vietnamDate(1) || date > school.contractEndDate.slice(0, 10)) {
+        setErrorMessage('Ngày hiệu lực phải từ ngày mai đến hết hợp đồng hiện tại. Nếu cần, hãy gia hạn hợp đồng trước.');
+        return;
+      }
       try {
         setIsSubmitting(true);
         const impact = await apiClient.getSchoolLocationImpact(school.id, latitude, longitude);
@@ -343,6 +360,9 @@ export function EditSchoolModal({
   };
 
   if (!isOpen) return null;
+  const hasDeferredChanges = addressText.trim() !== (school.addressText || '').trim()
+    || latitude !== school.latitude || longitude !== school.longitude
+    || JSON.stringify(weeklySchedule) !== JSON.stringify(school.weeklySchedule || {});
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
@@ -418,7 +438,7 @@ export function EditSchoolModal({
                     />
                   </div>
                   <p className="col-span-2 text-[11px] text-slate-500">
-                    Chỉ có thể sửa/gia hạn khi trường không có phương án DRAFT/ACTIVE. Ngày bắt đầu phải từ hôm nay trở đi.
+                    Nếu còn phương án chưa duyệt/đang hoạt động, giữ ngày bắt đầu và chỉ gia hạn ngày kết thúc. Hệ thống kiểm tra nguồn lực khi lưu; không khôi phục phương án đã hủy.
                   </p>
                 </div>
               )}
@@ -536,6 +556,11 @@ export function EditSchoolModal({
           </div>
 
           {/* Lịch học tuần */}
+          <div className="space-y-2 rounded-xl border border-blue-100 bg-blue-50/40 p-3">
+            <label htmlFor="school-change-effective-date" className="block text-sm font-semibold">Ngày áp dụng vị trí/lịch học mới</label>
+            <Input id="school-change-effective-date" type="date" min={vietnamDate(1)} max={school.contractEndDate.slice(0, 10)} value={effectiveDate || vietnamDate(1)} onChange={(event) => setEffectiveDate(event.target.value)} disabled={isSubmitting || !hasDeferredChanges} />
+            <p className="text-xs text-slate-600">Chỉ dùng khi đổi vị trí hoặc lịch học. Sau khi lưu, thông tin đang hiệu lực vẫn giữ đến ngày hẹn. Gia hạn hợp đồng áp dụng riêng.</p>
+          </div>
           <div className="space-y-2 pt-2 border-t border-slate-100">
             <label className="block text-xs font-semibold text-slate-700">
               Lịch học tuần
@@ -581,7 +606,7 @@ export function EditSchoolModal({
                   Xác nhận đổi địa chỉ / vị trí trường học
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Đổi địa chỉ trường sẽ cascade hủy toàn bộ phương án tuyến DRAFT và ACTIVE của trường.
+                  Đến ngày {displayDate(effectiveDate || vietnamDate(1))}, đổi địa chỉ sẽ hủy các phương án chưa duyệt/đang hoạt động liên quan. Các số bên dưới là tác động dự kiến, chưa thực hiện khi đặt lịch.
                 </p>
               </div>
             </div>

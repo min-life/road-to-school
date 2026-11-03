@@ -37,7 +37,9 @@ export function NotificationList({ compact = false, onNavigate }: { compact?: bo
       await readNotification(id); refreshSummary(); refresh();
       if (identityRef.current !== scope) return;
       if (!target.available || !target.webPath?.startsWith('/admin/')) { setFailure({ identity, message: 'Nội dung không còn khả dụng' }); return; }
-      onNavigate?.(); router.push(withReturnTo(target.webPath, window.location.pathname + window.location.search));
+      const note = data?.items.find(item => item.id === id);
+      const destination = note && ['SERVICE_CALENDAR_CHANGED', 'SCHOOL_SCHEDULE_CHANGED'].includes(note.type) ? '/admin/calendar' : target.webPath;
+      onNavigate?.(); router.push(withReturnTo(destination, window.location.pathname + window.location.search));
     } catch (cause) { setFailure({ identity, message: cause instanceof Error ? cause.message : 'Không thể mở thông báo' }); }
     finally { setBusy(false); }
   }
