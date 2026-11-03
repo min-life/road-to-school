@@ -1,1 +1,947 @@
-No application code changes for this task. Only user-authorized local School/User provisioning and report updates; no secrets included. Prior staged source changes are excluded.
+diff --git a/docs/architecture/school-admin-route-plan-workspace-guide.md b/docs/architecture/school-admin-route-plan-workspace-guide.md
+index 08d8d07..c966b01 100644
+--- a/docs/architecture/school-admin-route-plan-workspace-guide.md
++++ b/docs/architecture/school-admin-route-plan-workspace-guide.md
+@@ -3 +3 @@
+-Ngày: 30/10/2026. Trạng thái: **ĐỀ XUẤT / CHƯA TRIỂN KHAI CHO SCHOOL ADMIN**.
++Ngày: 30/10/2026. Cập nhật: 01/11/2026. Trạng thái: **ĐÃ TRIỂN KHAI / CHỜ NGHIỆM THU TRÊN DỮ LIỆU PHƯƠNG ÁN**.
+@@ -9 +9 @@ System Admin đã dùng giao diện bản đồ + hai tab Tuyến / Phân công
+-School Admin tiếp tục dùng `LegacyRoutePlanDetailPage` trong `web/src/app/admin/routes/plans/[id]/page.tsx`. Không sửa JSX, API hoặc logic phê duyệt của component này trong task System Admin. Không tự bật workspace System Admin cho School Admin: workspace này hiện không cung cấp thao tác phân công giáo viên hoặc phê duyệt.
++School Admin và System Admin dùng chung `SavedRoutePlanWorkspace` tại `/admin/routes/plans/[id]`. School Admin có phân công giáo viên và thanh điều kiện duyệt riêng; xe/tài xế chỉ xem. Legacy vẫn được giữ trong source để đối chiếu trong giai đoạn nghiệm thu.
+@@ -11 +11 @@ School Admin tiếp tục dùng `LegacyRoutePlanDetailPage` trong `web/src/app/a
+-## 2. Wireframe đề xuất — cần Product Owner duyệt trước khi code
++## 2. Wireframe — Product Owner đã duyệt triển khai ngày 01/11/2026
+@@ -50,2 +50,3 @@ Thanh duyệt chỉ hiện khi phù hợp trạng thái/quyền, nằm ngoài v
+-- `web/src/app/admin/routes/plans/[id]/page.tsx`: tách vai trò, LegacyRoutePlanDetailPage.
+-- `web/src/components/admin/routes/saved-route-plan-workspace.tsx`: bố cục System Admin tham khảo; hiện guard chỉ fetch cho SYSTEM_ADMIN.
++- `web/src/app/admin/routes/plans/[id]/page.tsx`: hai vai trò dùng workspace chung, key theo user/role/school/plan để không giữ dữ liệu phiên cũ.
++- `web/src/components/admin/routes/saved-route-plan-workspace.tsx`: khung chung; kiểm tra vai trò và schoolId, tab mặc định Tuyến cho trường.
++- `web/src/components/admin/routes/school-route-plan-approval.tsx`: thanh điều kiện duyệt và dialog xác nhận; chỉ hiển thị cho trường trên DRAFT.
+@@ -79 +80,9 @@ Thanh duyệt chỉ hiện khi phù hợp trạng thái/quyền, nằm ngoài v
+-Không coi tài liệu này là phê duyệt triển khai School Admin.
++## 8. Ghi nhận triển khai ngày 01/11/2026
++
++PO yêu cầu đồng bộ với System Admin theo tài liệu này và xác nhận sau khi wireframe được trình bày trong chat. Đã triển khai workspace chung, quyền/phân công/duyệt theo vai trò, footer ngoài vùng cuộn, trạng thái chỉ xem và URL hiện có. Giữ API phân công/duyệt/hủy hiện có.
++
++Readiness dùng đúng contract `summary.totalRoutes`, `routesWithVehicle`, `routesWithDriver`, `routesWithBusAttendant`; điều kiện duyệt lấy từ `isReadyForApproval` và blockers, không tự suy ra từ số lượng nhân sự. Response readiness không có schoolName/totalVehicles; thông tin trường lấy từ plan. Vô hiệu hóa điều kiện cũ ngay khi refresh/phân công, có retry khi lỗi.
++
++Form thêm giáo viên bắt buộc email và SĐT ở Web. Theo yêu cầu PO ngày 01/11/2026, BE được giữ nguyên như trước task UI: email bắt buộc, SĐT tùy chọn tại API. Tooltip dùng portal ra ngoài vùng cuộn modal và định vị theo viewport.
++
++Typecheck/kiểm tra source không thay nghiệm thu thao tác với phương án thật. Không tự tạo tuyến, xe, học sinh hoặc giáo viên để nghiệm thu; xem kết quả và giới hạn tại `docs/ai-review/LATEST.md`.
+diff --git a/web/src/app/admin/routes/[id]/page.tsx b/web/src/app/admin/routes/[id]/page.tsx
+index 2c38ee8..cdeb665 100644
+--- a/web/src/app/admin/routes/[id]/page.tsx
++++ b/web/src/app/admin/routes/[id]/page.tsx
+@@ -1,0 +2 @@
++import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
+@@ -195 +196 @@ export default function RouteDetailPage() {
+-                Phương án: {isActive ? 'ACTIVE' : isDraft ? 'DRAFT' : 'CANCELLED'}
++                Phương án: {getRoutePlanStatusLabel(route.planStatus ?? route.status)}
+diff --git a/web/src/app/admin/routes/page.tsx b/web/src/app/admin/routes/page.tsx
+index 76d7ac1..7616044 100644
+--- a/web/src/app/admin/routes/page.tsx
++++ b/web/src/app/admin/routes/page.tsx
+@@ -1,0 +2 @@
++import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
+@@ -200,4 +201,4 @@ export default function RoutePlansPage() {
+-              <option value="ACTIVE">Đang hoạt động (ACTIVE)</option>
+-              <option value="DRAFT">Bản nháp (DRAFT)</option>
+-              <option value="CANCELLED">Đã hủy (CANCELLED)</option>
+-              <option value="EXPIRED">Hết hạn hợp đồng (EXPIRED)</option>
++              <option value="ACTIVE">{getRoutePlanStatusLabel('ACTIVE')}</option>
++              <option value="DRAFT">{getRoutePlanStatusLabel('DRAFT')}</option>
++              <option value="CANCELLED">{getRoutePlanStatusLabel('CANCELLED')}</option>
++              <option value="EXPIRED">{getRoutePlanStatusLabel('EXPIRED')}</option>
+@@ -306 +307 @@ export default function RoutePlansPage() {
+-                              ACTIVE
++                              {getRoutePlanStatusLabel(plan.status)}
+@@ -310 +311 @@ export default function RoutePlansPage() {
+-                              DRAFT
++                              {getRoutePlanStatusLabel(plan.status)}
+@@ -314 +315 @@ export default function RoutePlansPage() {
+-                              EXPIRED
++                              {getRoutePlanStatusLabel(plan.status)}
+@@ -318 +319 @@ export default function RoutePlansPage() {
+-                              CANCELLED
++                              {getRoutePlanStatusLabel(plan.status)}
+diff --git a/web/src/app/admin/routes/plans/[id]/page.tsx b/web/src/app/admin/routes/plans/[id]/page.tsx
+index 3214297..7791fa7 100644
+--- a/web/src/app/admin/routes/plans/[id]/page.tsx
++++ b/web/src/app/admin/routes/plans/[id]/page.tsx
+@@ -1,0 +2 @@
++import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
+@@ -29,2 +30,2 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id:
+-  if (user.role === 'SYSTEM_ADMIN') {
+-    return <SavedRoutePlanWorkspace key={`${user.id}:${id}`} planId={id} role={user.role} />;
++  if (user.role === 'SYSTEM_ADMIN' || user.role === 'SCHOOL_ADMIN') {
++    return <SavedRoutePlanWorkspace key={`${user.id}:${user.role}:${user.schoolId}:${id}`} planId={id} role={user.role} schoolId={user.schoolId} />;
+@@ -165 +166 @@ function LegacyRoutePlanDetailPage({ params }: { params: Promise<{ id: string }>
+-                ACTIVE
++                {getRoutePlanStatusLabel(plan.status)}
+@@ -169 +170 @@ function LegacyRoutePlanDetailPage({ params }: { params: Promise<{ id: string }>
+-                DRAFT
++                {getRoutePlanStatusLabel(plan.status)}
+@@ -173 +174 @@ function LegacyRoutePlanDetailPage({ params }: { params: Promise<{ id: string }>
+-                EXPIRED
++                {getRoutePlanStatusLabel(plan.status)}
+@@ -177 +178 @@ function LegacyRoutePlanDetailPage({ params }: { params: Promise<{ id: string }>
+-                CANCELLED
++                {getRoutePlanStatusLabel(plan.status)}
+diff --git a/web/src/app/admin/students/page.tsx b/web/src/app/admin/students/page.tsx
+index 6aa8e00..3e7a2e2 100644
+--- a/web/src/app/admin/students/page.tsx
++++ b/web/src/app/admin/students/page.tsx
+@@ -60 +60 @@ function StudentsPageContent() {
+-        key={refreshKey}
++        key={`${user?.id}:${schoolId}:${refreshKey}`}
+@@ -61,0 +62 @@ function StudentsPageContent() {
++        allowCardPrinting
+diff --git a/web/src/components/admin/routes/approval-readiness-card.tsx b/web/src/components/admin/routes/approval-readiness-card.tsx
+index 4b66d7b..b5fb9e2 100644
+--- a/web/src/components/admin/routes/approval-readiness-card.tsx
++++ b/web/src/components/admin/routes/approval-readiness-card.tsx
+@@ -82 +82 @@ export function ApprovalReadinessCard({
+-            Trường: <strong className="text-slate-700">{readiness.schoolName}</strong> • {readiness.totalRoutes} tuyến • {readiness.totalVehicles} nhóm xe
++            {readiness.summary.totalRoutes} tuyến
+@@ -114 +114 @@ export function ApprovalReadinessCard({
+-            readiness.summary.missingVehicleRoutes === 0
++            (readiness.summary.totalRoutes - readiness.summary.routesWithVehicle) === 0
+@@ -121 +121 @@ export function ApprovalReadinessCard({
+-            <span>{readiness.summary.missingVehicleRoutes === 0 ? '✓ Đủ' : '✗ Thiếu'}</span>
++            <span>{(readiness.summary.totalRoutes - readiness.summary.routesWithVehicle) === 0 ? '✓ Đủ' : '✗ Thiếu'}</span>
+@@ -124,3 +124,3 @@ export function ApprovalReadinessCard({
+-            {readiness.summary.missingVehicleRoutes === 0
+-              ? 'Tất cả tuyến đã được gán xe hợp lệ'
+-              : `Còn ${readiness.summary.missingVehicleRoutes} tuyến chưa gán xe`}
++            {(readiness.summary.totalRoutes - readiness.summary.routesWithVehicle) === 0
++              ? 'Tất cả tuyến đã có xe'
++              : `Còn ${(readiness.summary.totalRoutes - readiness.summary.routesWithVehicle)} tuyến chưa gán xe`}
+@@ -133 +133 @@ export function ApprovalReadinessCard({
+-            readiness.summary.missingDriverRoutes === 0
++            (readiness.summary.totalRoutes - readiness.summary.routesWithDriver) === 0
+@@ -140 +140 @@ export function ApprovalReadinessCard({
+-            <span>{readiness.summary.missingDriverRoutes === 0 ? '✓ Đủ' : '✗ Thiếu'}</span>
++            <span>{(readiness.summary.totalRoutes - readiness.summary.routesWithDriver) === 0 ? '✓ Đủ' : '✗ Thiếu'}</span>
+@@ -143,3 +143,3 @@ export function ApprovalReadinessCard({
+-            {readiness.summary.missingDriverRoutes === 0
+-              ? 'Tất cả nhóm xe đã có tài xế phụ trách'
+-              : `Còn ${readiness.summary.missingDriverRoutes} tuyến chưa có tài xế`}
++            {(readiness.summary.totalRoutes - readiness.summary.routesWithDriver) === 0
++              ? 'Tất cả tuyến đã có tài xế phụ trách'
++              : `Còn ${(readiness.summary.totalRoutes - readiness.summary.routesWithDriver)} tuyến chưa có tài xế`}
+@@ -152 +152 @@ export function ApprovalReadinessCard({
+-            readiness.summary.missingBusAttendantRoutes === 0
++            (readiness.summary.totalRoutes - readiness.summary.routesWithBusAttendant) === 0
+@@ -159 +159 @@ export function ApprovalReadinessCard({
+-            <span>{readiness.summary.missingBusAttendantRoutes === 0 ? '✓ Đủ' : '✗ Thiếu'}</span>
++            <span>{(readiness.summary.totalRoutes - readiness.summary.routesWithBusAttendant) === 0 ? '✓ Đủ' : '✗ Thiếu'}</span>
+@@ -162,3 +162,3 @@ export function ApprovalReadinessCard({
+-            {readiness.summary.missingBusAttendantRoutes === 0
+-              ? 'Tất cả nhóm xe đã có giáo viên phụ xe'
+-              : `Còn ${readiness.summary.missingBusAttendantRoutes} tuyến chưa có giáo viên`}
++            {(readiness.summary.totalRoutes - readiness.summary.routesWithBusAttendant) === 0
++              ? 'Tất cả tuyến đã có giáo viên phụ xe'
++              : `Còn ${(readiness.summary.totalRoutes - readiness.summary.routesWithBusAttendant)} tuyến chưa có giáo viên`}
+@@ -196 +196 @@ export function ApprovalReadinessCard({
+-                <p className="text-xs text-slate-500">Chuyển trạng thái sang ACTIVE để đưa vào vận hành</p>
++                <p className="text-xs text-slate-500">Chuyển sang Đã duyệt để đưa vào vận hành</p>
+@@ -202 +202 @@ export function ApprovalReadinessCard({
+-                Sau khi phê duyệt, phương án tuyến sẽ chính thức chuyển sang <strong>ACTIVE</strong>:
++                Sau khi phê duyệt, phương án tuyến chuyển sang <strong>Đã duyệt</strong>:
+@@ -205,2 +205,2 @@ export function ApprovalReadinessCard({
+-                <li>Hệ thống bắt đầu sinh chuyến xe tự động từ ngày học kế tiếp.</li>
+-                <li>Không thể hủy phương án một khi đã chuyển sang ACTIVE.</li>
++                <li>Phương án được sử dụng khi hệ thống tạo chuyến theo lịch.</li>
++                <li>Hủy phương án theo điều kiện và tác động được hệ thống kiểm tra.</li>
+diff --git a/web/src/components/admin/routes/route-plan-assignments.tsx b/web/src/components/admin/routes/route-plan-assignments.tsx
+index 1740c5a..382a74c 100644
+--- a/web/src/components/admin/routes/route-plan-assignments.tsx
++++ b/web/src/components/admin/routes/route-plan-assignments.tsx
+@@ -42,2 +42,3 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
+-  const isSystemAdmin = currentUserRole === 'SYSTEM_ADMIN';
+-  const isSchoolAdmin = currentUserRole === 'SCHOOL_ADMIN';
++  const editable = plan.status === 'DRAFT' || plan.status === 'ACTIVE';
++  const isSystemAdmin = editable && currentUserRole === 'SYSTEM_ADMIN';
++  const isSchoolAdmin = editable && currentUserRole === 'SCHOOL_ADMIN';
+@@ -87,0 +89 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
++    if (type === 'ATTENDANT' ? !isSchoolAdmin : !isSystemAdmin) return;
+@@ -120 +122,2 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
+-    if (!selectedGroup || !selectedResourceId) return;
++    if (!selectedGroup || !selectedResourceId || submitting) return;
++    if (modalType === 'ATTENDANT' ? !isSchoolAdmin : !isSystemAdmin) return;
+@@ -247 +250 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
+-                    <span className="text-xs text-rose-600 font-semibold italic">Chưa phân công</span>
++                    <span className="text-xs text-rose-600 font-semibold italic">{compact && isSchoolAdmin ? 'Nhà xe chưa phân công tài xế' : 'Chưa phân công'}</span>
+@@ -258,0 +262,2 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
++                        variant={compact && !group.busAttendantId ? 'primary' : compact ? 'outline' : undefined}
++                        size={compact ? 'sm' : undefined}
+@@ -260 +265 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
+-                        className="text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
++                        className={compact ? 'assignment-action-button' : 'text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer'}
+@@ -262 +267 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
+-                        [{group.busAttendantId ? 'Đổi giáo viên' : 'Phân công'}]
++                        {compact ? (group.busAttendantId ? 'Đổi giáo viên' : '+ Phân công giáo viên') : `[${group.busAttendantId ? 'Đổi giáo viên' : 'Phân công'}]`}
+@@ -303 +308 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
+-      {modalType && selectedGroup && (
++      {editable && modalType && selectedGroup && (
+diff --git a/web/src/components/admin/routes/saved-route-plan-workspace.css b/web/src/components/admin/routes/saved-route-plan-workspace.css
+index a35dcd4..963bb54 100644
+--- a/web/src/components/admin/routes/saved-route-plan-workspace.css
++++ b/web/src/components/admin/routes/saved-route-plan-workspace.css
+@@ -17 +17 @@
+-/* Only the System Admin saved-plan workspace opts into these styles. */
++/* Shared saved-plan workspace for System Admin and School Admin. */
+@@ -51,0 +52,14 @@
++.school-plan-readiness { flex: 1; min-width: 0; font-size: 13px; }
++.school-plan-readiness details { margin-top: 4px; font-size: 12px; }
++.school-plan-readiness summary { cursor: pointer; color: var(--brand-muted); }
++.school-plan-readiness ul { max-height: 120px; overflow-y: auto; padding: 8px 0 0 18px; list-style: disc; color: var(--brand-muted); }
++.school-plan-readiness li + li { margin-top: 4px; }
++.school-plan-approval-dialog { position: fixed; inset: 0; margin: auto; width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; padding: 24px; border: 1px solid var(--brand-border); border-radius: 16px; background: var(--brand-surface); color: var(--brand-foreground); }
++.school-plan-approval-dialog::backdrop { background: color-mix(in srgb, var(--brand-navy) 45%, transparent); }
++.school-plan-approval-dialog h2 { font-weight: 700; font-size: 18px; }
++.school-plan-approval-dialog p { margin-top: 12px; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
++.school-plan-approval-dialog .route-workspace-actions { justify-content: flex-end; margin-top: 20px; }
++body:has(.school-plan-approval-dialog[open]) { overflow: hidden; }
++@media (min-width: 1200px) and (max-height: 700px) {
++  .saved-plan-page .route-workspace-footer { position: sticky; bottom: 0; z-index: 5; }
++}
+diff --git a/web/src/components/admin/routes/saved-route-plan-workspace.tsx b/web/src/components/admin/routes/saved-route-plan-workspace.tsx
+index 63cf311..fdc5d71 100644
+--- a/web/src/components/admin/routes/saved-route-plan-workspace.tsx
++++ b/web/src/components/admin/routes/saved-route-plan-workspace.tsx
+@@ -1 +1,2 @@
+-﻿'use client';
++'use client';
++import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
+@@ -14,0 +16 @@ import { getAssignmentProgress, resolveSavedRoutePlanTab } from './route-plan-as
++import { SchoolRoutePlanApproval } from './school-route-plan-approval';
+@@ -17 +18,0 @@ import './saved-route-plan-workspace.css';
+-const statusLabels = { DRAFT: 'Nháp', ACTIVE: 'Đã duyệt', EXPIRED: 'Hết hạn', CANCELLED: 'Đã hủy' };
+@@ -19,2 +20,5 @@ const statusLabels = { DRAFT: 'Nháp', ACTIVE: 'Đã duyệt', EXPIRED: 'Hết h
+-/** System-admin presentation only. School admins keep their existing detail page. */
+-export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role: Role | null }) {
++
++/** Shared layout; role-specific actions still use the existing authorized APIs. */
++export function SavedRoutePlanWorkspace({ planId, role, schoolId }: { planId: string; role: Role | null; schoolId?: string | null }) {
++  const isSchoolAdmin = role === 'SCHOOL_ADMIN';
++  const allowed = role === 'SYSTEM_ADMIN' || isSchoolAdmin;
+@@ -32,2 +36,4 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
+-  const [readiness, setReadiness] = useState<ApprovalReadinessResponse | null>(null);
+-  const [readinessError, setReadinessError] = useState(false);
++  const [readinessResult, setReadinessResult] = useState<{ planId: string; revision: number; value: ApprovalReadinessResponse } | null>(null);
++  const [readinessFailure, setReadinessFailure] = useState<number | null>(null);
++  const readiness = readinessResult?.planId === planId && readinessResult.revision === revision ? readinessResult.value : null;
++  const readinessError = readinessFailure === revision;
+@@ -45 +51 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
+-    if (role !== 'SYSTEM_ADMIN') return;
++    if (!allowed) return;
+@@ -47,0 +54 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
++      if (isSchoolAdmin && value.schoolId !== schoolId) throw new Error('Bạn không có quyền xem phương án của trường khác.');
+@@ -51 +58,5 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
+-      if (current) setError(reason instanceof Error ? reason.message : 'Không thể tải phương án.');
++      if (current) {
++        setPlan(null);
++        setRoute(null);
++        setError(reason instanceof Error ? reason.message : 'Không thể tải phương án.');
++      }
+@@ -54 +65 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
+-  }, [planId, role, revision]);
++  }, [planId, allowed, isSchoolAdmin, schoolId, revision]);
+@@ -58 +69 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
+-    if (role !== 'SYSTEM_ADMIN' || plan?.status !== 'DRAFT') return;
++    if (!allowed || plan?.id !== planId || plan.status !== 'DRAFT') return;
+@@ -60,2 +71,2 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
+-      if (current) { setReadiness(value); setReadinessError(false); }
+-    }).catch(() => { if (current) setReadinessError(true); });
++      if (current) { setReadinessResult({ planId, revision, value }); setReadinessFailure(null); }
++    }).catch(() => { if (current) setReadinessFailure(revision); });
+@@ -63 +74 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
+-  }, [planId, role, plan?.status, revision]);
++  }, [planId, allowed, plan?.id, plan?.status, revision]);
+@@ -67 +78,2 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
+-  const tab = resolveSavedRoutePlanTab(requestedTab, actionableSystemPendingGroupCount);
++  const tab = resolveSavedRoutePlanTab(requestedTab, 0);
++  const pendingCount = isSchoolAdmin && assignmentEditable ? schoolPendingGroupCount : actionableSystemPendingGroupCount;
+@@ -84 +96 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
+-    next.set('tab', actionableSystemPendingGroupCount > 0 ? 'assignments' : 'routes');
++    next.set('tab', 'routes');
+@@ -86 +98 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
+-  }, [actionableSystemPendingGroupCount, pathname, plan, query, requestedTab, router]);
++  }, [pathname, plan, query, requestedTab, router]);
+@@ -94,0 +107 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
++  const canCancel = editable && (!isSchoolAdmin || plan?.status === 'ACTIVE');
+@@ -96,0 +110 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
++  if (!allowed) return <p role="alert">Bạn không có quyền xem phương án tuyến.</p>;
+@@ -107,2 +121,2 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
+-      <span data-status={plan.status}>{statusLabels[plan.status]}</span>
+-      {editable && <Button className="saved-plan-cancel-button" variant="danger" size="sm" onClick={() => setCancelOpen(true)}>
++      <span data-status={plan.status}>{getRoutePlanStatusLabel(plan.status)}</span>
++      {canCancel && <Button className="saved-plan-cancel-button" variant="danger" size="sm" onClick={() => setCancelOpen(true)}>
+@@ -115 +129,5 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
+-    <RoutePlanningWorkspace preview panelLabel={tab === 'assignments' ? `Phân công${actionableSystemPendingGroupCount ? ` (${actionableSystemPendingGroupCount})` : ''}` : 'Tuyến'}
++    <RoutePlanningWorkspace preview panelLabel={tab === 'assignments' ? `Phân công${pendingCount ? ` (${pendingCount})` : ''}` : 'Tuyến'}
++      footer={isSchoolAdmin && plan.status === 'DRAFT' ? <SchoolRoutePlanApproval
++        plan={plan} readiness={readiness} failed={readinessError}
++        onRefresh={() => setRevision(value => value + 1)}
++        onApproved={updated => { setPlan(updated); setRevision(value => value + 1); }} /> : undefined}
+@@ -123 +141 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
+-        <PlanningTabs tabs={[{ value: 'routes', label: 'Tuyến' }, { value: 'assignments', label: `Phân công${actionableSystemPendingGroupCount ? ` (${actionableSystemPendingGroupCount})` : ''}` }]}
++        <PlanningTabs tabs={[{ value: 'routes', label: 'Tuyến' }, { value: 'assignments', label: `Phân công${pendingCount ? ` (${pendingCount})` : ''}` }]}
+@@ -133 +151 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
+-              {actionableSystemPendingGroupCount > 0 ? <>
++              {!editable ? <><strong>Phân công đã lưu</strong><span>Phương án chỉ xem.</span></> : actionableSystemPendingGroupCount > 0 ? <>
+@@ -135 +153 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
+-                <span>Chọn Phân công tài xế hoặc Đổi xe trong từng nhóm bên dưới.</span>
++                <span>{isSchoolAdmin ? 'Nhà xe cần hoàn tất phân công xe và tài xế.' : 'Chọn Phân công tài xế hoặc Đổi xe trong từng nhóm bên dưới.'}</span>
+@@ -138 +156 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
+-                <span>Đang chờ trường phân công giáo viên phụ xe cho {schoolPendingGroupCount} nhóm.</span>
++                <span>{isSchoolAdmin ? `Cần phân công giáo viên phụ xe cho ${schoolPendingGroupCount} nhóm.` : `Đang chờ trường phân công giáo viên phụ xe cho ${schoolPendingGroupCount} nhóm.`}</span>
+@@ -144 +162 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
+-            {plan.status === 'DRAFT' && <details className="saved-plan-readiness">
++            {!isSchoolAdmin && plan.status === 'DRAFT' && <details className="saved-plan-readiness">
+@@ -179,2 +197,2 @@ export function SavedRoutePlanWorkspace({ planId, role }: { planId: string; role
+-    <CancelRoutePlanModal isOpen={cancelOpen} routePlanId={plan.id} routePlanName={plan.name}
+-      onClose={() => setCancelOpen(false)} onSuccess={() => { setCancelOpen(false); setRevision(value => value + 1); }} />
++    {canCancel && <CancelRoutePlanModal isOpen={cancelOpen} routePlanId={plan.id} routePlanName={plan.name}
++      onClose={() => setCancelOpen(false)} onSuccess={() => { setCancelOpen(false); setRevision(value => value + 1); }} />}
+diff --git a/web/src/components/admin/routes/school-route-plan-approval.tsx b/web/src/components/admin/routes/school-route-plan-approval.tsx
+new file mode 100644
+index 0000000..ad3e4b8
+--- /dev/null
++++ b/web/src/components/admin/routes/school-route-plan-approval.tsx
+@@ -0,0 +1,68 @@
++'use client';
++
++import { useRef, useState } from 'react';
++import { apiClient } from '@/lib/api-client';
++import type { ApprovalReadinessResponse, RoutePlanItem } from '@/lib/types';
++import { Button } from '@/components/ui/button';
++import { toast } from '@/stores/toast-store';
++
++export function SchoolRoutePlanApproval({ plan, readiness, failed, onRefresh, onApproved }: {
++  plan: RoutePlanItem;
++  readiness: ApprovalReadinessResponse | null;
++  failed: boolean;
++  onRefresh: () => void;
++  onApproved: (plan: RoutePlanItem) => void;
++}) {
++  const dialogRef = useRef<HTMLDialogElement>(null);
++  const busyRef = useRef(false);
++  const [approving, setApproving] = useState(false);
++  const [error, setError] = useState<string | null>(null);
++  const ready = readiness?.routePlanId === plan.id && readiness.status === 'DRAFT' && readiness.isReadyForApproval;
++
++  const approve = async () => {
++    if (!ready || busyRef.current) return;
++    busyRef.current = true;
++    setApproving(true);
++    setError(null);
++    try {
++      const updated = await apiClient.approveRoutePlan(plan.id);
++      dialogRef.current?.close();
++      onApproved(updated);
++      toast.success('Đã duyệt phương án tuyến.');
++    } catch (reason: unknown) {
++      setError(reason instanceof Error ? reason.message : 'Không thể duyệt phương án.');
++      onRefresh();
++    } finally {
++      busyRef.current = false;
++      setApproving(false);
++    }
++  };
++
++  return <>
++    <div className="school-plan-readiness" role="status" aria-live="polite">
++      <strong>{failed ? 'Chưa tải được điều kiện duyệt' : !readiness ? 'Đang kiểm tra điều kiện duyệt…' : ready ? 'Đủ điều kiện duyệt' : 'Chưa đủ điều kiện duyệt'}</strong>
++      {!!readiness?.blockers.length && <details>
++        <summary>{readiness.blockers.length} mục cần xử lý</summary>
++        <ul>{readiness.blockers.map((item, index) => <li key={`${item.code}:${index}`}>{item.message}</li>)}</ul>
++      </details>}
++    </div>
++    <div className="route-workspace-actions">
++      <Button variant="outline" size="sm" onClick={onRefresh} disabled={approving}>Kiểm tra lại</Button>
++      <Button variant="primary" size="sm" disabled={!ready || failed || approving}
++        onClick={() => { setError(null); dialogRef.current?.showModal(); }}>Duyệt phương án</Button>
++    </div>
++    <dialog ref={dialogRef} className="school-plan-approval-dialog" aria-labelledby="school-plan-approval-title"
++      onCancel={event => { if (busyRef.current) event.preventDefault(); }}>
++      <h2 id="school-plan-approval-title">Duyệt phương án?</h2>
++      <p>{plan.name}</p>
++      <p>Phương án chuyển sang Đã duyệt. Phân công hiện tại dùng làm mặc định cho các chuyến được tạo sau.</p>
++      {error && <p role="alert" className="saved-plan-error">{error}</p>}
++      <div className="route-workspace-actions">
++        <Button variant="outline" onClick={() => dialogRef.current?.close()} disabled={approving}>Quay lại</Button>
++        <Button variant="primary" onClick={approve} disabled={approving || !ready || failed}>
++          {approving ? 'Đang duyệt…' : 'Xác nhận duyệt'}
++        </Button>
++      </div>
++    </dialog>
++  </>;
++}
+diff --git a/web/src/components/admin/schools/edit-school-modal.tsx b/web/src/components/admin/schools/edit-school-modal.tsx
+index 329e766..050c3ba 100644
+--- a/web/src/components/admin/schools/edit-school-modal.tsx
++++ b/web/src/components/admin/schools/edit-school-modal.tsx
+@@ -592 +592 @@ export function EditSchoolModal({
+-                <span>Phương án DRAFT/ACTIVE của trường bị hủy:</span>
++                <span>Phương án nháp/đã duyệt của trường bị hủy:</span>
+diff --git a/web/src/components/admin/schools/school-routes-tab.tsx b/web/src/components/admin/schools/school-routes-tab.tsx
+index 617506e..4131af7 100644
+--- a/web/src/components/admin/schools/school-routes-tab.tsx
++++ b/web/src/components/admin/schools/school-routes-tab.tsx
+@@ -1,0 +2 @@
++import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
+@@ -170 +171 @@ export function SchoolRoutesTab({
+-                          {plan.status}
++                          {getRoutePlanStatusLabel(plan.status)}
+diff --git a/web/src/components/admin/schools/tooltip.tsx b/web/src/components/admin/schools/tooltip.tsx
+index da119bd..6640cf9 100644
+--- a/web/src/components/admin/schools/tooltip.tsx
++++ b/web/src/components/admin/schools/tooltip.tsx
+@@ -3 +3,2 @@
+-import React, { useState, useRef, useEffect } from 'react';
++import React, { useState, useRef, useEffect, useLayoutEffect, useId } from 'react';
++import { createPortal } from 'react-dom';
+@@ -14,0 +16 @@ export function Tooltip({ content, children, className = '' }: TooltipProps) {
++  const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
+@@ -16,0 +19,41 @@ export function Tooltip({ content, children, className = '' }: TooltipProps) {
++  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
++  const tooltipId = useId();
++
++  const show = () => {
++    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
++    setPortalHost(triggerRef.current?.closest('dialog') ?? document.body);
++    setIsVisible(true);
++  };
++  const hideAfterHover = () => {
++    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
++    closeTimerRef.current = setTimeout(() => {
++      if (document.activeElement !== triggerRef.current) setIsVisible(false);
++    }, 120);
++  };
++
++  useEffect(() => () => {
++    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
++  }, []);
++
++  useLayoutEffect(() => {
++    if (!isVisible) return;
++    const position = () => {
++      const trigger = triggerRef.current;
++      const tooltip = tooltipRef.current;
++      if (!trigger || !tooltip) return;
++      const anchor = trigger.getBoundingClientRect();
++      tooltip.style.maxWidth = `${Math.min(288, window.innerWidth - 16)}px`;
++      const bounds = tooltip.getBoundingClientRect();
++      const left = Math.max(8, Math.min(anchor.left + anchor.width / 2 - bounds.width / 2, window.innerWidth - bounds.width - 8));
++      const top = anchor.top >= bounds.height + 14 ? anchor.top - bounds.height - 6 : anchor.bottom + 6;
++      tooltip.style.left = `${left}px`;
++      tooltip.style.top = `${Math.max(8, Math.min(top, window.innerHeight - bounds.height - 8))}px`;
++    };
++    position();
++    window.addEventListener('resize', position);
++    window.addEventListener('scroll', position, true);
++    return () => {
++      window.removeEventListener('resize', position);
++      window.removeEventListener('scroll', position, true);
++    };
++  }, [isVisible, content, portalHost]);
+@@ -49 +92 @@ export function Tooltip({ content, children, className = '' }: TooltipProps) {
+-    <div className={`relative inline-flex items-center ${className}`}>
++    <div className={`relative inline-flex items-center ${className}`} onMouseEnter={show} onMouseLeave={hideAfterHover}>
+@@ -55,3 +98,2 @@ export function Tooltip({ content, children, className = '' }: TooltipProps) {
+-        onMouseEnter={() => setIsVisible(true)}
+-        onMouseLeave={() => setIsVisible(false)}
+-        onFocus={() => setIsVisible(true)}
++        aria-describedby={isVisible ? tooltipId : undefined}
++        onFocus={show}
+@@ -59 +101,8 @@ export function Tooltip({ content, children, className = '' }: TooltipProps) {
+-        onClick={() => setIsVisible((prev) => !prev)}
++        onClick={show}
++        onKeyDown={event => {
++          if (event.key === 'Escape' && isVisible) {
++            event.preventDefault();
++            event.stopPropagation();
++            setIsVisible(false);
++          }
++        }}
+@@ -65 +114 @@ export function Tooltip({ content, children, className = '' }: TooltipProps) {
+-      {isVisible && (
++      {isVisible && portalHost && createPortal(
+@@ -66,0 +116 @@ export function Tooltip({ content, children, className = '' }: TooltipProps) {
++          id={tooltipId}
+@@ -69 +119,3 @@ export function Tooltip({ content, children, className = '' }: TooltipProps) {
+-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-max max-w-xs px-2.5 py-1.5 bg-slate-900 text-white text-[11px] leading-tight rounded-lg shadow-lg z-50 pointer-events-none animate-in fade-in-0 duration-150"
++          onMouseEnter={show}
++          onMouseLeave={hideAfterHover}
++          className="fixed z-60 w-max px-2.5 py-1.5 bg-slate-900 text-white text-[11px] leading-tight rounded-lg shadow-lg break-words"
+@@ -72,2 +124,2 @@ export function Tooltip({ content, children, className = '' }: TooltipProps) {
+-          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
+-        </div>
++        </div>,
++        portalHost,
+diff --git a/web/src/components/admin/students/insert-student-modal.tsx b/web/src/components/admin/students/insert-student-modal.tsx
+index bee0753..abd24e7 100644
+--- a/web/src/components/admin/students/insert-student-modal.tsx
++++ b/web/src/components/admin/students/insert-student-modal.tsx
+@@ -1,0 +2 @@
++import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
+@@ -227 +228 @@ export function InsertStudentModal({
+-                            {pair.planStatus}
++                            {getRoutePlanStatusLabel(pair.planStatus)}
+diff --git a/web/src/components/admin/students/status-confirm-modal.tsx b/web/src/components/admin/students/status-confirm-modal.tsx
+index 96ebe82..60c4c4f 100644
+--- a/web/src/components/admin/students/status-confirm-modal.tsx
++++ b/web/src/components/admin/students/status-confirm-modal.tsx
+@@ -96 +96 @@ export function StatusConfirmModal({
+-                      <span>Tuyến ACTIVE đang tham gia:</span>
++                      <span>Tuyến thuộc phương án đã duyệt:</span>
+@@ -102 +102 @@ export function StatusConfirmModal({
+-                      <span>Tuyến DRAFT đang tham gia:</span>
++                      <span>Tuyến thuộc phương án nháp:</span>
+diff --git a/web/src/components/admin/students/student-card-print.css b/web/src/components/admin/students/student-card-print.css
+new file mode 100644
+index 0000000..3266815
+--- /dev/null
++++ b/web/src/components/admin/students/student-card-print.css
+@@ -0,0 +1,25 @@
++.student-card-print-root { display: none; }
++.student-card-sheet { box-sizing: border-box; width: 210mm; min-height: 297mm; padding: 12mm; flex-shrink: 0; background: white; color: #111; box-shadow: var(--brand-shadow); }
++.student-card-grid { display: grid; grid-template-columns: repeat(2, 85.6mm); gap: 8mm; justify-content: center; }
++.student-id-card { box-sizing: border-box; width: 85.6mm; height: 54mm; padding: 4mm; border: .25mm solid #64748b; border-top: 1.5mm solid var(--brand-primary); border-radius: 3mm; background: white; color: #111; break-inside: avoid; overflow: hidden; }
++.student-id-card > header { height: 12mm; }
++.student-id-card > header > span { display: block; font-size: 7pt; line-height: 1.2; letter-spacing: .08em; }
++.student-id-card > header > strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin-top: 1mm; font-size: 8pt; line-height: 1.25; overflow-wrap: anywhere; }
++.student-id-card-content { display: grid; grid-template-columns: minmax(0, 1fr) 28mm; align-items: center; gap: 3mm; }
++.student-id-card-identity { min-width: 0; }
++.student-id-card-identity h3 { font-size: 10pt; line-height: 1.3; font-weight: 700; overflow-wrap: anywhere; }
++.student-id-card-identity h3[data-long-name=true] { font-size: 8pt; }
++.student-id-card-identity > span { display: block; margin-top: 2mm; font-size: 7pt; }
++.student-id-card-identity > strong { display: block; font-family: ui-monospace, monospace; font-size: 8pt; line-height: 1.3; overflow-wrap: anywhere; }
++.student-id-card-content img { display: block; width: 28mm; height: 28mm; background: white; }
++@media print {
++  @page student-cards { size: A4 portrait; margin: 12mm; }
++  html:has(.student-card-print-root[data-print-ready=true]), body:has(.student-card-print-root[data-print-ready=true]) { height: auto !important; overflow: visible !important; margin: 0 !important; background: white !important; }
++  body:has(.student-card-print-root[data-print-ready=true]) > :not(.student-card-print-root) { display: none !important; }
++  .student-card-print-root[data-print-ready=true] { display: block !important; margin: 0 !important; padding: 0 !important; background: white !important; }
++  .student-card-print-pages { display: block; overflow: visible; padding: 0; background: white; }
++  .student-card-sheet { page: student-cards; width: auto; min-height: 0; padding: 0; margin: 0; box-shadow: none; break-after: page; }
++  .student-card-sheet:last-child { break-after: auto; }
++  .student-card-grid { grid-template-columns: repeat(2, 85.6mm); gap: 8mm; }
++  .student-id-card { width: 85.6mm; height: 54mm; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
++}
+diff --git a/web/src/components/admin/students/student-card-printer.tsx b/web/src/components/admin/students/student-card-printer.tsx
+new file mode 100644
+index 0000000..fe3238a
+--- /dev/null
++++ b/web/src/components/admin/students/student-card-printer.tsx
+@@ -0,0 +1,96 @@
++'use client';
++
++import { useEffect, useRef, useState } from 'react';
++import { createPortal } from 'react-dom';
++import QRCode from 'qrcode';
++import { apiClient } from '@/lib/api-client';
++import './student-card-print.css';
++
++interface StudentCardData {
++  id: string;
++  fullName: string;
++  code: string;
++  schoolName: string;
++  qrImage: string;
++}
++
++export function StudentCardPrinter({ schoolId, studentIds, onClose, onError }: {
++  schoolId: string;
++  studentIds: string[];
++  onClose: () => void;
++  onError: (message: string) => void;
++}) {
++  const printedRef = useRef(false);
++  const [portalHost] = useState(() => typeof document === 'undefined' ? null : document.body);
++  const [cards, setCards] = useState<StudentCardData[] | null>(null);
++  const [loadedImages, setLoadedImages] = useState<Record<string, boolean>>({});
++
++  useEffect(() => {
++    let current = true;
++    const load = async () => {
++      const prepared: StudentCardData[] = [];
++      // Bound parallel requests and generate QR locally; never call an external QR service.
++      for (let offset = 0; offset < studentIds.length; offset += 4) {
++        if (!current) return;
++        const batch = await Promise.all(studentIds.slice(offset, offset + 4).map(async id => {
++          const student = await apiClient.getStudent(schoolId, id);
++          if (student.id !== id || student.schoolId !== schoolId || !student.code || student.qrData !== student.code) {
++            throw new Error('Thông tin học sinh hoặc mã QR không hợp lệ. Vui lòng tải lại danh sách.');
++          }
++          const qrImage = await QRCode.toDataURL(student.qrData, {
++            width: 384, margin: 4, errorCorrectionLevel: 'M',
++            color: { dark: '#000000', light: '#FFFFFF' },
++          });
++          return { id, fullName: student.fullName, code: student.code, schoolName: student.schoolName, qrImage };
++        }));
++        if (!current) return;
++        prepared.push(...batch);
++      }
++      if (current) setCards(prepared);
++    };
++    load().catch((reason: unknown) => {
++      if (current) onError(reason instanceof Error ? reason.message : 'Không thể chuẩn bị thẻ học sinh.');
++    });
++    return () => { current = false; };
++  }, [schoolId, studentIds, onError]);
++
++  const ready = !!cards?.length && cards.length === studentIds.length && cards.every(card => loadedImages[card.id]);
++  const pages = cards ? Array.from({ length: Math.ceil(cards.length / 8) }, (_, index) => cards.slice(index * 8, index * 8 + 8)) : [];
++
++  useEffect(() => {
++    if (!ready) return;
++    let current = true;
++    const finished = () => onClose();
++    window.addEventListener('afterprint', finished);
++    document.fonts.ready.then(() => {
++      requestAnimationFrame(() => {
++        if (!current || printedRef.current) return;
++        printedRef.current = true;
++        try { window.print(); }
++        catch { onError('Không mở được hộp thoại in. Vui lòng thử lại.'); }
++      });
++    });
++    return () => { current = false; window.removeEventListener('afterprint', finished); };
++  }, [ready, onClose, onError]);
++
++  if (!portalHost) return null;
++  return createPortal(<div className="student-card-print-root" data-print-ready={ready} aria-hidden="true">
++    <div className="student-card-print-pages">
++      {pages.map((page, index) => <section className="student-card-sheet" key={index} aria-label={`Trang in ${index + 1}`}>
++        <div className="student-card-grid">
++          {page.map(student => <article key={student.id} className="student-id-card" aria-label={`Thẻ học sinh ${student.fullName}`}>
++            <header><span>THẺ HỌC SINH</span><strong title={student.schoolName}>{student.schoolName}</strong></header>
++            <div className="student-id-card-content">
++              <div className="student-id-card-identity"><h3 data-long-name={student.fullName.length > 40}>{student.fullName}</h3><span>Mã học sinh</span><strong>{student.code}</strong></div>
++              {/* A local PNG keeps the QR sharp and reliably printable. */}
++              {/* eslint-disable-next-line @next/next/no-img-element */}
++              <img src={student.qrImage} alt={`Mã QR của học sinh ${student.code}`} width={384} height={384}
++                onLoad={() => setLoadedImages(previous => previous[student.id] ? previous : { ...previous, [student.id]: true })}
++                onError={() => onError('Không tải được hình mã QR. Vui lòng thử lại.')} />
++            </div>
++          </article>)}
++        </div>
++      </section>)}
++    </div>
++  </div>, portalHost);
++}
+diff --git a/web/src/components/admin/students/student-card-selection.tsx b/web/src/components/admin/students/student-card-selection.tsx
+new file mode 100644
+index 0000000..8dfe59d
+--- /dev/null
++++ b/web/src/components/admin/students/student-card-selection.tsx
+@@ -0,0 +1,53 @@
++'use client';
++
++import { useState } from 'react';
++import type { StudentListItem } from '@/lib/types';
++import { Button } from '@/components/ui/button';
++import { Input } from '@/components/ui/input';
++
++type SelectedStudent = Pick<StudentListItem, 'id' | 'code' | 'fullName'>;
++
++export function useStudentCardSelection(scope: string, students: StudentListItem[]) {
++  const [selection, setSelection] = useState<{ scope: string; rows: Record<string, SelectedStudent> }>({ scope, rows: {} });
++  const selected = selection.scope === scope ? selection.rows : {};
++  const values = Object.values(selected);
++  const allOnPage = students.length > 0 && students.every(student => !!selected[student.id]);
++  const someOnPage = students.some(student => !!selected[student.id]);
++  const update = (rows: StudentListItem[], remove: boolean) => {
++    setSelection(previous => {
++      const next = previous.scope === scope ? { ...previous.rows } : {};
++      rows.forEach(student => {
++        if (remove) delete next[student.id];
++        else next[student.id] = { id: student.id, code: student.code, fullName: student.fullName };
++      });
++      return { scope, rows: next };
++    });
++  };
++  return {
++    selected, values, allOnPage, someOnPage,
++    toggle: (student: StudentListItem) => update([student], !!selected[student.id]),
++    togglePage: () => update(students, allOnPage),
++    clear: () => setSelection({ scope, rows: {} }),
++  };
++}
++
++export function StudentCardSelectionCheckbox({ checked, mixed = false, disabled, label, onChange }: {
++  checked: boolean; mixed?: boolean; disabled?: boolean; label: string; onChange: () => void;
++}) {
++  return <Input type="checkbox" checked={checked} aria-checked={mixed ? 'mixed' : checked}
++    ref={node => { if (node) node.indeterminate = mixed; }} disabled={disabled}
++    onChange={onChange} aria-label={label} className="h-4 w-4 cursor-pointer disabled:cursor-default" />;
++}
++
++export function StudentCardSelectionToolbar({ count, onClear, onPrint, printing = false, onCancel }: {
++  count: number; onClear: () => void; onPrint: () => void; printing?: boolean; onCancel?: () => void;
++}) {
++  return <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
++    <span className="text-sm text-slate-600" role="status" aria-live="polite">Đã chọn {count} học sinh</span>
++    <div className="flex gap-2">
++      {printing ? <Button type="button" variant="outline" size="sm" onClick={onCancel}>Hủy</Button>
++        : <Button type="button" variant="outline" size="sm" disabled={!count} onClick={onClear}>Bỏ chọn</Button>}
++      <Button type="button" variant="primary" size="sm" disabled={!count || printing} onClick={onPrint}>{printing ? 'Đang chuẩn bị in…' : `In thẻ (${count})`}</Button>
++    </div>
++  </div>;
++}
+diff --git a/web/src/components/admin/students/student-routing-section.tsx b/web/src/components/admin/students/student-routing-section.tsx
+index b6bd3b6..04b4650 100644
+--- a/web/src/components/admin/students/student-routing-section.tsx
++++ b/web/src/components/admin/students/student-routing-section.tsx
+@@ -1,0 +2 @@
++import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
+@@ -113 +114 @@ export function StudentRoutingSection({
+-              Đã phân tuyến (DRAFT)
++              Đã phân tuyến ({getRoutePlanStatusLabel('DRAFT')})
+diff --git a/web/src/components/admin/students/student-table.tsx b/web/src/components/admin/students/student-table.tsx
+index 20d1b1c..88e91f9 100644
+--- a/web/src/components/admin/students/student-table.tsx
++++ b/web/src/components/admin/students/student-table.tsx
+@@ -30,0 +31,2 @@ import { Badge } from '@/components/ui/badge';
++import { StudentCardSelectionCheckbox, StudentCardSelectionToolbar, useStudentCardSelection } from './student-card-selection';
++import { StudentCardPrinter } from './student-card-printer';
+@@ -36,0 +39 @@ interface StudentTableProps {
++  allowCardPrinting?: boolean;
+@@ -43,0 +47 @@ export function StudentTable({
++  allowCardPrinting = false,
+@@ -62,0 +67,4 @@ export function StudentTable({
++  const selection = useStudentCardSelection(schoolId, students);
++  const [printRequest, setPrintRequest] = useState<{ schoolId: string; studentIds: string[] } | null>(null);
++  const closePrint = useCallback(() => setPrintRequest(null), []);
++  const handlePrintError = useCallback((message: string) => { toast.error(message); setPrintRequest(null); }, []);
+@@ -309,0 +318,3 @@ export function StudentTable({
++      {allowCardPrinting && <StudentCardSelectionToolbar count={selection.values.length} onClear={selection.clear}
++        printing={printRequest?.schoolId === schoolId} onCancel={closePrint}
++        onPrint={() => setPrintRequest({ schoolId, studentIds: selection.values.map(student => student.id) })} />}
+@@ -312,2 +323,2 @@ export function StudentTable({
+-          <Table className="w-full text-left text-sm text-slate-700" minWidth={1330}>
+-            <colgroup><col /><col style={{ width: 160 }} /><col style={{ width: 170 }} /><col style={{ width: 190 }} /><col style={{ width: 180 }} /><col style={{ width: 390 }} /></colgroup>
++          <Table className="w-full text-left text-sm text-slate-700" minWidth={allowCardPrinting ? 1378 : 1330}>
++            <colgroup>{allowCardPrinting && <col style={{ width: 48 }} />}<col /><col style={{ width: 160 }} /><col style={{ width: 170 }} /><col style={{ width: 190 }} /><col style={{ width: 180 }} /><col style={{ width: 390 }} /></colgroup>
+@@ -315,0 +327,4 @@ export function StudentTable({
++                {allowCardPrinting && <th className="px-4 py-3" scope="col">
++                  <StudentCardSelectionCheckbox checked={selection.allOnPage} mixed={selection.someOnPage && !selection.allOnPage}
++                    disabled={isLoading || !students.length} label="Chọn tất cả học sinh trên trang này" onChange={selection.togglePage} />
++                </th>}
+@@ -327 +342 @@ export function StudentTable({
+-                  <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
++                  <td colSpan={allowCardPrinting ? 7 : 6} className="px-4 py-12 text-center text-slate-400">
+@@ -336 +351 @@ export function StudentTable({
+-                  <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
++                  <td colSpan={allowCardPrinting ? 7 : 6} className="px-4 py-12 text-center text-slate-500">
+@@ -368,0 +384,4 @@ export function StudentTable({
++                      {allowCardPrinting && <td className="px-4 py-3">
++                        <StudentCardSelectionCheckbox checked={!!selection.selected[student.id]} disabled={isLoading}
++                          label={`Chọn ${student.fullName}, mã ${student.code}`} onChange={() => selection.toggle(student)} />
++                      </td>}
+@@ -498,0 +518,4 @@ export function StudentTable({
++      {allowCardPrinting && printRequest?.schoolId === schoolId && printRequest.studentIds.length > 0 &&
++        <StudentCardPrinter schoolId={schoolId} studentIds={printRequest.studentIds}
++          onClose={closePrint} onError={handlePrintError} />}
++
+diff --git a/web/src/components/admin/teachers/add-teacher-modal.tsx b/web/src/components/admin/teachers/add-teacher-modal.tsx
+index d8962ec..605237a 100644
+--- a/web/src/components/admin/teachers/add-teacher-modal.tsx
++++ b/web/src/components/admin/teachers/add-teacher-modal.tsx
+@@ -3 +3 @@
+-import React, { useState, useEffect } from 'react';
++import React, { useState } from 'react';
+@@ -18,2 +18,5 @@ interface AddTeacherModalProps {
+-export function AddTeacherModal({
+-  isOpen,
++export function AddTeacherModal({ isOpen, ...props }: AddTeacherModalProps) {
++  return isOpen ? <AddTeacherForm {...props} /> : null;
++}
++
++function AddTeacherForm({
+@@ -23 +26 @@ export function AddTeacherModal({
+-}: AddTeacherModalProps) {
++}: Omit<AddTeacherModalProps, 'isOpen'>) {
+@@ -30,11 +32,0 @@ export function AddTeacherModal({
+-  useEffect(() => {
+-    if (!isOpen) {
+-      setFullName('');
+-      setEmail('');
+-      setPhone('');
+-      setErrorMessage(null);
+-    }
+-  }, [isOpen]);
+-
+-  if (!isOpen) return null;
+-
+@@ -47 +39 @@ export function AddTeacherModal({
+-    const trimmedPhone = phone.trim();
++    const trimmedPhone = phone.trim().replace(/[\s\-().]/g, '');
+@@ -54,2 +46,2 @@ export function AddTeacherModal({
+-    if (!trimmedEmail && !trimmedPhone) {
+-      setErrorMessage('Vui lòng cung cấp ít nhất Email hoặc Số điện thoại để làm thông tin đăng nhập.');
++    if (!trimmedEmail) {
++      setErrorMessage('Vui lòng nhập email của giáo viên.');
+@@ -59,2 +51,6 @@ export function AddTeacherModal({
+-    // Phone format check if provided
+-    if (trimmedPhone && !/^(0|\+84|84)?[35789]\d{8}$/.test(trimmedPhone)) {
++    if (!trimmedPhone) {
++      setErrorMessage('Vui lòng nhập số điện thoại của giáo viên.');
++      return;
++    }
++
++    if (!/^(0|\+84|84)?[35789]\d{8}$/.test(trimmedPhone)) {
+@@ -65,2 +61 @@ export function AddTeacherModal({
+-    // Email format check if provided
+-    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
++    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+@@ -75,2 +70,2 @@ export function AddTeacherModal({
+-        email: trimmedEmail || undefined,
+-        phone: trimmedPhone || undefined,
++        email: trimmedEmail,
++        phone: trimmedPhone,
+@@ -81 +76 @@ export function AddTeacherModal({
+-    } catch (err: any) {
++    } catch (err: unknown) {
+@@ -83 +78 @@ export function AddTeacherModal({
+-        err?.message || 'Không thể tạo tài khoản giáo viên. Vui lòng thử lại.'
++        err instanceof Error ? err.message : 'Không thể tạo tài khoản giáo viên. Vui lòng thử lại.'
+@@ -127 +122 @@ export function AddTeacherModal({
+-            <label className="block text-xs font-semibold text-slate-700 mb-1">
++            <label htmlFor="teacher-full-name" className="block text-xs font-semibold text-slate-700 mb-1">
+@@ -130,0 +126 @@ export function AddTeacherModal({
++              id="teacher-full-name"
+@@ -143,2 +139,2 @@ export function AddTeacherModal({
+-              <label className="text-xs font-semibold text-slate-700">Email</label>
+-              <Tooltip content="Địa chỉ email dùng để đăng nhập hoặc nhận thông báo. Cần ít nhất Email hoặc Số điện thoại." />
++              <label htmlFor="teacher-email" className="text-xs font-semibold text-slate-700">Email <span className="text-red-500">*</span></label>
++              <Tooltip content="Bắt buộc. Dùng để đăng nhập và nhận mật khẩu tài khoản." />
+@@ -146,0 +143 @@ export function AddTeacherModal({
++              id="teacher-email"
+@@ -147,0 +145 @@ export function AddTeacherModal({
++              required
+@@ -158,2 +156,2 @@ export function AddTeacherModal({
+-              <label className="text-xs font-semibold text-slate-700">Số điện thoại</label>
+-              <Tooltip content="Số điện thoại di động dùng để đăng nhập. Cần ít nhất Email hoặc Số điện thoại." />
++              <label htmlFor="teacher-phone" className="text-xs font-semibold text-slate-700">Số điện thoại <span className="text-red-500">*</span></label>
++              <Tooltip content="Bắt buộc. Số di động Việt Nam dùng để liên hệ và đăng nhập." />
+@@ -161,0 +160 @@ export function AddTeacherModal({
++              id="teacher-phone"
+@@ -162,0 +162 @@ export function AddTeacherModal({
++              required
+diff --git a/web/src/components/admin/trips/manual-generate-trips-modal.tsx b/web/src/components/admin/trips/manual-generate-trips-modal.tsx
+index b534420..8dc29b0 100644
+--- a/web/src/components/admin/trips/manual-generate-trips-modal.tsx
++++ b/web/src/components/admin/trips/manual-generate-trips-modal.tsx
+@@ -155 +155 @@ export function ManualGenerateTripsModal({
+-              Sinh chuyến xe theo khoảng ngày cho các phương án tuyến đang ở trạng thái <strong>ACTIVE</strong> của trường. Hệ thống chỉ sinh chuyến từ ngày học hợp lệ tiếp theo sau ngày kích hoạt và tự động bỏ qua chuyến đã tồn tại.
++              Sinh chuyến xe theo khoảng ngày cho các phương án tuyến <strong>Đã duyệt</strong> của trường. Hệ thống chỉ sinh chuyến từ ngày học hợp lệ tiếp theo sau ngày kích hoạt và tự động bỏ qua chuyến đã tồn tại.
+diff --git a/web/src/components/admin/trips/trips-table.css b/web/src/components/admin/trips/trips-table.css
+new file mode 100644
+index 0000000..6e041bf
+--- /dev/null
++++ b/web/src/components/admin/trips/trips-table.css
+@@ -0,0 +1,15 @@
++.trips-table-scroll { container-type: inline-size; }
++.trips-table-scroll:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: -2px; }
++.trips-table.ui-table { table-layout: fixed; border-collapse: separate; border-spacing: 0; }
++.trips-table .trip-pin { position: sticky; z-index: 10; background: var(--brand-surface); }
++.trips-table thead .trip-pin { z-index: 20; background: var(--brand-hover); }
++.trips-table tbody tr:hover > .trip-pin { background: var(--brand-row-hover); }
++.trips-table .trip-pin-date { left: 0; }
++.trips-table .trip-pin-route { left: 125px; }
++.trips-table .trip-pin-school { left: 365px; }
++.trips-table .trip-pin-direction { left: 575px; box-shadow: 3px 0 0 var(--brand-border); }
++/* Four fixed columns need 690px; retain access to the remaining cells on narrow screens. */
++@container (max-width: 849px) {
++  .trips-table .trip-pin-route, .trips-table .trip-pin-school, .trips-table .trip-pin-direction { position: static; box-shadow: none; }
++  .trips-table .trip-pin-date { box-shadow: 3px 0 0 var(--brand-border); }
++}
+diff --git a/web/src/components/admin/trips/trips-table.tsx b/web/src/components/admin/trips/trips-table.tsx
+index b5d6588..2ff6b61 100644
+--- a/web/src/components/admin/trips/trips-table.tsx
++++ b/web/src/components/admin/trips/trips-table.tsx
+@@ -22,0 +23 @@ import { Table } from '@/components/ui/table';
++import './trips-table.css';
+@@ -307,3 +308,3 @@ export function TripsTable({
+-        <div className="overflow-x-auto">
+-          <Table className="w-full text-left border-collapse text-xs" minWidth={1765}>
+-            <colgroup><col style={{ width: 125 }} /><col /><col style={{ width: 210 }} /><col style={{ width: 115 }} /><col style={{ width: 160 }} /><col style={{ width: 150 }} /><col style={{ width: 190 }} /><col style={{ width: 190 }} /><col style={{ width: 100 }} /><col style={{ width: 170 }} /><col style={{ width: 115 }} /></colgroup>
++        <div className="trips-table-scroll overflow-x-auto" tabIndex={0} role="region" aria-label="Bảng chuyến xe, cuộn ngang để xem thêm cột">
++          <Table className="trips-table w-full text-left text-xs" minWidth={1765}>
++            <colgroup><col style={{ width: 125 }} /><col style={{ width: 240 }} /><col style={{ width: 210 }} /><col style={{ width: 115 }} /><col style={{ width: 160 }} /><col style={{ width: 150 }} /><col style={{ width: 190 }} /><col /><col style={{ width: 100 }} /><col style={{ width: 170 }} /><col style={{ width: 115 }} /></colgroup>
+@@ -312,4 +313,4 @@ export function TripsTable({
+-                <th className="py-3 px-4 w-32">Thứ / Ngày</th>
+-                <th className="py-3 px-4">Tuyến xe</th>
+-                <th className="py-3 px-4">Trường học</th>
+-                <th className="py-3 px-4">Chiều</th>
++                <th className="trip-pin trip-pin-date py-3 px-4" scope="col">Thứ / Ngày</th>
++                <th className="trip-pin trip-pin-route py-3 px-4" scope="col">Tuyến xe</th>
++                <th className="trip-pin trip-pin-school py-3 px-4" scope="col">Trường học</th>
++                <th className="trip-pin trip-pin-direction py-3 px-4" scope="col">Chiều</th>
+@@ -368 +369 @@ export function TripsTable({
+-                          className="py-3 px-4 font-bold text-slate-800 bg-slate-50/40 border-r border-slate-100 align-top"
++                          className="trip-pin trip-pin-date py-3 px-4 font-bold text-slate-800 border-r border-slate-100 align-top"
+@@ -381 +382 @@ export function TripsTable({
+-                      <td className="py-3 px-4 font-semibold text-slate-800">
++                      <td className="trip-pin trip-pin-route py-3 px-4 font-semibold text-slate-800">
+@@ -388 +389 @@ export function TripsTable({
+-                      <td className="py-3 px-4 text-slate-600 max-w-[140px] truncate">
++                      <td className="trip-pin trip-pin-school py-3 px-4 text-slate-600 truncate" title={trip.schoolName}>
+@@ -392 +393 @@ export function TripsTable({
+-                      <td className="py-3 px-4">
++                      <td className="trip-pin trip-pin-direction py-3 px-4">
+diff --git a/web/src/lib/api-client.ts b/web/src/lib/api-client.ts
+index bae04de..f149f3f 100644
+--- a/web/src/lib/api-client.ts
++++ b/web/src/lib/api-client.ts
+@@ -486 +486 @@ class ApiClient {
+-    body: { fullName: string; email?: string; phone?: string },
++    body: { fullName: string; email: string; phone: string },
+@@ -1050,2 +1050,2 @@ class ApiClient {
+-  ): Promise<{ message: string; routePlan: RoutePlanItem }> {
+-    return this.request<{ message: string; routePlan: RoutePlanItem }>(
++  ): Promise<RoutePlanItem> {
++    return this.request<RoutePlanItem>(
+diff --git a/web/src/lib/route-plan-status.ts b/web/src/lib/route-plan-status.ts
+new file mode 100644
+index 0000000..790a369
+--- /dev/null
++++ b/web/src/lib/route-plan-status.ts
+@@ -0,0 +1,14 @@
++import type { RoutePlanStatus } from './types';
++
++export const ROUTE_PLAN_STATUS_LABELS: Record<RoutePlanStatus, string> = {
++  DRAFT: 'Nháp',
++  ACTIVE: 'Đã duyệt',
++  CANCELLED: 'Đã hủy',
++  EXPIRED: 'Hết hạn',
++};
++
++export function getRoutePlanStatusLabel(status: string | null | undefined): string {
++  return status && Object.hasOwn(ROUTE_PLAN_STATUS_LABELS, status)
++    ? ROUTE_PLAN_STATUS_LABELS[status as RoutePlanStatus]
++    : 'Không xác định';
++}
+diff --git a/web/src/lib/types.ts b/web/src/lib/types.ts
+index f6be0ae..e0d9d8e 100644
+--- a/web/src/lib/types.ts
++++ b/web/src/lib/types.ts
+@@ -873,4 +873,4 @@ export interface ApprovalSummary {
+-  fullyAssignedRoutes: number;
+-  missingVehicleRoutes: number;
+-  missingDriverRoutes: number;
+-  missingBusAttendantRoutes: number;
++  totalRoutes: number;
++  routesWithVehicle: number;
++  routesWithDriver: number;
++  routesWithBusAttendant: number;
+@@ -882,4 +882 @@ export interface ApprovalReadinessResponse {
+-  schoolId: string;
+-  schoolName: string;
+-  totalRoutes: number;
+-  totalVehicles: number;
++  status: RoutePlanStatus;
