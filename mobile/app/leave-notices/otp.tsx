@@ -172,7 +172,7 @@ export default function LeaveNoticeOtpScreen() {
                 <Text style={styles.destinationText}>
                   {ch.destination}
                   {ch.isConsole ? (
-                    <Text style={styles.consoleBadge}> 0</Text>
+                    <Text style={styles.consoleBadge}></Text>
                   ) : null}
                 </Text>
               </View>
