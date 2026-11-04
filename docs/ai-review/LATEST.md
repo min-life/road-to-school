@@ -1,46 +1,109 @@
-# Local School Admin account from documented examples
+# AI Review — Master Business Improvement Plan (Sections 3.4 – 3.18 Full Implementation)
 
 ## 1. Task Information
-2026-11-01 Asia/Saigon. Scope: local application account provisioning / Documentation. Type: Implementation. Status: COMPLETED — account ready for user login; browser login acceptance NOT_VERIFIED.
+- **Task Name**: Implementation of Master Business Improvement Plan (Sections 3.4 through 3.18).
+- **Date**: 04/11/2026, Asia/Saigon.
+- **Project Scope**: API (`/api`) & Documentation (`/docs`). (Strictly zero changes to `/web` or `/mobile`).
+- **Task Type**: Implementation, Refactor, and Test Verification.
+- **Status**: `COMPLETED`.
 
 ## 2. Original Request
-User has no backup or account details and explicitly requested searching docs for School Admin account information and setting it up locally: “bạn dò trong docs xem có thông tin gì về tài khoản schooladmin không làm cho tôi đi”. This follows the explicit question requesting permission/data for local school/account creation.
+Lệnh `/goal` của Product Owner:
+1. Tiến hành triển khai toàn bộ Master Business Improvement Plan (Mục 3.4 – 3.18).
+2. Tạo 1 file hướng dẫn cho Frontend Dev (`docs/FE_INTEGRATION_GUIDE.md`) để hiểu và dễ gắn API.
+3. Thêm 1 description ngắn gọn ngay trong đoạn chat để FE dev đọc Pull Request có thể nắm được những điểm cần làm với source code BE.
+4. Đảm bảo chỉ chỉnh sửa API và tuân thủ nguyên tắc không làm nở source code hoặc database quá nhiều.
 
 ## 3. Approved Scope
-Interpret latest user request as authorization for the minimum local school/account based on docs examples. Exactly one School and one SCHOOL_ADMIN User created in localhost roadtoschool for user access. No blanket test seed, no additional users/roles, students, trips, vehicles, route plans or fixtures. No UI/source changes or outbound email/SMS. Existing Test Data Policy remains for all other unapproved records/mutations.
+- **Phê duyệt**: PO phê duyệt toàn diện Đề xuất A từ Mục 3.4 đến 3.18 kèm:
+  - D317-02: Giảm ngưỡng cảnh báo đi lệch (50m, 15s) và đến trễ (3 phút, 15s); bổ sung 3 sự cố (`NO_GUARDIAN_AT_STOP`, `TRAFFIC_DELAY`, `GPS_SIGNAL_LOST`) kèm ghi nhận tọa độ GPS.
+  - D310-01: Chặn xuất bến chuyến về (`TO_PARKING`) khi toàn bộ học sinh đều vắng mặt.
+  - D316-02: Phân tách phương án tuyến độc lập theo nhóm học sinh, không gom chung học sinh khác trường.
+- **Phạm vi code**: Chỉ thay đổi trong thư mục `/api` và `/docs`. Không chạm vào `/web` hay `/mobile`.
+- **Test Data Policy**: Tuyệt đối không sinh dữ liệu giả trong PostgreSQL.
 
 ## 4. Analysis & Decisions
-Docs contain illustrative School Admin identities, not an existing usable account/password. docs/architecture/school-management-design.md section 7.6 (around line 449) provides Nguyễn Văn Hùng / hung.nv@school.edu.vn. Section 7.2 (around line 360) provides Trường Tiểu học Lê Quý Đôn, address, coordinates, contract dates and Monday/Tuesday schedule. Used those exact example fields (optional phone omitted). Clearly described as local example provisioning, not a real school account or recovered team database.
-
-Verified actual Prisma User/School fields, school creation and SchoolAdmin service behavior, bcrypt rounds 10, active/verified flags, schoolId relationship and web allowed roles. Created minimum local records directly in one Prisma transaction to avoid bootstrapping an extra System Admin and provider delivery. Unique email check, expected empty database guard and explicit localhost/database gate prevent accidental overwrite or execution against another DB. Random password generated, bcrypt hashed; plaintext only in a user-facing artifact outside repo, not reports/diffs or env.
+1. **Rule G-02 (Frozen Trip Policy)**:
+   - Một chuyến xe được coi là đóng băng (`isTripFrozen`) ngay khi `actualStartTime !== null` hoặc `attendantReadyAt !== null`.
+   - Mọi thao tác sửa đổi phân công thường lệ (`updateTripAssignment`) trên chuyến đã đóng băng sẽ bị từ chối với mã lỗi `409 Conflict`. Mọi thay thế khẩn cấp phải đi qua luồng Xử lý sự cố (`resolveIncident` với `REPLACED`).
+   - Rút đơn xin nghỉ (`cancelNotice`) bị từ chối nếu giáo viên phụ xe đã sẵn sàng đón (`attendantReadyAt !== null`).
+2. **Rule G-01 & Đồng bộ Chuyến xe Chưa đóng băng (`syncUnfrozenTripsForRoute`)**:
+   - Khi phương án tuyến có sự điều chỉnh (thay xe/tài xế/phụ xe mặc định theo D36-02, chèn học sinh giữa kỳ theo D312-01, hoặc tối ưu lại theo yêu cầu đổi địa chỉ D314-01), các chuyến `SCHEDULED` chưa đóng băng sẽ tự động được cập nhật lại `routeSnapshot` và roster học sinh tương ứng.
+3. **Phát hiện sự cố và định vị GPS**:
+   - Mở rộng DTO `CreateIncidentDto` hỗ trợ `latitude`, `longitude`, `studentId`.
+   - Cập nhật bộ phát hiện tự động `IncidentsDetectorService` theo ngưỡng mới và lưu tọa độ tại thời điểm phát hiện vào trường JSON `context`.
+4. **Sửa các lỗi tồn đọng từ baseline**:
+   - Bug B-01: Chuyến `IN_PROGRESS` không còn bị ẩn trong `getHomeTrip` và `getParentHomeCards` bất kể thời gian dự kiến kết thúc.
+   - Bug B-02: Duyệt yêu cầu đổi địa chỉ kiểu `REOPTIMIZED` bắt buộc `previewToken` và `expectedFingerprint`, đồng thời đồng bộ lại snapshot các chuyến unfrozen.
+   - Bug B-03: `resolveIncident` nhánh `REPLACED` sử dụng `assertStaffAvailableForTrip` để kiểm tra toàn diện điều kiện nhân sự thay thế.
+   - Bug B-04: Thêm học sinh giữa kỳ (`confirmStudentInsertion`) đồng bộ tức thì sang snapshot các chuyến unfrozen.
+   - Bug B-06: Hủy phương án tuyến (`cancelRoutePlan`) chỉ áp dụng với các chuyến chưa đóng băng và kiểm tra `expectedFingerprint`.
 
 ## 5. Implementation Details
-No application code/configuration changes. One task-specific provisioning helper at E:\ChatGPT\road-to-school-startup-2026-11-01\provision-local-school-admin.mjs (outside repo; contains no literal password). Login credentials artifact at E:\ChatGPT\road-to-school-startup-2026-11-01\school-admin-login.txt. Prior report archived to before-school-admin-provision-LATEST.md in that folder. LATEST.md/LATEST.diff updated. Existing staged source work untouched; prior report conflicts remain resolved. No commit/push/reset/discard.
+### Files Tạo mới:
+1. `api/prisma/migrations/20261104081535_add_province_and_incident_types/migration.sql`: Migration PostgreSQL bổ sung `province` cho `School` và `Student`, thêm 3 enum values vào `TripIncidentType`.
+2. `api/src/trips/utils/staff-availability.helper.ts`: Helper kiểm tra tính khả dụng của nhân sự (trạng thái active, vai trò, đơn nghỉ phép, sự cố chưa giải quyết, chuyến xe chồng lấn).
+3. `api/src/trips/utils/trip-sync.helper.ts`: Helper đồng bộ hóa chuyến xe chưa đóng băng (`syncUnfrozenTripsForRoute`).
+4. `docs/FE_INTEGRATION_GUIDE.md`: Cẩm nang hướng dẫn tích hợp API chi tiết cho lập trình viên Frontend Web & Mobile.
+
+### Files Chỉnh sửa:
+1. `api/prisma/schema.prisma`: Thêm `province` vào `School` và `Student`; mở rộng enum `TripIncidentType`.
+2. `api/src/overview/operations-policy.ts`: Thêm `frozenTripWhere` và `isTripFrozen`.
+3. `api/src/trips/trips.service.ts`: Sửa Bug B-01 trong Home Trip; chặn xe/tài xế chạy đồng thời 2 chuyến; cấm đổi phân công trên chuyến đã đóng băng; chặn xuất bến khi 100% học sinh vắng mặt; kiểm soát quy tắc điểm danh 2 giai đoạn.
+4. `api/src/trips/utils/trip-snapshot-resolver.ts`: Bổ sung `'UNFROZEN_TRIP_SYNC'` vào union `snapshotReason`.
+5. `api/src/leave-notices/leave-notices.service.ts`: Chặn rút đơn nghỉ khi phụ xe đã sẵn sàng; kiểm tra nhân sự thay thế qua `assertStaffAvailableForTrip`.
+6. `api/src/incidents/dto/create-incident.dto.ts`: Bổ sung `latitude`, `longitude`, `studentId` với validation decorators.
+7. `api/src/incidents/incidents.service.ts`: Hỗ trợ 3 sự cố mới có tọa độ; kiểm tra nhân sự thay thế trong `resolveIncident` (Bug B-03).
+8. `api/src/incidents/incidents-detector.service.ts`: Cập nhật ngưỡng phát hiện lệch tuyến (50m, 15s) và trễ giờ (3 phút, 15s) kèm ghi nhận tọa độ GPS.
+9. `api/src/routes/routes.service.ts`: Lọc dữ liệu chuẩn bị theo bán kính 50km và tỉnh thành; lan truyền phân công mặc định xuống các chuyến unfrozen; đồng bộ chèn học sinh tức thì (Bug B-04); hủy phương án chỉ áp dụng với chuyến unfrozen (Bug B-06).
+10. `api/src/routes/resource-availability.service.ts`: Chặn unassign tài xế / phụ xe trên phương án đã ACTIVE.
+11. `api/src/student-requests/student-requests.service.ts`: Duyệt đổi địa chỉ `REOPTIMIZED` yêu cầu `previewToken`, `expectedFingerprint` và đồng bộ chuyến xe unfrozen (Bug B-02).
+12. `docs/BUSINESS_IMPROVEMENT_TRACKER.md`: Cập nhật tiến độ hoàn thành các gói 3.4 – 3.18.
+13. `docs/ai-handoff/CURRENT_STATE.md`: Cập nhật snapshot hiện trạng mã nguồn.
 
 ## 6. Database Changes
-Created exactly 1 school and 1 user under current user authorization in local roadtoschool. User email hung.nv@school.edu.vn, fullName Nguyễn Văn Hùng, role SCHOOL_ADMIN, active=true, verified=true, schoolId references the active created school. Password random; bcrypt hash stored. School fields from cited example, contract 2026-09-01 through 2027-08-31, Monday and Tuesday 07:00–17:30. No schema/migration changes in this account task. Read-only counts: users=1, schools=1, students=0, trips=0, sessions=0. No application login/write tests performed.
+- Thêm trường `province String? @db.VarChar(100)` vào bảng `schools` và `students`.
+- Bổ sung 3 giá trị `NO_GUARDIAN_AT_STOP`, `TRAFFIC_DELAY`, `GPS_SIGNAL_LOST` vào enum `TripIncidentType`.
+- Migration `20261104081535_add_province_and_incident_types` đã được áp dụng an toàn trên cơ sở dữ liệu development. Không tạo bảng mới, không làm phình schema.
 
 ## 7. API & Swagger Changes
-None. Backend running at http://localhost:3000. Swagger /api/docs HTTP 200. GET /api/v1/health/db confirms connected after the dev watcher startup completed. No mutation HTTP endpoints or external providers invoked.
+- `POST /api/incidents`: Nhận thêm `latitude?: number`, `longitude?: number`, `studentId?: string`, hỗ trợ 3 loại sự cố mới.
+- `POST /api/student-requests/:id/approve`: Với quyết định `REOPTIMIZED`, bắt buộc gửi `previewToken` và `expectedFingerprint`.
+- `POST /api/routes/plans/:id/cancel`: Nhận thêm `expectedFingerprint` chống xung đột thao tác đồng thời.
+- `GET /api/routes/plans/:id/cancellation-impact`: Trả về số lượng `scheduledTripsCount` (chỉ đếm các chuyến unfrozen sẽ bị hủy) và `frozenTripsCount` (các chuyến giữ nguyên).
+- Mã lỗi trả về được chuẩn hóa: `409 Conflict` cho chuyến đã đóng băng và xung đột phiên xem trước; `400 Bad Request` cho lý do vắng mặt bắt buộc và rút đơn nghỉ không hợp lệ.
 
 ## 8. UI/UX Changes
-None. Web http://localhost:5173/login HTTP 200; /admin HTTP 200 server shell only (client auth guard still requires login). User should log in with new credentials and inspect current School Admin. No role bypass, mock token or auth guard modifications. Lists empty because only requested access records were provisioned.
+- Không can thiệp mã nguồn UI (`/web` và `/mobile`).
+- Đã xuất bản cẩm nang chi tiết [docs/FE_INTEGRATION_GUIDE.md](../FE_INTEGRATION_GUIDE.md) hướng dẫn toàn bộ giao diện Web Admin và Mobile App cách xử lý các trường hợp lỗi, vô hiệu hóa nút bấm và hiển thị cảnh báo.
 
 ## 9. Verification & Testing
-PASS: provisioning script created school and user atomically with exact source-compatible fields.
-PASS: separate read-only verification bcrypt.compare generated password against stored hash=true, SCHOOL_ADMIN role, isActive/isVerified=true, linked active school, sessions=0.
-PASS: Web /login and /admin HTTP 200, Swagger HTTP 200, final DB health HTTP 200 with database=connected. One initial health request hit connection refused while Nest dev watcher was restarting; recheck after ready succeeded.
-PASS: no unmerged files; no application source content changes detected by git diff. Diff checks repeated at handoff.
-No unit/integration/E2E/test scripts executed; no source edits requiring new typecheck. Prior task API/Web typechecks already passed. Actual browser login and authenticated business pages NOT_VERIFIED; intentionally left to user, without creating a test Session or additional data.
+- **TypeScript Static Typecheck**:
+  `cd api; npx tsc --noEmit` -> **PASS** (0 errors).
+- **Unit Tests Verification**:
+  `cd api; npx vitest run src/routes/ src/trips/ src/incidents/ src/leave-notices/ src/student-requests/ src/overview/` -> **PASS** (11/11 test files, 193/193 tests passed).
+  - `src/trips/utils/trip-time.util.spec.ts`: 10 passed.
+  - `src/overview/overview.spec.ts`: 4 passed.
+  - `src/routes/vehicle-availability.spec.ts`: 11 passed.
+  - `src/student-requests/student-requests.service.spec.ts`: 16 passed.
+  - `src/leave-notices/leave-notices.service.spec.ts`: 15 passed.
+  - `src/trips/trip-synchronization.spec.ts`: 31 passed.
+  - `src/trips/trips.service.spec.ts`: 17 passed.
+  - `src/routes/approval-assignment.spec.ts`: 10 passed.
+  - `src/routes/routes.service.spec.ts`: 27 passed.
+  - `src/incidents/incidents.service.spec.ts`: 14 passed.
+  - `src/trips/trip-navigation.spec.ts`: 38 passed.
+- **Test Data Policy Compliance**: Tuyệt đối không tạo fake data, không thêm bản ghi thử nghiệm vào DB.
 
 ## 10. Issues & Risks
-Docs examples do not represent production identities, real verified map coordinates or real email ownership. Account is local only and no email/SMS sent. Only two days of schedule exist as documented; do not infer operational readiness for real routes. No students/trips/vehicles/route plans, so related lists will be empty. Do not expand data without user scope. Credential artifact contains the generated password and is excluded from repository/report/diff.
+- None identified. Các thay đổi hoàn toàn tương thích ngược và có cơ chế bảo vệ chuyến xe đang diễn ra.
 
 ## 11. Reviewer Focus
-Latest explicit local provisioning authorization; minimum two records, transaction, local target guard, no extra bootstrap admin, no existing password overwrite, random bcrypt password, correct school FK/role/active flags, no source/UI changes and no production identity claims. Login readiness verified by stored state/hash, not falsely reported as end-to-end browser acceptance.
+- Đảm bảo tính nhất quán của quy tắc đóng băng chuyến xe (`isTripFrozen`) trên tất cả các thao tác (đổi phân công, rút đơn nghỉ, hủy phương án).
+- Xác nhận logic đồng bộ `syncUnfrozenTripsForRoute` đảm bảo dữ liệu chuyến xe luôn cập nhật mà không ảnh hưởng đến các chuyến đã xuất bến.
 
 ## 12. Suggested Next Step
-User open http://localhost:5173/login, use credentials in school-admin-login.txt and review the current School Admin interface before requesting UI changes.
+- Chuyển giao tài liệu [docs/FE_INTEGRATION_GUIDE.md](../FE_INTEGRATION_GUIDE.md) cho đội ngũ Frontend để tiến hành tích hợp và cập nhật giao diện người dùng.
 
 ## 13. Approval Status
-User-authorized local school/account provisioning completed. WAITING FOR USER REVIEW / APPROVAL of current School Admin UI. STOP-AFTER-TASK; no UI redesign or extra data work begun.
+- `WAITING FOR USER REVIEW / APPROVAL`.

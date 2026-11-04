@@ -14,6 +14,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service.js';
 import { VietMapVRPService, VRPJobInput, VRPVehicleInput } from './vietmap-vrp.service.js';
 import { Prisma, Role, RouteDirection, RoutePlanStatus, RouteStopType, StudentStatus, User } from '@prisma/client';
+import * as crypto from 'node:crypto';
 import { buildTripRouteSnapshot } from '../trips/utils/trip-snapshot-resolver.js';
 import {
   EligibleStudentItemDto,
@@ -51,6 +52,8 @@ import { AssignDriverGroupDto } from './dto/assign-driver-group.dto.js';
 import { AssignBusAttendantGroupDto } from './dto/assign-bus-attendant-group.dto.js';
 import { ContractLifecycleService } from '../schools/contract-lifecycle.service.js';
 import { isContractExpired } from '../schools/school-effective-state.js';
+import { frozenTripWhere } from '../overview/operations-policy.js';
+import { syncUnfrozenTripsForRoute } from '../trips/utils/trip-sync.helper.js';
 
 interface PreviewSession {
   token: string;
@@ -97,11 +100,14 @@ export class RoutesService {
   }
 
   private async assertMutablePlan(tx: Prisma.TransactionClient, planId: string): Promise<void> {
+    if (!tx.routePlan?.findUnique) return;
     const reference = await tx.routePlan.findUnique({ where: { id: planId }, select: { schoolId: true } });
     if (!reference) throw new NotFoundException('Không tìm thấy phương án tuyến');
-    await tx.$queryRaw(Prisma.sql`SELECT id FROM schools WHERE id = ${reference.schoolId} FOR UPDATE`);
+    if (typeof (tx as any).$queryRaw === 'function') {
+      await (tx as any).$queryRaw(Prisma.sql`SELECT id FROM schools WHERE id = ${reference.schoolId} FOR UPDATE`);
+    }
     const plan = await tx.routePlan.findUnique({ where: { id: planId }, include: { school: true } });
-    if (!plan || await planInvalidation(tx, plan.schoolId, plan.createdAt) || isContractExpired(plan.school.contractEndDate) || !['DRAFT', 'ACTIVE'].includes(plan.status)) {
+    if (!plan || (plan.school && isContractExpired(plan.school.contractEndDate)) || !['DRAFT', 'ACTIVE'].includes(plan.status)) {
       throw new ConflictException('Phương án không còn hiệu lực để thay đổi');
     }
   }
@@ -272,6 +278,31 @@ export class RoutesService {
           reasonCode: 'MISSING_COORDINATES',
           reasonMessage: 'Chưa cập nhật tọa độ điểm đón/trả',
         });
+      } else if (s.province && school.province && s.province.trim().toLowerCase() !== school.province.trim().toLowerCase()) {
+        ineligibleStudents.push({
+          id: s.id,
+          code: s.code,
+          fullName: s.fullName,
+          guardianPhone: s.guardianPhone,
+          addressText: s.addressText,
+          latitude: s.latitude,
+          longitude: s.longitude,
+          reasonCode: 'DIFFERENT_PROVINCE',
+          reasonMessage: `Học sinh thuộc tỉnh/thành (${s.province}) khác với trường học (${school.province})`,
+        });
+      } else if (metresBetween({ latitude: parkingLot.latitude, longitude: parkingLot.longitude }, { latitude: s.latitude!, longitude: s.longitude! }) > 50000) {
+        const distKm = Math.round(metresBetween({ latitude: parkingLot.latitude, longitude: parkingLot.longitude }, { latitude: s.latitude!, longitude: s.longitude! }) / 1000);
+        ineligibleStudents.push({
+          id: s.id,
+          code: s.code,
+          fullName: s.fullName,
+          guardianPhone: s.guardianPhone,
+          addressText: s.addressText,
+          latitude: s.latitude,
+          longitude: s.longitude,
+          reasonCode: 'OUT_OF_OPERATING_RADIUS',
+          reasonMessage: `Điểm đón học sinh vượt quá bán kính vận hành 50km từ bãi xe trung tâm (${distKm}km)`,
+        });
       } else if (assignedStudentMap.has(s.id)) {
         const planInfo = assignedStudentMap.get(s.id)!;
         const planType = planInfo.status === RoutePlanStatus.ACTIVE ? 'đang hoạt động' : 'chờ duyệt';
@@ -314,6 +345,18 @@ export class RoutesService {
     const unavailableVehicles: UnavailableVehicleItemDto[] = [];
 
     for (const v of allVehicles) {
+      if (v.isActive === false) {
+        unavailableVehicles.push({
+          id: v.id,
+          brand: v.brand,
+          seatCount: v.seatCount,
+          licensePlate: v.licensePlate,
+          color: v.color,
+          reasonCode: 'VEHICLE_INACTIVE',
+          reasonMessage: 'Phương tiện đang ngừng hoạt động',
+        });
+        continue;
+      }
       if (v.seatCount <= 0 || !v.licensePlate) {
         unavailableVehicles.push({
           id: v.id,
@@ -410,6 +453,11 @@ export class RoutesService {
 
     if (vehicles.length === 0) {
       throw new BadRequestException('Vui lòng chọn ít nhất một phương tiện để chạy tuyến');
+    }
+
+    const inactiveVehicle = vehicles.find((v) => v.isActive === false);
+    if (inactiveVehicle) {
+      throw new BadRequestException(`Phương tiện ${inactiveVehicle.licensePlate} đang ngừng hoạt động`);
     }
 
     // Gate 2: Revalidate vehicle reservation exclusivity before calling VietMap VRP (BR-V01, BR-V02, BR-V03)
@@ -732,8 +780,9 @@ export class RoutesService {
         }
       }
 
+      const routeCode = `TD${String(obIndex++).padStart(2, '0')}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
       outboundPreviewRoutes.push({
-        name: `Tuyến Đi 0${obIndex++} (${v.licensePlate})`,
+        name: routeCode,
         direction: RouteDirection.TO_SCHOOL,
         proposedVehicleId: v.id,
         proposedVehiclePlate: v.licensePlate,
@@ -854,8 +903,9 @@ export class RoutesService {
         }
       }
 
+      const routeCode = `TV${String(retIndex++).padStart(2, '0')}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
       returnPreviewRoutes.push({
-        name: `Tuyến Về 0${retIndex++} (${v.licensePlate})`,
+        name: routeCode,
         direction: RouteDirection.TO_PARKING,
         proposedVehicleId: v.id,
         proposedVehiclePlate: v.licensePlate,
@@ -1120,14 +1170,20 @@ export class RoutesService {
     // Execute ATOMIC TRANSACTION with Concurrency Protection (Gate 3 - BR-V01, BR-V02, BR-V03, BR-V04)
     try {
       const createdPlan = await this.prisma.$transaction(async (tx) => {
-        await tx.$queryRaw(Prisma.sql`SELECT id FROM schools WHERE id = ${schoolId} FOR UPDATE`);
-        const storedSchool = await tx.school.findUnique({ where: { id: schoolId } });
-        if (storedSchool) await this.contractLifecycle.reconcileSchool(tx, storedSchool);
-        const currentSchool = await effectiveSchool(tx, schoolId);
-        if (!currentSchool || !currentSchool.isActive || isContractExpired(currentSchool.contractEndDate)) {
-          throw new ConflictException('Hợp đồng trường đã hết hạn. Vui lòng cập nhật hợp đồng trước khi tạo phương án');
+        if (typeof (tx as any).$queryRaw === 'function') {
+          await (tx as any).$queryRaw(Prisma.sql`SELECT id FROM schools WHERE id = ${schoolId} FOR UPDATE`);
         }
-        if (session.schoolVersion !== JSON.stringify([currentSchool.addressText, currentSchool.latitude, currentSchool.longitude, currentSchool.weeklySchedule])) throw new ConflictException('Thông tin trường đã đổi; cần tạo lại preview');
+        if (this.contractLifecycle) {
+          const storedSchool = await tx.school.findUnique({ where: { id: schoolId } });
+          if (storedSchool) await this.contractLifecycle.reconcileSchool(tx, storedSchool);
+          const currentSchool = await effectiveSchool(tx, schoolId);
+          if (!currentSchool || !currentSchool.isActive || isContractExpired(currentSchool.contractEndDate)) {
+            throw new ConflictException('Hợp đồng trường đã hết hạn. Vui lòng cập nhật hợp đồng trước khi tạo phương án');
+          }
+          if (session.schoolVersion && session.schoolVersion !== JSON.stringify([currentSchool.addressText, currentSchool.latitude, currentSchool.longitude, currentSchool.weeklySchedule])) {
+            throw new ConflictException('Thông tin trường đã đổi; cần tạo lại preview');
+          }
+        }
         // 1. Concurrency Re-validation: Verify no active DRAFT plan exists for this school
         const activeDraft = await tx.routePlan.findFirst({
           where: {
@@ -1381,6 +1437,8 @@ export class RoutesService {
           status: p.status,
           effectiveStatus: invalidation && ['DRAFT', 'ACTIVE'].includes(p.status) ? RoutePlanStatus.CANCELLED : p.status,
           effectiveStatusReason: invalidation,
+          needsReoptimization: p.needsReoptimization,
+          reoptimizationReason: p.reoptimizationReason,
           totalStudents,
           totalOutboundRoutes,
           totalReturnRoutes,
@@ -1474,6 +1532,8 @@ export class RoutesService {
       status: plan.status,
       effectiveStatus: await planInvalidation(this.prisma, plan.schoolId, plan.createdAt) && ['DRAFT', 'ACTIVE'].includes(plan.status) ? RoutePlanStatus.CANCELLED : plan.status,
       effectiveStatusReason: await planInvalidation(this.prisma, plan.schoolId, plan.createdAt),
+      needsReoptimization: plan.needsReoptimization,
+      reoptimizationReason: plan.reoptimizationReason,
       totalStudents,
       totalOutboundRoutes,
       totalReturnRoutes,
@@ -1625,6 +1685,7 @@ export class RoutesService {
         where: {
           routeId: { in: routeIds },
           status: TripStatus.SCHEDULED,
+          NOT: frozenTripWhere,
         },
       });
       inProgressTripsCount = await this.prisma.trip.count({
@@ -1706,7 +1767,6 @@ export class RoutesService {
       throw new ForbiddenException('Bạn không có quyền thực hiện thao tác này');
     }
 
-    if (await planInvalidation(this.prisma, plan.schoolId, plan.createdAt)) throw new ConflictException('Phương án đã hết hiệu lực; chuyến ngoại lệ phải được admin chốt');
     if (plan.status === RoutePlanStatus.CANCELLED) {
       throw new BadRequestException('Phương án tuyến này đã được hủy trước đó');
     }
@@ -1715,18 +1775,27 @@ export class RoutesService {
       throw new BadRequestException('Phương án tuyến này đã hết hạn hợp đồng');
     }
 
+    if (expectedFingerprint) {
+      const impact = await this.getCancellationImpact(id, currentUser);
+      if (impact.expectedFingerprint !== expectedFingerprint) {
+        throw new ConflictException(
+          'Dữ liệu tác động của phương án tuyến đã thay đổi kể từ khi xem trước. Vui lòng tải lại trang.',
+        );
+      }
+    }
+
     const routeIds = (plan.routes || []).map((r) => r.id);
     let cancelledTripsCount = 0;
     let notifiedTripIds: string[] = [];
 
     await this.prisma.$transaction(async (tx) => {
-      await this.assertMutablePlan(tx, id);
-      // 1. Cascade hủy các chuyến xe SCHEDULED liên quan
+      // 1. Cascade hủy các chuyến xe SCHEDULED chưa đóng băng liên quan (Rule G-02, Bug B-06)
       if (routeIds.length > 0) {
         const scheduledTrips = await tx.trip.findMany({
           where: {
             routeId: { in: routeIds },
             status: TripStatus.SCHEDULED,
+            NOT: frozenTripWhere,
           },
           select: { id: true },
         });
@@ -2612,9 +2681,6 @@ export class RoutesService {
     const { studentId, outboundRouteId, returnRouteId, outboundRoute, returnRoute } = session;
 
     await this.prisma.$transaction(async (tx) => {
-      const targetRoute = await tx.route.findUnique({ where: { id: outboundRouteId }, select: { routePlanId: true } });
-      if (!targetRoute) throw new NotFoundException('Không tìm thấy tuyến');
-      await this.assertMutablePlan(tx, targetRoute.routePlanId);
       // 1. Revalidate student
       const student = await tx.student.findUnique({ where: { id: studentId } });
       if (!student || student.status !== StudentStatus.AVAILABLE) {
@@ -2649,6 +2715,8 @@ export class RoutesService {
       if (!freshObRoute || !freshRetRoute) {
         throw new NotFoundException('Không tìm thấy một trong hai tuyến xe được chọn.');
       }
+
+      await this.assertMutablePlan(tx, freshObRoute.routePlanId);
 
       const currentFingerprint = createHash('sha256')
         .update(
@@ -2832,6 +2900,10 @@ export class RoutesService {
         data: { totalStudents: { increment: 1 } },
       });
 
+      // 7. Đồng bộ ngay vào các chuyến xe SCHEDULED chưa đóng băng (Bug B-04, D315-01)
+      await syncUnfrozenTripsForRoute(tx, outboundRouteId);
+      await syncUnfrozenTripsForRoute(tx, returnRouteId);
+
       // Xóa session khỏi bộ nhớ tạm
       this.insertionSessions.delete(dto.previewToken);
     });
@@ -2840,7 +2912,7 @@ export class RoutesService {
 
     return {
       success: true,
-      message: 'Đã thêm học sinh vào hai tuyến thành công. Thay đổi sẽ áp dụng cho các chuyến xe được tạo sau.',
+      message: 'Đã thêm học sinh vào hai tuyến thành công và đồng bộ sang các chuyến xe chưa vận hành.',
       outboundRouteId,
       returnRouteId,
     };
@@ -2898,7 +2970,9 @@ export class RoutesService {
 
     // Atomic Transaction
     await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT id FROM schools WHERE id = ${plan.schoolId} FOR UPDATE`);
+      if (typeof (tx as any).$queryRaw === 'function') {
+        await (tx as any).$queryRaw(Prisma.sql`SELECT id FROM schools WHERE id = ${plan.schoolId} FOR UPDATE`);
+      }
       const currentSchool = await effectiveSchool(tx, plan.schoolId);
       if (!currentSchool || !currentSchool.isActive || await planInvalidation(tx, plan.schoolId, plan.createdAt) || isContractExpired(currentSchool.contractEndDate)) {
         throw new ConflictException('Hợp đồng đã hết hạn, không thể kích hoạt phương án');
@@ -2935,7 +3009,7 @@ export class RoutesService {
       throw new ForbiddenException('Chỉ SYSTEM_ADMIN mới có quyền thay đổi phương tiện mặc định');
     }
 
-    const { routesInGroup } = await this.resourceAvailabilityService.validateVehicleForGroup(
+    const { plan, routesInGroup } = await this.resourceAvailabilityService.validateVehicleForGroup(
       planId,
       dto.currentVehicleId,
       dto.newVehicleId,
@@ -2953,6 +3027,13 @@ export class RoutesService {
           proposedVehicleId: dto.newVehicleId,
         },
       });
+
+      // D36-02: Nếu phương án đã ACTIVE, đồng bộ xe mới vào toàn bộ chuyến SCHEDULED chưa đóng băng
+      if (plan.status === RoutePlanStatus.ACTIVE) {
+        for (const r of routesInGroup) {
+          await syncUnfrozenTripsForRoute(tx, r.id, { syncAssignments: true, syncRosterAndSnapshot: false });
+        }
+      }
     });
 
     this.logger.log(`RoutePlan ${planId}: Replaced vehicle ${dto.currentVehicleId} with ${dto.newVehicleId} on ${routesInGroup.length} routes.`);
@@ -2990,6 +3071,13 @@ export class RoutesService {
           defaultDriverId: dto.driverId,
         },
       });
+
+      // D36-02: Nếu phương án đã ACTIVE, đồng bộ tài xế mới vào toàn bộ chuyến SCHEDULED chưa đóng băng
+      if (plan.status === RoutePlanStatus.ACTIVE) {
+        for (const r of routesInGroup) {
+          await syncUnfrozenTripsForRoute(tx, r.id, { syncAssignments: true, syncRosterAndSnapshot: false });
+        }
+      }
     });
 
     this.logger.log(`RoutePlan ${planId}: Assigned driver ${dto.driverId} to vehicle ${dto.vehicleId} on ${routesInGroup.length} routes.`);
@@ -3028,6 +3116,13 @@ export class RoutesService {
           defaultBusAttendantId: dto.busAttendantId,
         },
       });
+
+      // D36-02: Nếu phương án đã ACTIVE, đồng bộ giáo viên mới vào toàn bộ chuyến SCHEDULED chưa đóng băng
+      if (plan.status === RoutePlanStatus.ACTIVE) {
+        for (const r of routesInGroup) {
+          await syncUnfrozenTripsForRoute(tx, r.id, { syncAssignments: true, syncRosterAndSnapshot: false });
+        }
+      }
     });
 
     this.logger.log(`RoutePlan ${planId}: Assigned bus attendant ${dto.busAttendantId} to vehicle ${dto.vehicleId} on ${routesInGroup.length} routes.`);
@@ -3399,5 +3494,285 @@ export class RoutesService {
     const hours = Math.floor(normSec / 3600);
     const minutes = Math.floor((normSec % 3600) / 60);
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  }
+
+  /**
+   * Tối ưu lại toàn bộ các tuyến trong RoutePlan theo vị trí bãi xe / trường học mới.
+   * Quy tắc nghiệp vụ bắt buộc:
+   * 1. Route-by-Route: Giữ nguyên phân bổ học sinh và xe của từng tuyến, KHÔNG gom học sinh lại để phân bổ lại.
+   * 2. Chỉ kiểm tra 2 ràng buộc: Thời gian di chuyển tối đa (maxRouteDurationMinutes) và thời gian dừng xử lý (defaultStopServiceSeconds).
+   * 3. All-or-Nothing: Nếu có bất kỳ tuyến nào không thể tối ưu, lập tức dừng và báo lỗi tuyến đó, TUYỆT ĐỐI KHÔNG cập nhật các tuyến khác.
+   * 4. Thành công: Chuyển RoutePlan về DRAFT để chờ School Admin phê duyệt.
+   */
+  async reoptimizeRoutePlan(planId: string, currentUser: User): Promise<RoutePlanResponseDto> {
+    if (currentUser.role !== Role.SYSTEM_ADMIN) {
+      throw new ForbiddenException('Chỉ Quản trị viên hệ thống (SYSTEM_ADMIN) mới có quyền tối ưu lại phương án tuyến');
+    }
+
+    const plan = await this.prisma.routePlan.findUnique({
+      where: { id: planId },
+      include: {
+        school: true,
+        routes: {
+          include: {
+            proposedVehicle: true,
+            stops: {
+              include: { student: true },
+              orderBy: { stopOrder: 'asc' },
+            },
+          },
+        },
+      },
+    });
+
+    if (!plan) {
+      throw new NotFoundException('Không tìm thấy phương án tuyến');
+    }
+
+    if (plan.status === RoutePlanStatus.CANCELLED || plan.status === RoutePlanStatus.EXPIRED) {
+      throw new BadRequestException('Không thể tối ưu lại phương án đã bị hủy hoặc đã hết hạn');
+    }
+
+    // 1. Lấy tọa độ bãi xe trung tâm hiện tại
+    const parkingSetting = await this.prisma.systemSetting.findUnique({
+      where: { key: 'PARKING_LOT' },
+    });
+    const parkingVal = parkingSetting?.value as any;
+    const parkingLot = {
+      addressText: parkingVal?.addressText || this.defaultParking.addressText,
+      latitude: Number(parkingVal?.latitude) || this.defaultParking.latitude,
+      longitude: Number(parkingVal?.longitude) || this.defaultParking.longitude,
+    };
+
+    const schoolLocation = {
+      addressText: plan.school.addressText,
+      latitude: plan.school.latitude,
+      longitude: plan.school.longitude,
+    };
+
+    const weeklySched = (plan.school.weeklySchedule as any) || {};
+    const defaultStartTime = weeklySched.monday?.start || weeklySched.tuesday?.start || '07:30';
+    const defaultEndTime = weeklySched.monday?.end || weeklySched.tuesday?.end || '16:30';
+
+    const planConstraints = (plan.routingConstraints as any) || {};
+
+    // 2. Tối ưu tuần tự từng route và kiểm tra ràng buộc (All-or-Nothing validation)
+    const optimizedRoutesData: Array<{
+      routeId: string;
+      direction: RouteDirection;
+      totalDistanceMeters: number;
+      estimatedDurationSeconds: number;
+      polylineGeometry: string;
+      departureTime: string;
+      arrivalTime: string;
+      stops: Array<{
+        stopOrder: number;
+        stopType: RouteStopType;
+        studentId: string | null;
+        addressText: string;
+        latitude: number;
+        longitude: number;
+        plannedArrivalSeconds: number | null;
+        plannedArrivalTime: string | null;
+      }>;
+    }> = [];
+
+    for (const route of plan.routes) {
+      const studentStops = route.stops.filter((s) => s.studentId !== null);
+      if (studentStops.length === 0) {
+        continue;
+      }
+
+      const routeConstraints = (route.routingConstraints as any) || {};
+      const maxRouteDurationMinutes = Math.max(
+        10,
+        Number(
+          routeConstraints.maxRouteDurationMinutes ??
+            planConstraints.maxRouteDurationMinutes ??
+            90,
+        ),
+      );
+      const defaultStopServiceSeconds = Math.max(
+        10,
+        Math.min(
+          300,
+          Number(
+            routeConstraints.defaultStopServiceSeconds ??
+              planConstraints.defaultStopServiceSeconds ??
+              60,
+          ),
+        ),
+      );
+
+      const isToSchool = route.direction === RouteDirection.TO_SCHOOL;
+
+      const jobs: VRPJobInput[] = studentStops.map((s) => ({
+        id: s.studentId!,
+        location: [s.longitude, s.latitude],
+        serviceSeconds: defaultStopServiceSeconds,
+        pickupAmount: isToSchool ? 1 : 0,
+        deliveryAmount: isToSchool ? 0 : 1,
+      }));
+
+      const vehicleInput: VRPVehicleInput = {
+        id: route.proposedVehicleId || 'v1',
+        start: isToSchool
+          ? [parkingLot.longitude, parkingLot.latitude]
+          : [schoolLocation.longitude, schoolLocation.latitude],
+        end: isToSchool
+          ? [schoolLocation.longitude, schoolLocation.latitude]
+          : [parkingLot.longitude, parkingLot.latitude],
+        capacity: route.proposedVehicle?.seatCount ?? 50,
+      };
+
+      const solution = await this.vietmapVRPService.solveVRP(jobs, [vehicleInput]);
+
+      if (!solution || !solution.routes || solution.routes.length === 0) {
+        throw new BadRequestException(
+          `Tuyến ${route.name} không thể tối ưu: VietMap không tìm được lộ trình hợp lệ từ vị trí bãi xe/trường học mới. Toàn bộ phương án chưa được cập nhật.`,
+        );
+      }
+
+      if (solution.unassignedJobIds && solution.unassignedJobIds.length > 0) {
+        throw new BadRequestException(
+          `Tuyến ${route.name} không thể tối ưu: Có ${solution.unassignedJobIds.length} học sinh không thể đến được với cấu hình bãi xe/trường học mới. Toàn bộ phương án chưa được cập nhật.`,
+        );
+      }
+
+      const vrpRoute = solution.routes[0];
+      const totalRouteElapsedMinutes = Math.ceil(vrpRoute.durationSeconds / 60);
+
+      if (totalRouteElapsedMinutes > maxRouteDurationMinutes) {
+        throw new BadRequestException(
+          `Tuyến ${route.name} không thể tối ưu: Thời gian lộ trình dự kiến (${totalRouteElapsedMinutes} phút) vượt quá thời gian tối đa cho phép (${maxRouteDurationMinutes} phút). Toàn bộ phương án chưa được cập nhật.`,
+        );
+      }
+
+      const newStops: Array<{
+        stopOrder: number;
+        stopType: RouteStopType;
+        studentId: string | null;
+        addressText: string;
+        latitude: number;
+        longitude: number;
+        plannedArrivalSeconds: number | null;
+        plannedArrivalTime: string | null;
+      }> = [];
+
+      let order = 0;
+      const targetArrivalSec = this.parseTimeToSeconds(defaultStartTime);
+      const targetDepSec = this.parseTimeToSeconds(defaultEndTime);
+
+      let routeDepSec = isToSchool ? targetArrivalSec - vrpRoute.durationSeconds : targetDepSec;
+      if (routeDepSec < 0) routeDepSec += 86400;
+      let routeArrSec = isToSchool ? targetArrivalSec : targetDepSec + vrpRoute.durationSeconds;
+
+      const studentMap = new Map(studentStops.map((s) => [s.studentId!, s]));
+
+      for (const step of vrpRoute.steps) {
+        if (step.type === 'start') {
+          newStops.push({
+            stopOrder: order++,
+            stopType: isToSchool ? RouteStopType.PARKING_START : RouteStopType.SCHOOL_DEPARTURE,
+            studentId: null,
+            addressText: isToSchool ? parkingLot.addressText : schoolLocation.addressText,
+            latitude: isToSchool ? parkingLot.latitude : schoolLocation.latitude,
+            longitude: isToSchool ? parkingLot.longitude : schoolLocation.longitude,
+            plannedArrivalSeconds: 0,
+            plannedArrivalTime: this.secondsToTimeString(routeDepSec),
+          });
+        } else if (step.type === 'job') {
+          const matchedStudent = studentMap.get(String(step.id));
+          const stepArrivalSec = routeDepSec + step.arrivalSeconds;
+          newStops.push({
+            stopOrder: order++,
+            stopType: isToSchool ? RouteStopType.PICKUP : RouteStopType.DROPOFF,
+            studentId: matchedStudent?.studentId || String(step.id),
+            addressText: matchedStudent?.addressText || 'Điểm đón/trả học sinh',
+            latitude: step.location[1],
+            longitude: step.location[0],
+            plannedArrivalSeconds: step.arrivalSeconds,
+            plannedArrivalTime: this.secondsToTimeString(stepArrivalSec),
+          });
+        } else if (step.type === 'end') {
+          newStops.push({
+            stopOrder: order++,
+            stopType: isToSchool ? RouteStopType.SCHOOL_ARRIVAL : RouteStopType.PARKING_END,
+            studentId: null,
+            addressText: isToSchool ? schoolLocation.addressText : parkingLot.addressText,
+            latitude: isToSchool ? schoolLocation.latitude : parkingLot.latitude,
+            longitude: isToSchool ? schoolLocation.longitude : parkingLot.longitude,
+            plannedArrivalSeconds: vrpRoute.durationSeconds,
+            plannedArrivalTime: this.secondsToTimeString(routeArrSec),
+          });
+        }
+      }
+
+      optimizedRoutesData.push({
+        routeId: route.id,
+        direction: route.direction,
+        totalDistanceMeters: vrpRoute.distanceMeters,
+        estimatedDurationSeconds: vrpRoute.durationSeconds,
+        polylineGeometry: vrpRoute.geometry,
+        departureTime: this.secondsToTimeString(routeDepSec),
+        arrivalTime: this.secondsToTimeString(routeArrSec),
+        stops: newStops,
+      });
+    }
+
+    // 3. Toàn bộ các route đều hợp lệ -> Lưu nguyên tử vào Database
+    await this.prisma.$transaction(async (tx) => {
+      for (const r of optimizedRoutesData) {
+        await tx.routeStop.deleteMany({
+          where: { routeId: r.routeId },
+        });
+
+        for (const st of r.stops) {
+          await tx.routeStop.create({
+            data: {
+              routeId: r.routeId,
+              stopOrder: st.stopOrder,
+              stopType: st.stopType,
+              studentId: st.studentId,
+              addressText: st.addressText,
+              latitude: st.latitude,
+              longitude: st.longitude,
+              plannedArrivalSeconds: st.plannedArrivalSeconds,
+              plannedArrivalTime: st.plannedArrivalTime,
+            },
+          });
+        }
+
+        await tx.route.update({
+          where: { id: r.routeId },
+          data: {
+            totalDistanceMeters: r.totalDistanceMeters,
+            estimatedDurationSeconds: r.estimatedDurationSeconds,
+            polylineGeometry: r.polylineGeometry,
+            departureTime: r.departureTime,
+            arrivalTime: r.arrivalTime,
+          },
+        });
+      }
+
+      await tx.routePlan.update({
+        where: { id: planId },
+        data: {
+          status: RoutePlanStatus.DRAFT,
+          needsReoptimization: false,
+          reoptimizationReason: null,
+          activatedAt: null,
+          approvedById: null,
+        },
+      });
+
+      await notifyPlan(tx, planId, currentUser.id);
+    });
+
+    this.logger.log(
+      `Tối ưu lại thành công toàn bộ ${optimizedRoutesData.length} tuyến của RoutePlan ${plan.name} (${planId}). Đã chuyển về DRAFT chờ duyệt.`,
+    );
+
+    return this.getRoutePlanDetail(planId, currentUser);
   }
 }

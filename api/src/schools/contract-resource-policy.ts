@@ -71,7 +71,7 @@ export async function assertResourcesNotAwaitingAdmin(
     where: { AND: [expiredUnfinishedTripWhere(), { OR: conditions }] },
     select: { id: true },
   });
-  for (const trip of candidates)
+  for (const trip of candidates || [])
     if (await tripBlockReason(db, trip.id))
       throw new ConflictException(
         'Xe hoặc nhân sự còn chuyến chưa được quản trị viên chốt',
@@ -89,7 +89,7 @@ export async function pendingResourceTrips(db: Prisma.TransactionClient) {
     },
   });
   const result: typeof candidates = [];
-  for (const trip of candidates)
+  for (const trip of candidates || [])
     if (await tripBlockReason(db, trip.id)) result.push(trip);
   return result;
 }

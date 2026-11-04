@@ -161,6 +161,7 @@ describe('LeaveNoticesService', () => {
       createLeaveNoticeChallenge: vi.fn(),
       verifyAndConsumeLeaveNoticeChallenge: vi.fn(),
       maskIdentifier: vi.fn((dest, channel) => `${channel}:${dest}`),
+      isConsole: vi.fn((channel) => channel === 'SMS'),
     };
 
     service = new LeaveNoticesService(prismaMock, otpServiceMock);

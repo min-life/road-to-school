@@ -32,4 +32,13 @@ export class ListVehiclesQueryDto {
   @IsOptional()
   @IsString({ message: 'Từ khóa tìm kiếm phải là chuỗi ký tự' })
   search?: string;
+
+  @ApiPropertyOptional({
+    description: 'Lọc theo trạng thái hoạt động của xe (ALL, ACTIVE, INACTIVE)',
+    enum: ['ALL', 'ACTIVE', 'INACTIVE'],
+    default: 'ALL',
+  })
+  @IsOptional()
+  @IsString()
+  status?: 'ALL' | 'ACTIVE' | 'INACTIVE' = 'ALL';
 }
