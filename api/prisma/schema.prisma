@@ -111,6 +111,9 @@ enum TripIncidentType {
   DRIVER_MISSING
   OFF_ROUTE
   LATE_STOP
+  NO_GUARDIAN_AT_STOP
+  TRAFFIC_DELAY
+  GPS_SIGNAL_LOST
 }
 
 enum TripIncidentStatus {
@@ -231,6 +234,7 @@ model School {
   addressText       String    @map("address_text")
   latitude          Float
   longitude         Float
+  province          String?   @db.VarChar(100)
   imageUrl          String?   @map("image_url")
   imagePublicId     String?   @map("image_public_id")
   contractStartDate DateTime  @map("contract_start_date") @db.Date
@@ -267,6 +271,7 @@ model Student {
   addressText     String?        @map("address_text")
   latitude        Float?
   longitude       Float?
+  province        String?        @db.VarChar(100)
   status          StudentStatus  @default(AVAILABLE)
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt       DateTime       @updatedAt @map("updated_at")

@@ -1,161 +1,109 @@
-# AI Review — Mục 3.3: Nguồn lực và bãi đỗ xe trung tâm (WF-03)
+# AI Review — Master Business Improvement Plan (Sections 3.4 – 3.18 Full Implementation)
 
 ## 1. Task Information
-- **Task Name**: Triển khai Backend Mục 3.3 — Nguồn lực và bãi đỗ xe trung tâm (`WF-03`)
-- **Date**: 03/11/2026 (Asia/Saigon)
-- **Project Scope**: Backend (`/api`), Database & Documentation (`/docs`)
-- **Task Type**: Implementation & Verification
-- **Status**: `COMPLETED`
-
----
+- **Task Name**: Implementation of Master Business Improvement Plan (Sections 3.4 through 3.18).
+- **Date**: 04/11/2026, Asia/Saigon.
+- **Project Scope**: API (`/api`) & Documentation (`/docs`). (Strictly zero changes to `/web` or `/mobile`).
+- **Task Type**: Implementation, Refactor, and Test Verification.
+- **Status**: `COMPLETED`.
 
 ## 2. Original Request
-Triển khai Backend cho phân hệ Mục 3.3 — Nguồn lực và bãi đỗ xe trung tâm (`WF-03`), kết hợp các quyết định kinh doanh đã chốt với Product Owner:
-1. **Phương tiện**: Quản lý trạng thái nhị phân (`isActive`). Khi chuyển sang không hoạt động, bắt buộc kiểm tra ràng buộc tuyến/chuyến và áp dụng phương án A (bàn giao nguyên tử sang xe thay thế hợp lệ). Tạm thời chưa xử lý xe hỏng giữa đường.
-2. **Nhân sự**: `SYSTEM_ADMIN` có quyền inactive tài xế và nhân sự toàn hệ thống; `SCHOOL_ADMIN` chỉ inactive giáo viên phụ xe trường mình. Khi inactive phải bàn giao nguyên tử (phương án A) và thu hồi toàn bộ session đăng nhập.
-3. **Bãi đỗ xe trung tâm**: Đổi vị trí bãi xe theo ngày hiệu lực (`effectiveDate`). Không hủy RoutePlan, chỉ đánh dấu cần tối ưu lại (`needsReoptimization = true`); chỉ hủy các chuyến `SCHEDULED` diễn ra từ `effectiveDate` trở đi.
-4. **Đặt tên Tuyến**: Bỏ hoàn toàn biển số xe khỏi tên tuyến; áp dụng format unique chuẩn `TD-[Mã 8 ký tự]` (tuyến đi) và `TV-[Mã 8 ký tự]` (tuyến về).
-5. **Tối ưu lại (Re-optimization)**: Tối ưu theo từng tuyến (Route-by-Route), giữ nguyên phân bổ học sinh và xe của tuyến đó, không gom lại chia cụm. Ràng buộc tối ưu chỉ gồm thời gian di chuyển tối đa (`maxRouteDurationMinutes`) và thời gian dừng xử lý (`defaultStopServiceSeconds`). Cơ chế All-or-Nothing: nếu có 1 tuyến không thể tối ưu, lập tức dừng và báo lỗi, không cập nhật bất kỳ tuyến nào khác. Sau khi tối ưu thành công chuyển Plan về `DRAFT` chờ School Admin duyệt.
-
----
+Lệnh `/goal` của Product Owner:
+1. Tiến hành triển khai toàn bộ Master Business Improvement Plan (Mục 3.4 – 3.18).
+2. Tạo 1 file hướng dẫn cho Frontend Dev (`docs/FE_INTEGRATION_GUIDE.md`) để hiểu và dễ gắn API.
+3. Thêm 1 description ngắn gọn ngay trong đoạn chat để FE dev đọc Pull Request có thể nắm được những điểm cần làm với source code BE.
+4. Đảm bảo chỉ chỉnh sửa API và tuân thủ nguyên tắc không làm nở source code hoặc database quá nhiều.
 
 ## 3. Approved Scope
-- **Yêu cầu đã phê duyệt**: PO đã duyệt toàn bộ 5 nhóm quyết định kỹ thuật và chấp thuận triển khai ("đồng ý triển khai").
-- **Giới hạn phạm vi**: Chỉ triển khai Backend API (`/api`), Database migration và tài liệu (`/docs`). Tuyệt đối không can thiệp Frontend Web/Mobile theo đúng Scope Discipline.
-
----
+- **Phê duyệt**: PO phê duyệt toàn diện Đề xuất A từ Mục 3.4 đến 3.18 kèm:
+  - D317-02: Giảm ngưỡng cảnh báo đi lệch (50m, 15s) và đến trễ (3 phút, 15s); bổ sung 3 sự cố (`NO_GUARDIAN_AT_STOP`, `TRAFFIC_DELAY`, `GPS_SIGNAL_LOST`) kèm ghi nhận tọa độ GPS.
+  - D310-01: Chặn xuất bến chuyến về (`TO_PARKING`) khi toàn bộ học sinh đều vắng mặt.
+  - D316-02: Phân tách phương án tuyến độc lập theo nhóm học sinh, không gom chung học sinh khác trường.
+- **Phạm vi code**: Chỉ thay đổi trong thư mục `/api` và `/docs`. Không chạm vào `/web` hay `/mobile`.
+- **Test Data Policy**: Tuyệt đối không sinh dữ liệu giả trong PostgreSQL.
 
 ## 4. Analysis & Decisions
-1. **Quản lý trạng thái xe & Bàn giao nguyên tử**:
-   - Thêm cột `isActive: Boolean @default(true)` vào bảng `vehicles`.
-   - Trước khi inactive: API `GET /vehicles/:id/deactivation-impact` trả về số lượng tuyến ACTIVE, số chuyến SCHEDULED và IN_PROGRESS.
-   - Khi inactive qua `PATCH /vehicles/:id/status`: Chặn nếu có chuyến `IN_PROGRESS`. Nếu còn tuyến ACTIVE hoặc chuyến SCHEDULED, bắt buộc truyền `replacementVehicleId`. Xe thay thế phải đang hoạt động (`isActive = true`) và có `seatCount` đủ đáp ứng cho toàn bộ học sinh trên mọi tuyến/chuyến được bàn giao. Bàn giao nguyên tử trong 1 transaction.
-2. **Quản lý trạng thái nhân sự & Thu hồi phiên**:
-   - `SYSTEM_ADMIN` inactive tài xế qua `PATCH /drivers/:id/status` và nhân sự trường học; `SCHOOL_ADMIN` chỉ được phép inactive giáo viên thuộc trường mình qua `PATCH /schools/:id/employees/:employeeId/status`.
-   - Kiểm tra tác động trước qua endpoint `deactivation-impact`.
-   - Chặn nếu có chuyến `IN_PROGRESS`. Bắt buộc truyền `replacementUserId` khi còn phân công trên tuyến ACTIVE hoặc chuyến SCHEDULED.
-   - Thu hồi toàn bộ Session trên Mobile App bằng cách cập nhật User `updatedAt` / `isActive: false`, đảm bảo guard xác thực JWT từ chối request ngay lập tức.
-3. **Bãi đỗ xe trung tâm & Lịch hẹn đổi vị trí**:
-   - Tọa độ bãi xe lưu trong `system_settings` key `PARKING_LOT`. Lịch hẹn đổi vị trí lưu trực tiếp trong trường JSONB `value.scheduledChange` (không tạo bảng mới).
-   - Ngày hiệu lực `effectiveDate` bắt buộc $\ge$ ngày mai.
-   - Khi lên lịch: Giữ nguyên tọa độ hiện tại cho tới ngày hiệu lực. Không hủy RoutePlan, chỉ đánh dấu `needsReoptimization = true` và lưu lý do. Chỉ hủy các chuyến `SCHEDULED` từ ngày `effectiveDate` trở đi; bảo tồn toàn bộ chuyến trước ngày hiệu lực.
-   - Cung cấp endpoint hủy lịch hẹn (`POST parking-lot/cancel-scheduled-change`) và áp dụng lịch hẹn (`POST parking-lot/apply-scheduled-change`).
-4. **Chuẩn hóa đặt tên Tuyến**:
-   - Xóa bỏ việc ghép biển số xe vào tên tuyến (tránh sai lệch khi xe được bàn giao hoặc thay thế).
-   - Định dạng chuẩn: `TD01-[HEX8]` cho chiều đi và `TV01-[HEX8]` cho chiều về, sinh qua `crypto.randomBytes(4).toString('hex').toUpperCase()`.
-5. **Cơ chế Tối ưu lại (Route-by-Route Re-optimization)**:
-   - Endpoint: `POST /routes/route-plans/:id/re-optimize` (Chỉ `SYSTEM_ADMIN`).
-   - Duyệt từng tuyến độc lập, gọi `solveVRP(jobs, [singleVehicle])` bảo toàn phương tiện và danh sách học sinh của tuyến đó.
-   - Kiểm tra 2 điều kiện: `durationSeconds <= maxRouteDurationMinutes * 60` và `defaultStopServiceSeconds`.
-   - All-or-Nothing: Nếu có bất kỳ tuyến nào không thể tối ưu, lập tức throw `BadRequestException` kèm mã tuyến vi phạm; không lưu bất kỳ thay đổi nào vào DB.
-   - Thành công: Cập nhật lộ trình các tuyến, xóa cờ `needsReoptimization = false`, chuyển Plan về `DRAFT` chờ School Admin duyệt.
-
----
+1. **Rule G-02 (Frozen Trip Policy)**:
+   - Một chuyến xe được coi là đóng băng (`isTripFrozen`) ngay khi `actualStartTime !== null` hoặc `attendantReadyAt !== null`.
+   - Mọi thao tác sửa đổi phân công thường lệ (`updateTripAssignment`) trên chuyến đã đóng băng sẽ bị từ chối với mã lỗi `409 Conflict`. Mọi thay thế khẩn cấp phải đi qua luồng Xử lý sự cố (`resolveIncident` với `REPLACED`).
+   - Rút đơn xin nghỉ (`cancelNotice`) bị từ chối nếu giáo viên phụ xe đã sẵn sàng đón (`attendantReadyAt !== null`).
+2. **Rule G-01 & Đồng bộ Chuyến xe Chưa đóng băng (`syncUnfrozenTripsForRoute`)**:
+   - Khi phương án tuyến có sự điều chỉnh (thay xe/tài xế/phụ xe mặc định theo D36-02, chèn học sinh giữa kỳ theo D312-01, hoặc tối ưu lại theo yêu cầu đổi địa chỉ D314-01), các chuyến `SCHEDULED` chưa đóng băng sẽ tự động được cập nhật lại `routeSnapshot` và roster học sinh tương ứng.
+3. **Phát hiện sự cố và định vị GPS**:
+   - Mở rộng DTO `CreateIncidentDto` hỗ trợ `latitude`, `longitude`, `studentId`.
+   - Cập nhật bộ phát hiện tự động `IncidentsDetectorService` theo ngưỡng mới và lưu tọa độ tại thời điểm phát hiện vào trường JSON `context`.
+4. **Sửa các lỗi tồn đọng từ baseline**:
+   - Bug B-01: Chuyến `IN_PROGRESS` không còn bị ẩn trong `getHomeTrip` và `getParentHomeCards` bất kể thời gian dự kiến kết thúc.
+   - Bug B-02: Duyệt yêu cầu đổi địa chỉ kiểu `REOPTIMIZED` bắt buộc `previewToken` và `expectedFingerprint`, đồng thời đồng bộ lại snapshot các chuyến unfrozen.
+   - Bug B-03: `resolveIncident` nhánh `REPLACED` sử dụng `assertStaffAvailableForTrip` để kiểm tra toàn diện điều kiện nhân sự thay thế.
+   - Bug B-04: Thêm học sinh giữa kỳ (`confirmStudentInsertion`) đồng bộ tức thì sang snapshot các chuyến unfrozen.
+   - Bug B-06: Hủy phương án tuyến (`cancelRoutePlan`) chỉ áp dụng với các chuyến chưa đóng băng và kiểm tra `expectedFingerprint`.
 
 ## 5. Implementation Details
-- `api/prisma/schema.prisma`:
-  - Thêm `isActive Boolean @default(true) @map("is_active")` + index vào model `Vehicle`.
-  - Thêm `needsReoptimization Boolean @default(false) @map("needs_reoptimization")` và `reoptimizationReason String? @map("reoptimization_reason")` + index vào model `RoutePlan`.
-- `api/prisma/migrations/20261103023000_vehicle_status_and_route_plan_reoptimization/migration.sql`:
-  - Additive migration đã apply vào DB local `roadtoschool` tại `localhost:5432`.
-- `api/src/vehicles/`:
-  - `dto/vehicle-status.dto.ts`: `UpdateVehicleStatusDto`, `VehicleDeactivationImpactDto`.
-  - `dto/vehicle-response.dto.ts`: Thêm trường `isActive`.
-  - `dto/list-vehicles.dto.ts`: Thêm enum filter `status` (`ALL`, `ACTIVE`, `INACTIVE`).
-  - `vehicles.service.ts`: `getDeactivationImpact`, `updateVehicleStatus`, lọc danh sách theo `status`.
-  - `vehicles.controller.ts`: Thêm `GET :id/deactivation-impact`, `PATCH :id/status`.
-- `api/src/drivers/`:
-  - `dto/driver-status.dto.ts`: `UpdateDriverStatusDto`, `DriverDeactivationImpactDto`.
-  - `drivers.service.ts`: `getDriverDeactivationImpact`, `updateDriverStatus`.
-  - `drivers.controller.ts`: Thêm `GET :id/deactivation-impact`, `PATCH :id/status`.
-- `api/src/schools/`:
-  - `dto/employee-status.dto.ts`: `UpdateEmployeeStatusDto`, `EmployeeDeactivationImpactDto`.
-  - `schools.service.ts`: `getEmployeeDeactivationImpact`, `updateEmployeeStatus`.
-  - `schools.controller.ts`: Thêm `GET :id/employees/:employeeId/deactivation-impact`, `PATCH :id/employees/:employeeId/status`.
-  - `school-policy.ts`: Thêm kiểm tra phòng vệ chống null/undefined mock cho `db.schoolScheduledChange`.
-- `api/src/system-settings/`:
-  - `dto/parking-lot.dto.ts`: Cập nhật `UpdateParkingLotDto`, `ParkingLotImpactDto`, `ParkingLotResponseDto`.
-  - `system-settings.service.ts`: Xử lý `effectiveDate`, đánh dấu `needsReoptimization`, hủy chuyến từ ngày hiệu lực; thêm `cancelScheduledParkingLotChange`, `applyScheduledParkingLotChange`.
-  - `system-settings.controller.ts`: Thêm `POST parking-lot/cancel-scheduled-change`, `POST parking-lot/apply-scheduled-change`.
-- `api/src/routes/`:
-  - `dto/route-plan-response.dto.ts`: Thêm `needsReoptimization`, `reoptimizationReason`.
-  - `routes.service.ts`: Chuẩn hóa tên tuyến dạng `TD01-XXXX` / `TV01-XXXX`; thêm `reoptimizeRoutePlan`; cập nhật filter xe `isActive: true` trong chuẩn bị dữ liệu VRP và gợi ý xe.
-  - `routes.controller.ts`: Thêm `POST route-plans/:id/re-optimize`.
-  - `resource-availability.service.ts`: Kiểm tra `v.isActive === false` khi gợi ý ứng viên xe.
-- `api/src/trips/`:
-  - `trips.service.ts`: Bổ sung kiểm tra an toàn trong transaction sinh chuyến.
+### Files Tạo mới:
+1. `api/prisma/migrations/20261104081535_add_province_and_incident_types/migration.sql`: Migration PostgreSQL bổ sung `province` cho `School` và `Student`, thêm 3 enum values vào `TripIncidentType`.
+2. `api/src/trips/utils/staff-availability.helper.ts`: Helper kiểm tra tính khả dụng của nhân sự (trạng thái active, vai trò, đơn nghỉ phép, sự cố chưa giải quyết, chuyến xe chồng lấn).
+3. `api/src/trips/utils/trip-sync.helper.ts`: Helper đồng bộ hóa chuyến xe chưa đóng băng (`syncUnfrozenTripsForRoute`).
+4. `docs/FE_INTEGRATION_GUIDE.md`: Cẩm nang hướng dẫn tích hợp API chi tiết cho lập trình viên Frontend Web & Mobile.
 
----
+### Files Chỉnh sửa:
+1. `api/prisma/schema.prisma`: Thêm `province` vào `School` và `Student`; mở rộng enum `TripIncidentType`.
+2. `api/src/overview/operations-policy.ts`: Thêm `frozenTripWhere` và `isTripFrozen`.
+3. `api/src/trips/trips.service.ts`: Sửa Bug B-01 trong Home Trip; chặn xe/tài xế chạy đồng thời 2 chuyến; cấm đổi phân công trên chuyến đã đóng băng; chặn xuất bến khi 100% học sinh vắng mặt; kiểm soát quy tắc điểm danh 2 giai đoạn.
+4. `api/src/trips/utils/trip-snapshot-resolver.ts`: Bổ sung `'UNFROZEN_TRIP_SYNC'` vào union `snapshotReason`.
+5. `api/src/leave-notices/leave-notices.service.ts`: Chặn rút đơn nghỉ khi phụ xe đã sẵn sàng; kiểm tra nhân sự thay thế qua `assertStaffAvailableForTrip`.
+6. `api/src/incidents/dto/create-incident.dto.ts`: Bổ sung `latitude`, `longitude`, `studentId` với validation decorators.
+7. `api/src/incidents/incidents.service.ts`: Hỗ trợ 3 sự cố mới có tọa độ; kiểm tra nhân sự thay thế trong `resolveIncident` (Bug B-03).
+8. `api/src/incidents/incidents-detector.service.ts`: Cập nhật ngưỡng phát hiện lệch tuyến (50m, 15s) và trễ giờ (3 phút, 15s) kèm ghi nhận tọa độ GPS.
+9. `api/src/routes/routes.service.ts`: Lọc dữ liệu chuẩn bị theo bán kính 50km và tỉnh thành; lan truyền phân công mặc định xuống các chuyến unfrozen; đồng bộ chèn học sinh tức thì (Bug B-04); hủy phương án chỉ áp dụng với chuyến unfrozen (Bug B-06).
+10. `api/src/routes/resource-availability.service.ts`: Chặn unassign tài xế / phụ xe trên phương án đã ACTIVE.
+11. `api/src/student-requests/student-requests.service.ts`: Duyệt đổi địa chỉ `REOPTIMIZED` yêu cầu `previewToken`, `expectedFingerprint` và đồng bộ chuyến xe unfrozen (Bug B-02).
+12. `docs/BUSINESS_IMPROVEMENT_TRACKER.md`: Cập nhật tiến độ hoàn thành các gói 3.4 – 3.18.
+13. `docs/ai-handoff/CURRENT_STATE.md`: Cập nhật snapshot hiện trạng mã nguồn.
 
 ## 6. Database Changes
-- **Bảng `vehicles`**:
-  - Thêm cột `is_active BOOLEAN NOT NULL DEFAULT true`.
-  - Thêm index `vehicles_is_active_idx ON vehicles(is_active)`.
-- **Bảng `route_plans`**:
-  - Thêm cột `needs_reoptimization BOOLEAN NOT NULL DEFAULT false`.
-  - Thêm cột `reoptimization_reason TEXT`.
-  - Thêm index `route_plans_needs_reoptimization_idx ON route_plans(needs_reoptimization)`.
-- **Migration Status**:
-  - Migration `20261103023000_vehicle_status_and_route_plan_reoptimization` đã apply thành công trên local database (16 migrations up to date).
-
----
+- Thêm trường `province String? @db.VarChar(100)` vào bảng `schools` và `students`.
+- Bổ sung 3 giá trị `NO_GUARDIAN_AT_STOP`, `TRAFFIC_DELAY`, `GPS_SIGNAL_LOST` vào enum `TripIncidentType`.
+- Migration `20261104081535_add_province_and_incident_types` đã được áp dụng an toàn trên cơ sở dữ liệu development. Không tạo bảng mới, không làm phình schema.
 
 ## 7. API & Swagger Changes
-- `GET /api/v1/vehicles/:id/deactivation-impact` (Chỉ `SYSTEM_ADMIN`): Xem trước tác động khi dừng hoạt động xe.
-- `PATCH /api/v1/vehicles/:id/status` (Chỉ `SYSTEM_ADMIN`): Đổi trạng thái xe kèm bàn giao nguyên tử.
-- `GET /api/v1/drivers/:id/deactivation-impact` (Chỉ `SYSTEM_ADMIN`): Xem trước tác động khi vô hiệu hóa tài xế.
-- `PATCH /api/v1/drivers/:id/status` (Chỉ `SYSTEM_ADMIN`): Vô hiệu hóa tài xế kèm bàn giao nguyên tử và thu hồi session.
-- `GET /api/v1/schools/:id/employees/:employeeId/deactivation-impact` (`SYSTEM_ADMIN`, `SCHOOL_ADMIN`): Xem trước tác động khi vô hiệu hóa nhân sự trường.
-- `PATCH /api/v1/schools/:id/employees/:employeeId/status` (`SYSTEM_ADMIN`, `SCHOOL_ADMIN`): Vô hiệu hóa nhân sự trường kèm bàn giao nguyên tử.
-- `POST /api/v1/system-settings/parking-lot/cancel-scheduled-change` (Chỉ `SYSTEM_ADMIN`): Hủy lịch hẹn dời bãi xe.
-- `POST /api/v1/system-settings/parking-lot/apply-scheduled-change` (Chỉ `SYSTEM_ADMIN`): Áp dụng tọa độ bãi xe mới khi đến ngày hiệu lực.
-- `POST /api/v1/routes/route-plans/:id/re-optimize` (Chỉ `SYSTEM_ADMIN`): Tối ưu lại toàn bộ tuyến theo Route-by-Route và đưa về DRAFT.
-- **Swagger status**: Cập nhật 100% Swagger decorators, schemas, DTOs, parameters, error responses tương thích tại `http://localhost:3000/api/docs`.
-
----
+- `POST /api/incidents`: Nhận thêm `latitude?: number`, `longitude?: number`, `studentId?: string`, hỗ trợ 3 loại sự cố mới.
+- `POST /api/student-requests/:id/approve`: Với quyết định `REOPTIMIZED`, bắt buộc gửi `previewToken` và `expectedFingerprint`.
+- `POST /api/routes/plans/:id/cancel`: Nhận thêm `expectedFingerprint` chống xung đột thao tác đồng thời.
+- `GET /api/routes/plans/:id/cancellation-impact`: Trả về số lượng `scheduledTripsCount` (chỉ đếm các chuyến unfrozen sẽ bị hủy) và `frozenTripsCount` (các chuyến giữ nguyên).
+- Mã lỗi trả về được chuẩn hóa: `409 Conflict` cho chuyến đã đóng băng và xung đột phiên xem trước; `400 Bad Request` cho lý do vắng mặt bắt buộc và rút đơn nghỉ không hợp lệ.
 
 ## 8. UI/UX Changes
-- `None`. Nhiệm vụ hiện tại thuần túy là Backend API & Database Schema. Không có thay đổi giao diện Frontend Web hoặc Mobile.
-
----
+- Không can thiệp mã nguồn UI (`/web` và `/mobile`).
+- Đã xuất bản cẩm nang chi tiết [docs/FE_INTEGRATION_GUIDE.md](../FE_INTEGRATION_GUIDE.md) hướng dẫn toàn bộ giao diện Web Admin và Mobile App cách xử lý các trường hợp lỗi, vô hiệu hóa nút bấm và hiển thị cảnh báo.
 
 ## 9. Verification & Testing
-- **TypeScript Typecheck**:
-  - `cd api; npx tsc --noEmit` -> **PASS** (0 lỗi).
-  - `cd web; npx tsc --noEmit` -> **PASS** (0 lỗi).
-  - `cd mobile; npx tsc --noEmit` -> **PASS** (0 lỗi).
-- **Unit Tests**:
-  - `src/system-settings/system-settings.service.spec.ts` -> **PASS** (6/6 tests).
-  - `src/routes/vehicle-availability.spec.ts` -> **PASS** (11/11 tests).
-  - `src/vehicles/vehicles.service.spec.ts` -> **PASS** (5/5 tests).
-  - `src/leave-notices/leave-notices.service.spec.ts` -> **PASS** (15/15 tests).
-  - `src/trips/trips.service.spec.ts` -> **PASS** (17/17 tests).
-  - Tổng cộng: **55/55 unit tests PASS** liên quan trực tiếp đến các module trong Section 3.3.
-- **Database Status**:
-  - `npx prisma migrate status` -> 16 migrations up to date, schema không bị drift.
-- **Test Data Policy Compliance**:
-  - Tuyệt đối tuân thủ chính sách Test Data Policy: Không thêm dữ liệu giả mạo vào DB, không chạy seed scripts.
-  - Runtime mutation E2E đánh dấu `NOT_VERIFIED` kèm nhãn `BLOCKED_BY_TEST_DATA_POLICY` chờ PO cấp dữ liệu test thực tế.
-
----
+- **TypeScript Static Typecheck**:
+  `cd api; npx tsc --noEmit` -> **PASS** (0 errors).
+- **Unit Tests Verification**:
+  `cd api; npx vitest run src/routes/ src/trips/ src/incidents/ src/leave-notices/ src/student-requests/ src/overview/` -> **PASS** (11/11 test files, 193/193 tests passed).
+  - `src/trips/utils/trip-time.util.spec.ts`: 10 passed.
+  - `src/overview/overview.spec.ts`: 4 passed.
+  - `src/routes/vehicle-availability.spec.ts`: 11 passed.
+  - `src/student-requests/student-requests.service.spec.ts`: 16 passed.
+  - `src/leave-notices/leave-notices.service.spec.ts`: 15 passed.
+  - `src/trips/trip-synchronization.spec.ts`: 31 passed.
+  - `src/trips/trips.service.spec.ts`: 17 passed.
+  - `src/routes/approval-assignment.spec.ts`: 10 passed.
+  - `src/routes/routes.service.spec.ts`: 27 passed.
+  - `src/incidents/incidents.service.spec.ts`: 14 passed.
+  - `src/trips/trip-navigation.spec.ts`: 38 passed.
+- **Test Data Policy Compliance**: Tuyệt đối không tạo fake data, không thêm bản ghi thử nghiệm vào DB.
 
 ## 10. Issues & Risks
-- **Cronjob kích hoạt dời bãi xe**: Cần đảm bảo scheduler/cronjob gọi `POST /system-settings/parking-lot/apply-scheduled-change` vào 00:00 ngày hiệu lực để kích hoạt chính thức tọa độ bãi xe mới.
-- **Tối ưu lại (Re-optimization)**: Vì sử dụng thuật toán VRP Vietmap, nếu mạng chập chờn khi gọi dịch vụ định tuyến bên thứ 3 thì việc tối ưu lại có thể mất vài giây và throw exception; hệ thống đã áp dụng cơ chế All-or-Nothing để đảm bảo tính toàn vẹn dữ liệu.
-
----
+- None identified. Các thay đổi hoàn toàn tương thích ngược và có cơ chế bảo vệ chuyến xe đang diễn ra.
 
 ## 11. Reviewer Focus
-- **Tính nguyên tử của thao tác bàn giao**: Xác minh giao dịch `$transaction` trong `updateVehicleStatus`, `updateDriverStatus`, `updateEmployeeStatus` đảm bảo hoặc bàn giao thành công toàn bộ tuyến và chuyến, hoặc rollback hoàn toàn nếu xe/nhân sự thay thế không đủ điều kiện.
-- **Bảo toàn phân bổ học sinh và xe**: Xác minh logic `reoptimizeRoutePlan` không gom lại cụm học sinh mà giải VRP riêng cho từng tuyến, giữ nguyên học sinh và xe của tuyến đó.
-- **Bảo toàn chuyến xe lịch sử khi dời bãi**: Xác minh chỉ hủy chuyến `SCHEDULED` từ ngày `effectiveDate` trở đi, bảo toàn các chuyến trước đó.
-
----
+- Đảm bảo tính nhất quán của quy tắc đóng băng chuyến xe (`isTripFrozen`) trên tất cả các thao tác (đổi phân công, rút đơn nghỉ, hủy phương án).
+- Xác nhận logic đồng bộ `syncUnfrozenTripsForRoute` đảm bảo dữ liệu chuyến xe luôn cập nhật mà không ảnh hưởng đến các chuyến đã xuất bến.
 
 ## 12. Suggested Next Step
-- Tiếp tục chuyển sang phân tích nghiệp vụ **Mục 3.4 — Học sinh và phụ huynh (`WF-04`)**: Quy trình quản lý học sinh của School Admin, quy trình liên kết phụ huynh qua OTP, chính sách nhiều người giám hộ, xử lý chuyển trường/năm học và cập nhật thông tin học sinh.
-
----
+- Chuyển giao tài liệu [docs/FE_INTEGRATION_GUIDE.md](../FE_INTEGRATION_GUIDE.md) cho đội ngũ Frontend để tiến hành tích hợp và cập nhật giao diện người dùng.
 
 ## 13. Approval Status
-- `WAITING FOR USER REVIEW / APPROVAL` đối với toàn bộ kết quả triển khai Backend Section 3.3.
+- `WAITING FOR USER REVIEW / APPROVAL`.

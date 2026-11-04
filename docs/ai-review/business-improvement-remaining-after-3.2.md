@@ -37,3 +37,7 @@ Thu phí/hoàn phí, nhiều nhà xe/bãi, chuyến qua đêm, cứu hộ/chuy�
 ## Một bước tiếp theo
 
 Phân tích chi tiết 3.3 — Nguồn lực và bãi; tiếp nhận trường hợp nhân sự nghỉ việc đã chuyển từ 3.1. Chưa triển khai source mới.
+
+## Nguồn kế hoạch hiện hành — 03/11/2026
+
+3.3 đã được PO xác nhận làm thêm và có commit d0b4063. Toàn bộ phân tích/quyết định 3.4–3.18 chuyển sang một file chung [business-improvement-master-plan-3.4-3.18.md](business-improvement-master-plan-3.4-3.18.md). Inventory phía trên giữ ngữ cảnh mốc cũ, không dùng để hỏi lại 3.3 hoặc tạo plan lẻ.

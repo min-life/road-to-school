@@ -39,7 +39,7 @@ export interface TripRouteSnapshot {
   routingConstraints?: any;
   stops: SnapshotStop[];
   capturedAt: string;
-  snapshotReason?: 'GENERATION' | 'PRE_UPDATE_CAPTURE' | 'REOPTIMIZED' | 'MANUAL';
+  snapshotReason?: 'GENERATION' | 'PRE_UPDATE_CAPTURE' | 'REOPTIMIZED' | 'MANUAL' | 'UNFROZEN_TRIP_SYNC';
 }
 
 export function parseTripRouteSnapshot(value: unknown): TripRouteSnapshot | null {
@@ -78,7 +78,7 @@ export function buildTripRouteSnapshot(params: {
     plannedArrivalSeconds?: number | null;
     plannedArrivalTime?: string | null;
   }>;
-  snapshotReason?: 'GENERATION' | 'PRE_UPDATE_CAPTURE' | 'REOPTIMIZED' | 'MANUAL';
+  snapshotReason?: 'GENERATION' | 'PRE_UPDATE_CAPTURE' | 'REOPTIMIZED' | 'MANUAL' | 'UNFROZEN_TRIP_SYNC';
 }): TripRouteSnapshot {
   return {
     version: 1,

@@ -1,11 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString, MaxLength, IsUUID } from 'class-validator';
+import { IsEnum, IsOptional, IsString, MaxLength, IsUUID, IsNumber } from 'class-validator';
 import { TripIncidentType } from '@prisma/client';
 
 export class CreateIncidentDto {
   @ApiProperty({
-    enum: [TripIncidentType.ATTENDANT_MISSING, TripIncidentType.DRIVER_MISSING],
-    description: 'Loại sự cố báo thủ công (ATTENDANT_MISSING cho Driver, DRIVER_MISSING cho Bus Attendant)',
+    enum: TripIncidentType,
+    description: 'Loại sự cố (ATTENDANT_MISSING, DRIVER_MISSING, NO_GUARDIAN_AT_STOP, TRAFFIC_DELAY, GPS_SIGNAL_LOST, ...)',
     example: TripIncidentType.ATTENDANT_MISSING,
   })
   @IsEnum(TripIncidentType)
@@ -36,4 +36,28 @@ export class CreateIncidentDto {
   @IsOptional()
   @IsUUID()
   expectedAssigneeId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Vĩ độ (latitude) tại thời điểm xảy ra sự cố',
+    example: 10.762622,
+  })
+  @IsOptional()
+  @IsNumber()
+  latitude?: number;
+
+  @ApiPropertyOptional({
+    description: 'Kinh độ (longitude) tại thời điểm xảy ra sự cố',
+    example: 106.660172,
+  })
+  @IsOptional()
+  @IsNumber()
+  longitude?: number;
+
+  @ApiPropertyOptional({
+    description: 'ID học sinh liên quan trực tiếp đến sự cố (ví dụ khi vắng phụ huynh đón - NO_GUARDIAN_AT_STOP)',
+    example: 'student-uuid-123',
+  })
+  @IsOptional()
+  @IsUUID()
+  studentId?: string;
 }

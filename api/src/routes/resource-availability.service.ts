@@ -292,6 +292,9 @@ export class ResourceAvailabilityService {
     if (!plan) {
       throw new NotFoundException('Không tìm thấy phương án tuyến');
     }
+    if (plan.status === RoutePlanStatus.ACTIVE && !driverId) {
+      throw new BadRequestException('Không thể hủy phân công tài xế của phương án đã ACTIVE');
+    }
     if (await planInvalidation(this.prisma, plan.schoolId, plan.createdAt) || isContractExpired(plan.school.contractEndDate) || !['DRAFT', 'ACTIVE'].includes(plan.status)) {
       throw new ConflictException('Phương án không còn hiệu lực phục vụ hoặc hợp đồng đã hết hạn');
     }
@@ -372,6 +375,9 @@ export class ResourceAvailabilityService {
 
     if (!plan) {
       throw new NotFoundException('Không tìm thấy phương án tuyến');
+    }
+    if (plan.status === RoutePlanStatus.ACTIVE && !busAttendantId) {
+      throw new BadRequestException('Không thể hủy phân công giáo viên phụ xe của phương án đã ACTIVE');
     }
     if (await planInvalidation(this.prisma, plan.schoolId, plan.createdAt) || isContractExpired(plan.school.contractEndDate) || !['DRAFT', 'ACTIVE'].includes(plan.status)) {
       throw new ConflictException('Phương án không còn hiệu lực phục vụ hoặc hợp đồng đã hết hạn');
