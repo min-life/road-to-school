@@ -98,6 +98,9 @@ không phải lý do đổi primary của ứng dụng. Không sửa hàng loạ
   không báo thành công khi chỉ đổi state cục bộ hay khi API thất bại.
 - Có trạng thái loading, lỗi, rỗng, disabled rõ nghĩa; giữ dữ liệu cũ khi có lỗi chỉ khi có nhãn phù hợp.
   Không dùng màu một mình để truyền đạt ý nghĩa, icon-only cần accessible label.
+- Lịch chọn ngày dùng tiếng Việt, tuần bắt đầu Thứ 2, giữ ngày âm bên dưới ngày dương.
+  Trong form lịch vận hành, popup dùng native popover để không đẩy cao dialog; tự chọn vị trí
+  trên/dưới ô ngày. Escape chỉ đóng popup, chọn ngày trả focus về nút lịch.
 
 ## 6. Bản đồ và phân công
 

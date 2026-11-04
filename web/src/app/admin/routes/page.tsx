@@ -136,16 +136,6 @@ export default function RoutePlansPage() {
 
   return (
     <div className="ui-list-page">
-      {/* Top Banner Notice: RoutePlan Lifecycle Rule */}
-      <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200/80 flex items-start gap-3">
-        <InfoIcon className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-        <div className="text-xs text-amber-900 leading-relaxed">
-          <strong className="font-semibold text-amber-950">Nguyên tắc quản lý Phương án tuyến:</strong>{' '}
-          Phương án tuyến (RoutePlan) là tập hợp toàn bộ các tuyến đi và về được tối ưu đồng thời cho trường học.
-          Chỉ phương án có trạng thái vòng đời (Chưa duyệt / Đang hoạt động / Đã hủy / Hết hạn hợp đồng). Không thể hủy hoặc kích hoạt riêng lẻ từng tuyến.
-        </div>
-      </div>
-
       {/* Header */}
       <PageHeader title="Phương án tuyến" actions={isSystemAdmin && (
           <Button variant="primary" size="default"

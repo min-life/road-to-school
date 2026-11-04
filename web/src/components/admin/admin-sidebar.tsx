@@ -17,6 +17,7 @@ import {
   RouteIcon,
   BusIcon,
   CalendarIcon,
+  CalendarXIcon,
   AlertTriangleIcon,
 } from '@/components/icons';
 import { Role } from '@/lib/types';
@@ -60,6 +61,7 @@ export function AdminSidebar({
       case 'trips':
         return <BusIcon className={iconClass} />;
       case 'leave-notices':
+        return <CalendarXIcon className={iconClass} />;
       case 'calendar':
         return <CalendarIcon className={iconClass} />;
       case 'incidents':

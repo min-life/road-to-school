@@ -1020,6 +1020,39 @@ export interface CancelTripFromNoticeDto {
   expectedStatus?: LeaveNoticeStatus;
 }
 
+export type TripAttendanceStatus = 'UNMARKED' | 'PRESENT' | 'ABSENT';
+
+export interface TripAttendanceStudent {
+  studentId: string;
+  studentCode: string;
+  fullName: string;
+  avatarUrl?: string | null;
+  stopOrder: number;
+  addressText: string;
+  plannedArrivalTime?: string | null;
+  status: TripAttendanceStatus;
+  absenceReason?: string | null;
+  markedById?: string | null;
+  markedByName?: string | null;
+  markedAt?: string | null;
+  alightedAt?: string | null;
+  isAlighted: boolean;
+}
+
+export interface TripAttendanceRoster {
+  tripId: string;
+  totalStudents: number;
+  markedCount: number;
+  presentCount: number;
+  absentCount: number;
+  unmarkedCount: number;
+  isAllMarked: boolean;
+  alightedCount: number;
+  pendingAlightCount: number;
+  isAllAlighted: boolean;
+  students: TripAttendanceStudent[];
+}
+
 export interface TripDetail {
   adminFinalization?: import('./school-lifecycle').TripAdminFinalization | null;
   id: string;

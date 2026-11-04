@@ -55,7 +55,12 @@ export function AddDriverModal({
       return;
     }
 
-    if (trimmedPhone && !/^(0|\+84)[0-9]{9,10}$/.test(trimmedPhone)) {
+    if (!trimmedPhone) {
+      setErrorMessage('Vui lòng nhập số điện thoại của tài xế.');
+      return;
+    }
+
+    if (!/^(0|\+84)[0-9]{9,10}$/.test(trimmedPhone)) {
       setErrorMessage('Số điện thoại không đúng định dạng (ví dụ: 0987654321).');
       return;
     }
@@ -70,7 +75,7 @@ export function AddDriverModal({
       const result = await apiClient.createDriver({
         fullName: trimmedName,
         email: trimmedEmail,
-        phone: trimmedPhone || undefined,
+        phone: trimmedPhone,
       });
 
       onSuccess(result);
@@ -156,12 +161,13 @@ export function AddDriverModal({
 
           <div>
             <div className="flex items-center gap-1 mb-1">
-              <label htmlFor="add-driver-phone" className="text-xs font-semibold text-slate-700">Số điện thoại <span className="font-normal text-slate-500">(tùy chọn)</span></label>
-              <Tooltip content="Số điện thoại liên hệ của tài xế." />
+              <label htmlFor="add-driver-phone" className="text-xs font-semibold text-slate-700">Số điện thoại <span className="text-red-500">*</span></label>
+              <Tooltip content="Số điện thoại bắt buộc để liên hệ và điều phối tài xế." />
             </div>
             <Input
               id="add-driver-phone"
               type="tel"
+              required
               autoComplete="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}

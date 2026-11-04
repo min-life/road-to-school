@@ -668,7 +668,7 @@ class ApiClient {
   async createDriver(body: {
     fullName: string;
     email: string;
-    phone?: string;
+    phone: string;
   }): Promise<CreateDriverResponse> {
     return this.request<CreateDriverResponse>('/drivers', {
       method: 'POST',
@@ -1167,6 +1167,10 @@ class ApiClient {
     const query = searchParams.toString();
     const endpoint = query ? `/trips?${query}` : '/trips';
     return this.request<TripListResponse>(endpoint, { method: 'GET', signal: AbortSignal.timeout(15000) });
+  }
+
+  async getTripAttendance(tripId: string): Promise<import('./types').TripAttendanceRoster> {
+    return this.request(`/trips/${tripId}/attendance`, { method: 'GET', signal: AbortSignal.timeout(15000) });
   }
 
   async getTripDetail(tripId: string): Promise<TripDetail> {

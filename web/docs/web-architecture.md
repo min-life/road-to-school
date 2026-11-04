@@ -72,8 +72,9 @@ kiểm tra import trước khi tạo file style mới. Entry dưới `src/app/ad
 `save-route-plan-dialog.tsx/.css`. Bộ chọn trường của danh sách tuyến ở
 `src/app/admin/routes/_components/school-select-modal.tsx`. Component dùng chung ở `C/routes/`:
 
-- `route-planning-workspace.tsx/.css`: khung map/panel responsive, cấu hình modal và footer.
-- `preview-route-selector.tsx`: chọn đường đang hiện, xem một tuyến, gom lịch trùng giờ.
+- `route-planning-workspace.tsx/.css`: khung map/panel responsive, ô thời gian trực tiếp trên map (không modal) và footer.
+- Preview có tab chính Tuyến/Học sinh; tab con Chiều đi/Chiều về chỉ lọc danh sách đang xem, không đổi đường đang hiện trên map.
+- `preview-route-selector.tsx`: card tuyến đi/về hiển thị xe, sức chứa, quãng đường, thời gian và nhóm lịch chạy; bấm xem điểm dừng, không có checkbox trong danh sách.
 
 **Phương án đã lưu:** `src/app/admin/routes/plans/[id]/page.tsx` phân nhánh:
 
@@ -85,11 +86,12 @@ kiểm tra import trước khi tạo file style mới. Entry dưới `src/app/ad
 `SavedRoutePlanWorkspace` chọn giao diện theo role. System dùng lại thiết kế trước merge;
 School giữ nguyên logic từ nhánh mới. CSS System có scope `.system-route-plan-workspace`
 để không đổi giao diện School. Hai nhánh vẫn dùng quyền và component phân công hiện có.
+`saved-plan-routes-panel.tsx` trong `_components`: tab con Chiều đi/Chiều về, card đầy đủ thông tin và vùng cuộn điểm dừng của System workspace; chọn chiều/card không thay visibility trên map.
 `route-plan-assignments.tsx` trong `_components`: nhóm xe, handlers ứng viên/phân công;
 `compact` là opt-in của workspace. `route-plan-assignment-state.ts` trong shared domain:
 tiến độ nhà xe và tab mặc định, không phải readiness phê duyệt. `approval-readiness-card.tsx`
 vẫn được legacy dùng và nằm cạnh workspace; không xoá nếu chưa kiểm tra caller.
-`route-map-visibility-control.tsx` dùng ở System workspace; School workspace không bị đổi bộ chọn tuyến.
+`components/admin/routes/route-map-visibility-control.tsx/.css` dùng chung ở preview tạo tuyến và System workspace: chọn nhiều đường hiển thị độc lập với card đang xem. School workspace không bị đổi bộ chọn tuyến.
 
 Cả hai role hiện đi qua `/admin`, không có router `SchoolApiGate` như repo tham chiếu.
 Source menu tại `admin-nav.config.ts` chỉ là hiển thị; guard và backend vẫn quyết định quyền.
@@ -123,6 +125,11 @@ một màn hình nếu chưa kiểm tra role/caller khác; dùng prop opt-in nh�
   `service-calendar.ts` dùng `amlich.js` UTC+7, có kiểm thử ngày không tồn tại/tháng nhuận.
 - `trips` có tab `finalizations`, component riêng `_components/admin-finalizations-panel.tsx`.
   `trips/[id]` kiểm tra hiệu lực trước đổi phân công và hiển thị audit; không tạo điểm danh.
+  Tab Điểm danh mặc định đọc `GET /trips/:id/attendance` qua `use-trip-attendance.ts`;
+  thống kê, tìm/lọc và phân trang trong `_components/trip-attendance.tsx`.
+  Tab Điểm dừng dùng `_components/trip-stops-panel.tsx`; CSS giới hạn `trip-detail-*`.
+  Roster làm mới mỗi 15 giây khi trang hiện, tách lỗi khỏi GPS và gắn với trip/user/role/school.
+  Admin chỉ xem giờ điểm danh/xuống xe; thao tác ghi nhận vẫn thuộc Mobile của giáo viên phụ xe.
 - Cách dùng và giới hạn backend: [school-lifecycle-usage.md](school-lifecycle-usage.md).
 
 Từ `web/`: typecheck, lint file đổi, `git diff --check`; xem root policy trước khi chạy test/API.
