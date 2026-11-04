@@ -48,6 +48,7 @@ import {
 } from './dto/replacement-candidate.dto.js';
 import { AssignReplacementDto } from './dto/assign-replacement.dto.js';
 import { CancelTripFromNoticeDto } from './dto/cancel-trip.dto.js';
+import { assertStaffAvailableForTrip } from '../trips/utils/staff-availability.helper.js';
 
 @Injectable()
 export class LeaveNoticesService {
@@ -520,9 +521,9 @@ export class LeaveNoticesService {
         throw new BadRequestException('Chuyến xe đã bắt đầu hoặc kết thúc, không thể hủy báo nghỉ');
       }
 
-      // Rào cản riêng giáo viên phụ xe: không được hủy sau khi đã Ready
-      if (notice.kind === LeaveNoticeKind.BUS_ATTENDANT && trip.attendantReadyAt !== null) {
-        throw new BadRequestException('Giáo viên phụ xe đã sẵn sàng, không thể hủy báo nghỉ');
+      // Rào cản đóng băng: không được hủy sau khi đã Ready
+      if (trip.attendantReadyAt !== null && trip.attendantReadyAt !== undefined) {
+        throw new BadRequestException('Chuyến xe đã sẵn sàng khởi hành hoặc đã đóng băng, không thể hủy báo nghỉ');
       }
 
       // Cập nhật trạng thái notice sang WITHDRAWN
@@ -836,26 +837,14 @@ export class LeaveNoticesService {
         throw new BadRequestException('Giáo viên thay thế không thuộc biên chế trường này');
       }
 
-      // Kiểm tra trùng giờ vận hành
-      if (trip.scheduledStartAt && trip.scheduledEndAt) {
-        const overlap = await tx.trip.findFirst({
-          where: {
-            id: { not: trip.id },
-            serviceDate: trip.serviceDate,
-            status: { in: [TripStatus.SCHEDULED, TripStatus.IN_PROGRESS] },
-            scheduledStartAt: { lt: trip.scheduledEndAt },
-            scheduledEndAt: { gt: trip.scheduledStartAt },
-            OR: [
-              { assignedDriverId: replacementUser.id },
-              { assignedBusAttendantId: replacementUser.id },
-            ],
-          },
-        });
-
-        if (overlap) {
-          throw new ConflictException(`Nhân sự ${replacementUser.fullName} đã có lịch chạy trùng giờ trên chuyến khác`);
-        }
-      }
+      // Kiểm tra tính khả dụng của nhân sự thay thế theo thời gian thực (Mục 3.13)
+      await assertStaffAvailableForTrip(tx, {
+        staffId: replacementUser.id,
+        expectedRole: candidateRole,
+        schoolId: trip.schoolId,
+        tripId: trip.id,
+        targetTrip: trip,
+      });
 
       // Cập nhật phân công trên chuyến xe:
       // - Nếu đổi Tài xế: giữ nguyên attendantReadyAt

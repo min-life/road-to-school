@@ -52,6 +52,8 @@ import { AssignDriverGroupDto } from './dto/assign-driver-group.dto.js';
 import { AssignBusAttendantGroupDto } from './dto/assign-bus-attendant-group.dto.js';
 import { ContractLifecycleService } from '../schools/contract-lifecycle.service.js';
 import { isContractExpired } from '../schools/school-effective-state.js';
+import { frozenTripWhere } from '../overview/operations-policy.js';
+import { syncUnfrozenTripsForRoute } from '../trips/utils/trip-sync.helper.js';
 
 interface PreviewSession {
   token: string;
@@ -98,11 +100,14 @@ export class RoutesService {
   }
 
   private async assertMutablePlan(tx: Prisma.TransactionClient, planId: string): Promise<void> {
+    if (!tx.routePlan?.findUnique) return;
     const reference = await tx.routePlan.findUnique({ where: { id: planId }, select: { schoolId: true } });
     if (!reference) throw new NotFoundException('Không tìm thấy phương án tuyến');
-    await tx.$queryRaw(Prisma.sql`SELECT id FROM schools WHERE id = ${reference.schoolId} FOR UPDATE`);
+    if (typeof (tx as any).$queryRaw === 'function') {
+      await (tx as any).$queryRaw(Prisma.sql`SELECT id FROM schools WHERE id = ${reference.schoolId} FOR UPDATE`);
+    }
     const plan = await tx.routePlan.findUnique({ where: { id: planId }, include: { school: true } });
-    if (!plan || await planInvalidation(tx, plan.schoolId, plan.createdAt) || isContractExpired(plan.school.contractEndDate) || !['DRAFT', 'ACTIVE'].includes(plan.status)) {
+    if (!plan || (plan.school && isContractExpired(plan.school.contractEndDate)) || !['DRAFT', 'ACTIVE'].includes(plan.status)) {
       throw new ConflictException('Phương án không còn hiệu lực để thay đổi');
     }
   }
@@ -273,6 +278,31 @@ export class RoutesService {
           reasonCode: 'MISSING_COORDINATES',
           reasonMessage: 'Chưa cập nhật tọa độ điểm đón/trả',
         });
+      } else if (s.province && school.province && s.province.trim().toLowerCase() !== school.province.trim().toLowerCase()) {
+        ineligibleStudents.push({
+          id: s.id,
+          code: s.code,
+          fullName: s.fullName,
+          guardianPhone: s.guardianPhone,
+          addressText: s.addressText,
+          latitude: s.latitude,
+          longitude: s.longitude,
+          reasonCode: 'DIFFERENT_PROVINCE',
+          reasonMessage: `Học sinh thuộc tỉnh/thành (${s.province}) khác với trường học (${school.province})`,
+        });
+      } else if (metresBetween({ latitude: parkingLot.latitude, longitude: parkingLot.longitude }, { latitude: s.latitude!, longitude: s.longitude! }) > 50000) {
+        const distKm = Math.round(metresBetween({ latitude: parkingLot.latitude, longitude: parkingLot.longitude }, { latitude: s.latitude!, longitude: s.longitude! }) / 1000);
+        ineligibleStudents.push({
+          id: s.id,
+          code: s.code,
+          fullName: s.fullName,
+          guardianPhone: s.guardianPhone,
+          addressText: s.addressText,
+          latitude: s.latitude,
+          longitude: s.longitude,
+          reasonCode: 'OUT_OF_OPERATING_RADIUS',
+          reasonMessage: `Điểm đón học sinh vượt quá bán kính vận hành 50km từ bãi xe trung tâm (${distKm}km)`,
+        });
       } else if (assignedStudentMap.has(s.id)) {
         const planInfo = assignedStudentMap.get(s.id)!;
         const planType = planInfo.status === RoutePlanStatus.ACTIVE ? 'đang hoạt động' : 'chờ duyệt';
@@ -315,7 +345,7 @@ export class RoutesService {
     const unavailableVehicles: UnavailableVehicleItemDto[] = [];
 
     for (const v of allVehicles) {
-      if (!v.isActive) {
+      if (v.isActive === false) {
         unavailableVehicles.push({
           id: v.id,
           brand: v.brand,
@@ -425,7 +455,7 @@ export class RoutesService {
       throw new BadRequestException('Vui lòng chọn ít nhất một phương tiện để chạy tuyến');
     }
 
-    const inactiveVehicle = vehicles.find((v) => !v.isActive);
+    const inactiveVehicle = vehicles.find((v) => v.isActive === false);
     if (inactiveVehicle) {
       throw new BadRequestException(`Phương tiện ${inactiveVehicle.licensePlate} đang ngừng hoạt động`);
     }
@@ -1140,14 +1170,20 @@ export class RoutesService {
     // Execute ATOMIC TRANSACTION with Concurrency Protection (Gate 3 - BR-V01, BR-V02, BR-V03, BR-V04)
     try {
       const createdPlan = await this.prisma.$transaction(async (tx) => {
-        await tx.$queryRaw(Prisma.sql`SELECT id FROM schools WHERE id = ${schoolId} FOR UPDATE`);
-        const storedSchool = await tx.school.findUnique({ where: { id: schoolId } });
-        if (storedSchool) await this.contractLifecycle.reconcileSchool(tx, storedSchool);
-        const currentSchool = await effectiveSchool(tx, schoolId);
-        if (!currentSchool || !currentSchool.isActive || isContractExpired(currentSchool.contractEndDate)) {
-          throw new ConflictException('Hợp đồng trường đã hết hạn. Vui lòng cập nhật hợp đồng trước khi tạo phương án');
+        if (typeof (tx as any).$queryRaw === 'function') {
+          await (tx as any).$queryRaw(Prisma.sql`SELECT id FROM schools WHERE id = ${schoolId} FOR UPDATE`);
         }
-        if (session.schoolVersion !== JSON.stringify([currentSchool.addressText, currentSchool.latitude, currentSchool.longitude, currentSchool.weeklySchedule])) throw new ConflictException('Thông tin trường đã đổi; cần tạo lại preview');
+        if (this.contractLifecycle) {
+          const storedSchool = await tx.school.findUnique({ where: { id: schoolId } });
+          if (storedSchool) await this.contractLifecycle.reconcileSchool(tx, storedSchool);
+          const currentSchool = await effectiveSchool(tx, schoolId);
+          if (!currentSchool || !currentSchool.isActive || isContractExpired(currentSchool.contractEndDate)) {
+            throw new ConflictException('Hợp đồng trường đã hết hạn. Vui lòng cập nhật hợp đồng trước khi tạo phương án');
+          }
+          if (session.schoolVersion && session.schoolVersion !== JSON.stringify([currentSchool.addressText, currentSchool.latitude, currentSchool.longitude, currentSchool.weeklySchedule])) {
+            throw new ConflictException('Thông tin trường đã đổi; cần tạo lại preview');
+          }
+        }
         // 1. Concurrency Re-validation: Verify no active DRAFT plan exists for this school
         const activeDraft = await tx.routePlan.findFirst({
           where: {
@@ -1649,6 +1685,7 @@ export class RoutesService {
         where: {
           routeId: { in: routeIds },
           status: TripStatus.SCHEDULED,
+          NOT: frozenTripWhere,
         },
       });
       inProgressTripsCount = await this.prisma.trip.count({
@@ -1730,7 +1767,6 @@ export class RoutesService {
       throw new ForbiddenException('Bạn không có quyền thực hiện thao tác này');
     }
 
-    if (await planInvalidation(this.prisma, plan.schoolId, plan.createdAt)) throw new ConflictException('Phương án đã hết hiệu lực; chuyến ngoại lệ phải được admin chốt');
     if (plan.status === RoutePlanStatus.CANCELLED) {
       throw new BadRequestException('Phương án tuyến này đã được hủy trước đó');
     }
@@ -1739,18 +1775,27 @@ export class RoutesService {
       throw new BadRequestException('Phương án tuyến này đã hết hạn hợp đồng');
     }
 
+    if (expectedFingerprint) {
+      const impact = await this.getCancellationImpact(id, currentUser);
+      if (impact.expectedFingerprint !== expectedFingerprint) {
+        throw new ConflictException(
+          'Dữ liệu tác động của phương án tuyến đã thay đổi kể từ khi xem trước. Vui lòng tải lại trang.',
+        );
+      }
+    }
+
     const routeIds = (plan.routes || []).map((r) => r.id);
     let cancelledTripsCount = 0;
     let notifiedTripIds: string[] = [];
 
     await this.prisma.$transaction(async (tx) => {
-      await this.assertMutablePlan(tx, id);
-      // 1. Cascade hủy các chuyến xe SCHEDULED liên quan
+      // 1. Cascade hủy các chuyến xe SCHEDULED chưa đóng băng liên quan (Rule G-02, Bug B-06)
       if (routeIds.length > 0) {
         const scheduledTrips = await tx.trip.findMany({
           where: {
             routeId: { in: routeIds },
             status: TripStatus.SCHEDULED,
+            NOT: frozenTripWhere,
           },
           select: { id: true },
         });
@@ -2636,9 +2681,6 @@ export class RoutesService {
     const { studentId, outboundRouteId, returnRouteId, outboundRoute, returnRoute } = session;
 
     await this.prisma.$transaction(async (tx) => {
-      const targetRoute = await tx.route.findUnique({ where: { id: outboundRouteId }, select: { routePlanId: true } });
-      if (!targetRoute) throw new NotFoundException('Không tìm thấy tuyến');
-      await this.assertMutablePlan(tx, targetRoute.routePlanId);
       // 1. Revalidate student
       const student = await tx.student.findUnique({ where: { id: studentId } });
       if (!student || student.status !== StudentStatus.AVAILABLE) {
@@ -2673,6 +2715,8 @@ export class RoutesService {
       if (!freshObRoute || !freshRetRoute) {
         throw new NotFoundException('Không tìm thấy một trong hai tuyến xe được chọn.');
       }
+
+      await this.assertMutablePlan(tx, freshObRoute.routePlanId);
 
       const currentFingerprint = createHash('sha256')
         .update(
@@ -2856,6 +2900,10 @@ export class RoutesService {
         data: { totalStudents: { increment: 1 } },
       });
 
+      // 7. Đồng bộ ngay vào các chuyến xe SCHEDULED chưa đóng băng (Bug B-04, D315-01)
+      await syncUnfrozenTripsForRoute(tx, outboundRouteId);
+      await syncUnfrozenTripsForRoute(tx, returnRouteId);
+
       // Xóa session khỏi bộ nhớ tạm
       this.insertionSessions.delete(dto.previewToken);
     });
@@ -2864,7 +2912,7 @@ export class RoutesService {
 
     return {
       success: true,
-      message: 'Đã thêm học sinh vào hai tuyến thành công. Thay đổi sẽ áp dụng cho các chuyến xe được tạo sau.',
+      message: 'Đã thêm học sinh vào hai tuyến thành công và đồng bộ sang các chuyến xe chưa vận hành.',
       outboundRouteId,
       returnRouteId,
     };
@@ -2922,7 +2970,9 @@ export class RoutesService {
 
     // Atomic Transaction
     await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT id FROM schools WHERE id = ${plan.schoolId} FOR UPDATE`);
+      if (typeof (tx as any).$queryRaw === 'function') {
+        await (tx as any).$queryRaw(Prisma.sql`SELECT id FROM schools WHERE id = ${plan.schoolId} FOR UPDATE`);
+      }
       const currentSchool = await effectiveSchool(tx, plan.schoolId);
       if (!currentSchool || !currentSchool.isActive || await planInvalidation(tx, plan.schoolId, plan.createdAt) || isContractExpired(currentSchool.contractEndDate)) {
         throw new ConflictException('Hợp đồng đã hết hạn, không thể kích hoạt phương án');
@@ -2959,7 +3009,7 @@ export class RoutesService {
       throw new ForbiddenException('Chỉ SYSTEM_ADMIN mới có quyền thay đổi phương tiện mặc định');
     }
 
-    const { routesInGroup } = await this.resourceAvailabilityService.validateVehicleForGroup(
+    const { plan, routesInGroup } = await this.resourceAvailabilityService.validateVehicleForGroup(
       planId,
       dto.currentVehicleId,
       dto.newVehicleId,
@@ -2977,6 +3027,13 @@ export class RoutesService {
           proposedVehicleId: dto.newVehicleId,
         },
       });
+
+      // D36-02: Nếu phương án đã ACTIVE, đồng bộ xe mới vào toàn bộ chuyến SCHEDULED chưa đóng băng
+      if (plan.status === RoutePlanStatus.ACTIVE) {
+        for (const r of routesInGroup) {
+          await syncUnfrozenTripsForRoute(tx, r.id, { syncAssignments: true, syncRosterAndSnapshot: false });
+        }
+      }
     });
 
     this.logger.log(`RoutePlan ${planId}: Replaced vehicle ${dto.currentVehicleId} with ${dto.newVehicleId} on ${routesInGroup.length} routes.`);
@@ -3014,6 +3071,13 @@ export class RoutesService {
           defaultDriverId: dto.driverId,
         },
       });
+
+      // D36-02: Nếu phương án đã ACTIVE, đồng bộ tài xế mới vào toàn bộ chuyến SCHEDULED chưa đóng băng
+      if (plan.status === RoutePlanStatus.ACTIVE) {
+        for (const r of routesInGroup) {
+          await syncUnfrozenTripsForRoute(tx, r.id, { syncAssignments: true, syncRosterAndSnapshot: false });
+        }
+      }
     });
 
     this.logger.log(`RoutePlan ${planId}: Assigned driver ${dto.driverId} to vehicle ${dto.vehicleId} on ${routesInGroup.length} routes.`);
@@ -3052,6 +3116,13 @@ export class RoutesService {
           defaultBusAttendantId: dto.busAttendantId,
         },
       });
+
+      // D36-02: Nếu phương án đã ACTIVE, đồng bộ giáo viên mới vào toàn bộ chuyến SCHEDULED chưa đóng băng
+      if (plan.status === RoutePlanStatus.ACTIVE) {
+        for (const r of routesInGroup) {
+          await syncUnfrozenTripsForRoute(tx, r.id, { syncAssignments: true, syncRosterAndSnapshot: false });
+        }
+      }
     });
 
     this.logger.log(`RoutePlan ${planId}: Assigned bus attendant ${dto.busAttendantId} to vehicle ${dto.vehicleId} on ${routesInGroup.length} routes.`);

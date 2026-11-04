@@ -75,6 +75,8 @@ import {
   resolveTripRoute,
   filterActiveAttendances,
 } from './utils/trip-snapshot-resolver.js';
+import { isTripFrozen } from '../overview/operations-policy.js';
+import { assertStaffAvailableForTrip } from './utils/staff-availability.helper.js';
 
 @Injectable()
 export class TripsService {
@@ -91,13 +93,13 @@ export class TripsService {
   /** Operation writers lock the same parent before reading state or roster. */
   private withTripLock<T>(id: string, work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM trips WHERE id = ${id} FOR UPDATE`);
       const ref = await tx.trip.findUnique({ where: { id }, select: { schoolId: true } });
-      if (ref) {
+      if (ref && this.contractLifecycle) {
         await tx.$queryRaw(Prisma.sql`SELECT id FROM schools WHERE id = ${ref.schoolId} FOR UPDATE`);
         const school = await tx.school.findUnique({ where: { id: ref.schoolId } });
-        if (school) await this.contractLifecycle?.reconcileSchool(tx, school);
+        if (school) await this.contractLifecycle.reconcileSchool(tx, school);
       }
-      await tx.$queryRaw(Prisma.sql`SELECT id FROM trips WHERE id = ${id} FOR UPDATE`);
       await this.contractLifecycle?.assertTripContractOpen(id, tx);
       return work(tx);
     }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
@@ -835,6 +837,7 @@ export class TripsService {
         where: { id },
         include: {
           school: true,
+          attendances: { select: { status: true } },
           route: {
             include: { stops: { select: { studentId: true } } },
           },
@@ -843,6 +846,16 @@ export class TripsService {
 
       if (!trip) {
         throw new NotFoundException('Không tìm thấy chuyến xe');
+      }
+
+      if (trip.status !== TripStatus.SCHEDULED) {
+        throw new BadRequestException('Chỉ có thể điều phối lại chuyến xe đang ở trạng thái SCHEDULED (chờ vận hành)');
+      }
+
+      if (isTripFrozen(trip)) {
+        throw new ConflictException(
+          'Chuyến xe đã ở trạng thái đóng băng, không thể thay đổi phân công thông thường',
+        );
       }
 
       if (currentUser.role === Role.SCHOOL_ADMIN && trip.schoolId !== currentUser.schoolId) {
@@ -874,9 +887,6 @@ export class TripsService {
         throw new ForbiddenException('Bạn không có quyền cập nhật phân công chuyến xe');
       }
 
-      if (trip.status !== TripStatus.SCHEDULED) {
-        throw new BadRequestException('Chỉ có thể điều phối lại chuyến xe đang ở trạng thái SCHEDULED (chờ vận hành)');
-      }
 
       if ((dto.expectedVehicleId !== undefined && dto.expectedVehicleId !== trip.assignedVehicleId) ||
           (dto.expectedDriverId !== undefined && dto.expectedDriverId !== trip.assignedDriverId) ||
@@ -947,56 +957,25 @@ export class TripsService {
 
       // 2. Kiểm tra tài xế thay thế
       if (dto.driverId) {
-        const driver = await tx.user.findUnique({ where: { id: dto.driverId } });
-        if (!driver || driver.role !== Role.DRIVER || !driver.isActive) {
-          throw new BadRequestException('Tài xế thay thế không hợp lệ hoặc đã bị vô hiệu hóa');
-        }
-        if (trip.scheduledStartAt && trip.scheduledEndAt) {
-          const conflict = await tx.trip.findFirst({
-            where: {
-              id: { not: trip.id },
-              assignedDriverId: dto.driverId,
-              serviceDate: trip.serviceDate,
-              status: { in: [TripStatus.SCHEDULED, TripStatus.IN_PROGRESS] },
-              scheduledStartAt: { lt: trip.scheduledEndAt },
-              scheduledEndAt: { gt: trip.scheduledStartAt },
-            },
-          });
-          if (conflict) {
-            throw new BadRequestException(
-              `Tài xế ${driver.fullName} đã có lịch chạy trùng giờ trên chuyến khác trong ngày`,
-            );
-          }
-        }
+        await assertStaffAvailableForTrip(tx, {
+          staffId: dto.driverId,
+          expectedRole: Role.DRIVER,
+          schoolId: trip.schoolId,
+          tripId: trip.id,
+          targetTrip: trip,
+        });
         dataToUpdate.assignedDriverId = dto.driverId;
       }
 
       // 3. Kiểm tra giáo viên giám sát thay thế
       if (dto.busAttendantId) {
-        const attendant = await tx.user.findUnique({ where: { id: dto.busAttendantId } });
-        if (!attendant || attendant.role !== Role.BUS_ATTENDANT || !attendant.isActive) {
-          throw new BadRequestException('Giáo viên thay thế không hợp lệ hoặc đã bị vô hiệu hóa');
-        }
-        if (attendant.schoolId !== trip.schoolId) {
-          throw new BadRequestException('Giáo viên thay thế không thuộc biên chế trường này');
-        }
-        if (trip.scheduledStartAt && trip.scheduledEndAt) {
-          const conflict = await tx.trip.findFirst({
-            where: {
-              id: { not: trip.id },
-              assignedBusAttendantId: dto.busAttendantId,
-              serviceDate: trip.serviceDate,
-              status: { in: [TripStatus.SCHEDULED, TripStatus.IN_PROGRESS] },
-              scheduledStartAt: { lt: trip.scheduledEndAt },
-              scheduledEndAt: { gt: trip.scheduledStartAt },
-            },
-          });
-          if (conflict) {
-            throw new BadRequestException(
-              `Giáo viên ${attendant.fullName} đã có lịch phụ xe trùng giờ trên chuyến khác trong ngày`,
-            );
-          }
-        }
+        await assertStaffAvailableForTrip(tx, {
+          staffId: dto.busAttendantId,
+          expectedRole: Role.BUS_ATTENDANT,
+          schoolId: trip.schoolId,
+          tripId: trip.id,
+          targetTrip: trip,
+        });
         dataToUpdate.assignedBusAttendantId = dto.busAttendantId;
         // D03: Nếu đổi Giáo viên phụ xe, bắt buộc reset attendantReadyAt = null
         if (dto.busAttendantId !== trip.assignedBusAttendantId) {
@@ -1520,12 +1499,17 @@ export class TripsService {
     }
 
     const now = new Date();
+    // D311-01 / Bug B-01: Chuyến IN_PROGRESS luôn được hiển thị bất kể scheduledEndAt cho đến khi COMPLETED/CANCELLED
     const where: any = {
-      status: { in: [TripStatus.IN_PROGRESS, TripStatus.SCHEDULED] },
-      // D06: Exclude trips whose scheduledEndAt has passed
       OR: [
-        { scheduledEndAt: { gte: now } },
-        { scheduledEndAt: null },
+        { status: TripStatus.IN_PROGRESS },
+        {
+          status: TripStatus.SCHEDULED,
+          OR: [
+            { scheduledEndAt: { gte: now } },
+            { scheduledEndAt: null },
+          ],
+        },
       ],
     };
 
@@ -1646,13 +1630,18 @@ export class TripsService {
 
     for (const link of links) {
       const student = link.student;
-      // Tìm các chuyến xe hợp lệ mà học sinh này có trong TripAttendance Roster
+      // D311-01 / Bug B-01: Chuyến IN_PROGRESS luôn giữ vị trí ưu tiên số 1, không lọc scheduledEndAt
       const trips = await this.prisma.trip.findMany({
         where: {
-          status: { in: [TripStatus.IN_PROGRESS, TripStatus.SCHEDULED] },
           OR: [
-            { scheduledEndAt: { gte: now } },
-            { scheduledEndAt: null },
+            { status: TripStatus.IN_PROGRESS },
+            {
+              status: TripStatus.SCHEDULED,
+              OR: [
+                { scheduledEndAt: { gte: now } },
+                { scheduledEndAt: null },
+              ],
+            },
           ],
           attendances: {
             some: { studentId: student.id, excludedAt: null },
@@ -1837,6 +1826,28 @@ export class TripsService {
         throw new BadRequestException('Chỉ có thể bắt đầu chuyến xe đang ở trạng thái SCHEDULED (chờ vận hành)');
       }
 
+      // D38-02: Kiểm tra tài xế hoặc phương tiện có đang thực hiện chuyến khác đang IN_PROGRESS hay không
+      const activeRunningTrip = tx.trip.findFirst
+        ? await tx.trip.findFirst({
+            where: {
+              id: { not: tripId },
+              status: TripStatus.IN_PROGRESS,
+              OR: [
+                { assignedDriverId: currentUser.id },
+                { assignedVehicleId: trip.assignedVehicleId },
+              ],
+            },
+            select: { id: true, assignedDriverId: true, assignedVehicleId: true },
+          })
+        : null;
+      if (activeRunningTrip) {
+        if (activeRunningTrip.assignedDriverId === currentUser.id) {
+          throw new ConflictException('Tài xế đang thực hiện một chuyến xe khác chưa kết thúc');
+        } else {
+          throw new ConflictException('Phương tiện đang được sử dụng trong một chuyến xe khác chưa kết thúc');
+        }
+      }
+
       const pendingStaffNotice = tx.leaveNotice
         ? await tx.leaveNotice.findFirst({
             where: {
@@ -1888,6 +1899,14 @@ export class TripsService {
         );
         if (invalidAbsent.length > 0) {
           throw new BadRequestException('Có học sinh vắng mặt nhưng chưa có lý do hợp lệ');
+        }
+
+        // D310-01: Nếu toàn bộ học sinh đều vắng mặt
+        const presentCount = activeAttendances.filter(
+          (a) => a.status === AttendanceStatus.PRESENT,
+        ).length;
+        if (presentCount === 0) {
+          throw new ConflictException('Tất cả học sinh đều vắng mặt, không thể bắt đầu chuyến đi bình thường');
         }
       }
 

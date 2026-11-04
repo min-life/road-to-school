@@ -196,7 +196,7 @@ export class IncidentsDetectorService {
         take: 12,
       });
 
-      if (recentPoints.length < 7) {
+      if (recentPoints.length < 4) {
         return;
       }
 
@@ -236,9 +236,9 @@ export class IncidentsDetectorService {
       return { ...p, distanceMeters };
     });
 
-    // Check longest contiguous suffix ending at the last point where distance >= 100m and gap <= 15s
+    // Check longest contiguous suffix ending at the last point where distance >= 50m and gap <= 15s
     let streakStartIndex = sampleDistances.length - 1;
-    if (sampleDistances[streakStartIndex].distanceMeters < 100) {
+    if (sampleDistances[streakStartIndex].distanceMeters < 50) {
       return;
     }
 
@@ -246,7 +246,7 @@ export class IncidentsDetectorService {
       const curr = sampleDistances[i];
       const prev = sampleDistances[i - 1];
       const gapMs = curr.recordedAt.getTime() - prev.recordedAt.getTime();
-      if (prev.distanceMeters >= 100 && gapMs <= 15000 && gapMs >= 0) {
+      if (prev.distanceMeters >= 50 && gapMs <= 15000 && gapMs >= 0) {
         streakStartIndex = i - 1;
       } else {
         break;
@@ -258,7 +258,7 @@ export class IncidentsDetectorService {
     const lastSample = streakSamples[streakSamples.length - 1];
     const durationMs = lastSample.recordedAt.getTime() - firstSample.recordedAt.getTime();
 
-    if (streakSamples.length >= 7 && durationMs >= 30000) {
+    if (streakSamples.length >= 4 && durationMs >= 15000) {
       const dedupeKey = `${trip.id}:${TripIncidentType.OFF_ROUTE}`;
       try {
         await this.prisma.$transaction(async tx => { const created = await tx.tripIncident.create({
@@ -270,10 +270,12 @@ export class IncidentsDetectorService {
             reportedById: null,
             context: {
               distanceMeters: Math.round(lastSample.distanceMeters),
-              thresholdMeters: 100,
+              thresholdMeters: 50,
               durationSeconds: Math.round(durationMs / 1000),
               sampleCount: streakSamples.length,
               detectedAt: lastSample.recordedAt.toISOString(),
+              latitude: lastSample.latitude,
+              longitude: lastSample.longitude,
             },
           },
         }); await notifyIncident(tx, created.id); return created; });
@@ -355,9 +357,9 @@ export class IncidentsDetectorService {
       return { ...p, estArrival, delaySeconds };
     });
 
-    // Check longest contiguous suffix where delay > 300s (5m) and gap <= 15s
+    // Check longest contiguous suffix where delay > 180s (3m) and gap <= 15s
     let streakStartIndex = sampleDelays.length - 1;
-    if (sampleDelays[streakStartIndex].delaySeconds <= 300) {
+    if (sampleDelays[streakStartIndex].delaySeconds <= 180) {
       return;
     }
 
@@ -365,7 +367,7 @@ export class IncidentsDetectorService {
       const curr = sampleDelays[i];
       const prev = sampleDelays[i - 1];
       const gapMs = curr.recordedAt.getTime() - prev.recordedAt.getTime();
-      if (prev.delaySeconds > 300 && gapMs <= 15000 && gapMs >= 0) {
+      if (prev.delaySeconds > 180 && gapMs <= 15000 && gapMs >= 0) {
         streakStartIndex = i - 1;
       } else {
         break;
@@ -377,7 +379,7 @@ export class IncidentsDetectorService {
     const lastSample = streakSamples[streakSamples.length - 1];
     const durationMs = lastSample.recordedAt.getTime() - firstSample.recordedAt.getTime();
 
-    if (streakSamples.length >= 7 && durationMs >= 30000) {
+    if (streakSamples.length >= 4 && durationMs >= 15000) {
       const dedupeKey = `${trip.id}:${TripIncidentType.LATE_STOP}`;
       try {
         await this.prisma.$transaction(async tx => { const created = await tx.tripIncident.create({
@@ -394,10 +396,12 @@ export class IncidentsDetectorService {
               plannedArrivalAt: scheduledStopArrivalAt.toISOString(),
               estimatedArrivalAt: lastSample.estArrival.toISOString(),
               delaySeconds: Math.round(lastSample.delaySeconds),
-              thresholdSeconds: 300,
+              thresholdSeconds: 180,
               durationSeconds: Math.round(durationMs / 1000),
               sampleCount: streakSamples.length,
               detectedAt: lastSample.recordedAt.toISOString(),
+              latitude: lastSample.latitude,
+              longitude: lastSample.longitude,
             },
           },
         }); await notifyIncident(tx, created.id); return created; });
