@@ -1,13 +1,24 @@
-import { Injectable, Logger, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, Inject, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DeliveryChannel, OtpPurpose, OtpChallenge } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import * as crypto from 'node:crypto';
-import * as nodemailer from 'nodemailer';
+import { EmailDeliveryService } from './email-delivery.service.js';
+import { EsmsSmsService } from './esms-sms.service.js';
+import { DeliveryError } from './delivery-error.js';
 
 @Injectable()
 export class OtpService {
   private readonly logger = new Logger(OtpService.name);
+
+  @Inject(EmailDeliveryService)
+  private readonly emailDelivery: EmailDeliveryService;
+  @Inject(EsmsSmsService)
+  private readonly smsDelivery: EsmsSmsService;
+
+  isConsole(channel: DeliveryChannel): boolean {
+    return channel === DeliveryChannel.SMS ? this.smsDelivery.isConsole() : this.emailDelivery.isConsole();
+  }
 
   constructor(
     private readonly prisma: PrismaService,
@@ -124,7 +135,7 @@ export class OtpService {
     const otp = this.generateOtp();
     const otpHash = this.hashOtp(otp);
 
-    await this.prisma.otpChallenge.create({
+    const challenge = await this.prisma.otpChallenge.create({
       data: {
         userId: userId || null,
         identifier: normalized,
@@ -135,7 +146,7 @@ export class OtpService {
       },
     });
 
-    await this.dispatchNotification(channel, normalized, otp, purpose, ttlSeconds);
+    await this.deliverChallenge(challenge.id, [{ channel, destination: normalized }], otp, purpose, ttlSeconds);
 
     return { expiresInSeconds: ttlSeconds };
   }
@@ -149,6 +160,7 @@ export class OtpService {
     otp: string,
     purpose: OtpPurpose,
     ttlSeconds: number,
+    requestId: string,
   ): Promise<void> {
     const minutes = Math.ceil(ttlSeconds / 60);
 
@@ -174,48 +186,37 @@ export class OtpService {
     const messageContent = `Mã xác thực ${purposeText} RoadToSchool của bạn là: ${otp}. Mã có hiệu lực trong ${minutes} phút. Vui lòng không chia sẻ mã này với bất kỳ ai.`;
 
     if (channel === DeliveryChannel.EMAIL) {
-      const emailMode = (this.configService.get<string>('AUTH_EMAIL_MODE') || 'console').toLowerCase();
-
-      if (emailMode === 'smtp') {
-        const host = this.configService.get<string>('SMTP_HOST');
-        const port = parseInt(this.configService.get<string>('SMTP_PORT') || '587', 10);
-        const user = this.configService.get<string>('SMTP_USER');
-        const pass = this.configService.get<string>('SMTP_PASSWORD');
-        const from = this.configService.get<string>('SMTP_FROM') || 'RoadToSchool <no-reply@r2s.com>';
-
-        if (!host || !user || !pass) {
-          this.logger.error('Cấu hình SMTP chưa đầy đủ (SMTP_HOST, SMTP_USER, SMTP_PASSWORD). Từ chối gửi email.');
-          throw new InternalServerErrorException('Hệ thống gửi email SMTP chưa được cấu hình đầy đủ');
-        }
-
-        const transporter = nodemailer.createTransport({
-          host,
-          port,
-          secure: port === 465,
-          auth: { user, pass },
-        });
-
-        await transporter.sendMail({
-          from,
-          to: identifier,
-          subject,
-          text: messageContent,
-          html: `<p style="font-size: 16px; color: #1E293B;">${messageContent}</p>`,
-        });
-
-        this.logger.log(`[AUTH_EMAIL_SMTP] Đã gửi mã OTP tới: ${identifier}`);
-      } else {
-        // Console mode (mặc định cho development)
-        this.logger.log(
-          `[AUTH_EMAIL_CONSOLE] Gửi đến: ${identifier} | Tiêu đề: ${subject} | Mã OTP: ${otp} | Hạn: ${minutes} phút`,
-        );
-      }
+      await this.emailDelivery.send(identifier, subject, messageContent);
     } else {
-      // SMS channel (Console mode only trong development/test)
-      this.logger.log(
-        `[AUTH_SMS_CONSOLE] Gửi đến SĐT: ${identifier} | Nội dung: ${messageContent} | Hạn: ${minutes} phút`,
-      );
+      await this.smsDelivery.sendOtp(identifier, otp, requestId);
     }
+  }
+
+  private async deliverChallenge(
+    challengeId: string,
+    contacts: { channel: DeliveryChannel; destination: string }[],
+    otp: string, purpose: OtpPurpose, ttlSeconds: number,
+  ): Promise<void> {
+    let accepted = false;
+    let uncertain = false;
+    for (const contact of contacts) {
+      try {
+        const requestId = crypto.createHash('sha256')
+          .update(challengeId + ':' + contact.channel + ':' + contact.destination).digest('hex').slice(0, 40);
+        await this.dispatchNotification(contact.channel, contact.destination, otp, purpose, ttlSeconds, requestId);
+        accepted = true;
+      } catch (error) {
+        uncertain ||= !(error instanceof DeliveryError) || error.uncertain;
+        this.logger.warn('OTP delivery not confirmed for channel ' + contact.channel);
+      }
+    }
+    if (accepted) return;
+    if (!uncertain) {
+      await this.prisma.otpChallenge.update({ where: { id: challengeId }, data: { expiresAt: new Date() } });
+    }
+    throw new DeliveryError(uncertain
+      ? 'Chưa xác định kết quả gửi mã. Vui lòng chờ mã hết hạn trước khi yêu cầu lại'
+      : 'Chưa gửi được mã xác thực. Vui lòng thử lại', uncertain);
   }
 
   /**
@@ -269,12 +270,9 @@ export class OtpService {
     });
 
     // 3. Phát thông báo OTP
-    await this.dispatchNotification(
-      DeliveryChannel.SMS,
-      normalized,
-      otp,
-      OtpPurpose.PARENT_STUDENT_LINKING,
-      ttlSeconds,
+    await this.deliverChallenge(
+      challenge.id, [{ channel: DeliveryChannel.SMS, destination: normalized }],
+      otp, OtpPurpose.PARENT_STUDENT_LINKING, ttlSeconds,
     );
 
     // 4. Tạo masked phone (ẩn một phần số điện thoại để phụ huynh nhận diện)
@@ -444,12 +442,9 @@ export class OtpService {
     });
 
     // 3. Phát thông báo OTP
-    await this.dispatchNotification(
-      DeliveryChannel.SMS,
-      normalized,
-      otp,
-      OtpPurpose.STUDENT_UPDATE_REQUEST,
-      ttlSeconds,
+    await this.deliverChallenge(
+      challenge.id, [{ channel: DeliveryChannel.SMS, destination: normalized }],
+      otp, OtpPurpose.STUDENT_UPDATE_REQUEST, ttlSeconds,
     );
 
     // 4. Tạo masked phone (ẩn một phần số điện thoại để phụ huynh nhận diện)
@@ -612,23 +607,15 @@ export class OtpService {
       },
     });
 
-    // Dispatch fan-out: send OTP to every eligible contact channel
-    for (const c of contacts) {
-      await this.dispatchNotification(
-        c.channel,
-        c.destination,
-        otp,
-        OtpPurpose.LEAVE_NOTICE,
-        ttlSeconds,
-      );
-    }
+    // Keep a challenge usable when at least one contact accepted the OTP.
+    await this.deliverChallenge(challenge.id, contacts, otp, OtpPurpose.LEAVE_NOTICE, ttlSeconds);
 
     return {
       challengeId: challenge.id,
       maskedChannels: contacts.map((c) => ({
         channel: c.channel,
         destination: this.maskIdentifier(c.destination, c.channel),
-        isConsole: c.isConsole,
+        isConsole: this.isConsole(c.channel),
       })),
       expiresInSeconds: ttlSeconds,
     };

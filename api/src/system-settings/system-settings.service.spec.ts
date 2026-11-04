@@ -65,11 +65,11 @@ describe('SystemSettingsService - Parking Lot Management', () => {
   });
 
   describe('updateParkingLot', () => {
-    it('cập nhật thành công tọa độ và địa chỉ bãi đỗ xe hợp lệ', async () => {
+    it('cập nhật thành công nhãn địa chỉ bãi đỗ xe khi tọa độ không đổi', async () => {
       const updateDto = {
         addressText: 'Bãi xe Suối Tiên, TP. Thủ Đức',
-        latitude: 10.866222,
-        longitude: 106.802111,
+        latitude: 10.776889,
+        longitude: 106.700806,
       };
 
       mockPrisma.systemSetting.upsert.mockResolvedValue({
@@ -96,6 +96,37 @@ describe('SystemSettingsService - Parking Lot Management', () => {
           updatedById: 'admin-id-1',
         },
       });
+    });
+
+    it('lên lịch dời bãi xe khi tọa độ thay đổi và bảo lưu địa chỉ hiện tại kèm scheduledChange', async () => {
+      const updateDto = {
+        addressText: 'Bãi xe Quận 9 Mới, TP. Thủ Đức',
+        latitude: 10.866222,
+        longitude: 106.802111,
+      };
+
+      mockPrisma.systemSetting.upsert.mockResolvedValue({
+        id: 'default',
+        key: 'PARKING_LOT',
+        value: {
+          addressText: 'Bãi đỗ xe trung tâm TP. Hồ Chí Minh',
+          latitude: 10.776889,
+          longitude: 106.700806,
+          scheduledChange: {
+            newAddressText: updateDto.addressText,
+            newLatitude: updateDto.latitude,
+            newLongitude: updateDto.longitude,
+          },
+        },
+        updatedAt: new Date('2026-10-23T12:00:00Z'),
+      });
+
+      const result = await service.updateParkingLot(updateDto, 'admin-id-1');
+
+      expect(result.addressText).toBe('Bãi đỗ xe trung tâm TP. Hồ Chí Minh');
+      expect(result.scheduledChange?.newAddressText).toBe(updateDto.addressText);
+      expect(result.scheduledChange?.newLatitude).toBe(updateDto.latitude);
+      expect(result.scheduledChange?.newLongitude).toBe(updateDto.longitude);
     });
 
     it('từ chối khi địa chỉ để trống', async () => {

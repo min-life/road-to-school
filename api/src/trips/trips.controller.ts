@@ -294,6 +294,7 @@ export class TripsController {
   // TRIP OPERATION & ATTENDANCE ENDPOINTS
   // ==========================================
 
+  @ApiResponse({ status: 409, description: 'Hợp đồng đã hết hạn; thao tác vận hành bị chặn, trạng thái Trip được giữ cho quản trị viên xử lý' })
   @Post(':id/attendant-ready')
   @Roles(Role.BUS_ATTENDANT)
   @HttpCode(HttpStatus.OK)
@@ -311,6 +312,7 @@ export class TripsController {
     return this.tripsService.markAttendantReady(id, currentUser);
   }
 
+  @ApiResponse({ status: 409, description: 'Hợp đồng đã hết hạn; thao tác vận hành bị chặn, trạng thái Trip được giữ cho quản trị viên xử lý' })
   @Post(':id/start')
   @Roles(Role.DRIVER)
   @HttpCode(HttpStatus.OK)
@@ -328,6 +330,7 @@ export class TripsController {
     return this.tripsService.startTrip(id, currentUser);
   }
 
+  @ApiResponse({ status: 409, description: 'Hợp đồng đã hết hạn; thao tác vận hành bị chặn, trạng thái Trip được giữ cho quản trị viên xử lý' })
   @Post(':id/arrive-at-school')
   @Roles(Role.DRIVER)
   @HttpCode(HttpStatus.OK)
@@ -389,6 +392,7 @@ export class TripsController {
     return this.tripsService.getTripAttendance(id, currentUser);
   }
 
+  @ApiResponse({ status: 409, description: 'Hợp đồng đã hết hạn, không thay đổi điểm danh; quản trị viên cần xử lý chuyến' })
   @Put(':id/attendance/:studentId')
   @Roles(Role.BUS_ATTENDANT)
   @ApiOperation({
@@ -408,6 +412,7 @@ export class TripsController {
     return this.tripsService.updateAttendance(id, studentId, dto, currentUser);
   }
 
+  @ApiResponse({ status: 409, description: 'Hợp đồng đã hết hạn, không thay đổi điểm danh; quản trị viên cần xử lý chuyến' })
   @Put(':id/attendance/:studentId/alighting')
   @Roles(Role.BUS_ATTENDANT)
   @ApiOperation({
@@ -431,6 +436,7 @@ export class TripsController {
     return this.tripsService.updateAlighting(id, studentId, dto, currentUser);
   }
 
+  @ApiResponse({ status: 409, description: 'Hợp đồng đã hết hạn; thao tác vận hành bị chặn, trạng thái Trip được giữ cho quản trị viên xử lý' })
   @Post(':id/attendance/verify-qr')
   @Roles(Role.BUS_ATTENDANT)
   @HttpCode(HttpStatus.OK)
@@ -454,6 +460,7 @@ export class TripsController {
   }
 
   @ApiResponse({ status: 422, description: 'INCOMPLETE_ATTENDANCE: roster còn UNMARKED' })
+  @ApiResponse({ status: 409, description: 'Hợp đồng đã hết hạn; thao tác vận hành bị chặn, trạng thái Trip được giữ cho quản trị viên xử lý' })
   @Post(':id/complete')
   @Roles(Role.DRIVER)
   @HttpCode(HttpStatus.OK)

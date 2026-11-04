@@ -111,6 +111,9 @@ enum TripIncidentType {
   DRIVER_MISSING
   OFF_ROUTE
   LATE_STOP
+  NO_GUARDIAN_AT_STOP
+  TRAFFIC_DELAY
+  GPS_SIGNAL_LOST
 }
 
 enum TripIncidentStatus {
@@ -145,6 +148,9 @@ model User {
   school         School?   @relation(fields: [schoolId], references: [id], onDelete: Restrict)
 
   // Relationships
+  scheduledSchoolChanges SchoolScheduledChange[]
+  createdCalendarEntries ServiceCalendarEntry[] @relation("CalendarCreator")
+  reviewedCalendarEntries ServiceCalendarEntry[] @relation("CalendarReviewer")
   sessions           Session[]
   notifications      Notification[]
   otpChallenges      OtpChallenge[]
@@ -228,6 +234,7 @@ model School {
   addressText       String    @map("address_text")
   latitude          Float
   longitude         Float
+  province          String?   @db.VarChar(100)
   imageUrl          String?   @map("image_url")
   imagePublicId     String?   @map("image_public_id")
   contractStartDate DateTime  @map("contract_start_date") @db.Date
@@ -238,6 +245,8 @@ model School {
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
   // Quan hệ
+  scheduledChanges SchoolScheduledChange[]
+  calendarEntries ServiceCalendarEntry[]
   users             User[]
   students          Student[]
   updateRequests    StudentUpdateRequest[]
@@ -262,6 +271,7 @@ model Student {
   addressText     String?        @map("address_text")
   latitude        Float?
   longitude       Float?
+  province        String?        @db.VarChar(100)
   status          StudentStatus  @default(AVAILABLE)
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt       DateTime       @updatedAt @map("updated_at")
@@ -306,6 +316,7 @@ model Vehicle {
   licensePlate    String   @unique @map("license_plate") @db.VarChar(20)
   normalizedPlate String   @unique @map("normalized_plate") @db.VarChar(20)
   color           String   @db.VarChar(50)
+  isActive        Boolean  @default(true) @map("is_active")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -314,6 +325,7 @@ model Vehicle {
   assignedTrips   Trip[]
 
   @@index([brand])
+  @@index([isActive])
   @@map("vehicles")
 }
 
@@ -378,6 +390,8 @@ model RoutePlan {
   cancellationReason  String?         @map("cancellation_reason") @db.VarChar(500)
   activatedAt         DateTime?       @map("activated_at")
   approvedById        String?         @map("approved_by_id")
+  needsReoptimization Boolean         @default(false) @map("needs_reoptimization")
+  reoptimizationReason String?        @map("reoptimization_reason") @db.VarChar(500)
 
   // Quan hệ
   school      School   @relation(fields: [schoolId], references: [id], onDelete: Restrict)
@@ -388,6 +402,7 @@ model RoutePlan {
 
   @@index([schoolId, status])
   @@index([status, createdAt])
+  @@index([needsReoptimization])
   @@map("route_plans")
 }
 
@@ -472,6 +487,7 @@ model Trip {
   cancellationReason     String?        @map("cancellation_reason") @db.VarChar(500)
   cancelledAt            DateTime?      @map("cancelled_at")
   cancelledById          String?        @map("cancelled_by_id")
+  adminFinalization      Json?          @map("admin_finalization")
   navigationState        Json?          @map("navigation_state")
   routeSnapshot          Json?          @map("route_snapshot")
   createdAt              DateTime       @default(now()) @map("created_at")
@@ -622,4 +638,55 @@ model Notification {
   @@index([userId, readAt, createdAt])
   @@index([pushState, pushAfterAt])
   @@map("notifications")
+}
+
+model SchoolScheduledChange {
+  id            String    @id @default(uuid())
+  schoolId      String    @map("school_id")
+  type          String
+  effectiveDate DateTime  @map("effective_date") @db.Date
+  payload       Json
+  status        String    @default("PENDING")
+  createdById   String    @map("created_by_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  appliedAt     DateTime? @map("applied_at")
+  cancelledAt   DateTime? @map("cancelled_at")
+  lastError     String?   @map("last_error")
+  school        School    @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  createdBy     User      @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, type, effectiveDate])
+  @@index([status, effectiveDate])
+  @@map("school_scheduled_changes")
+}
+
+model ServiceCalendarEntry {
+  id           String    @id @default(uuid())
+  schoolId     String?   @map("school_id")
+  title        String
+  kind         String
+  calendar     String
+  recurrence   String
+  year         Int?
+  month        Int
+  day          Int
+  leapMonth    Boolean   @default(false) @map("leap_month")
+  startTime    String?   @map("start_time")
+  endTime      String?   @map("end_time")
+  status       String
+  createdById  String    @map("created_by_id")
+  reviewedById String?   @map("reviewed_by_id")
+  reason       String?
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  reviewedAt   DateTime? @map("reviewed_at")
+  cancelledAt  DateTime? @map("cancelled_at")
+  school       School?   @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  createdBy    User      @relation("CalendarCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  reviewedBy   User?     @relation("CalendarReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([schoolId, status])
+  @@index([kind, calendar, recurrence, year])
+  @@map("service_calendar_entries")
 }

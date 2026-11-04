@@ -1,27 +1,25 @@
-import { notifyPlan } from '../notifications/notification-events.js';
-import { notifyCancelledTrips } from '../notifications/notification-writer.js';
+import { assertSchoolWritable, effectiveSchool } from './school-policy.js';
+import { ScheduledChangesService } from './scheduled-changes.service.js';
+import { ContractLifecycleService } from './contract-lifecycle.service.js';
+import { assertExtensionResources } from './contract-extension-policy.js';
+import { contractDate, vietnamToday } from './school-effective-state.js';
+import { PersonnelCredentialsService } from '../auth/personnel-credentials.service.js';
 import {
   Injectable,
+  Inject,
   Logger,
   NotFoundException,
   BadRequestException,
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
-import { Prisma, Role, User, RoutePlanStatus, TripStatus, LeaveNoticeStatus, RouteDirection } from '@prisma/client';
+import { Prisma, Role, User, RoutePlanStatus, TripStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import * as crypto from 'node:crypto';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CloudinaryService } from './cloudinary.service.js';
 import { validateWeeklySchedule } from './schedule.validator.js';
-import {
-  getDayOfWeekKey,
-  formatDateToVnYmd,
-  timeStrToSeconds,
-  secondsToTimeStr,
-  combineDateAndTimeUtc,
-} from '../trips/utils/trip-time.util.js';
 import {
   ListSchoolsQueryDto,
   SchoolStatusFilter,
@@ -43,11 +41,19 @@ import {
   UpdateSchoolContractDto,
   UpdateSchoolScheduleDto,
   UpdateSchoolScheduleResponseDto,
+  EmployeeDeactivationImpactDto,
+  UpdateEmployeeStatusDto,
 } from './dto/index.js';
 
 @Injectable()
 export class SchoolsService {
   private readonly logger = new Logger(SchoolsService.name);
+
+  @Inject(PersonnelCredentialsService)
+  private readonly credentials: PersonnelCredentialsService;
+
+  @Inject(ScheduledChangesService) private readonly changes: ScheduledChangesService;
+  @Inject(ContractLifecycleService) private readonly lifecycle: ContractLifecycleService;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -208,8 +214,9 @@ export class SchoolsService {
     // Lọc theo trạng thái hoạt động
     if (query.status === SchoolStatusFilter.ACTIVE) {
       where.isActive = true;
+      where.scheduledChanges = { none: { type: 'INACTIVE', status: 'PENDING', effectiveDate: { lte: new Date(vietnamToday()) } } };
     } else if (query.status === SchoolStatusFilter.INACTIVE) {
-      where.isActive = false;
+      where.OR = [{ isActive: false }, { scheduledChanges: { some: { type: 'INACTIVE', status: 'PENDING', effectiveDate: { lte: new Date(vietnamToday()) } } } }];
     }
 
     // Thực hiện truy vấn song song lấy danh sách và tổng số bản ghi
@@ -236,7 +243,9 @@ export class SchoolsService {
 
     const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / limit);
 
-    const formattedItems: SchoolListItemDto[] = items.map((school) => ({
+    const formattedItems: SchoolListItemDto[] = await Promise.all(items.map(async stored => {
+      const school = { ...stored, ...await effectiveSchool(this.prisma, stored.id) };
+      return ({
       id: school.id,
       name: school.name,
       addressText: school.addressText,
@@ -248,7 +257,7 @@ export class SchoolsService {
       isActive: school.isActive,
       createdAt: school.createdAt.toISOString(),
       employeeCount: school._count.users,
-    }));
+    }); }));
 
     return {
       items: formattedItems,
@@ -285,6 +294,7 @@ export class SchoolsService {
       throw new NotFoundException('Không tìm thấy trường học');
     }
 
+    Object.assign(school, await effectiveSchool(this.prisma, id));
     const weeklySchedule =
       typeof school.weeklySchedule === 'string'
         ? JSON.parse(school.weeklySchedule)
@@ -308,69 +318,12 @@ export class SchoolsService {
     };
   }
 
-  /**
-   * Cập nhật trạng thái hoạt động của trường học (isActive).
-   * - Deactivate (isActive = false): Cho phép mọi lúc, không ảnh hưởng Users/Sessions.
-   * - Reactivate (isActive = true): Chỉ cho phép khi hợp đồng còn hiệu lực
-   *   (contractStartDate <= ngày_hiện_tại_VN <= contractEndDate).
-   * - Idempotency: Nếu trạng thái không đổi, trả về kết quả thành công ngay không ghi DB.
-   */
-  async updateStatus(
-    id: string,
-    dto: UpdateSchoolStatusDto,
-  ): Promise<UpdateSchoolStatusResponseDto> {
-    const school = await this.prisma.school.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        isActive: true,
-        contractStartDate: true,
-        contractEndDate: true,
-      },
-    });
-
-    if (!school) {
-      throw new NotFoundException('Không tìm thấy trường học');
-    }
-
-    // Idempotent: Nếu trạng thái gửi lên giống hệt trạng thái hiện tại
-    if (school.isActive === dto.isActive) {
-      return {
-        id: school.id,
-        isActive: school.isActive,
-        message: 'Cập nhật trạng thái trường học thành công',
-      };
-    }
-
-    // Nếu kích hoạt lại trường (isActive = true), kiểm tra hiệu lực hợp đồng theo giờ Việt Nam
-    if (dto.isActive === true) {
-      const startDateStr = school.contractStartDate.toISOString().split('T')[0];
-      const endDateStr = school.contractEndDate.toISOString().split('T')[0];
-
-      // Lấy ngày hiện tại theo múi giờ Việt Nam (Asia/Ho_Chi_Minh, định dạng YYYY-MM-DD)
-      const currentDateStr = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Asia/Ho_Chi_Minh',
-      }).format(new Date());
-
-      if (currentDateStr < startDateStr || currentDateStr > endDateStr) {
-        throw new BadRequestException(
-          'Không thể kích hoạt trường vì hợp đồng chưa có hiệu lực hoặc đã hết hạn',
-        );
-      }
-    }
-
-    // Cập nhật trạng thái duy nhất của School, không đụng chạm đến User hay Session
-    const updated = await this.prisma.school.update({
-      where: { id },
-      data: { isActive: dto.isActive },
-      select: { id: true, isActive: true },
-    });
-
-    return {
-      id: updated.id,
-      isActive: updated.isActive,
-      message: 'Cập nhật trạng thái trường học thành công',
-    };
+  /** Inactive is scheduled; reactivation reconciles due changes and requires fresh login. */
+  async updateStatus(id: string, dto: UpdateSchoolStatusDto, actor?: User): Promise<UpdateSchoolStatusResponseDto> {
+    if (!actor) throw new ForbiddenException();
+    if (dto.isActive) return this.changes.reactivate(id, actor);
+    const result = await this.changes.schedule(id, 'INACTIVE', { isActive: false }, dto.effectiveDate, actor);
+    return { id, isActive: result.school.isActive, message: 'Đã hẹn ngừng hoạt động trường', scheduledChangeId: result.scheduledChangeId, effectiveDate: result.effectiveDate, changeStatus: result.changeStatus };
   }
 
   /**
@@ -560,7 +513,7 @@ export class SchoolsService {
    */
   async createSchoolAdmin(
     schoolId: string,
-    dto: CreateSchoolAdminDto,
+    dto: Omit<CreateSchoolAdminDto, 'email'> & { email?: string },
     currentUser?: User,
   ): Promise<CreateSchoolAdminResponseDto> {
     // 1. Kiểm tra trường học tồn tại và trạng thái hoạt động
@@ -595,6 +548,7 @@ export class SchoolsService {
         ? 'giáo viên'
         : 'quản trị trường học';
 
+    await assertSchoolWritable(this.prisma, schoolId);
     if (!school.isActive) {
       throw new BadRequestException(
         targetRole === Role.BUS_ATTENDANT
@@ -620,9 +574,9 @@ export class SchoolsService {
       phone = cleanPhone;
     }
 
-    if (!email && !phone) {
+    if (!email) {
       throw new BadRequestException(
-        'Bắt buộc phải cung cấp ít nhất Email hoặc Số điện thoại',
+        'Email nhân sự là bắt buộc để bàn giao mật khẩu',
       );
     }
 
@@ -684,17 +638,7 @@ export class SchoolsService {
       throw error;
     }
 
-    // 6. Bàn giao mật khẩu tạm ra Backend Console chỉ trong môi trường Development
-    if (process.env.NODE_ENV === 'development') {
-      this.logger.log(
-        `[CONSOLE_CREDENTIAL_DELIVERY] Tạo tài khoản ${targetRole} thành công:\n` +
-          `  - Họ và tên:    ${newUser.fullName}\n` +
-          `  - School ID:    ${schoolId}\n` +
-          `  - Định danh:    ${email || phone}\n` +
-          `  - Mật khẩu tạm: ${tempPassword}\n` +
-          `  *(Lưu ý: Chỉ phục vụ Development. Tuyệt đối không trả ra HTTP response)*`,
-      );
-    }
+    const credentialDeliveryStatus = await this.credentials.deliverCreatedUser(newUser, tempPassword);
 
     return {
       id: newUser.id,
@@ -706,7 +650,10 @@ export class SchoolsService {
       isActive: newUser.isActive,
       isVerified: newUser.isVerified,
       createdAt: newUser.createdAt.toISOString(),
-      message: `Tạo tài khoản ${roleNameVi} thành công`,
+      credentialDeliveryStatus,
+      message: credentialDeliveryStatus === 'FAILED'
+        ? `Đã tạo tài khoản ${roleNameVi} nhưng chưa gửi được email mật khẩu`
+        : `Tạo tài khoản ${roleNameVi} thành công`,
     };
   }
 
@@ -717,9 +664,7 @@ export class SchoolsService {
     if (currentUser.role === Role.SCHOOL_ADMIN && currentUser.schoolId !== schoolId) {
       throw new ForbiddenException('Bạn chỉ có quyền xem cài đặt trường học của mình');
     }
-    const school = await this.prisma.school.findUnique({
-      where: { id: schoolId },
-    });
+    const school = await effectiveSchool(this.prisma, schoolId);
     if (!school) {
       throw new NotFoundException('Không tìm thấy trường học');
     }
@@ -751,9 +696,7 @@ export class SchoolsService {
     if (currentUser.role !== Role.SYSTEM_ADMIN) {
       throw new ForbiddenException('Chỉ Quản trị viên hệ thống (SYSTEM_ADMIN) mới có quyền kiểm tra tác động thay đổi vị trí trường học');
     }
-    const school = await this.prisma.school.findUnique({
-      where: { id: schoolId },
-    });
+    const school = await effectiveSchool(this.prisma, schoolId);
     if (!school) {
       throw new NotFoundException('Không tìm thấy trường học');
     }
@@ -829,221 +772,52 @@ export class SchoolsService {
   }
 
   /**
-   * Cập nhật vị trí trường học kèm cascade hủy các phương án DRAFT/ACTIVE và chuyến xe SCHEDULED
-   * Chỉ SYSTEM_ADMIN có quyền thực hiện. Khi sửa, nếu trường có bất kỳ phương án nào (DRAFT/ACTIVE) thì hủy toàn bộ.
+   * Hẹn đổi vị trí trường; chỉ hủy phương án cũ khi đến ngày hiệu lực
+   * Chỉ SYSTEM_ADMIN; response giữ thông tin đang có hiệu lực và thêm lịch hẹn.
    */
-  async updateLocation(schoolId: string, dto: UpdateSchoolLocationDto, currentUser: User) {
-    if (currentUser.role !== Role.SYSTEM_ADMIN) {
-      throw new ForbiddenException('Chỉ Quản trị viên hệ thống (SYSTEM_ADMIN) mới có quyền cập nhật địa chỉ trường học');
-    }
-    const school = await this.prisma.school.findUnique({
-      where: { id: schoolId },
-    });
-    if (!school) {
-      throw new NotFoundException('Không tìm thấy trường học');
-    }
-
+  async updateLocation(schoolId: string, dto: UpdateSchoolLocationDto, actor: User) {
     if (dto.expectedFingerprint) {
-      const activeOrDraftPlans = await this.prisma.routePlan.findMany({
-        where: {
-          schoolId,
-          status: { in: [RoutePlanStatus.DRAFT, RoutePlanStatus.ACTIVE] },
-        },
-        include: {
-          routes: { select: { id: true } },
-        },
-      });
-      const dCount = activeOrDraftPlans.filter((p) => p.status === RoutePlanStatus.DRAFT).length;
-      const aCount = activeOrDraftPlans.filter((p) => p.status === RoutePlanStatus.ACTIVE).length;
-      const rIds = activeOrDraftPlans.flatMap((p) => p.routes.map((r) => r.id));
-      const sTripsCount = rIds.length > 0
-        ? await this.prisma.trip.count({
-            where: { routeId: { in: rIds }, status: TripStatus.SCHEDULED },
-          })
-        : 0;
-
-      const currentFingerprint = createHash('sha256')
-        .update(
-          JSON.stringify([
-            school.id,
-            school.updatedAt.toISOString(),
-            dCount,
-            aCount,
-            sTripsCount,
-          ]),
-        )
-        .digest('hex');
-
-      if (dto.expectedFingerprint !== currentFingerprint) {
-        throw new ConflictException(
-          'Dữ liệu trạng thái trường học đã thay đổi trong khi bạn đang thao tác. Vui lòng tải lại và kiểm tra lại tác động trước khi lưu.',
-        );
-      }
+      const impact = await this.getLocationImpact(schoolId, actor, dto.latitude, dto.longitude);
+      if (impact.expectedFingerprint !== dto.expectedFingerprint) throw new ConflictException('Dữ liệu trường vừa thay đổi. Vui lòng tải lại');
     }
-
-    const reason = dto.reason || `Trường học thay đổi địa chỉ sang ${dto.addressText.trim()}`;
-
-    const result = await this.prisma.$transaction(async (tx) => {
-      const plans = await tx.routePlan.findMany({
-        where: {
-          schoolId,
-          status: { in: [RoutePlanStatus.DRAFT, RoutePlanStatus.ACTIVE] },
-        },
-        include: {
-          routes: { select: { id: true } },
-        },
-      });
-
-      const planIds = plans.map((p) => p.id);
-      const routeIds = plans.flatMap((p) => p.routes.map((r) => r.id));
-      let cancelledTripsCount = 0;
-
-      if (routeIds.length > 0) {
-        const scheduledTrips = await tx.trip.findMany({
-          where: {
-            routeId: { in: routeIds },
-            status: TripStatus.SCHEDULED,
-          },
-          select: { id: true },
-        });
-
-        cancelledTripsCount = scheduledTrips.length;
-        const tripIds = scheduledTrips.map((t) => t.id);
-
-        if (tripIds.length > 0) {
-          await tx.trip.updateMany({
-            where: { id: { in: tripIds } },
-            data: {
-              status: TripStatus.CANCELLED,
-              cancellationReason: reason,
-              cancelledAt: new Date(),
-              cancelledById: currentUser.id,
-            },
-          });
-
-          await notifyCancelledTrips(tx, tripIds, 'location:' + planIds.slice().sort().join(':'), currentUser.id);
-          await tx.leaveNotice.updateMany({
-            where: {
-              tripId: { in: tripIds },
-              status: LeaveNoticeStatus.PENDING_REPLACEMENT,
-            },
-            data: {
-              status: LeaveNoticeStatus.TRIP_CANCELLED,
-              processedAt: new Date(),
-              processedById: currentUser.id,
-            },
-          });
-        }
-      }
-
-      if (planIds.length > 0) {
-        await tx.routePlan.updateMany({
-          where: { id: { in: planIds } },
-          data: {
-            status: RoutePlanStatus.CANCELLED,
-            cancellationReason: reason,
-            cancelledAt: new Date(),
-            cancelledById: currentUser.id,
-          },
-        });
-      }
-
-      for (const planId of planIds) await notifyPlan(tx, planId, currentUser.id);
-      const updatedSchool = await tx.school.update({
-        where: { id: schoolId },
-        data: {
-          addressText: dto.addressText.trim(),
-          latitude: dto.latitude,
-          longitude: dto.longitude,
-        },
-      });
-
-      return {
-        updatedSchool,
-        cancelledPlansCount: planIds.length,
-        cancelledTripsCount,
-      };
-    });
-
-    this.logger.log(
-      `Đã cập nhật địa chỉ trường ${schoolId}: hủy ${result.cancelledPlansCount} plans, ${result.cancelledTripsCount} trips.`,
-    );
-
-    return {
-      success: true,
-      message: result.cancelledPlansCount > 0
-        ? `Cập nhật địa chỉ trường học thành công. Đã hủy ${result.cancelledPlansCount} phương án và ${result.cancelledTripsCount} chuyến xe chưa chạy liên quan.`
-        : 'Cập nhật địa chỉ trường học thành công.',
-      school: {
-        id: result.updatedSchool.id,
-        name: result.updatedSchool.name,
-        addressText: result.updatedSchool.addressText,
-        latitude: result.updatedSchool.latitude,
-        longitude: result.updatedSchool.longitude,
-      },
-      cancelledPlansCount: result.cancelledPlansCount,
-      cancelledTripsCount: result.cancelledTripsCount,
-    };
+    const result = await this.changes.schedule(schoolId, 'LOCATION', { addressText: dto.addressText.trim(), latitude: dto.latitude, longitude: dto.longitude }, dto.effectiveDate, actor);
+    return { success: true, message: 'Đã hẹn đổi địa điểm trường', school: { id: schoolId, name: result.school.name, addressText: result.school.addressText, latitude: result.school.latitude, longitude: result.school.longitude }, cancelledPlansCount: 0, cancelledTripsCount: 0, scheduledChangeId: result.scheduledChangeId, effectiveDate: result.effectiveDate, changeStatus: result.changeStatus };
   }
 
   /**
-   * Cập nhật / gia hạn hợp đồng trường học (Chỉ SYSTEM_ADMIN và khi trường không có DRAFT/ACTIVE plan)
+   * Cập nhật hợp đồng; gia hạn thuần được phép khi phân công đang có vẫn phù hợp.
    */
   async updateContract(schoolId: string, dto: UpdateSchoolContractDto, currentUser: User) {
-    if (currentUser.role !== Role.SYSTEM_ADMIN) {
-      throw new ForbiddenException('Chỉ Quản trị viên hệ thống (SYSTEM_ADMIN) mới có quyền cập nhật hợp đồng');
-    }
-
-    const school = await this.prisma.school.findUnique({
-      where: { id: schoolId },
-    });
-    if (!school) {
-      throw new NotFoundException('Không tìm thấy trường học');
-    }
-
-    // Kiểm tra không có plan DRAFT hoặc ACTIVE
-    const activePlans = await this.prisma.routePlan.findMany({
-      where: {
-        schoolId,
-        status: { in: [RoutePlanStatus.DRAFT, RoutePlanStatus.ACTIVE] },
-      },
-      select: { id: true, name: true, status: true },
-    });
-
-    if (activePlans.length > 0) {
-      throw new BadRequestException(
-        `Không thể cập nhật hợp đồng khi trường vẫn còn ${activePlans.length} phương án DRAFT hoặc ACTIVE. Vui lòng hủy các phương án trước khi thay đổi thời hạn hợp đồng.`,
-      );
-    }
-
-    const todayVn = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
-    if (dto.contractStartDate < todayVn) {
-      throw new BadRequestException(
-        `Ngày bắt đầu hợp đồng mới (${dto.contractStartDate}) phải từ ngày hôm nay (${todayVn}) trở đi theo giờ Việt Nam.`,
-      );
-    }
-
-    if (dto.contractEndDate < dto.contractStartDate) {
-      throw new BadRequestException('Ngày kết thúc hợp đồng phải lớn hơn hoặc bằng ngày bắt đầu hợp đồng');
-    }
-
-    const updated = await this.prisma.school.update({
-      where: { id: schoolId },
-      data: {
-        contractStartDate: new Date(`${dto.contractStartDate}T00:00:00.000Z`),
-        contractEndDate: new Date(`${dto.contractEndDate}T00:00:00.000Z`),
-      },
-    });
-
-    this.logger.log(`Hợp đồng trường ${schoolId} đã được cập nhật bởi user ${currentUser.id}`);
-
-    return {
-      id: updated.id,
-      name: updated.name,
-      contractStartDate: updated.contractStartDate.toISOString().slice(0, 10),
-      contractEndDate: updated.contractEndDate.toISOString().slice(0, 10),
-      message: 'Cập nhật thời hạn hợp đồng thành công',
-    };
+    if (currentUser.role !== Role.SYSTEM_ADMIN) throw new ForbiddenException('Chỉ nhà xe được cập nhật hợp đồng');
+    return this.prisma.$transaction(async tx => {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM schools WHERE id = ${schoolId} FOR UPDATE`);
+      const school = await tx.school.findUnique({ where: { id: schoolId } });
+      if (!school) throw new NotFoundException('Không tìm thấy trường học');
+      if (dto.expectedUpdatedAt && dto.expectedUpdatedAt !== school.updatedAt.toISOString()) {
+        throw new ConflictException('Thông tin trường vừa thay đổi. Vui lòng tải lại');
+      }
+      if (dto.contractEndDate < dto.contractStartDate) throw new BadRequestException('Ngày kết thúc phải từ ngày bắt đầu trở đi');
+      const pendingOutsideContract = await tx.schoolScheduledChange.findFirst({ where: { schoolId, status: 'PENDING', effectiveDate: { gt: new Date(dto.contractEndDate + 'T00:00:00Z') } } });
+      if (pendingOutsideContract) throw new ConflictException('Có lịch thay đổi nằm sau ngày hết hợp đồng mới; cần hủy lịch đó trước');
+      const existingStart = contractDate(school.contractStartDate);
+      const existingEnd = contractDate(school.contractEndDate);
+      const extension = dto.contractStartDate === existingStart && dto.contractEndDate >= existingEnd;
+      await this.lifecycle.reconcileSchool(tx, school);
+      const planCount = await tx.routePlan.count({ where: { schoolId, status: { in: ['DRAFT', 'ACTIVE'] } } });
+      if (planCount && !extension) throw new BadRequestException('Khi còn phương án chỉ cho phép giữ ngày bắt đầu và gia hạn ngày kết thúc');
+      if (!extension && dto.contractStartDate < vietnamToday()) throw new BadRequestException('Ngày bắt đầu kỳ mới phải từ hôm nay trở đi');
+      if (extension && dto.contractEndDate > existingEnd) {
+        const fromDate = new Date(school.contractEndDate.getTime() + 86400000);
+        await assertExtensionResources(tx, schoolId, fromDate, new Date(dto.contractEndDate + 'T00:00:00.000Z'));
+      }
+      const updated = await tx.school.update({ where: { id: schoolId }, data: {
+        contractStartDate: new Date(dto.contractStartDate + 'T00:00:00.000Z'),
+        contractEndDate: new Date(dto.contractEndDate + 'T00:00:00.000Z'),
+      } });
+      return { id: updated.id, name: updated.name,
+        contractStartDate: contractDate(updated.contractStartDate), contractEndDate: contractDate(updated.contractEndDate),
+        message: 'Cập nhật thời hạn hợp đồng thành công' };
+    }, { timeout: 30000 });
   }
 
   /**
@@ -1052,159 +826,241 @@ export class SchoolsService {
    * - Cập nhật lại khung giờ (scheduledStartTime, scheduledEndTime, scheduledStartAt, scheduledEndAt)
    *   cho các chuyến xe SCHEDULED vào các ngày có lịch học mới
    */
-  async updateSchedule(
-    schoolId: string,
-    dto: UpdateSchoolScheduleDto,
-    currentUser: User,
-  ): Promise<UpdateSchoolScheduleResponseDto> {
-    if (currentUser.role !== Role.SYSTEM_ADMIN) {
-      throw new ForbiddenException(
-        'Chỉ Quản trị viên hệ thống (SYSTEM_ADMIN) mới có quyền cập nhật lịch học trường học',
-      );
-    }
+  async updateSchedule(schoolId: string, dto: UpdateSchoolScheduleDto, actor: User): Promise<UpdateSchoolScheduleResponseDto> {
+    const schedule = validateWeeklySchedule(dto.weeklySchedule);
+    const result = await this.changes.schedule(schoolId, 'SCHEDULE', { weeklySchedule: schedule as unknown as Prisma.InputJsonObject }, dto.effectiveDate, actor);
+    return { success: true, message: 'Đã hẹn đổi lịch học', school: { id: schoolId, name: result.school.name, weeklySchedule: result.school.weeklySchedule as Record<string, unknown> }, cancelledTripsCount: 0, updatedTripsCount: 0, scheduledChangeId: result.scheduledChangeId, effectiveDate: result.effectiveDate, changeStatus: result.changeStatus };
+  }
 
+  /**
+   * Xem trước tác động khi chuyển trạng thái nhân sự trường học
+   */
+  async getEmployeeDeactivationImpact(
+    schoolId: string,
+    employeeId: string,
+    currentUser?: User,
+  ): Promise<EmployeeDeactivationImpactDto> {
     const school = await this.prisma.school.findUnique({
       where: { id: schoolId },
+      select: { id: true, name: true },
     });
     if (!school) {
       throw new NotFoundException('Không tìm thấy trường học');
     }
 
-    const validatedSchedule = validateWeeklySchedule(dto.weeklySchedule);
+    if (currentUser && currentUser.role === Role.SCHOOL_ADMIN && currentUser.schoolId !== schoolId) {
+      throw new ForbiddenException('Bạn không có quyền truy cập nhân sự của trường khác');
+    }
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      const scheduledTrips = await tx.trip.findMany({
-        where: {
-          schoolId,
-          status: TripStatus.SCHEDULED,
-        },
-        include: {
-          route: {
-            select: {
-              id: true,
-              direction: true,
-              estimatedDurationSeconds: true,
-            },
-          },
-        },
-      });
+    const employee = await this.prisma.user.findFirst({
+      where: { id: employeeId, schoolId },
+    });
+    if (!employee) {
+      throw new NotFoundException('Không tìm thấy nhân viên trong trường học này');
+    }
 
-      let cancelledTripsCount = 0;
-      const notificationTripIds: string[] = [];
-      let updatedTripsCount = 0;
-
-      for (const trip of scheduledTrips) {
-        const serviceDateStr = formatDateToVnYmd(trip.serviceDate);
-        const dayKey = getDayOfWeekKey(serviceDateStr);
-        const daySched = validatedSchedule[dayKey];
-
-        if (!daySched || !daySched.start || !daySched.end) {
-          // Ngày này không còn trong lịch học mới -> HỦY CHUYẾN
-          await tx.trip.update({
-            where: { id: trip.id },
-            data: {
-              status: TripStatus.CANCELLED,
-              cancellationReason: 'Lịch học trường đã thay đổi (ngày nghỉ)',
-              cancelledAt: new Date(),
-              cancelledById: currentUser.id,
-            },
-          });
-
-          await tx.leaveNotice.updateMany({
-            where: {
-              tripId: trip.id,
-              status: LeaveNoticeStatus.PENDING_REPLACEMENT,
-            },
-            data: {
-              status: LeaveNoticeStatus.TRIP_CANCELLED,
-              processedAt: new Date(),
-              processedById: currentUser.id,
-            },
-          });
-
-          cancelledTripsCount++; notificationTripIds.push(trip.id);
-        } else {
-          // Ngày này vẫn có trong lịch học -> CẬP NHẬT LẠI KHUNG GIỜ
-          let depTimeStr: string;
-          let arrTimeStr: string;
-          const durationSec = trip.route?.estimatedDurationSeconds || 0;
-
-          if (trip.direction === RouteDirection.TO_SCHOOL) {
-            arrTimeStr = daySched.start;
-            const arrSec = timeStrToSeconds(daySched.start);
-            const depSec = arrSec - durationSec;
-            depTimeStr = secondsToTimeStr(depSec);
-          } else {
-            depTimeStr = daySched.end;
-            const depSec = timeStrToSeconds(daySched.end);
-            const arrSec = depSec + durationSec;
-            arrTimeStr = secondsToTimeStr(arrSec);
-          }
-
-          const scheduledStartAt = combineDateAndTimeUtc(serviceDateStr, depTimeStr);
-          const scheduledEndAt = combineDateAndTimeUtc(serviceDateStr, arrTimeStr);
-
-          const timesChanged =
-            trip.scheduledStartTime !== depTimeStr ||
-            trip.scheduledEndTime !== arrTimeStr ||
-            trip.scheduledStartAt?.getTime() !== scheduledStartAt.getTime() ||
-            trip.scheduledEndAt?.getTime() !== scheduledEndAt.getTime();
-
-          if (timesChanged) {
-            let updatedSnapshot = trip.routeSnapshot;
-            if (updatedSnapshot && typeof updatedSnapshot === 'object') {
-              updatedSnapshot = {
-                ...(updatedSnapshot as Record<string, any>),
-                departureTime: depTimeStr,
-              };
-            }
-
-            await tx.trip.update({
-              where: { id: trip.id },
-              data: {
-                scheduledStartTime: depTimeStr,
-                scheduledEndTime: arrTimeStr,
-                scheduledStartAt,
-                scheduledEndAt,
-                routeSnapshot: updatedSnapshot as any,
-              },
-            });
-
-            updatedTripsCount++;
-          }
-        }
-      }
-
-      await notifyCancelledTrips(tx, notificationTripIds, 'school-schedule:' + schoolId + ':' + new Date().toISOString(), currentUser.id);
-      const updatedSchool = await tx.school.update({
-        where: { id: schoolId },
-        data: {
-          weeklySchedule: validatedSchedule as any,
-        },
-      });
-
-      return {
-        updatedSchool,
-        cancelledTripsCount,
-        updatedTripsCount,
-      };
+    const defaultRoutes = await this.prisma.route.findMany({
+      where: {
+        defaultBusAttendantId: employeeId,
+        routePlan: { status: RoutePlanStatus.ACTIVE },
+      },
+      include: {
+        routePlan: { select: { id: true, name: true } },
+        school: { select: { name: true } },
+      },
     });
 
-    this.logger.log(
-      `Đã cập nhật lịch học trường ${schoolId}: hủy ${result.cancelledTripsCount} chuyến, cập nhật giờ ${result.updatedTripsCount} chuyến.`,
-    );
+    const trips = await this.prisma.trip.findMany({
+      where: {
+        assignedBusAttendantId: employeeId,
+        status: { in: [TripStatus.SCHEDULED, TripStatus.IN_PROGRESS] },
+      },
+      include: {
+        school: { select: { name: true } },
+        route: { select: { name: true } },
+      },
+      orderBy: { serviceDate: 'asc' },
+    });
+
+    const inProgressTrips = trips.filter((t) => t.status === TripStatus.IN_PROGRESS);
+    const scheduledTrips = trips.filter((t) => t.status === TripStatus.SCHEDULED);
+
+    const canDeactivateDirectly = defaultRoutes.length === 0 && trips.length === 0;
+    const hasBlockingInProgress = inProgressTrips.length > 0;
 
     return {
-      success: true,
-      message: `Cập nhật lịch học thành công. Đã hủy ${result.cancelledTripsCount} chuyến xe không phù hợp và cập nhật khung giờ cho ${result.updatedTripsCount} chuyến xe.`,
-      school: {
-        id: result.updatedSchool.id,
-        name: result.updatedSchool.name,
-        weeklySchedule: result.updatedSchool.weeklySchedule as Record<string, any>,
-      },
-      cancelledTripsCount: result.cancelledTripsCount,
-      updatedTripsCount: result.updatedTripsCount,
+      employeeId: employee.id,
+      schoolId: school.id,
+      fullName: employee.fullName,
+      role: employee.role,
+      isActive: employee.isActive,
+      defaultRoutesCount: defaultRoutes.length,
+      scheduledTripsCount: scheduledTrips.length,
+      inProgressTripsCount: inProgressTrips.length,
+      canDeactivateDirectly,
+      hasBlockingInProgress,
+      affectedRoutes: defaultRoutes.map((r) => ({
+        id: r.id,
+        name: r.name,
+        direction: r.direction,
+        schoolName: r.school.name,
+        routePlanId: r.routePlan.id,
+        routePlanName: r.routePlan.name,
+      })),
+      affectedTrips: trips.map((t) => ({
+        id: t.id,
+        date: t.serviceDate.toISOString().split('T')[0],
+        direction: t.direction,
+        status: t.status,
+        routeName: t.route.name,
+        schoolName: t.school.name,
+      })),
     };
   }
-}
 
+  /**
+   * Cập nhật trạng thái hoạt động của nhân sự trường học (Bắt buộc bàn giao nếu có phân công)
+   */
+  async updateEmployeeStatus(
+    schoolId: string,
+    employeeId: string,
+    dto: UpdateEmployeeStatusDto,
+    currentUser?: User,
+  ): Promise<SchoolEmployeeDetailResponseDto> {
+    const school = await this.prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { id: true },
+    });
+    if (!school) {
+      throw new NotFoundException('Không tìm thấy trường học');
+    }
+
+    if (currentUser && currentUser.role === Role.SCHOOL_ADMIN) {
+      if (currentUser.schoolId !== schoolId) {
+        throw new ForbiddenException('Bạn không có quyền quản lý nhân sự của trường khác');
+      }
+    }
+
+    const employee = await this.prisma.user.findFirst({
+      where: { id: employeeId, schoolId },
+    });
+    if (!employee) {
+      throw new NotFoundException('Không tìm thấy nhân viên trong trường học này');
+    }
+
+    if (currentUser && currentUser.role === Role.SCHOOL_ADMIN && employee.role === Role.SCHOOL_ADMIN) {
+      throw new ForbiddenException('SCHOOL_ADMIN không có quyền thay đổi trạng thái của quản trị viên trường');
+    }
+
+    if (dto.isActive === employee.isActive) {
+      return this.findEmployeeDetail(schoolId, employeeId, currentUser);
+    }
+
+    if (dto.isActive) {
+      await this.prisma.user.update({
+        where: { id: employeeId },
+        data: { isActive: true },
+      });
+      return this.findEmployeeDetail(schoolId, employeeId, currentUser);
+    }
+
+    // Chuyển sang INACTIVE:
+    // 1. Kiểm tra chuyến IN_PROGRESS
+    const inProgressCount = await this.prisma.trip.count({
+      where: {
+        assignedBusAttendantId: employeeId,
+        status: TripStatus.IN_PROGRESS,
+      },
+    });
+    if (inProgressCount > 0) {
+      throw new BadRequestException('Không thể vô hiệu hóa giáo viên đang thực hiện chuyến xe (IN_PROGRESS)');
+    }
+
+    // 2. Kiểm tra các tuyến Route và chuyến SCHEDULED
+    const [defaultRoutesCount, scheduledTripsCount] = await Promise.all([
+      this.prisma.route.count({
+        where: {
+          defaultBusAttendantId: employeeId,
+          routePlan: { status: RoutePlanStatus.ACTIVE },
+        },
+      }),
+      this.prisma.trip.count({
+        where: {
+          assignedBusAttendantId: employeeId,
+          status: TripStatus.SCHEDULED,
+        },
+      }),
+    ]);
+
+    const totalActiveAssignments = defaultRoutesCount + scheduledTripsCount;
+    if (totalActiveAssignments > 0) {
+      if (!dto.replacementUserId) {
+        throw new BadRequestException(
+          `Bắt buộc chọn nhân sự thay thế (replacementUserId) vì nhân sự này đang phụ trách ${defaultRoutesCount} tuyến và ${scheduledTripsCount} chuyến xe chưa hoàn thành`,
+        );
+      }
+      if (dto.replacementUserId === employeeId) {
+        throw new BadRequestException('Nhân sự thay thế không được trùng với nhân sự hiện tại');
+      }
+
+      const replacementEmployee = await this.prisma.user.findFirst({
+        where: { id: dto.replacementUserId, schoolId, role: employee.role },
+      });
+      if (!replacementEmployee) {
+        throw new NotFoundException('Không tìm thấy nhân sự thay thế hợp lệ cùng trường và cùng vai trò');
+      }
+      if (!replacementEmployee.isActive) {
+        throw new BadRequestException('Nhân sự thay thế phải đang ở trạng thái hoạt động (isActive = true)');
+      }
+
+      await this.prisma.$transaction(async (tx) => {
+        await tx.route.updateMany({
+          where: {
+            defaultBusAttendantId: employeeId,
+            routePlan: { status: RoutePlanStatus.ACTIVE },
+          },
+          data: { defaultBusAttendantId: dto.replacementUserId },
+        });
+
+        await tx.trip.updateMany({
+          where: {
+            assignedBusAttendantId: employeeId,
+            status: TripStatus.SCHEDULED,
+          },
+          data: { assignedBusAttendantId: dto.replacementUserId },
+        });
+
+        await tx.session.updateMany({
+          where: { userId: employeeId, revokedAt: null },
+          data: { revokedAt: new Date(), pushToken: null },
+        });
+
+        await tx.user.update({
+          where: { id: employeeId },
+          data: { isActive: false },
+        });
+      });
+
+      this.logger.log(
+        `Đã vô hiệu hóa nhân sự ${employee.fullName} (${employee.id}) và bàn giao ${defaultRoutesCount} tuyến, ${scheduledTripsCount} chuyến cho ${replacementEmployee.fullName}`,
+      );
+
+      return this.findEmployeeDetail(schoolId, employeeId, currentUser);
+    }
+
+    // Không có phân công -> Vô hiệu hóa và thu hồi session
+    await this.prisma.$transaction(async (tx) => {
+      await tx.session.updateMany({
+        where: { userId: employeeId, revokedAt: null },
+        data: { revokedAt: new Date(), pushToken: null },
+      });
+
+      await tx.user.update({
+        where: { id: employeeId },
+        data: { isActive: false },
+      });
+    });
+
+    return this.findEmployeeDetail(schoolId, employeeId, currentUser);
+  }
+}

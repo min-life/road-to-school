@@ -50,21 +50,21 @@ export class CreateSchoolAdminDto {
   })
   fullName: string;
 
-  @ApiPropertyOptional({
-    description: 'Địa chỉ email của quản trị viên trường học (tùy chọn nếu đã có số điện thoại)',
+  @ApiProperty({
+    description: 'Email bắt buộc của nhân sự để nhận mật khẩu tài khoản',
     example: 'hung.nv@school.edu.vn',
   })
-  @IsOptional()
+  @IsNotEmpty({ message: 'Email nhân sự là bắt buộc để bàn giao mật khẩu' })
   @IsEmail({}, { message: 'Địa chỉ email không đúng định dạng' })
   @Transform(({ value }) =>
     typeof value === 'string' && value.trim().length > 0
       ? value.trim().toLowerCase()
       : undefined,
   )
-  email?: string;
+  email: string;
 
   @ApiPropertyOptional({
-    description: 'Số điện thoại liên hệ của quản trị viên trường học (tùy chọn nếu đã có email)',
+    description: 'Số điện thoại liên hệ của nhân sự (tùy chọn)',
     example: '0912345678',
   })
   @IsOptional()

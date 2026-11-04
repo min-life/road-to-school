@@ -39,6 +39,15 @@ export class UpdateParkingLotDto {
   @IsString({ message: 'Lý do phải là chuỗi ký tự' })
   reason?: string;
 
+  @ApiProperty({
+    description: 'Ngày hiệu lực dời bãi xe (YYYY-MM-DD), mặc định là ngày mai. Các chuyến xe trước ngày này chạy bình thường.',
+    example: '2026-11-05',
+    required: false,
+  })
+  @IsOptional()
+  @IsString({ message: 'Ngày hiệu lực phải là chuỗi định dạng YYYY-MM-DD' })
+  effectiveDate?: string;
+
   @ApiProperty({ description: 'Fingerprint kỳ vọng chống xung đột (tùy chọn)', required: false })
   @IsOptional()
   @IsString({ message: 'Fingerprint phải là chuỗi ký tự' })
@@ -58,7 +67,19 @@ export class ParkingLotImpactDto {
   @ApiProperty({ description: 'Tọa độ có bị thay đổi không', required: false })
   hasCoordinateChanged?: boolean;
 
-  @ApiProperty({ description: 'Tổng số phương án tuyến DRAFT toàn hệ thống sẽ bị hủy' })
+  @ApiProperty({ description: 'Ngày hiệu lực áp dụng', required: false, example: '2026-11-05' })
+  effectiveDate?: string;
+
+  @ApiProperty({ description: 'Số phương án tuyến (DRAFT + ACTIVE) sẽ được đánh dấu cần tối ưu lại', example: 3 })
+  plansNeedingReoptimizationCount: number;
+
+  @ApiProperty({ description: 'Số chuyến xe SCHEDULED diễn ra từ ngày hiệu lực trở đi sẽ bị hủy', example: 12 })
+  tripsCancelledAfterEffectiveDateCount: number;
+
+  @ApiProperty({ description: 'Số chuyến xe SCHEDULED trước ngày hiệu lực được bảo lưu chạy bình thường', example: 8 })
+  tripsPreservedBeforeEffectiveDateCount: number;
+
+  @ApiProperty({ description: 'Tổng số phương án tuyến DRAFT toàn hệ thống' })
   totalDraftPlansCount: number;
 
   @ApiProperty({ description: 'Tổng số phương án tuyến ACTIVE toàn hệ thống sẽ bị hủy' })
@@ -110,4 +131,19 @@ export class ParkingLotResponseDto {
     example: '2026-10-23T12:00:00.000Z',
   })
   updatedAt: string;
+
+  @ApiProperty({
+    description: 'Thông tin lịch hẹn dời bãi đỗ xe trung tâm (nếu có)',
+    required: false,
+    nullable: true,
+  })
+  scheduledChange?: {
+    newAddressText: string;
+    newLatitude: number;
+    newLongitude: number;
+    effectiveDate: string;
+    reason?: string;
+    scheduledAt: string;
+    scheduledById?: string;
+  } | null;
 }

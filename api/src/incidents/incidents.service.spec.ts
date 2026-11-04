@@ -481,18 +481,18 @@ describe('IncidentsService & IncidentsDetectorService', () => {
       expect(dist).toBeLessThan(230);
     });
 
-    it('không tạo OFF_ROUTE nếu độ dài chuỗi lệch chưa đủ 30 giây', async () => {
+    it('không tạo OFF_ROUTE nếu độ dài chuỗi lệch chưa đủ 15 giây', async () => {
       const trip = { id: 'trip-1' };
       const polyline: [number, number][] = [
         [10.760, 106.660],
         [10.770, 106.660],
       ];
-      // 4 samples cách nhau 5s (tổng 15s < 30s)
+      // 3 samples cách nhau 5s (tổng 10s < 15s)
       const now = Date.now();
-      const points = [0, 5000, 10000, 15000].map((t, idx) => ({
+      const points = [0, 5000, 10000].map((t, idx) => ({
         sequence: idx + 1,
         latitude: 10.765,
-        longitude: 106.663, // lệch ~300m
+        longitude: 106.663, // lệch ~300m > 50m
         recordedAt: new Date(now + t),
       }));
 
@@ -500,18 +500,18 @@ describe('IncidentsService & IncidentsDetectorService', () => {
       expect(mockPrisma.tripIncident.create).not.toHaveBeenCalled();
     });
 
-    it('tạo OFF_ROUTE khi lệch > 100m liên tục >= 30 giây với ít nhất 7 mẫu hợp lệ', async () => {
+    it('tạo OFF_ROUTE khi lệch > 50m liên tục >= 15 giây với ít nhất 4 mẫu hợp lệ', async () => {
       const trip = { id: 'trip-1' };
       const polyline: [number, number][] = [
         [10.760, 106.660],
         [10.770, 106.660],
       ];
-      // 7 samples cách nhau 5s (tổng 30s)
+      // 4 samples cách nhau 5s (tổng 15s >= 15s)
       const now = Date.now();
-      const points = [0, 5000, 10000, 15000, 20000, 25000, 30000].map((t, idx) => ({
+      const points = [0, 5000, 10000, 15000].map((t, idx) => ({
         sequence: idx + 1,
         latitude: 10.765,
-        longitude: 106.663, // lệch ~300m > 100m
+        longitude: 106.663, // lệch ~300m > 50m
         recordedAt: new Date(now + t),
       }));
 
@@ -535,8 +535,8 @@ describe('IncidentsService & IncidentsDetectorService', () => {
         [10.770, 106.660],
       ];
       const now = Date.now();
-      // Có gap 20s giữa mẫu 3 và 4
-      const offsets = [0, 5000, 10000, 30000, 35000, 40000, 45000];
+      // Có gap 20s giữa mẫu 3 và 4, đoạn sau chỉ 2 mẫu = 5s < 15s
+      const offsets = [0, 5000, 10000, 30000, 35000];
       const points = offsets.map((t, idx) => ({
         sequence: idx + 1,
         latitude: 10.765,
@@ -545,7 +545,6 @@ describe('IncidentsService & IncidentsDetectorService', () => {
       }));
 
       await detectorService.evaluateOffRoute(trip, {} as any, polyline, points);
-      // Do streak bị đứt ở mẫu 3->4, đoạn sau chỉ có 4 mẫu (15s < 30s) -> không tạo sự cố
       expect(mockPrisma.tripIncident.create).not.toHaveBeenCalled();
     });
   });

@@ -1,5 +1,8 @@
+import { ScheduledLocationResponseDto } from './dto/lifecycle-response.dto.js';
 import {
   Controller,
+  Inject,
+  HttpCode,
   Get,
   Post,
   Patch,
@@ -29,6 +32,8 @@ import { RolesGuard } from '../auth/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import { CurrentUser } from '../auth/decorators/auth-user.decorator.js';
 import { SchoolsService } from './schools.service.js';
+import { PersonnelCredentialsService } from '../auth/personnel-credentials.service.js';
+import { CredentialDeliveryResultDto } from '../auth/credential-delivery.dto.js';
 import {
   ListSchoolsQueryDto,
   SchoolListResponseDto,
@@ -46,14 +51,21 @@ import {
   UpdateSchoolContractDto,
   UpdateSchoolScheduleDto,
   UpdateSchoolScheduleResponseDto,
+  EmployeeDeactivationImpactDto,
+  UpdateEmployeeStatusDto,
 } from './dto/index.js';
 
+@ApiResponse({ status: 409, description: 'Lịch trùng/đã đến hạn, nguồn lực không phù hợp hoặc dữ liệu thay đổi đồng thời' })
+@ApiResponse({ status: 500, description: 'Không lưu được thay đổi; không xác nhận thành công' })
 @ApiTags('Schools')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(AuthGuard, RolesGuard)
 @Roles(Role.SYSTEM_ADMIN)
 @Controller('schools')
 export class SchoolsController {
+  @Inject(PersonnelCredentialsService)
+  private readonly credentials: PersonnelCredentialsService;
+
   constructor(private readonly schoolsService: SchoolsService) {}
 
   @Post()
@@ -243,7 +255,7 @@ export class SchoolsController {
   @ApiOperation({
     summary: 'Cập nhật trạng thái hoạt động của trường học',
     description:
-      'Cho phép SYSTEM_ADMIN chuyển đổi trạng thái trường giữa Hoạt động (ACTIVE) và Ngừng hoạt động (INACTIVE). Khi kích hoạt lại trường, thời hạn hợp đồng phải còn hiệu lực.',
+      'Ngừng hoạt động được hẹn bằng effectiveDate, mặc định ngày mai, tối đa ngày cuối hợp đồng. Response giữ isActive đang hiệu lực và thêm scheduledChangeId/effectiveDate/changeStatus. Kích hoạt lại ngay khi hợp đồng còn hiệu lực; không phục hồi phương án cũ, nhân sự đăng nhập mới.',
   })
   @ApiParam({
     name: 'id',
@@ -284,8 +296,9 @@ export class SchoolsController {
     )
     id: string,
     @Body() dto: UpdateSchoolStatusDto,
+    @CurrentUser() actor?: User,
   ): Promise<UpdateSchoolStatusResponseDto> {
-    return this.schoolsService.updateStatus(id, dto);
+    return this.schoolsService.updateStatus(id, dto, actor);
   }
 
   @Get(':id/employees')
@@ -403,7 +416,7 @@ export class SchoolsController {
   @ApiOperation({
     summary: 'Tạo tài khoản nhân viên trường học (SCHOOL_ADMIN hoặc BUS_ATTENDANT)',
     description:
-      'Khởi tạo tài khoản nhân viên trực thuộc trường. SYSTEM_ADMIN tạo tài khoản SCHOOL_ADMIN. SCHOOL_ADMIN chỉ được tạo tài khoản Giáo viên (BUS_ATTENDANT) cho trường của mình. Mật khẩu ngẫu nhiên băm bcryptjs và giao qua console ở development.',
+      'Khởi tạo tài khoản nhân viên trực thuộc trường. SYSTEM_ADMIN tạo tài khoản SCHOOL_ADMIN. SCHOOL_ADMIN chỉ được tạo tài khoản Giáo viên (BUS_ATTENDANT) cho trường của mình. Email bắt buộc; mật khẩu chỉ bàn giao qua email hoặc console development. credentialDeliveryStatus: SENT/FAILED/CONSOLE; FAILED vẫn giữ tài khoản.',
   })
   @ApiParam({
     name: 'id',
@@ -455,6 +468,77 @@ export class SchoolsController {
       : this.schoolsService.createSchoolAdmin(id, dto);
   }
 
+  @Post(':id/employees/:employeeId/credentials/resend')
+  @Roles(Role.SYSTEM_ADMIN, Role.SCHOOL_ADMIN)
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Cấp lại mật khẩu nhân sự trường qua email', description: 'SYSTEM_ADMIN cấp cho SCHOOL_ADMIN; SCHOOL_ADMIN cấp cho BUS_ATTENDANT cùng trường. Lưu mật khẩu mới trước gửi email; giữ phiên/push token, cho phép khi Trip đang chạy. FAILED: mật khẩu đã đổi nhưng chưa bàn giao; cần cấp lại. Không nhận body.' })
+  @ApiParam({ name: 'id', format: 'uuid', description: 'ID trường' })
+  @ApiParam({ name: 'employeeId', format: 'uuid', description: 'ID nhân sự' })
+  @ApiResponse({ status: 200, type: CredentialDeliveryResultDto, description: 'Đã đổi mật khẩu; kết quả bàn giao SENT/FAILED/CONSOLE' })
+  @ApiResponse({ status: 400, description: 'UUID sai, nhân sự không hoạt động hoặc thiếu email hợp lệ' })
+  @ApiResponse({ status: 401, description: 'Chưa đăng nhập' })
+  @ApiResponse({ status: 403, description: 'Sai role hoặc ngoài phạm vi trường' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy nhân sự trong trường' })
+  @ApiResponse({ status: 409, description: 'Đang cấp mật khẩu hoặc tài khoản thay đổi đồng thời' })
+  @ApiResponse({ status: 500, description: 'Không lưu được mật khẩu; không xác nhận cấp lại thành công' })
+  async resendEmployeeCredentials(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('employeeId', new ParseUUIDPipe({ version: '4' })) employeeId: string,
+    @CurrentUser() user: User,
+  ): Promise<CredentialDeliveryResultDto> {
+    return this.credentials.resend(employeeId, user, id);
+  }
+
+  @Get(':id/employees/:employeeId/deactivation-impact')
+  @Roles(Role.SYSTEM_ADMIN, Role.SCHOOL_ADMIN)
+  @ApiOperation({
+    summary: 'Xem trước tác động khi chuyển trạng thái nhân viên trường học',
+    description:
+      'Thống kê số lượng tuyến ACTIVE và chuyến xe SCHEDULED/IN_PROGRESS đang phân công cho nhân viên này trước khi vô hiệu hóa tài khoản.',
+  })
+  @ApiParam({ name: 'id', format: 'uuid', description: 'ID trường học' })
+  @ApiParam({ name: 'employeeId', format: 'uuid', description: 'ID nhân viên' })
+  @ApiResponse({
+    status: 200,
+    description: 'Thông tin tác động khi vô hiệu hóa nhân viên',
+    type: EmployeeDeactivationImpactDto,
+  })
+  @ApiResponse({ status: 403, description: 'Sai role hoặc ngoài phạm vi trường' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy nhân viên trong trường' })
+  async getEmployeeDeactivationImpact(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('employeeId', new ParseUUIDPipe({ version: '4' })) employeeId: string,
+    @CurrentUser() user: User,
+  ): Promise<EmployeeDeactivationImpactDto> {
+    return this.schoolsService.getEmployeeDeactivationImpact(id, employeeId, user);
+  }
+
+  @Patch(':id/employees/:employeeId/status')
+  @Roles(Role.SYSTEM_ADMIN, Role.SCHOOL_ADMIN)
+  @ApiOperation({
+    summary: 'Cập nhật trạng thái hoạt động của nhân viên trường học',
+    description:
+      'Chuyển trạng thái nhân viên giữa hoạt động (isActive=true) và không hoạt động (isActive=false). Nếu nhân viên còn tuyến ACTIVE hoặc chuyến SCHEDULED, bắt buộc truyền replacementUserId cùng trường để bàn giao nguyên tử. Toàn bộ Session trên Mobile App sẽ bị thu hồi lập tức.',
+  })
+  @ApiParam({ name: 'id', format: 'uuid', description: 'ID trường học' })
+  @ApiParam({ name: 'employeeId', format: 'uuid', description: 'ID nhân viên' })
+  @ApiResponse({
+    status: 200,
+    description: 'Cập nhật trạng thái nhân viên thành công',
+    type: SchoolEmployeeDetailResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Nhân viên có chuyến IN_PROGRESS hoặc thiếu nhân sự thay thế hợp lệ' })
+  @ApiResponse({ status: 403, description: 'Sai role hoặc ngoài phạm vi trường' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy nhân sự hoặc nhân sự thay thế' })
+  async updateEmployeeStatus(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('employeeId', new ParseUUIDPipe({ version: '4' })) employeeId: string,
+    @Body() dto: UpdateEmployeeStatusDto,
+    @CurrentUser() user: User,
+  ): Promise<SchoolEmployeeDetailResponseDto> {
+    return this.schoolsService.updateEmployeeStatus(id, employeeId, dto, user);
+  }
+
   @Get(':id/settings')
   @Roles(Role.SYSTEM_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({
@@ -497,12 +581,12 @@ export class SchoolsController {
   @Patch(':id/location')
   @Roles(Role.SYSTEM_ADMIN)
   @ApiOperation({
-    summary: 'Cập nhật địa chỉ và vị trí trường học kèm cascade hủy các phương án liên quan (Chỉ SYSTEM_ADMIN)',
+    summary: 'Hẹn đổi địa chỉ và vị trí trường học (SYSTEM_ADMIN)',
     description:
-      'Chỉ Quản trị viên hệ thống (SYSTEM_ADMIN) có quyền thực hiện. Khi sửa địa chỉ trường, nếu trường có bất kỳ phương án nào (DRAFT/ACTIVE) thì tự động hủy toàn bộ phương án đó và các chuyến xe SCHEDULED liên quan.',
+      'effectiveDate tùy chọn, mặc định ngày mai, đến hết hợp đồng. Trước ngày đó phương án cũ tiếp tục. Đến ngày hủy toàn bộ phương án cũ; chuyến đã điểm danh/đang chạy giữ cho admin chốt, lịch sử giữ nguyên. Response School là dữ liệu hôm nay, counters đã thực hiện bằng 0 khi mới hẹn; thêm scheduledChangeId/effectiveDate/changeStatus. Phải tạo mới phương án sau đổi địa chỉ; giữ quy tắc sinh ngày sau activation nên có thể gián đoạn ngày chuyển.',
   })
   @ApiParam({ name: 'id', description: 'Mã UUID trường học' })
-  @ApiResponse({ status: 200, description: 'Cập nhật vị trí thành công' })
+  @ApiResponse({ status: 200, description: 'Đã hẹn đổi vị trí; chưa hủy ngay', type: ScheduledLocationResponseDto })
   async updateLocation(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateSchoolLocationDto,
@@ -516,7 +600,7 @@ export class SchoolsController {
   @ApiOperation({
     summary: 'Cập nhật / gia hạn hợp đồng trường học (Chỉ SYSTEM_ADMIN)',
     description:
-      'Chỉ được cập nhật khi trường không còn phương án DRAFT hoặc ACTIVE. Ngày bắt đầu mới phải từ ngày hôm nay trở đi (giờ VN).',
+      'Không DRAFT/ACTIVE: cập nhật kỳ hợp đồng. Còn phương án: chỉ gia hạn thuần giữ ngày bắt đầu, kiểm tra nguồn lực đã phân công và xung đột trong thời gian gia hạn; DRAFT thiếu phân công không tự gán thêm. Hết hạn phải đối soát hủy phương án cũ trước, không làm sống lại chúng.',
   })
   @ApiParam({ name: 'id', description: 'Mã UUID trường học' })
   @ApiResponse({ status: 200, description: 'Cập nhật hợp đồng thành công' })
@@ -533,7 +617,7 @@ export class SchoolsController {
   @ApiOperation({
     summary: 'Cập nhật lịch học tuần của trường học (Chỉ SYSTEM_ADMIN)',
     description:
-      'Cập nhật lịch học theo tuần của trường học. Tự động hủy các chuyến xe SCHEDULED vào các ngày không còn lịch học, và cập nhật lại khung giờ xuất phát/kết thúc cho các chuyến xe SCHEDULED vào các ngày có lịch học mới.',
+      'Hẹn lịch tuần bằng effectiveDate tùy chọn, mặc định ngày mai, đến hết hợp đồng. Không ảnh hưởng hôm nay. Tới ngày cập nhật giờ/hủy chuyến chưa vận hành phù hợp lịch mới; không sửa lịch sử/điểm danh. Giữ response cũ, thêm scheduledChangeId/effectiveDate/changeStatus; counters là số đã thực hiện, bằng 0 khi hẹn.',
   })
   @ApiParam({ name: 'id', description: 'Mã UUID trường học' })
   @ApiResponse({

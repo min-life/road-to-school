@@ -1,3 +1,4 @@
+import { assertSchoolAccount } from '../schools/school-policy.js';
 import {
   Injectable,
   CanActivate,
@@ -74,6 +75,8 @@ export class AuthGuard implements CanActivate {
     if (!session.user.isActive) {
       throw new UnauthorizedException('Tài khoản đã bị vô hiệu hóa');
     }
+
+    await assertSchoolAccount(this.prisma, session.user, session.createdAt);
 
     // Gắn thông tin người dùng và phiên vào request
     request.user = session.user;

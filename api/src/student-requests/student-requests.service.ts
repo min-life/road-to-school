@@ -1,6 +1,8 @@
+import { assertSchoolWritable } from '../schools/school-policy.js';
 import { notifyCancelledTrips } from '../notifications/notification-writer.js';
 import { notifyRequest } from '../notifications/notification-events.js';
 import { actionableRequestWhere } from '../overview/operations-policy.js';
+import { syncUnfrozenTripsForRoute } from '../trips/utils/trip-sync.helper.js';
 import {
   Injectable,
   Logger,
@@ -239,6 +241,7 @@ export class StudentRequestsService {
     }
 
     const student = link.student;
+    await assertSchoolWritable(this.prisma, student.schoolId);
     if (student.status === StudentStatus.DISABLED) {
       throw new BadRequestException('Học sinh đang bị vô hiệu hóa (DISABLED). Không thể tạo yêu cầu cập nhật.');
     }
@@ -302,6 +305,7 @@ export class StudentRequestsService {
     }
 
     const student = link.student;
+    await assertSchoolWritable(this.prisma, student.schoolId);
     if (student.status === StudentStatus.DISABLED) {
       throw new BadRequestException('Học sinh đang bị vô hiệu hóa (DISABLED). Không thể tạo yêu cầu cập nhật.');
     }
@@ -337,7 +341,7 @@ export class StudentRequestsService {
 
     // 4. Tạo yêu cầu cập nhật trong Database với xử lý concurrency chống trùng lặp PENDING
     try {
-      const createdRequest = await this.prisma.$transaction(async tx => { const created = await tx.studentUpdateRequest.create({
+      const createdRequest = await this.prisma.$transaction(async tx => { await assertSchoolWritable(tx, student.schoolId); const created = await tx.studentUpdateRequest.create({
         data: {
           studentId,
           parentId,
@@ -488,6 +492,7 @@ export class StudentRequestsService {
       throw new ForbiddenException('Bạn không có quyền hủy yêu cầu này');
     }
 
+    await assertSchoolWritable(this.prisma, request.schoolId);
     if (request.status !== RequestStatus.PENDING) {
       throw new ConflictException('Chỉ có thể hủy yêu cầu đang ở trạng thái chờ duyệt (PENDING)');
     }
@@ -1030,12 +1035,29 @@ export class StudentRequestsService {
           } else {
             // REOPTIMIZED: Cập nhật tọa độ điểm dừng và geometry/metrics đã preview trên các tuyến
             outcome = 'REOPTIMIZED';
-            let previewSession: any = null;
-            if (approveDto?.previewToken) {
-              previewSession = this.addressPreviewSessions.get(approveDto.previewToken);
+            if (!approveDto?.previewToken) {
+              throw new ConflictException(
+                'Phiên xem trước tối ưu lại lộ trình đã hết hạn hoặc không hợp lệ. Vui lòng preview lại.',
+              );
+            }
+            const previewSession = this.addressPreviewSessions.get(approveDto.previewToken);
+            if (!previewSession) {
+              throw new ConflictException(
+                'Phiên xem trước tối ưu lại lộ trình đã hết hạn hoặc không hợp lệ. Vui lòng preview lại.',
+              );
             }
 
-            if (previewSession && Array.isArray(previewSession.routes)) {
+            if (
+              approveDto.expectedFingerprint &&
+              previewSession.expectedFingerprint &&
+              approveDto.expectedFingerprint !== previewSession.expectedFingerprint
+            ) {
+              throw new ConflictException(
+                'Phương án tuyến đã có thay đổi trong lúc xem trước. Vui lòng preview lại.',
+              );
+            }
+
+            if (Array.isArray(previewSession.routes)) {
               for (const r of previewSession.routes) {
                 await tx.route.update({
                   where: { id: r.routeId },
@@ -1060,9 +1082,15 @@ export class StudentRequestsService {
               },
             });
 
-            if (approveDto?.previewToken) {
-              this.addressPreviewSessions.delete(approveDto.previewToken);
+            // Đồng bộ snapshot và attendance cho tất cả chuyến unfrozen của các tuyến bị ảnh hưởng (Bug B-02 / G-01)
+            for (const routeId of routeIds) {
+              await syncUnfrozenTripsForRoute(tx, routeId, {
+                syncAssignments: false,
+                syncRosterAndSnapshot: true,
+              });
             }
+
+            this.addressPreviewSessions.delete(approveDto.previewToken);
           }
         }
 
