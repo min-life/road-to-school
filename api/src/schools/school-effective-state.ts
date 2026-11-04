@@ -2,7 +2,8 @@ import { AttendanceStatus, RoutePlanStatus, TripStatus } from '@prisma/client';
 import { formatDateToVnYmd } from '../trips/utils/trip-time.util.js';
 
 /** Contract dates are PostgreSQL DATE values, not local timestamps. */
-export function contractDate(value: Date | string): string {
+export function contractDate(value: Date | string | undefined | null): string {
+  if (!value) return '';
   return typeof value === 'string'
     ? value.slice(0, 10)
     : value.toISOString().slice(0, 10);

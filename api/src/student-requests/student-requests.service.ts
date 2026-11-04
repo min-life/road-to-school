@@ -2,6 +2,7 @@ import { assertSchoolWritable } from '../schools/school-policy.js';
 import { notifyCancelledTrips } from '../notifications/notification-writer.js';
 import { notifyRequest } from '../notifications/notification-events.js';
 import { actionableRequestWhere } from '../overview/operations-policy.js';
+import { syncUnfrozenTripsForRoute } from '../trips/utils/trip-sync.helper.js';
 import {
   Injectable,
   Logger,
@@ -1034,12 +1035,29 @@ export class StudentRequestsService {
           } else {
             // REOPTIMIZED: Cập nhật tọa độ điểm dừng và geometry/metrics đã preview trên các tuyến
             outcome = 'REOPTIMIZED';
-            let previewSession: any = null;
-            if (approveDto?.previewToken) {
-              previewSession = this.addressPreviewSessions.get(approveDto.previewToken);
+            if (!approveDto?.previewToken) {
+              throw new ConflictException(
+                'Phiên xem trước tối ưu lại lộ trình đã hết hạn hoặc không hợp lệ. Vui lòng preview lại.',
+              );
+            }
+            const previewSession = this.addressPreviewSessions.get(approveDto.previewToken);
+            if (!previewSession) {
+              throw new ConflictException(
+                'Phiên xem trước tối ưu lại lộ trình đã hết hạn hoặc không hợp lệ. Vui lòng preview lại.',
+              );
             }
 
-            if (previewSession && Array.isArray(previewSession.routes)) {
+            if (
+              approveDto.expectedFingerprint &&
+              previewSession.expectedFingerprint &&
+              approveDto.expectedFingerprint !== previewSession.expectedFingerprint
+            ) {
+              throw new ConflictException(
+                'Phương án tuyến đã có thay đổi trong lúc xem trước. Vui lòng preview lại.',
+              );
+            }
+
+            if (Array.isArray(previewSession.routes)) {
               for (const r of previewSession.routes) {
                 await tx.route.update({
                   where: { id: r.routeId },
@@ -1064,9 +1082,15 @@ export class StudentRequestsService {
               },
             });
 
-            if (approveDto?.previewToken) {
-              this.addressPreviewSessions.delete(approveDto.previewToken);
+            // Đồng bộ snapshot và attendance cho tất cả chuyến unfrozen của các tuyến bị ảnh hưởng (Bug B-02 / G-01)
+            for (const routeId of routeIds) {
+              await syncUnfrozenTripsForRoute(tx, routeId, {
+                syncAssignments: false,
+                syncRosterAndSnapshot: true,
+              });
             }
+
+            this.addressPreviewSessions.delete(approveDto.previewToken);
           }
         }
 

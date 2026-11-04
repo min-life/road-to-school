@@ -42,6 +42,7 @@ import {
   IncidentCandidateDto,
 } from './dto/replacement-candidates-response.dto.js';
 import { formatDateToVnYmd, isTimeIntervalOverlapping } from '../trips/utils/trip-time.util.js';
+import { assertStaffAvailableForTrip } from '../trips/utils/staff-availability.helper.js';
 
 @Injectable()
 export class IncidentsService {
@@ -264,23 +265,30 @@ export class IncidentsService {
     dto: CreateIncidentDto,
     currentUser: User,
   ): Promise<TripIncidentResponseDto> {
-    if (
-      dto.type !== TripIncidentType.ATTENDANT_MISSING &&
-      dto.type !== TripIncidentType.DRIVER_MISSING
-    ) {
-      throw new BadRequestException('Chỉ được báo sự cố ATTENDANT_MISSING hoặc DRIVER_MISSING');
+    const isStaffMissingIncident =
+      dto.type === TripIncidentType.ATTENDANT_MISSING ||
+      dto.type === TripIncidentType.DRIVER_MISSING;
+    const isOnRouteIncident =
+      dto.type === TripIncidentType.NO_GUARDIAN_AT_STOP ||
+      dto.type === TripIncidentType.TRAFFIC_DELAY ||
+      dto.type === TripIncidentType.GPS_SIGNAL_LOST;
+
+    if (!isStaffMissingIncident && !isOnRouteIncident) {
+      throw new BadRequestException('Chỉ được báo sự cố ATTENDANT_MISSING, DRIVER_MISSING, NO_GUARDIAN_AT_STOP, TRAFFIC_DELAY hoặc GPS_SIGNAL_LOST');
     }
 
-    if (currentUser.role === Role.DRIVER && dto.type !== TripIncidentType.ATTENDANT_MISSING) {
-      throw new ForbiddenException('Tài xế chỉ được báo sự cố Giáo viên chưa đến (ATTENDANT_MISSING)');
-    }
-    if (currentUser.role === Role.BUS_ATTENDANT && dto.type !== TripIncidentType.DRIVER_MISSING) {
-      throw new ForbiddenException(
-        'Giáo viên phụ xe chỉ được báo sự cố Tài xế chưa đến (DRIVER_MISSING)',
-      );
-    }
     if (currentUser.role !== Role.DRIVER && currentUser.role !== Role.BUS_ATTENDANT) {
-      throw new ForbiddenException('Chỉ tài xế hoặc giáo viên phụ xe mới có quyền báo thiếu nhân sự');
+      throw new ForbiddenException('Chỉ tài xế hoặc giáo viên phụ xe mới có quyền báo sự cố');
+    }
+
+    if (currentUser.role === Role.DRIVER) {
+      if (dto.type === TripIncidentType.DRIVER_MISSING || dto.type === TripIncidentType.NO_GUARDIAN_AT_STOP) {
+        throw new ForbiddenException('Tài xế chỉ được báo sự cố Giáo viên chưa đến (ATTENDANT_MISSING) hoặc sự cố lộ trình');
+      }
+    } else if (currentUser.role === Role.BUS_ATTENDANT) {
+      if (dto.type === TripIncidentType.ATTENDANT_MISSING) {
+        throw new ForbiddenException('Giáo viên phụ xe chỉ được báo sự cố Tài xế chưa đến (DRIVER_MISSING) hoặc sự cố điểm đón/lộ trình');
+      }
     }
 
     return this.withTripLock(tripId, async (tx) => {
@@ -298,10 +306,16 @@ export class IncidentsService {
         throw new NotFoundException('Không tìm thấy chuyến xe');
       }
 
-      if (trip.status !== TripStatus.SCHEDULED || trip.actualStartTime) {
-        throw new ConflictException(
-          'Chỉ có thể báo sự cố cho chuyến xe đang ở trạng thái SCHEDULED (chưa xuất phát)',
-        );
+      if (isStaffMissingIncident) {
+        if (trip.status !== TripStatus.SCHEDULED || trip.actualStartTime) {
+          throw new ConflictException(
+            'Chỉ có thể báo sự cố cho chuyến xe đang ở trạng thái SCHEDULED (chưa xuất phát)',
+          );
+        }
+      } else {
+        if (trip.status === TripStatus.COMPLETED || trip.status === TripStatus.CANCELLED) {
+          throw new ConflictException('Không thể báo sự cố cho chuyến xe đã kết thúc hoặc đã bị hủy');
+        }
       }
 
       const isDriver = currentUser.role === Role.DRIVER;
@@ -309,7 +323,7 @@ export class IncidentsService {
         if (trip.assignedDriverId !== currentUser.id) {
           throw new ForbiddenException('Bạn không phải tài xế được phân công cho chuyến này');
         }
-        if (trip.attendantReadyAt) {
+        if (isStaffMissingIncident && trip.attendantReadyAt) {
           throw new ConflictException('Giáo viên phụ xe đã xác nhận sẵn sàng, không thể báo chưa đến');
         }
       } else {
@@ -321,14 +335,14 @@ export class IncidentsService {
       const targetAssigneeId = isDriver ? trip.assignedBusAttendantId : trip.assignedDriverId;
       const targetAssignee = isDriver ? trip.assignedBusAttendant : trip.assignedDriver;
 
-      if (dto.expectedAssigneeId && dto.expectedAssigneeId !== targetAssigneeId) {
+      if (isStaffMissingIncident && dto.expectedAssigneeId && dto.expectedAssigneeId !== targetAssigneeId) {
         throw new ConflictException(
           'Nhân sự được phân công đã thay đổi, vui lòng tải lại thông tin chuyến xe',
         );
       }
 
       const now = new Date();
-      if (!this.isTestMode()) {
+      if (!this.isTestMode() && isStaffMissingIncident) {
         if (!trip.scheduledStartAt || !trip.scheduledEndAt) {
           throw new BadRequestException(
             'Chuyến xe thiếu thông tin lịch trình thời gian ở chế độ LIVE',
@@ -375,8 +389,11 @@ export class IncidentsService {
             description: dto.description?.trim() || null,
             dedupeKey,
             context: {
-              expectedAssigneeId: targetAssigneeId,
-              expectedAssigneeName: targetAssignee?.fullName || null,
+              expectedAssigneeId: isStaffMissingIncident ? targetAssigneeId : undefined,
+              expectedAssigneeName: isStaffMissingIncident ? (targetAssignee?.fullName || null) : undefined,
+              latitude: dto.latitude ?? null,
+              longitude: dto.longitude ?? null,
+              studentId: dto.studentId ?? null,
               reportedAt: now.toISOString(),
             },
           },
@@ -915,31 +932,21 @@ export class IncidentsService {
           throw new BadRequestException('Bắt buộc phải chọn nhân sự thay thế khi action là REPLACED');
         }
 
-        const replacementUser = await tx.user.findUnique({
-          where: { id: dto.replacementUserId },
-        });
-
-        if (!replacementUser || !replacementUser.isActive || !replacementUser.isVerified) {
-          throw new BadRequestException('Nhân sự thay thế không hợp lệ hoặc tài khoản bị khóa');
-        }
-
         const isAttendantIncident = currentIncident.type === TripIncidentType.ATTENDANT_MISSING;
         const expectedRole = isAttendantIncident ? Role.BUS_ATTENDANT : Role.DRIVER;
-        if (replacementUser.role !== expectedRole) {
-          throw new BadRequestException(
-            `Nhân sự thay thế phải có vai trò ${expectedRole}`,
-          );
-        }
 
-        if (isAttendantIncident && replacementUser.schoolId !== trip.schoolId) {
-          throw new BadRequestException('Giáo viên phụ xe thay thế phải thuộc cùng trường học');
-        }
+        // Recheck khả dụng nhân sự thay thế theo thời gian thực (WF-17, Bug B-03)
+        await assertStaffAvailableForTrip(tx, {
+          staffId: dto.replacementUserId,
+          expectedRole,
+          schoolId: trip.schoolId,
+          tripId: trip.id,
+          targetTrip: trip,
+        });
 
         const previousUserId = isAttendantIncident
           ? trip.assignedBusAttendantId
           : trip.assignedDriverId;
-
-        await assertResourcesNotAwaitingAdmin(tx, { driverId: dto.replacementUserId, busAttendantId: dto.replacementUserId });
         // Cập nhật phân công chuyến xe
         if (isAttendantIncident) {
           await assertResourcesNotAwaitingAdmin(tx, { driverId: dto.replacementUserId, busAttendantId: dto.replacementUserId });
