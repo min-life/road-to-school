@@ -15,7 +15,7 @@ Viền đậm nằm ở styles.card.borderLeftWidth=4. Style nền parentHomeSty
 ## 5. Implementation Details
 mobile/components/parent/trip-card.tsx: đúng một dòng borderLeftWidth4→borderTopWidth4. docs/architecture/mobile-parent-home-ui.md bổ sung vị trí viền, nguồn màu và giới hạn kiểm chứng. LATEST.diff chỉ2files so với đầu task. Review trước lưu history/2026-11-01-before-card-top-accent.md/.diff. Không thay công việc trước của PO.
 
-## 6. Database Changes
+https://github.com/min-life/road-to-school/pull/6/conflict?name=docs%252Fai-review%252FLATEST.md&ancestor_oid=f285bba470a2b805d30feb8ad72151ed152b1549&base_oid=6955ff2f89d34f64cc0f1839d790039a95f50ae5&head_oid=fc6b7e4c01d2f2cc7724d377e558638cec84c7fb## 6. Database Changes
 None. Không đọc/ghi DB, tạo dữ liệu, seed hoặc gọi API mutation.
 
 ## 7. API & Swagger Changes
