@@ -160,9 +160,20 @@ describe('Trip synchronization authorization and operation serialization', () =>
     expect(db.trip.update).not.toHaveBeenCalled();
   });
 
-  it('resets Ready when changing Attendant under the Trip lock', async () => {
+  it('rejects assignment change when Trip is frozen (Ready or has attendance) per D38-02', async () => {
     trip.status = TripStatus.SCHEDULED;
+    trip.attendantReadyAt = new Date();
     db.user.findUnique.mockResolvedValue({ id: 'next', role: Role.BUS_ATTENDANT, isActive: true, schoolId: 'school' });
+    await expect(service.updateTripAssignment('trip', { busAttendantId: 'next' }, user(Role.SCHOOL_ADMIN)))
+      .rejects.toBeInstanceOf(ConflictException);
+    expect(db.trip.update).not.toHaveBeenCalled();
+  });
+
+  it('allows changing Attendant under the Trip lock when Trip is not frozen', async () => {
+    trip.status = TripStatus.SCHEDULED;
+    trip.attendantReadyAt = null as any;
+    trip.attendances = [];
+    db.user.findUnique.mockResolvedValue({ id: 'next', role: Role.BUS_ATTENDANT, isActive: true, isVerified: true, schoolId: 'school' });
     vi.spyOn(service, 'getTripDetail').mockResolvedValue({ id: 'trip' } as any);
     await service.updateTripAssignment('trip', { busAttendantId: 'next' }, user(Role.SCHOOL_ADMIN));
     expect(db.trip.update).toHaveBeenCalledWith({ where: { id: 'trip' }, data: {

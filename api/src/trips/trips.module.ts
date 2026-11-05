@@ -9,6 +9,7 @@ import { TripNavigationService } from './trip-navigation.service.js';
 import { TripNavigationController } from './trip-navigation.controller.js';
 import { VietMapNavigationService } from './vietmap-navigation.service.js';
 import { IncidentsModule } from '../incidents/incidents.module.js';
+import { RoutesModule } from '../routes/routes.module.js';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { IncidentsModule } from '../incidents/incidents.module.js';
     ConfigModule,
     ScheduleModule.forRoot(),
     IncidentsModule,
+    RoutesModule,
   ],
   controllers: [TripsController, TripNavigationController],
   providers: [TripsService, TripNavigationService, VietMapNavigationService],

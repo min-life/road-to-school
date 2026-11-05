@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, IsOptional, Matches } from 'class-validator';
+import { IsCalendarDate } from './create-school.dto.js';
 
 export class UpdateSchoolContractDto {
   @ApiProperty({
@@ -7,6 +8,7 @@ export class UpdateSchoolContractDto {
     example: '2026-11-01',
   })
   @IsNotEmpty({ message: 'Ngày bắt đầu hợp đồng không được để trống' })
+  @IsCalendarDate()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Ngày bắt đầu hợp đồng phải có định dạng YYYY-MM-DD' })
   contractStartDate: string;
 
@@ -15,6 +17,7 @@ export class UpdateSchoolContractDto {
     example: '2027-08-31',
   })
   @IsNotEmpty({ message: 'Ngày kết thúc hợp đồng không được để trống' })
+  @IsCalendarDate()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Ngày kết thúc hợp đồng phải có định dạng YYYY-MM-DD' })
   contractEndDate: string;
 

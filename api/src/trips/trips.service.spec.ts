@@ -117,6 +117,7 @@ describe('TripsService Business Rules', () => {
         school: {
           id: 'school-1',
           name: 'THPT Marie Curie',
+          isActive: true,
           contractStartDate: new Date('2026-01-01'),
           contractEndDate: new Date('2027-01-01'),
           weeklySchedule: {
@@ -137,11 +138,16 @@ describe('TripsService Business Rules', () => {
       };
 
       prismaMock.routePlan.findMany.mockResolvedValue([plan]);
+      prismaMock.routePlan.findUnique.mockResolvedValue(plan as any);
       prismaMock.trip.findMany.mockResolvedValue([]);
       prismaMock.school.findUnique.mockResolvedValue({
         id: 'school-1',
+        isActive: true,
         contractStartDate: new Date('2026-01-01'),
         contractEndDate: new Date('2027-01-01'),
+        weeklySchedule: {
+          monday: { start: '07:00', end: '17:30' },
+        },
       });
 
       // Attempt to generate for 2026-10-26 (same day as activation!)
@@ -166,6 +172,7 @@ describe('TripsService Business Rules', () => {
         school: {
           id: 'school-1',
           name: 'THPT Marie Curie',
+          isActive: true,
           contractStartDate: new Date('2026-01-01'),
           contractEndDate: new Date('2027-01-01'),
           weeklySchedule: {
@@ -186,11 +193,16 @@ describe('TripsService Business Rules', () => {
       };
 
       prismaMock.routePlan.findMany.mockResolvedValue([plan]);
+      prismaMock.routePlan.findUnique.mockResolvedValue(plan as any);
       prismaMock.trip.findMany.mockResolvedValue([]); // No existing trips
       prismaMock.school.findUnique.mockResolvedValue({
         id: 'school-1',
+        isActive: true,
         contractStartDate: new Date('2026-01-01'),
         contractEndDate: new Date('2027-01-01'),
+        weeklySchedule: {
+          monday: { start: '07:00', end: '17:30' },
+        },
       });
       prismaMock.trip.create.mockResolvedValue({
         id: 'new-trip-1',
@@ -220,6 +232,7 @@ describe('TripsService Business Rules', () => {
         school: {
           id: 'school-1',
           name: 'THPT Marie Curie',
+          isActive: true,
           contractStartDate: new Date('2026-01-01'),
           contractEndDate: new Date('2027-01-01'),
           weeklySchedule: {
@@ -240,10 +253,15 @@ describe('TripsService Business Rules', () => {
       };
 
       prismaMock.routePlan.findMany.mockResolvedValue([plan]);
+      prismaMock.routePlan.findUnique.mockResolvedValue(plan as any);
       prismaMock.school.findUnique.mockResolvedValue({
         id: 'school-1',
+        isActive: true,
         contractStartDate: new Date('2026-01-01'),
         contractEndDate: new Date('2027-01-01'),
+        weeklySchedule: {
+          monday: { start: '07:00', end: '17:30' },
+        },
       });
       // Trip already exists in DB when checked by findUnique
       prismaMock.trip.findUnique.mockResolvedValue({

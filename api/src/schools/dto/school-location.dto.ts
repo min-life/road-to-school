@@ -1,3 +1,4 @@
+import { EffectiveDateDto } from './effective-date.dto.js';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsNumber, IsString, IsOptional, Min, Max } from 'class-validator';
 
@@ -48,7 +49,7 @@ export class SchoolLocationImpactDto {
   fingerprint?: string;
 }
 
-export class UpdateSchoolLocationDto {
+export class UpdateSchoolLocationDto extends EffectiveDateDto {
   @ApiProperty({ description: 'Địa chỉ trường học chi tiết' })
   @IsNotEmpty({ message: 'Địa chỉ trường học không được để trống' })
   @IsString({ message: 'Địa chỉ trường học phải là chuỗi ký tự' })

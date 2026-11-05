@@ -1,3 +1,4 @@
+import { CredentialDeliveryResultDto } from '../../auth/credential-delivery.dto.js';
 import { ApiProperty } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { PaginationMetaDto } from '../../schools/dto/school-response.dto.js';
@@ -82,7 +83,7 @@ export class DriverListResponseDto {
   meta: PaginationMetaDto;
 }
 
-export class CreateDriverResponseDto {
+export class CreateDriverResponseDto extends CredentialDeliveryResultDto {
   @ApiProperty({
     description: 'Mã định danh duy nhất của tài xế vừa tạo',
     example: 'd1f8a847-75c1-4b36-a3d5-22e3914a8721',
@@ -145,5 +146,5 @@ export class CreateDriverResponseDto {
     description: 'Thông báo kết quả',
     example: 'Tạo tài khoản tài xế thành công',
   })
-  message: string;
+  declare message: string;
 }

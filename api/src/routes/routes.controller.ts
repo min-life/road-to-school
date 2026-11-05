@@ -54,6 +54,7 @@ import {
 } from './dto/student-insertion.dto.js';
 
 @ApiTags('Routes & VRP Optimization')
+@ApiResponse({ status: 409, description: 'Phương án không còn hiệu lực hoặc nguồn lực có chuyến chờ admin chốt' })
 @Controller('routes')
 @UseGuards(AuthGuard, RolesGuard)
 @ApiBearerAuth('JWT-auth')
@@ -121,6 +122,7 @@ export class RoutesController {
     return this.routesService.cancelReturnRoute(dto.previewToken, dto.returnRouteIndex);
   }
 
+  @ApiResponse({ status: 409, description: 'Phương án/hợp đồng không còn hiệu lực hoặc nguồn lực còn chuyến hết hợp đồng chờ quản trị viên chốt' })
   @Post('confirm-plan')
   @Roles(Role.SYSTEM_ADMIN)
   @HttpCode(HttpStatus.CREATED)
@@ -224,7 +226,7 @@ export class RoutesController {
   @ApiOperation({
     summary: 'Kiểm tra mức độ sẵn sàng phê duyệt phương án tuyến',
     description:
-      'Thẩm định 8 điều kiện kích hoạt phương án (đầy đủ xe, tài xế, giáo viên, sức chứa, không xung đột).',
+      'Thẩm định điều kiện kích hoạt phương án và hạn hợp đồng. blockers có thể có CONTRACT_EXPIRED; không dựa riêng status đã lưu để cho phép duyệt.',
   })
   @ApiParam({ name: 'id', description: 'ID của RoutePlan cần kiểm tra' })
   @ApiResponse({
@@ -239,6 +241,32 @@ export class RoutesController {
     return this.routesService.getApprovalReadiness(id, currentUser);
   }
 
+  @Post('route-plans/:id/re-optimize')
+  @Roles(Role.SYSTEM_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Tối ưu lại toàn bộ các tuyến trong RoutePlan theo bãi xe / trường học mới (Chỉ SYSTEM_ADMIN)',
+    description:
+      'Tối ưu lại tuyến theo nguyên tắc Route-by-Route: Giữ nguyên phân bổ học sinh và xe của từng tuyến. Chỉ kiểm tra 2 điều kiện: thời gian di chuyển tối đa và thời gian dừng xử lý. Cơ chế All-or-Nothing: nếu có tuyến vi phạm, lập tức báo lỗi và không cập nhật bất kỳ tuyến nào khác. Thành công: chuyển RoutePlan về DRAFT chờ School Admin duyệt.',
+  })
+  @ApiParam({ name: 'id', description: 'ID của RoutePlan cần tối ưu lại' })
+  @ApiResponse({
+    status: 200,
+    description: 'Tối ưu lại toàn bộ các tuyến thành công và đưa phương án về DRAFT',
+    type: RoutePlanResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Có tuyến vi phạm thời gian di chuyển tối đa hoặc không tìm được lộ trình hợp lệ',
+  })
+  async reoptimizeRoutePlan(
+    @Param('id') id: string,
+    @CurrentUser() currentUser: User,
+  ): Promise<RoutePlanResponseDto> {
+    return this.routesService.reoptimizeRoutePlan(id, currentUser);
+  }
+
+  @ApiResponse({ status: 409, description: 'Phương án/hợp đồng không còn hiệu lực hoặc nguồn lực còn chuyến hết hợp đồng chờ quản trị viên chốt' })
   @Post('route-plans/:id/approve')
   @Roles(Role.SCHOOL_ADMIN)
   @HttpCode(HttpStatus.OK)
@@ -260,6 +288,7 @@ export class RoutesController {
     return this.routesService.approveRoutePlan(id, currentUser);
   }
 
+  @ApiResponse({ status: 409, description: 'Phương án/hợp đồng không còn hiệu lực hoặc nguồn lực còn chuyến hết hợp đồng chờ quản trị viên chốt' })
   @Get('route-plans/:id/candidate-vehicles')
   @Roles(Role.SYSTEM_ADMIN)
   @ApiOperation({
@@ -281,6 +310,7 @@ export class RoutesController {
     return this.resourceAvailabilityService.getCandidateVehicles(id, currentVehicleId);
   }
 
+  @ApiResponse({ status: 409, description: 'Phương án/hợp đồng không còn hiệu lực hoặc nguồn lực còn chuyến hết hợp đồng chờ quản trị viên chốt' })
   @Get('route-plans/:id/candidate-drivers')
   @Roles(Role.SYSTEM_ADMIN)
   @ApiOperation({
@@ -302,6 +332,7 @@ export class RoutesController {
     return this.resourceAvailabilityService.getCandidateDrivers(id, vehicleId);
   }
 
+  @ApiResponse({ status: 409, description: 'Phương án/hợp đồng không còn hiệu lực hoặc nguồn lực còn chuyến hết hợp đồng chờ quản trị viên chốt' })
   @Get('route-plans/:id/candidate-bus-attendants')
   @Roles(Role.SCHOOL_ADMIN)
   @ApiOperation({
@@ -322,6 +353,7 @@ export class RoutesController {
     return this.resourceAvailabilityService.getCandidateBusAttendants(id, currentUser.schoolId || undefined);
   }
 
+  @ApiResponse({ status: 409, description: 'Phương án/hợp đồng không còn hiệu lực hoặc nguồn lực còn chuyến hết hợp đồng chờ quản trị viên chốt' })
   @Patch('route-plans/:id/assignments/vehicle')
   @Roles(Role.SYSTEM_ADMIN)
   @ApiOperation({
@@ -343,6 +375,7 @@ export class RoutesController {
     return this.routesService.replaceVehicleGroup(id, dto, currentUser);
   }
 
+  @ApiResponse({ status: 409, description: 'Phương án/hợp đồng không còn hiệu lực hoặc nguồn lực còn chuyến hết hợp đồng chờ quản trị viên chốt' })
   @Patch('route-plans/:id/assignments/driver')
   @Roles(Role.SYSTEM_ADMIN)
   @ApiOperation({
@@ -364,6 +397,7 @@ export class RoutesController {
     return this.routesService.assignDriverGroup(id, dto, currentUser);
   }
 
+  @ApiResponse({ status: 409, description: 'Phương án/hợp đồng không còn hiệu lực hoặc nguồn lực còn chuyến hết hợp đồng chờ quản trị viên chốt' })
   @Patch('route-plans/:id/assignments/bus-attendant')
   @Roles(Role.SCHOOL_ADMIN)
   @ApiOperation({
@@ -514,6 +548,7 @@ export class RoutesController {
     return this.routesService.previewStudentInsertion(dto, currentUser);
   }
 
+  @ApiResponse({ status: 409, description: 'Phương án/hợp đồng không còn hiệu lực hoặc nguồn lực còn chuyến hết hợp đồng chờ quản trị viên chốt' })
   @Post('student-insertions/confirm')
   @Roles(Role.SYSTEM_ADMIN)
   @HttpCode(HttpStatus.OK)

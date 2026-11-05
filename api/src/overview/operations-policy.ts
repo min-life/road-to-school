@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { Role, type Prisma, type User } from '@prisma/client';
+import { AttendanceStatus, Role, TripStatus, type Prisma, type User } from '@prisma/client';
 
 export function adminSchoolScope(user: Pick<User, 'role' | 'schoolId'>, schoolId?: string): string | undefined {
   if (user.role === Role.SYSTEM_ADMIN) return schoolId;
@@ -55,3 +55,34 @@ export const staffBlockers: Prisma.TripWhereInput = {
     { incidents: { some: { status: 'WAITING_ASSIGNMENT', type: { in: ['DRIVER_MISSING', 'ATTENDANT_MISSING'] } } } },
   ],
 };
+
+/**
+ * Quy tắc G-02: Chuyến xe đã đóng băng (FROZEN)
+ * Khóa cứng toàn bộ việc sửa danh sách học sinh, điểm đón, phân công thông thường.
+ */
+export const frozenTripWhere: Prisma.TripWhereInput = {
+  OR: [
+    { status: { in: [TripStatus.IN_PROGRESS, TripStatus.COMPLETED] } },
+    { actualStartTime: { not: null } },
+    { attendantReadyAt: { not: null } },
+    { attendances: { some: { status: { in: [AttendanceStatus.PRESENT, AttendanceStatus.ABSENT] } } } },
+  ],
+};
+
+export function isTripFrozen(trip: {
+  status: TripStatus;
+  actualStartTime?: Date | null;
+  attendantReadyAt?: Date | null;
+  attendances?: Array<{ status: AttendanceStatus }> | null;
+}): boolean {
+  if (trip.status === TripStatus.IN_PROGRESS || trip.status === TripStatus.COMPLETED) {
+    return true;
+  }
+  if (trip.actualStartTime != null || trip.attendantReadyAt != null) {
+    return true;
+  }
+  if (trip.attendances && trip.attendances.some((a) => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.ABSENT)) {
+    return true;
+  }
+  return false;
+}
