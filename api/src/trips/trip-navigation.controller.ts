@@ -30,6 +30,7 @@ export class TripNavigationController {
     return this.navigation.navigation(id, user, sid);
   }
 
+  @ApiResponse({ status: 409, description: 'Hợp đồng đã hết hạn, không cho phát vị trí hoặc thay đổi phiên dẫn đường' })
   @Put('navigation/session') @Roles(Role.DRIVER)
   @ApiOperation({ summary: 'START/STOP/SWITCH/RESUME foreground navigation; never starts/completes the Trip.' })
   @ApiBody({ type: NavigationSessionDto }) @ApiResponse({ status: 200, type: NavigationStateDto })
@@ -37,6 +38,7 @@ export class TripNavigationController {
     return this.navigation.session(id, dto, user, sid);
   }
 
+  @ApiResponse({ status: 409, description: 'Hợp đồng đã hết hạn, không cho phát vị trí hoặc thay đổi phiên dẫn đường' })
   @Put('navigation/position') @Roles(Role.DRIVER)
   @ApiOperation({ summary: 'Append a fresh position at most every5s; same-sequence retry is idempotent. No offline backfill.' })
   @ApiBody({ type: PublishPositionDto }) @ApiResponse({ status: 200, type: PositionAckDto })
@@ -44,6 +46,7 @@ export class TripNavigationController {
     return this.navigation.publish(id, dto, user, sid);
   }
 
+  @ApiResponse({ status: 409, description: 'Hợp đồng đã hết hạn, không cho phát vị trí hoặc thay đổi phiên dẫn đường' })
   @Post('navigation/segment') @HttpCode(200) @Roles(Role.DRIVER)
   @ApiOperation({ summary: 'VietMap P→current target only; ADVANCE changes navigation cursor, never business milestones.' })
   @ApiBody({ type: NavigationSegmentDto }) @ApiResponse({ status: 200, type: NavigationRouteDto })

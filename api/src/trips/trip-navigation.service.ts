@@ -1,3 +1,4 @@
+import { tripBlockReason } from '../schools/school-policy.js';
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, Injectable, NotFoundException, Optional, UnauthorizedException } from '@nestjs/common';
 import { Prisma, Role, type User } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
@@ -10,6 +11,7 @@ import { resolveTripRoute } from './utils/trip-snapshot-resolver.js';
 import type { LocationHistoryQueryDto, NavigationSampleDto, NavigationSegmentDto, NavigationSessionDto, PublishPositionDto } from './dto/trip-navigation.dto.js';
 
 const include = {
+  school: { select: { contractEndDate: true, name: true } },
   route: {
     select: {
       polylineGeometry: true,
@@ -54,6 +56,7 @@ export class TripNavigationService {
   }
 
   private async publisher(trip: NavigationTrip, user: User, sid: string, db: Prisma.TransactionClient) {
+    await this.trips.assertTripOperationAllowed(trip.id, db);
     if (user.role !== Role.DRIVER || trip.assignedDriverId !== user.id) throw new ForbiddenException('Chỉ tài xế được phân công có thể phát vị trí');
     if (trip.status !== 'IN_PROGRESS') throw new ConflictException('Chuyến xe không đang chạy');
     const session = sid && await db.session.findUnique({ where: { id: sid } });
@@ -92,7 +95,7 @@ export class TripNavigationService {
       targetStopId: state.targetStopId, routeVersion: state.routeVersion } : null;
     return { status: trip.status, routeVersion: version, latestPosition: point,
       freshness: !point ? 'NONE' : Date.now() - point.recordedAt.getTime() <= 15000 ? 'FRESH' : 'STALE',
-      serverNow: new Date(), canPublish: driver && trip.status === 'IN_PROGRESS', testMode: this.trips.isTestMode(),
+      serverNow: new Date(), canPublish: driver && trip.status === 'IN_PROGRESS' && !await tripBlockReason(this.prisma, trip.id), testMode: this.trips.isTestMode(),
       checkpoint, controlRunId: driver ? state?.runId ?? null : null,
       nextSequence: driver ? (point?.sequence ?? 0) + 1 : 0, publishIntervalMs: INTERVAL };
   }

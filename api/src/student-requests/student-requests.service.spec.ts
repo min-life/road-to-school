@@ -40,6 +40,12 @@ describe('StudentRequestsService - Comprehensive Lifecycle & Concurrency', () =>
 
   beforeEach(() => {
     mockPrisma = {
+      school: {
+        findUnique: vi.fn().mockResolvedValue({ id: 'school-1', isActive: true }),
+      },
+      schoolScheduledChange: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
       parentStudentLink: {
         findUnique: vi.fn(),
       },
@@ -60,6 +66,18 @@ describe('StudentRequestsService - Comprehensive Lifecycle & Concurrency', () =>
         findFirst: vi.fn().mockResolvedValue(null),
         deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
         updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+      trip: {
+        findMany: vi.fn().mockResolvedValue([]),
+        findFirst: vi.fn().mockResolvedValue(null),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      tripAttendance: {
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+      route: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        update: vi.fn().mockResolvedValue({}),
       },
       $transaction: vi.fn((callback) => callback(mockPrisma)),
     };
@@ -364,6 +382,36 @@ describe('StudentRequestsService - Comprehensive Lifecycle & Concurrency', () =>
           longitude: 106.705,
         },
       });
+    });
+
+    it('từ chối 409 khi học sinh có tuyến và approve với REOPTIMIZED mà không có previewToken', async () => {
+      const pendingRequest = {
+        id: 'req-reopt',
+        studentId: 'stu-1',
+        schoolId: 'school-1',
+        type: RequestType.ADDRESS_UPDATE,
+        status: RequestStatus.PENDING,
+        beforeData: {
+          addressText: mockStudent.addressText,
+          latitude: mockStudent.latitude,
+          longitude: mockStudent.longitude,
+        },
+        proposedData: {
+          addressText: '789 Đường Mới, Quận 1',
+          latitude: 10.781,
+          longitude: 106.705,
+        },
+        student: mockStudent,
+      };
+
+      mockPrisma.studentUpdateRequest.findUnique.mockResolvedValue(pendingRequest);
+      mockPrisma.routeStop.findMany.mockResolvedValue([{ routeId: 'r-1', studentId: 'stu-1' }]);
+
+      await expect(
+        service.approveRequest('req-reopt', 'sysadmin-1', Role.SYSTEM_ADMIN, null, {
+          decision: 'REOPTIMIZED',
+        }),
+      ).rejects.toThrow(ConflictException);
     });
   });
 

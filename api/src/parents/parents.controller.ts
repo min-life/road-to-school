@@ -112,6 +112,7 @@ export class ParentsController {
     return this.parentsService.getLinkedStudentDetail(user.id, id);
   }
 
+  @ApiResponse({ status: 503, description: 'Không gửi được OTP hoặc chưa xác định kết quả gửi; khi kết quả chưa rõ phải chờ mã hết hạn trước khi yêu cầu lại' })
   @Post('link-requests')
   @ApiOperation({
     summary: 'Khởi tạo yêu cầu liên kết học sinh (gửi mã OTP về SĐT người giám hộ)',
