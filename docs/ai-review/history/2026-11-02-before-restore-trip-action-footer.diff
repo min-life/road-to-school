@@ -1,0 +1,16 @@
+diff --git a/mobile/components/staff/staff-trip-card.tsx b/mobile/components/staff/staff-trip-card.tsx
+index 6216d4e..9f10307 100644
+--- a/mobile/components/staff/staff-trip-card.tsx
++++ b/mobile/components/staff/staff-trip-card.tsx
+@@ -74 +74 @@ export function StaffTripCard({
+-              <Text style={styles.value}>{trip.driver.fullName}</Text>
++              <Text style={[styles.value, styles.personName]}>{trip.driver.fullName}</Text>
+@@ -84 +84 @@ export function StaffTripCard({
+-              <Text style={styles.value}>{trip.busAttendant.fullName}</Text>
++              <Text style={[styles.value, styles.personName]}>{trip.busAttendant.fullName}</Text>
+@@ -163,2 +163,3 @@ const styles = StyleSheet.create({
+-  nameRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+-  selfBadge: { borderRadius: 6, paddingHorizontal: 6, backgroundColor: colors.navigationHighlight },
++  nameRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
++  personName: { flex: 1, minWidth: 0 },
++  selfBadge: { flexShrink: 0, marginTop: 2, borderRadius: 6, paddingHorizontal: 6, backgroundColor: colors.navigationHighlight },

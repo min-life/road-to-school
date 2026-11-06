@@ -1,0 +1,391 @@
+--- a/mobile/app/parent/change-stop.tsx
++++ b/mobile/app/parent/change-stop.tsx
+@@ -1,9 +1 @@
+-import { useCallback, useState } from 'react';
+-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+-import { useFocusEffect, useRouter } from 'expo-router';
+-import Ionicons from '@expo/vector-icons/Ionicons';
+-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+-import { AppHeader } from '@/components/navigation/app-header';
+-import { TrackingEmptyState } from '@/components/parent/tracking-empty-state';
+-import { colors } from '@/constants/theme';
+-import { mobileApiClient, type ParentLinkedStudentItem } from '@/services/api-client';
++import { RequestListView } from '@/components/parent/RequestListView';
+@@ -11 +3 @@
+-/** Select a linked child, then reuse the existing address-request flow. */
++/** Home opens request history; child selection belongs to the create flow. */
+@@ -13,41 +5,9 @@
+-  const router = useRouter();
+-  const insets = useSafeAreaInsets();
+-  const [students, setStudents] = useState<ParentLinkedStudentItem[]>([]);
+-  const [loading, setLoading] = useState(true);
+-  const [error, setError] = useState<string | null>(null);
+-  const [attempt, setAttempt] = useState(0);
+-
+-  useFocusEffect(useCallback(() => {
+-    let active = true;
+-    setLoading(true);
+-    setError(null);
+-    setStudents([]);
+-    mobileApiClient.getLinkedStudents().then(data => {
+-      if (active) setStudents(data);
+-    }).catch((failure: unknown) => {
+-      if (active) setError(failure instanceof Error ? failure.message : 'Không thể tải danh sách học sinh.');
+-    }).finally(() => { if (active) setLoading(false); });
+-    return () => { active = false; };
+-  }, [attempt]));
+-
+-  return <View style={styles.screen}>
+-    <AppHeader title="Đổi điểm đón/trả" subtitle="Chọn học sinh" onBack={() => router.back()} />
+-    {loading ? <View style={styles.state}><ActivityIndicator color={colors.navigationActive} /><Text style={styles.muted}>Đang tải học sinh...</Text></View>
+-      : error ? <View style={styles.state}><Text style={styles.error}>{error}</Text>
+-        <Pressable accessibilityRole="button" onPress={() => setAttempt(value => value + 1)} style={styles.button}><Text style={styles.label}>Thử lại</Text></Pressable></View>
+-      : <FlatList data={students} keyExtractor={student => student.id} contentContainerStyle={[styles.list, { paddingBottom: 24 + insets.bottom }]}
+-        ListEmptyComponent={<TrackingEmptyState title="Chưa có học sinh liên kết" description={null}
+-          onLink={() => router.push('/parent/link-student')} />}
+-        renderItem={({ item }) => {
+-          const disabled = item.status !== 'AVAILABLE';
+-          return <Pressable accessibilityRole="button" accessibilityLabel={`Đổi điểm cho ${item.fullName}`}
+-            accessibilityState={{ disabled }} disabled={disabled}
+-            onPress={() => router.push({ pathname: '/parent/update-requests/address/[studentId]', params: { studentId: item.id } })}
+-            style={({ pressed }) => [styles.card, disabled && styles.disabled, pressed && styles.pressed]}>
+-            <View style={styles.icon}><Ionicons name="location-outline" size={24} color={colors.navigationActive} /></View>
+-            <View style={styles.copy}><Text style={styles.name}>{item.fullName}</Text><Text style={styles.muted}>{item.schoolName}</Text>
+-              {disabled && <Text style={styles.muted}>Học sinh đã bị vô hiệu hóa</Text>}</View>
+-            <Ionicons name="chevron-forward" size={20} color={colors.mutedText} />
+-          </Pressable>;
+-        }} />}
+-  </View>;
++  return (
++    <RequestListView
++      requestType="ADDRESS_UPDATE"
++      title="Đổi điểm đón/trả"
++      createRoute="/parent/change-stop/select-student"
++      createButtonLabel="Tạo yêu cầu đổi điểm"
++      emptyMessage="Chưa có yêu cầu đổi điểm đón/trả nào."
++    />
++  );
+@@ -55,16 +14,0 @@
+-
+-const styles = StyleSheet.create({
+-  screen: { flex: 1, backgroundColor: colors.background },
+-  list: { width: '100%', maxWidth: 560, alignSelf: 'center', padding: 16, gap: 12, paddingBottom: 24 },
+-  state: { padding: 24, alignItems: 'center', gap: 16 },
+-  card: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, backgroundColor: colors.surface,
+-    borderRadius: 16, borderWidth: 1, borderColor: colors.border, minHeight: 64 },
+-  copy: { flex: 1, minWidth: 0 },
+-  icon: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.navigationHighlight, alignItems: 'center', justifyContent: 'center' },
+-  name: { fontSize: 16, lineHeight: 23, color: colors.foreground, fontWeight: '700' },
+-  muted: { fontSize: 12, lineHeight: 18, color: colors.mutedText },
+-  error: { color: colors.error, textAlign: 'center' },
+-  button: { minHeight: 48, borderRadius: 24, paddingHorizontal: 24, paddingVertical: 12, backgroundColor: colors.primary, justifyContent: 'center' },
+-  label: { fontSize: 14, color: colors.foreground, fontWeight: '700' },
+-  disabled: { opacity: 0.5 }, pressed: { opacity: 0.7 },
+-});
+--- /dev/null
++++ b/mobile/app/parent/change-stop/select-student.tsx
+@@ -0,0 +1,70 @@
++import { useCallback, useState } from 'react';
++import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
++import { useFocusEffect, useRouter } from 'expo-router';
++import Ionicons from '@expo/vector-icons/Ionicons';
++import { useSafeAreaInsets } from 'react-native-safe-area-context';
++import { AppHeader } from '@/components/navigation/app-header';
++import { TrackingEmptyState } from '@/components/parent/tracking-empty-state';
++import { colors } from '@/constants/theme';
++import { mobileApiClient, type ParentLinkedStudentItem } from '@/services/api-client';
++
++/** Select a linked child, then reuse the existing address-request flow. */
++export default function ChangeStopScreen() {
++  const router = useRouter();
++  const insets = useSafeAreaInsets();
++  const [students, setStudents] = useState<ParentLinkedStudentItem[]>([]);
++  const [loading, setLoading] = useState(true);
++  const [error, setError] = useState<string | null>(null);
++  const [attempt, setAttempt] = useState(0);
++
++  useFocusEffect(useCallback(() => {
++    let active = true;
++    setLoading(true);
++    setError(null);
++    setStudents([]);
++    mobileApiClient.getLinkedStudents().then(data => {
++      if (active) setStudents(data);
++    }).catch((failure: unknown) => {
++      if (active) setError(failure instanceof Error ? failure.message : 'Không thể tải danh sách học sinh.');
++    }).finally(() => { if (active) setLoading(false); });
++    return () => { active = false; };
++  }, [attempt]));
++
++  return <View style={styles.screen}>
++    <AppHeader title="Tạo yêu cầu đổi điểm" subtitle="Chọn học sinh" onBack={() => router.back()} />
++    {loading ? <View style={styles.state}><ActivityIndicator color={colors.navigationActive} /><Text style={styles.muted}>Đang tải học sinh...</Text></View>
++      : error ? <View style={styles.state}><Text style={styles.error}>{error}</Text>
++        <Pressable accessibilityRole="button" onPress={() => setAttempt(value => value + 1)} style={styles.button}><Text style={styles.label}>Thử lại</Text></Pressable></View>
++      : <FlatList data={students} keyExtractor={student => student.id} contentContainerStyle={[styles.list, { paddingBottom: 24 + insets.bottom }]}
++        ListEmptyComponent={<TrackingEmptyState title="Chưa có học sinh liên kết" description={null}
++          onLink={() => router.push('/parent/link-student')} />}
++        renderItem={({ item }) => {
++          const disabled = item.status !== 'AVAILABLE';
++          return <Pressable accessibilityRole="button" accessibilityLabel={`Đổi điểm cho ${item.fullName}`}
++            accessibilityState={{ disabled }} disabled={disabled}
++            onPress={() => router.push({ pathname: '/parent/create-request/address/[studentId]', params: { studentId: item.id } })}
++            style={({ pressed }) => [styles.card, disabled && styles.disabled, pressed && styles.pressed]}>
++            <View style={styles.icon}><Ionicons name="location-outline" size={24} color={colors.navigationActive} /></View>
++            <View style={styles.copy}><Text style={styles.name}>{item.fullName}</Text><Text style={styles.muted}>{item.schoolName}</Text>
++              {disabled && <Text style={styles.muted}>Học sinh đã bị vô hiệu hóa</Text>}</View>
++            <Ionicons name="chevron-forward" size={20} color={colors.mutedText} />
++          </Pressable>;
++        }} />}
++  </View>;
++}
++
++const styles = StyleSheet.create({
++  screen: { flex: 1, backgroundColor: colors.background },
++  list: { width: '100%', maxWidth: 560, alignSelf: 'center', padding: 16, gap: 12, paddingBottom: 24 },
++  state: { padding: 24, alignItems: 'center', gap: 16 },
++  card: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, backgroundColor: colors.surface,
++    borderRadius: 16, borderWidth: 1, borderColor: colors.border, minHeight: 64 },
++  copy: { flex: 1, minWidth: 0 },
++  icon: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.navigationHighlight, alignItems: 'center', justifyContent: 'center' },
++  name: { fontSize: 16, lineHeight: 23, color: colors.foreground, fontWeight: '700' },
++  muted: { fontSize: 12, lineHeight: 18, color: colors.mutedText },
++  error: { color: colors.error, textAlign: 'center' },
++  button: { minHeight: 48, borderRadius: 24, paddingHorizontal: 24, paddingVertical: 12, backgroundColor: colors.primary, justifyContent: 'center' },
++  label: { fontSize: 14, color: colors.foreground, fontWeight: '700' },
++  disabled: { opacity: 0.5 }, pressed: { opacity: 0.7 },
++});
+--- a/mobile/components/parent/RequestListView.tsx
++++ b/mobile/components/parent/RequestListView.tsx
+@@ -1 +1 @@
+-import React, { useState, useEffect, useCallback } from 'react';
++import React, { useState, useCallback, useRef } from 'react';
+@@ -13 +13 @@
+-import { useRouter } from 'expo-router';
++import { useFocusEffect, useRouter } from 'expo-router';
+@@ -16,0 +17 @@
++import { listLinkedStudentRequests } from '@/services/parent-request-history';
+@@ -26 +27,2 @@
+-  studentId: string;
++  /** Omit to show requests across the parent's currently linked children. */
++  studentId?: string;
+@@ -53,0 +56 @@
++  const requestGeneration = useRef(0);
+@@ -56 +59,3 @@
+-  useEffect(() => {
++  useFocusEffect(useCallback(() => {
++    let active = true;
++    setStudent(current => current?.id === studentId ? current : null);
+@@ -60 +65 @@
+-      .then(setStudent)
++      .then(result => { if (active) setStudent(result); })
+@@ -62 +67,2 @@
+-  }, [studentId]);
++    return () => { active = false; };
++  }, [studentId]));
+@@ -67 +73,2 @@
+-      if (!studentId) return;
++      const generation = ++requestGeneration.current;
++      const isCurrent = () => generation === requestGeneration.current;
+@@ -69,2 +76,2 @@
+-        if (isPull) setIsRefreshing(true);
+-        else setIsLoading(true);
++        setIsRefreshing(isPull);
++        setIsLoading(!isPull);
+@@ -73 +80,2 @@
+-        const res = await mobileApiClient.listParentStudentRequests(studentId, {
++        if (studentId === '') throw new Error('Không tìm thấy học sinh. Vui lòng quay lại.');
++        const query = {
+@@ -78 +86,5 @@
+-        });
++        };
++        const res = studentId
++          ? await mobileApiClient.listParentStudentRequests(studentId, query)
++          : await listLinkedStudentRequests(query, isCurrent);
++        if (!isCurrent()) return;
+@@ -83 +95 @@
+-        setPage(targetPage);
++        setPage(res.page);
+@@ -84,0 +97,2 @@
++        if (!isCurrent()) return;
++        setRequests([]);
+@@ -87,2 +101,4 @@
+-        setIsLoading(false);
+-        setIsRefreshing(false);
++        if (isCurrent()) {
++          setIsLoading(false);
++          setIsRefreshing(false);
++        }
+@@ -94,3 +110,4 @@
+-  useEffect(() => {
+-    fetchRequests(1);
+-  }, [fetchRequests]);
++  useFocusEffect(useCallback(() => {
++    void fetchRequests(1);
++    return () => { requestGeneration.current += 1; };
++  }, [fetchRequests]));
+@@ -99 +116 @@
+-    if (!studentId) return;
++    if (studentId === '') return;
+@@ -109 +126 @@
+-      params: { studentId },
++      params: studentId ? { studentId } : {},
+@@ -184,0 +202,4 @@
++        {studentId === undefined && (
++          <Text style={styles.studentName}>{item.studentName}</Text>
++        )}
++
+@@ -241,0 +263,2 @@
++          accessibilityRole="button"
++          accessibilityLabel={createButtonLabel}
+@@ -418,0 +442 @@
++    minHeight: 44,
+@@ -560,0 +585,6 @@
++  studentName: {
++    fontSize: 14,
++    fontWeight: '700',
++    color: colors.foreground,
++    marginBottom: 6,
++  },
+--- /dev/null
++++ b/mobile/services/parent-request-history.ts
+@@ -0,0 +1,63 @@
++import {
++  mobileApiClient,
++  type RequestStatus,
++  type RequestType,
++  type StudentUpdateRequest,
++  type StudentUpdateRequestListResponse,
++} from './api-client';
++
++export type ParentRequestHistoryQuery = {
++  page: number;
++  limit: number;
++  type: RequestType;
++  status?: RequestStatus;
++};
++
++/** Merge existing per-child GETs; do not require a new backend endpoint. */
++export async function listLinkedStudentRequests(
++  query: ParentRequestHistoryQuery,
++  isCurrent: () => boolean = () => true,
++): Promise<StudentUpdateRequestListResponse> {
++  const students = await mobileApiClient.getLinkedStudents();
++  const studentIds = [...new Set(students.map(student => student.id))];
++  const needed = query.page * query.limit;
++  const batchSize = Math.min(100, needed);
++  const candidates: StudentUpdateRequest[] = [];
++  let total = 0;
++
++  // Bound fan-out when a parent has many linked children.
++  for (let offset = 0; offset < studentIds.length; offset += 3) {
++    if (!isCurrent()) throw new Error('Đã rời danh sách yêu cầu.');
++    const results = await Promise.all(studentIds.slice(offset, offset + 3).map(async studentId => {
++      const items: StudentUpdateRequest[] = [];
++      let childTotal = 0;
++      let childPage = 1;
++      let childPages = 1;
++      do {
++        if (!isCurrent()) throw new Error('Đã rời danh sách yêu cầu.');
++        const response = await mobileApiClient.listParentStudentRequests(studentId, {
++          ...query, page: childPage, limit: batchSize,
++        });
++        childTotal = response.total;
++        childPages = response.totalPages;
++        items.push(...response.items);
++        childPage += 1;
++      } while (items.length < needed && childPage <= childPages);
++      return { total: childTotal, items: items.slice(0, needed) };
++    }));
++    for (const result of results) {
++      total += result.total;
++      candidates.push(...result.items);
++    }
++  }
++
++  candidates.sort((left, right) =>
++    new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
++    || left.id.localeCompare(right.id));
++  const totalPages = Math.max(1, Math.ceil(total / query.limit));
++  const page = Math.min(query.page, totalPages);
++  return {
++    items: candidates.slice((page - 1) * query.limit, page * query.limit),
++    total, page, totalPages,
++  };
++}
+--- a/docs/architecture/mobile-parent-home-ui.md
++++ b/docs/architecture/mobile-parent-home-ui.md
+@@ -107 +107,7 @@
+-## Cập nhật mới: tiện ích Đổi điểm
++## Hiện hành30/10/2026 — Đổi điểm mở lịch sử trước khi tạo
++
++Home giữ callback `/parent/change-stop`; route này nay dùng `RequestListView` hiển thị yêu cầu `ADDRESS_UPDATE` của tất cả con đang liên kết. Mỗi card có tên con, trạng thái, địa chỉ đề xuất, kết quả xử lý và thời gian như view yêu cầu hiện có. Nhấn **Tạo mới** hoặc CTA rỗng → `/parent/change-stop/select-student` → chọn con AVAILABLE → `/parent/create-request/address/[studentId]`. Không đi qua danh sách yêu cầu của riêng con trước khi vào form nữa. Báo nghỉ không đổi. [Luồng, API/pagination, component contract, kiểm chứng và giới hạn](mobile-parent-stop-requests.md).
++
++Không thêm endpoint hoặc sửa nghiệp vụ: frontend đọc linked students rồi gộp các GET yêu cầu theo từng con, lọc đúng ADDRESS_UPDATE/trạng thái, phân trang10 và ưu tiên mới nhất. Bộ chọn chuyển nguyên từ route cũ, giữ empty/link/retry/disabled; form/OTP/duyệt/hủy và trang yêu cầu riêng từ Hồ sơ học sinh giữ nguyên. Các mô tả28/10 ngay dưới đây là lịch sử trước thay đổi luồng mới này. Thay đổi30/10 này local, chưa commit/push.
++
++## Lịch sử28/10/2026: tiện ích Đổi điểm
+--- a/docs/architecture/mobile-ui-implementation-status.md
++++ b/docs/architecture/mobile-ui-implementation-status.md
+@@ -3,0 +4,4 @@
++
++## Đổi điểm — lịch sử trước, tạo mới mới chọn con (30/10/2026, local)
++
++Tiện ích Home giữ route `/parent/change-stop`, nay mở lịch sử yêu cầu đổi điểm của các con đang liên kết bằng RequestListView. **Tạo mới** → `/parent/change-stop/select-student` (bộ chọn cũ được chuyển vị trí) → form địa chỉ/OTP V2. Không bắt chọn con để xem lịch sử; mỗi card có tên học sinh, các bộ lọc/trạng thái/detail/phân trang được giữ. [Component/API và kiểm chứng](mobile-parent-stop-requests.md). Backend, API client, dữ liệu và trang Báo nghỉ không đổi; local chưa commit/push.
+@@ -77 +81,3 @@
+-[change-stop.tsx](../../mobile/app/parent/change-stop.tsx) dùng lại [TrackingEmptyState](../../mobile/components/parent/tracking-empty-state.tsx) tại `FlatList.ListEmptyComponent`, sau nhánh loading/error. Giữ title **Chưa có học sinh liên kết**, CTA **Liên kết học sinh** tới `/parent/link-student`, header/back, Thử lại, GET linked students, guard AVAILABLE và route address-request khi có học sinh. Không thêm FAB/refresh hoặc thao tác của màn Theo dõi vào màn này.
++**Vị trí hiện hành30/10:** bộ chọn đã chuyển sang [change-stop/select-student.tsx](../../mobile/app/parent/change-stop/select-student.tsx), chỉ mở sau **Tạo mới** ở lịch sử. Chọn con nay vào form tạo địa chỉ trực tiếp. Thiết kế empty và kiểm chứng28/10 bên dưới là lịch sử; không coi là kiểm chứng runtime của luồng mới.
++
++Bộ chọn dùng lại [TrackingEmptyState](../../mobile/components/parent/tracking-empty-state.tsx) tại `FlatList.ListEmptyComponent`, sau nhánh loading/error. Giữ title **Chưa có học sinh liên kết**, CTA **Liên kết học sinh** tới `/parent/link-student`, header/back, Thử lại, GET linked students và guard AVAILABLE. Không thêm FAB/refresh hoặc thao tác của màn Theo dõi vào màn này.
+--- /dev/null
++++ b/docs/architecture/mobile-parent-stop-requests.md
+@@ -0,0 +1,50 @@
++# Đổi điểm: lịch sử trước, tạo mới mới chọn học sinh
++
++30/10/2026, Mobile V2, local chưa commit/push. Chỉ thay luồng frontend theo chỉ thị PO; Báo nghỉ, backend, API contract, form địa chỉ, OTP, phê duyệt và hủy yêu cầu giữ nguyên.
++
++## Luồng và bố cục
++
++```text
++Trang chủ → Đổi điểm → Đổi điểm đón/trả (lịch sử)
++  [Quay lại] [Đổi điểm đón/trả] [Tạo mới]
++  [Tất cả] [Chờ duyệt] [Đã duyệt] [Đã từ chối] [Đã hủy]
++  [Tên con · Trạng thái · Địa chỉ đề xuất · Kết quả · Thời gian · Chi tiết]
++  [Trước] [Trang / Tổng số] [Sau]
++                      ↓ Tạo mới / CTA khi lịch sử rỗng
++              Chọn học sinh đã liên kết
++                      ↓ Chọn con AVAILABLE
++              Form địa chỉ V2 → xác thực OTP V2
++```
++
++Tái sử dụng RequestListView và bộ chọn hiện có; chỉ chuyển điểm chọn con sau thao tác tạo mới. Home vẫn dùng cùng callback `/parent/change-stop` cho tiện ích expanded/compact. Học sinh DISABLED không được chọn để tạo mới, nhưng lịch sử vẫn được đọc nếu còn liên kết. Không tự chọn con đầu tiên hoặc mở form khi vừa vào lịch sử.
++
++Back dùng `router.push`/`router.back`: form → bộ chọn → lịch sử → Trang chủ. Sau xác thực OTP thành công vẫn tới danh sách yêu cầu riêng của con như V2; task này không thay màn OTP hoặc logic gửi/duyệt/hủy. Các điểm vào yêu cầu riêng từ Hồ sơ học sinh vẫn giữ route và studentId.
++
++## Source và component contract
++
++- [change-stop.tsx](../../mobile/app/parent/change-stop.tsx): route lịch sử, RequestListView với `requestType="ADDRESS_UPDATE"`, không truyền studentId, createRoute trỏ bộ chọn mới.
++- [select-student.tsx](../../mobile/app/parent/change-stop/select-student.tsx): bộ chọn chuyển từ file cũ; chọn con mở `/parent/create-request/address/[studentId]`. Giữ controller focus/error/retry, card/empty illustration và CTA liên kết.
++- [RequestListView.tsx](../../mobile/components/parent/RequestListView.tsx): `studentId?: string`; có ID giữ API và hành vi tạo yêu cầu riêng; bỏ prop này để hiển thị tổng hợp. ID rỗng từ URL lỗi báo lỗi, không chuyển thành chế độ tổng hợp. Các props `requestType/title/createRoute/createButtonLabel/emptyMessage` giữ nguyên.
++- [parent-request-history.ts](../../mobile/services/parent-request-history.ts): `listLinkedStudentRequests(query, isCurrent?)` đọc các API hiện có và trả StudentUpdateRequestListResponse; query gồm page/limit/type/status, page/limit là số nguyên dương do view cung cấp (hiện10 mỗi trang). isCurrent là guard để ngừng đọc tiếp khi chuyển filter/blur/unmount.
++- [Home](<../../mobile/app/(tabs)/index.tsx>), form, OTP, detail và các route yêu cầu riêng không cần chỉnh source. Không tạo component lịch sử riêng trùng giao diện.
++
++View tổng hợp thêm tên con trên mỗi card; giữ địa chỉ, badge trạng thái, resolution, ngày giờ và route detail. Nút Tạo mới có nhãn accessibility và minHeight44. Không thêm input hoặc xử lý bàn phím mới; header/safe area/FlatList/pull refresh theo view sẵn có. Bộ chọn giữ AppHeader trong flow và bottom inset, maxWidth560. Tab yêu cầu riêng cũng hưởng focus refresh và guard chống response cũ; không đổi contract/validation hay quyền thao tác.
++
++## Nguồn dữ liệu, phân trang và lỗi
++
++Backend hiện chỉ có GET danh sách yêu cầu theo từng học sinh, không có GET tổng hợp cho Parent. Frontend không sửa API client/contract:
++
++1. GET `/parents/students` lấy ID đang liên kết; không lọc bỏ học sinh DISABLED khỏi lịch sử.
++2. GET `/parents/students/:id/update-requests` cho từng ID, gửi type ADDRESS_UPDATE và status khi có bộ lọc. Backend vẫn kiểm tra liên kết và lọc theo parentId; không lấy yêu cầu của phụ huynh khác.
++3. Muốn trang p, kích thước L: lấy tối đa p×L yêu cầu mới nhất của mỗi con. Mỗi GET giới hạn100 như backend; đọc thêm trang của con khi cần. Chỉ chạy tối đa ba luồng con đồng thời, không fan-out không giới hạn.
++4. Gộp, sắp createdAt giảm dần (id là tie-break phía client), rồi cắt trang chung10; cộng total thật từ từng con và tính totalPages. Không chỉ lấy trang p riêng của từng con vì sẽ bỏ sót thứ tự chung. Khi tổng trang giảm, trả trang cuối còn hợp lệ.
++
++Không có con → lịch sử rỗng, vẫn có Tạo mới; bộ chọn hiển thị empty + Liên kết học sinh. Một nhánh GET lỗi → báo lỗi/Thử lại, không trình bày danh sách thiếu như đủ. Khi đổi filter, về trang1; focus lại tải trang1, hỗ trợ pull refresh. Generation guard chặn response cũ, ngừng các batch/page tiếp theo khi rời màn; request đã gửi không hủy transport. Lỗi danh sách xóa card cũ, không thêm record hoặc request giả.
++
++Giới hạn: đây là gộp nhiều GET, không phải snapshot database nguyên tử. Dữ liệu đổi trong lúc phân trang có thể làm total/thứ tự thay đổi như phân trang offset hiện có; timestamp trùng phụ thuộc thứ tự backend trước khi client tie-break. Chi phí đọc tăng theo số con và độ sâu trang; không tải hết lịch sử khi chỉ xem trang đầu, không thêm polling liên tục. Muốn tối ưu hơn cần một task API tổng hợp được duyệt riêng, không tự triển khai ở task UI này.
++
++## Kiểm chứng và nghiệm thu
++
++Kết quả thực tế, phạm vi file và giới hạn ghi tại [AI Review](../ai-review/LATEST.md). Typecheck và Expo export iOS/Android/Web/server phải đạt; kiểm tra manifest nhận cả route lịch sử/bộ chọn, đối chiếu source của guard AVAILABLE và các route form/OTP/detail. Không dùng fixtures Student/Request/API giả hoặc ghi DB để test.
++
++Chưa nghiệm thu luồng có xác thực trên Expo Go iPhone/Android. Cần kiểm tra lịch sử nhiều con/trạng thái/phân trang, rỗng/lỗi, tạo mới/chọn con/back, và refresh sau kết quả yêu cầu trên dữ liệu đã có. Không coi export thành công là bằng chứng hành vi thiết bị hoặc gửi OTP/duyệt thật.

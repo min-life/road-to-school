@@ -1,0 +1,371 @@
+--- a/mobile/components/parent/linked-student-picker.tsx
++++ b/mobile/components/parent/linked-student-picker.tsx
+@@ -1,11 +1,10 @@
+ import { useState } from 'react';
+-import { ActivityIndicator, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+-import { useSafeAreaInsets } from 'react-native-safe-area-context';
++import { ActivityIndicator, Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
+ import Ionicons from '@expo/vector-icons/Ionicons';
+ import type { ParentLinkedStudentItem } from '@/services/api-client';
+ import { colors } from '@/constants/theme';
+-import { TrackingEmptyState } from './tracking-empty-state';
+ import { UserAvatar } from '@/components/user-avatar';
++import { StudentPickerDialog } from './student-picker-dialog';
+ 
+ type LinkedStudentPickerProps = {
+   students: ParentLinkedStudentItem[];
+@@ -24,8 +23,6 @@
+ export function LinkedStudentPicker({ students, selectedId, loading, error, disabled = false,
+   fixed = false, canSelectStudent, onSelect, onRetry, onLink }: LinkedStudentPickerProps) {
+   const [visible, setVisible] = useState(false);
+-  const insets = useSafeAreaInsets();
+-  const { height } = useWindowDimensions();
+   const selected = students.find(student => student.id === selectedId);
+   const blocked = loading || disabled || Boolean(error);
+   const identity = <>
+@@ -59,40 +56,9 @@
+       <Pressable accessibilityRole="button" disabled={disabled} onPress={onLink} style={styles.retry}><Text style={styles.retryText}>Liên kết học sinh</Text></Pressable>
+     </View> : null}
+ 
+-    <Modal visible={visible && !disabled && !fixed} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
+-      <Pressable accessible={false} onPress={() => setVisible(false)}
+-        style={[styles.overlay, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}>
+-        <View accessibilityViewIsModal onStartShouldSetResponder={() => true}
+-          style={[styles.modal, { maxHeight: height - insets.top - insets.bottom - 32 }]}>
+-          <View style={styles.modalHeader}>
+-            <Text accessibilityRole="header" style={styles.modalTitle}>Chọn học sinh</Text>
+-            <Pressable accessibilityRole="button" accessibilityLabel="Đóng chọn học sinh" onPress={() => setVisible(false)} style={styles.close}>
+-              <Ionicons name="close" size={22} color={colors.mutedText} />
+-            </Pressable>
+-          </View>
+-          <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+-            {students.length === 0 ? <TrackingEmptyState title="Chưa có học sinh liên kết" description={null}
+-              onLink={() => { setVisible(false); onLink(); }} /> : students.map(student => {
+-              const unavailable = canSelectStudent ? !canSelectStudent(student) : student.status !== 'AVAILABLE';
+-              const active = student.id === selectedId;
+-              return <Pressable key={student.id} accessibilityRole="button"
+-                accessibilityLabel={`${student.fullName}, ${student.schoolName}${unavailable ? ', đã vô hiệu hóa' : ''}`}
+-                accessibilityState={{ selected: active, disabled: unavailable }} disabled={unavailable}
+-                onPress={() => { onSelect(student.id); setVisible(false); }}
+-                style={({ pressed }) => [styles.item, active && styles.selected, unavailable && styles.disabled, pressed && styles.pressed]}>
+-                <UserAvatar avatarUrl={student.avatarUrl} fullName={student.fullName || 'Học sinh'} size={40} />
+-                <View style={styles.copy}>
+-                  <Text style={[styles.itemTitle, active && styles.selectedTitle]}>{student.fullName}</Text>
+-                  <Text style={styles.itemMeta}>Mã: {student.code} · {student.schoolName}</Text>
+-                  {unavailable && <Text style={styles.itemMeta}>Học sinh đã bị vô hiệu hóa</Text>}
+-                </View>
+-                {active && <Ionicons name="checkmark-circle" size={20} color={colors.navigationActive} />}
+-              </Pressable>;
+-            })}
+-          </ScrollView>
+-        </View>
+-      </Pressable>
+-    </Modal>
++    {visible && !disabled && !fixed && <StudentPickerDialog students={students} selectedId={selectedId}
++      loading={loading} error={error} canSelectStudent={canSelectStudent} onSelect={onSelect}
++      onClose={() => setVisible(false)} onRetry={onRetry} onLink={onLink} />}
+   </View>;
+ }
+ 
+@@ -110,17 +76,7 @@
+   error: { color: colors.error, fontSize: 12 },
+   retry: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 },
+   retryText: { color: colors.navigationActive, fontWeight: '700', fontSize: 13 },
+-  overlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
+-  modal: { width: '100%', maxWidth: 360, backgroundColor: colors.surface, borderRadius: 20, padding: 20, flexShrink: 1 },
+-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16,
+-    borderBottomWidth: 1, borderBottomColor: '#F1F5F9', paddingBottom: 12 },
+-  modalTitle: { flex: 1, fontSize: 16, fontWeight: '700', color: colors.foreground },
+-  close: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
+-  item: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 8, borderRadius: 12, minHeight: 48 },
+   copy: { flex: 1, minWidth: 0 },
+-  itemTitle: { fontSize: 14, fontWeight: '600', color: colors.foreground },
+   itemMeta: { fontSize: 11, lineHeight: 16, color: colors.mutedText, marginTop: 1 },
+-  selected: { backgroundColor: '#FEF9C3' },
+-  selectedTitle: { color: '#92400E', fontWeight: '700' },
+   disabled: { opacity: 0.5 }, pressed: { opacity: 0.7 },
+ });
+--- /dev/null
++++ b/mobile/components/parent/student-picker-dialog.tsx
+@@ -0,0 +1,139 @@
++import { useState } from 'react';
++import { ActivityIndicator, Keyboard, Modal, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
++import { useSafeAreaInsets } from 'react-native-safe-area-context';
++import Ionicons from '@expo/vector-icons/Ionicons';
++import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
++import { UserAvatar } from '@/components/user-avatar';
++import { colors } from '@/constants/theme';
++import type { ParentLinkedStudentItem } from '@/services/api-client';
++import { matchesSearchText } from '@/utils/search-text';
++import { TrackingEmptyState } from './tracking-empty-state';
++
++type StudentPickerDialogProps = {
++  students: ParentLinkedStudentItem[];
++  selectedId: string;
++  loading: boolean;
++  error: string | null;
++  canSelectStudent?: (student: ParentLinkedStudentItem) => boolean;
++  onSelect: (studentId: string) => void;
++  onClose: () => void;
++  onRetry: () => void;
++  onLink: () => void;
++};
++
++/** Mounted only while open so reopening always shows the complete linked list. */
++export function StudentPickerDialog({ students, selectedId, loading, error, canSelectStudent,
++  onSelect, onClose, onRetry, onLink }: StudentPickerDialogProps) {
++  const [query, setQuery] = useState('');
++  const [searchFocused, setSearchFocused] = useState(false);
++  const insets = useSafeAreaInsets();
++  const { height } = useWindowDimensions();
++  const availableHeight = Math.max(0, height - insets.top - insets.bottom - 32);
++  const filtered = students.filter(student => matchesSearchText(query, [student.fullName, student.code, student.schoolName]));
++  const close = () => { Keyboard.dismiss(); onClose(); };
++
++  return <Modal visible transparent animationType="fade" onRequestClose={close}>
++    <View style={[styles.overlay, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}>
++      <Pressable accessible={false} onPress={close} style={StyleSheet.absoluteFill} />
++      <View accessibilityViewIsModal style={[styles.modal, { height: Math.min(560, availableHeight) }]}>
++        <View style={styles.header}>
++          <View style={styles.headingIcon}><Ionicons name="people-outline" size={21} color={colors.navigationActive} accessible={false} /></View>
++          <Text accessibilityRole="header" style={styles.title}>Chọn học sinh</Text>
++          <Pressable accessibilityRole="button" accessibilityLabel="Đóng chọn học sinh" onPress={close}
++            style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
++            <Ionicons name="close" size={22} color={colors.mutedText} accessible={false} />
++          </Pressable>
++        </View>
++        <KeyboardScrollView style={styles.body} contentContainerStyle={styles.content}
++          keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
++          <View style={[styles.search, searchFocused && styles.searchFocused]}>
++            <Ionicons name="search-outline" size={20} color={colors.mutedText} accessible={false} />
++            <TextInput value={query} onChangeText={setQuery} placeholder="Tên, mã hoặc trường học"
++              placeholderTextColor={colors.mutedText} accessibilityLabel="Tìm học sinh theo tên, mã hoặc trường học"
++              style={styles.searchInput} autoFocus={false} autoCorrect={false} autoCapitalize="none"
++              onFocus={() => setSearchFocused(true)} onBlur={() => setSearchFocused(false)}
++              returnKeyType="search" onSubmitEditing={Keyboard.dismiss} editable={!loading && !error} />
++            {!!query && <Pressable accessibilityRole="button" accessibilityLabel="Xóa tìm kiếm" onPress={() => setQuery('')}
++              style={({ pressed }) => [styles.clear, pressed && styles.pressed]}>
++              <Ionicons name="close-circle" size={19} color={colors.mutedText} accessible={false} />
++            </Pressable>}
++          </View>
++          {loading ? <View style={styles.state}><ActivityIndicator color={colors.navigationActive} /><Text style={styles.stateText}>Đang tải học sinh...</Text></View>
++            : error ? <View style={styles.state}><Text accessibilityRole="alert" style={styles.error}>{error}</Text>
++              <Pressable accessibilityRole="button" onPress={onRetry} style={styles.stateAction}><Text style={styles.actionText}>Thử lại</Text></Pressable></View>
++            : students.length === 0 ? <TrackingEmptyState title="Chưa có học sinh liên kết" description={null}
++              onLink={() => { close(); onLink(); }} />
++            : <>
++              <Text accessibilityLiveRegion="polite" style={styles.resultCount}>{filtered.length} học sinh</Text>
++              {filtered.length === 0 ? <View style={styles.state}>
++                <View style={styles.emptyIcon}><Ionicons name="search-outline" size={26} color={colors.mutedText} accessible={false} /></View>
++                <Text style={styles.emptyTitle}>Không tìm thấy học sinh</Text>
++                <Pressable accessibilityRole="button" onPress={() => setQuery('')} style={styles.stateAction}>
++                  <Text style={styles.actionText}>Xóa tìm kiếm</Text>
++                </Pressable>
++              </View> : filtered.map(student => {
++                const unavailable = canSelectStudent ? !canSelectStudent(student) : student.status !== 'AVAILABLE';
++                const active = student.id === selectedId;
++                return <Pressable key={student.id} accessibilityRole="button"
++                  accessibilityLabel={`${student.fullName}, mã ${student.code}, ${student.schoolName}${unavailable ? ', đã vô hiệu hóa' : ''}`}
++                  accessibilityState={{ selected: active, disabled: unavailable }} disabled={unavailable}
++                  onPress={() => { onSelect(student.id); close(); }}
++                  style={({ pressed }) => [styles.card, active && styles.selected, unavailable && styles.disabled, pressed && styles.pressed]}>
++                  <UserAvatar avatarUrl={student.avatarUrl} fullName={student.fullName || 'Học sinh'} size={48} />
++                  <View style={styles.copy}>
++                    <Text style={styles.name}>{student.fullName}</Text>
++                    <Text style={styles.code}>Mã: {student.code}</Text>
++                    <View style={styles.schoolRow}>
++                      <Ionicons name="school-outline" size={13} color={colors.mutedText} accessible={false} />
++                      <Text style={styles.school}>{student.schoolName}</Text>
++                    </View>
++                    {unavailable && <Text style={styles.unavailable}>Học sinh đã bị vô hiệu hóa</Text>}
++                    {active && <Text style={styles.selectedText}>Đang chọn</Text>}
++                  </View>
++                  <Ionicons name={unavailable ? 'lock-closed-outline' : active ? 'checkmark-circle' : 'ellipse-outline'} size={22}
++                    color={active ? colors.navigationActive : colors.mutedText} accessible={false} />
++                </Pressable>;
++              })}
++            </>}
++        </KeyboardScrollView>
++      </View>
++    </View>
++  </Modal>;
++}
++
++const styles = StyleSheet.create({
++  overlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.48)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
++  modal: { width: '100%', maxWidth: 420, backgroundColor: colors.surface, borderRadius: 24, flexShrink: 1, overflow: 'hidden' },
++  header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 20, paddingRight: 12, paddingVertical: 12,
++    borderBottomWidth: 1, borderBottomColor: colors.border },
++  headingIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: colors.navigationHighlight, alignItems: 'center', justifyContent: 'center' },
++  title: { flex: 1, fontSize: 18, lineHeight: 24, fontWeight: '800', color: colors.foreground },
++  iconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
++  body: { flex: 1 },
++  content: { padding: 16, gap: 10 },
++  search: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 12, paddingRight: 4, minHeight: 50,
++    backgroundColor: colors.background, borderRadius: 14, borderWidth: 1, borderColor: colors.border },
++  searchFocused: { borderColor: colors.navigationActive },
++  searchInput: { flex: 1, minWidth: 0, minHeight: 48, paddingVertical: 12, fontSize: 14, lineHeight: 20,
++    fontWeight: '400', fontStyle: 'normal', letterSpacing: 0, color: colors.foreground },
++  clear: { width: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
++  resultCount: { color: colors.mutedText, fontSize: 12, lineHeight: 18, fontWeight: '600', marginTop: 4 },
++  card: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 18,
++    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
++  selected: { backgroundColor: colors.navigationHighlight, borderColor: colors.navigationActive },
++  copy: { flex: 1, minWidth: 0, gap: 3 },
++  name: { color: colors.foreground, fontSize: 15, lineHeight: 21, fontWeight: '700' },
++  code: { color: colors.mutedText, fontSize: 11, lineHeight: 16 },
++  schoolRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5 },
++  school: { flex: 1, minWidth: 0, color: colors.mutedText, fontSize: 12, lineHeight: 17 },
++  selectedText: { fontSize: 11, lineHeight: 16, fontWeight: '700', color: colors.navigationActive },
++  unavailable: { fontSize: 11, lineHeight: 16, color: colors.mutedText },
++  disabled: { opacity: 0.55 }, pressed: { opacity: 0.7 },
++  state: { paddingVertical: 24, alignItems: 'center', gap: 10 },
++  emptyIcon: { width: 56, height: 56, borderRadius: 20, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
++  emptyTitle: { color: colors.foreground, fontSize: 15, lineHeight: 21, fontWeight: '700', textAlign: 'center' },
++  stateText: { color: colors.mutedText, fontSize: 13, lineHeight: 19 },
++  error: { color: colors.error, fontSize: 13, lineHeight: 19, textAlign: 'center' },
++  stateAction: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 16 },
++  actionText: { color: colors.navigationActive, fontSize: 13, fontWeight: '700' },
++});
+--- /dev/null
++++ b/mobile/utils/search-text.ts
+@@ -0,0 +1,8 @@
++/** Match every search word across display fields, ignoring Vietnamese marks and case. */
++export function matchesSearchText(query: string, fields: readonly (string | null | undefined)[]): boolean {
++  const normalize = (value: string) => value.toLowerCase().normalize('NFD')
++    .replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
++  const words = normalize(query).trim().split(/\s+/).filter(Boolean);
++  const text = normalize(fields.filter(Boolean).join(' '));
++  return words.every(word => text.includes(word));
++}
+--- /dev/null
++++ b/mobile/scripts/search-text.test.ts
+@@ -0,0 +1,30 @@
++import { describe, it } from 'node:test';
++import assert from 'node:assert/strict';
++import { matchesSearchText } from '../utils/search-text.ts';
++
++// Display text only; no student fixtures, API responses or database operations.
++describe('display field search', () => {
++  it('keeps all results for blank search', () => {
++    assert.equal(matchesSearchText('  ', []), true);
++  });
++  it('ignores Vietnamese accents, đ and letter case', () => {
++    assert.equal(matchesSearchText('DUONG', ['Đường']), true);
++    assert.equal(matchesSearchText('đƯỜNG', ['duong']), true);
++    assert.equal(matchesSearchText('á', ['a\u0301']), true);
++  });
++  it('matches parts of codes without changing leading zeroes', () => {
++    assert.equal(matchesSearchText('001', ['HS-0012']), true);
++  });
++  it('matches every word across fields in either order', () => {
++    assert.equal(matchesSearchText('  binh\t001 ', ['HS-0012', 'Hòa Bình']), true);
++    assert.equal(matchesSearchText('001 binh', ['Hòa Bình', 'HS-0012']), true);
++  });
++  it('does not accept a result when any word is missing', () => {
++    assert.equal(matchesSearchText('binh 002', ['Hòa Bình', 'HS-0012']), false);
++  });
++  it('accepts missing fields and treats punctuation literally', () => {
++    assert.equal(matchesSearchText('[', [null, undefined, '']), false);
++    assert.equal(matchesSearchText('.*', ['Hòa Bình']), false);
++    assert.equal(matchesSearchText('hs-00', [undefined, 'HS-0012']), true);
++  });
++});
+--- a/docs/architecture/mobile-leave-student-card.md
++++ b/docs/architecture/mobile-leave-student-card.md
+@@ -1,6 +1,6 @@
+ # Tạo báo nghỉ — chọn học sinh đồng bộ Đổi điểm
+ 
+-Cập nhật01/11/2026. Hai form dùng cùng dropdown/modal; lần sửa này đồng bộ thêm trạng thái ban đầu: không tự chọn học sinh đầu tiên khi vào Tạo báo nghỉ không có studentId. Chưa commit/push lần sửa này.
++Cập nhật01/11/2026. Hai form dùng cùng dropdown/modal, không tự chọn học sinh đầu tiên khi vào form tổng quát. Popup đã được thiết kế lại với card và tìm kiếm; chưa commit/push các lần sửa01/11 này.
+ 
+ ## Component dùng chung và bố cục
+ 
+@@ -10,16 +10,35 @@
+ HỌC SINH
+ [Chọn học sinh                              v]
+                    ↓ nhấn để mở popup
+-[Avatar40] Tên · Mã học sinh · Trường         [✓ nếu chọn]
++[Avatar48] Tên · Mã học sinh · Trường         [✓ nếu chọn]
+                    ↓ chọn một card
+ [Avatar40] Tên học sinh                  [v / Cố định]
+            Mã học sinh · Trường
+ ```
+ 
+ - Cùng nền trắng, border theme, bo12, padding14×12, khoảng cách8 và typography của dropdown Đổi điểm; tên14/20, metadata11/16, không shadow/card bo20 riêng như lần trước.
+-- Avatar40 của con đã chọn lấy đúng Student.avatarUrl qua UserAvatar; popup cũng dùng avatar40 riêng từng con, giữ tên/mã/trường/checkmark. Thiếu hoặc lỗi ảnh dùng chữ đầu tên theo helper chung, không lấy avatar phụ huynh/ảnh con đầu hoặc tạo hình giả.
++- Avatar40 của con đã chọn lấy đúng Student.avatarUrl qua UserAvatar; popup dùng avatar48 riêng từng con, giữ tên/mã/trường/checkmark. Thiếu hoặc lỗi ảnh dùng chữ đầu tên theo helper chung, không lấy avatar phụ huynh/ảnh con đầu hoặc tạo hình giả.
+ - Text metadata và tên tự wrap, không numberOfLines/ellipsis. Chưa chọn giữ nhãn Chọn học sinh; mode fixed giữ Học sinh khi chưa tải và badge Cố định, không mở popup.
+-- Popup cùng màu, row/selection/close/scroll/safe-area và hành vi dismiss keyboard của Shared Picker; không có TextInput hoặc autoFocus mới. Avatar và trường/mã vẫn hiện đủ sau đồng bộ.
++- Popup dùng [StudentPickerDialog](../../mobile/components/parent/student-picker-dialog.tsx) chung, có TextInput tìm kiếm nhưng `autoFocus={false}`; không tự bật bàn phím. Avatar và trường/mã vẫn hiện đủ sau đồng bộ.
++
++## Popup card và tìm kiếm — 01/11/2026
++
++```text
++[Icon] Chọn học sinh                         [×]
++[Tìm theo tên, mã hoặc trường học]       [xóa]
++N học sinh
++[Avatar48] Tên học sinh                       [✓/○]
++           Mã: ...
++           Trường ...
++           Đang chọn / Đã vô hiệu hóa (nếu có)
++```
++
++- Khung trắng bo24 rộng tối đa420, gutter16. Header có nút đóng48; card bo18/padding14, màu theme, viền vàng nâu và nền vàng nhạt khi chọn, cùng dấu tích và nhãn Đang chọn để không phụ thuộc màu. Tên/mã/trường wrap đầy đủ, không ellipsis.
++- Chiều cao popup là min(560, chiều cao viewport trừ safe area và gutter32), giữ vị trí ô tìm kiếm ổn định khi kết quả thay đổi. Đây là kích thước khung, không phải offset/chiều cao bàn phím giả định. Nội dung cuộn trong KeyboardScrollView riêng; header đóng luôn ở ngoài vùng cuộn.
++- Tìm ngay trong danh sách linked hiện có bằng [matchesSearchText](../../mobile/utils/search-text.ts), theo tên/mã/trường, không phân biệt hoa thường hoặc dấu tiếng Việt/đ. Mỗi từ khóa phải xuất hiện trong các trường; không sắp xếp lại dữ liệu hoặc đổi selection khi lọc. Không GET search, không gửi query hay lấy học sinh ngoài linked list.
++- Có số kết quả, nút xóa query và trạng thái Không tìm thấy học sinh kèm Xóa tìm kiếm; không nhầm không khớp với chưa liên kết. Loading/error/retry và empty liên kết vẫn riêng. Query rỗng hiển thị toàn bộ danh sách, kể cả học sinh disabled (giữ policy của caller).
++- Chọn card đóng popup/dismiss bàn phím; nút đóng, backdrop riêng và Android Back đóng tương tự. Popup chỉ mount khi mở nên query được xóa khi đóng rồi mở lại; selectedId của form giữ nguyên. Backdrop là sibling absolute, không bọc input/card và không chặn responder cuộn.
++- TextInput có accessibilityLabel, không autoFocus; icon trang trí ẩn, card có selected/disabled và tên truy cập gồm tên/mã/trường. Search/clear/close đáp ứng hit target48. Không tự thêm animation ngoài fade Modal hiện có.
+ 
+ ## Props và quyền chọn
+ 
+@@ -42,4 +61,4 @@
+ 
+ Source/AST phải giữ các controllers/options/OTP/cooldown và API call arguments; typecheck/Expo export phải đạt. Preview chỉ dùng component/style/UserAvatar thật và trường hồ sơ từ SELECT read-only local, không mock API hoặc tạo Student/Trip records. Mode mutable/fixed và row popup được trình bày cùng nhau chỉ để so sánh, không phải integrated form đang hoạt động.
+ 
+-Native iPhone/Android popup, callback selection/focus, keyboard/VoiceOver/Dynamic Type và ảnh thật chưa được nghiệm thu bởi SSR/typecheck. Kết quả thực tế và giới hạn tại [AI Review](../ai-review/LATEST.md).
++Pure tests tìm kiếm dùng text/number, không fake business DTOs. SSR Chromium chỉ kiểm tra JSX/style các trạng thái query trên snapshot hồ sơ thật đã SELECT trước đây; portal/viewport/scroll được adapter cho trình bày, không chứng nhận tương tác. Native iPhone/Android popup, callback selection/focus, keyboard/VoiceOver/Dynamic Type và ảnh thật chưa được nghiệm thu bởi SSR/typecheck. Kết quả thực tế và giới hạn tại [AI Review](../ai-review/LATEST.md).
+--- a/docs/architecture/mobile-parent-stop-requests.md
++++ b/docs/architecture/mobile-parent-stop-requests.md
+@@ -24,7 +24,7 @@
+ ## Hiện hành — chọn con ngay trên form (30/10/2026)
+ 
+ - [change-stop/create.tsx](../../mobile/app/parent/change-stop/create.tsx) mở [CreateAddressRequestView](../../mobile/components/parent/create-address-request-view.tsx) ở chế độ chọn con. Giữ đầy đủ notice phê duyệt, địa chỉ hiện tại, tìm kiếm/gợi ý VietMap, bản đồ270px, địa chỉ/tọa độ đề xuất và nút OTP.
+-- [LinkedStudentPicker](../../mobile/components/parent/linked-student-picker.tsx) nay dùng chung trực tiếp với Tạo báo nghỉ, nhận danh sách/thông tin chọn/loading/error/callback. Dropdown bo12, padding14×12, label uppercase; avatar40, tên và metadata mã/trường wrap đầy đủ. Modal cùng avatar/mã/trường/checkmark, đóng/backdrop/Android Back, cuộn theo viewport/safe area. `fixed` hiện Cố định và không mở popup, dùng cho cả hai điểm vào từ hồ sơ. `canSelectStudent?` là policy của caller; Đổi điểm không truyền nên giữ AVAILABLE, không đổi guard. Không có TextInput trong modal, không tự focus. Mở modal đóng bàn phím bằng Keyboard.dismiss; chưa nghiệm thu thiết bị.
++- [LinkedStudentPicker](../../mobile/components/parent/linked-student-picker.tsx) dùng chung trực tiếp với Tạo báo nghỉ, nhận danh sách/thông tin chọn/loading/error/callback. Dropdown bo12, padding14×12, label uppercase; avatar40, tên và metadata mã/trường wrap đầy đủ. Popup [StudentPickerDialog](../../mobile/components/parent/student-picker-dialog.tsx) bo24, card riêng có avatar48/mã/trường/checkmark, có tìm kiếm tên/mã/trường không phân biệt dấu. Đóng/backdrop/Android Back và KeyboardScrollView theo viewport/safe area; search không autoFocus. `fixed` hiện Cố định và không mở popup. `canSelectStudent?` vẫn do caller quyết định; Đổi điểm giữ AVAILABLE, không đổi guard. Tìm kiếm chỉ lọc linked list, không GET mới hoặc đổi lựa chọn khi query đổi. [Props, search, layout và kiểm chứng](mobile-leave-student-card.md#popup-card-và-tìm-kiếm--01112026).
+ - Đồng bộ01/11/2026: Tạo báo nghỉ không còn tự chọn con đầu; cả hai form tổng quát đều bắt đầu bằng Học sinh → Chọn học sinh → popup card các con. Chế độ cố định khi vào từ hồ sơ giữ nguyên. Không sửa code/guard hoặc cách chọn của Đổi điểm trong lần này.
+ - Chưa chọn con: form vẫn hiển thị toàn bộ các phần, nhưng input/bản đồ/OTP chưa được bật. Bản đồ dùng placeholder trung tính thay vì tải tile khi chưa biết con. Chưa có con: có Liên kết học sinh ở thẻ và TrackingEmptyState hiện có trong modal; không tự tạo dữ liệu. Lỗi danh sách/detail có Thử lại, không coi lỗi mạng như danh sách rỗng.
+ - [useAddressRequestStudent](../../mobile/hooks/use-address-request-student.ts) đọc GET linked students/focus và detail của ID đã chọn; response scope cũ bị bỏ qua. Không tự chọn con đầu. Nếu con không còn liên kết sau refresh, bỏ lựa chọn; lỗi danh sách khóa thao tác gửi cho tới khi đọc được danh sách hợp lệ.
+--- a/docs/architecture/mobile-ui-implementation-status.md
++++ b/docs/architecture/mobile-ui-implementation-status.md
+@@ -1,6 +1,10 @@
+ # Hiện trạng giao diện Mobile — Onboarding, xác thực và điều hướng
+ 
+ Ngày cập nhật: **29/10/2026 (Asia/Saigon)**. Commit `db02de6` là mốc Phase1 trên nhánh `dongnnp/mobile/refactor-ui`; các cập nhật local được ghi riêng bên dưới. Tài liệu này ghi nhận phần đã triển khai trong đợt chuyển phong cách V1 sang V2; không phải phê duyệt toàn bộ kế hoạch chuyển giao diện hoặc chứng nhận nghiệm thu thiết bị.
++
++## Popup chọn học sinh — card và tìm kiếm (01/11/2026, local)
++
++LinkedStudentPicker dùng StudentPickerDialog chung cho Báo nghỉ/Đổi điểm. Popup bo24, card avatar48/tên/mã/trường, viền/nền vàng nhạt + dấu tích/Đang chọn. Search theo tên/mã/trường ngay trên linked list, bỏ dấu/hoa thường, có số kết quả, xóa query và trạng thái không tìm thấy; giữ policy/selectedId và không có API search mới. Khung ổn định theo viewport/safe area, KeyboardScrollView riêng, không autoFocus. [Component/search/keyboard/giới hạn](mobile-leave-student-card.md#popup-card-và-tìm-kiếm--01112026). Chưa commit/push; native acceptance chưa xác minh.
+ 
+ ## Tạo báo nghỉ — chọn học sinh giống Đổi điểm (01/11/2026, local)
+ 
+--- a/docs/architecture/mobile-keyboard-behavior.md
++++ b/docs/architecture/mobile-keyboard-behavior.md
+@@ -27,11 +27,15 @@
+ - The existing six-box registration OTP uses an invisible TextInput. It now fills its visible OTP row, so geometry refers to the actual editing location rather than a one-pixel field at the top of the form.
+ - The attendance search is inside the roster scroll region, within the existing trip drawer; the QR manual input is inside the modal's own scroll region. Camera/API callbacks are unchanged.
+ 
++### Student picker search popup — 01/11/2026
++
++[StudentPickerDialog](../../mobile/components/parent/student-picker-dialog.tsx) now owns an input inside its own KeyboardScrollView, shared by leave and stop-change forms. Search is manually focused (`autoFocus=false`), above the result cards. Close/choose dismisses the keyboard; backdrop is a sibling rather than an enclosing press target. The header remains outside the scroll owner. The dialog height uses the viewport/safe area with a560px cap so filtering does not recenter the search field; this cap is not a keyboard offset. iOS keyboard insets and Mobile Web visualViewport are handled by the existing wrapper without a second KeyboardAvoidingView. Native search/scroll/keyboard restoration remains NOT_VERIFIED.
++
+ No new package, native configuration, backend, API or data changes.
+ 
+ ## Coverage
+ 
+-Phase1 verified29 TextInputs across15 implementation files with a KeyboardScrollView ancestor: five authentication screens; parent linking/OTP and address/information/update OTP forms; leave creation/OTP; settings password/name modals; trip attendance search, absence, QR manual entry, report and explanation modals; incident explanation modal. The address form input now lives in [CreateAddressRequestView](../../mobile/components/parent/create-address-request-view.tsx), shared by `/parent/change-stop/create` and the fixed-student address route; the wrapper remains KeyboardScrollView, without autoFocus or extra keyboard inset. [Inline student picker](mobile-parent-stop-requests.md#hiện-hành--chọn-con-ngay-trên-form-30102026) dismisses the keyboard before opening its input-free, scrollable modal. Actual native keyboard/modal behavior in this new flow remains NOT_VERIFIED. Read-only selection lists do not need keyboard handling. Future forms/drawers must use the same bounded scroll owner.
++Phase1 verified29 TextInputs across15 implementation files with a KeyboardScrollView ancestor: five authentication screens; parent linking/OTP and address/information/update OTP forms; leave creation/OTP; settings password/name modals; trip attendance search, absence, QR manual entry, report and explanation modals; incident explanation modal. The address form input now lives in [CreateAddressRequestView](../../mobile/components/parent/create-address-request-view.tsx), shared by `/parent/change-stop/create` and the fixed-student address route; the wrapper remains KeyboardScrollView, without autoFocus or extra keyboard inset. [Inline student picker](mobile-parent-stop-requests.md#hiện-hành--chọn-con-ngay-trên-form-30102026) dismisses the page keyboard before opening its popup; since01/11 the popup has its own search input and KeyboardScrollView. The old input-free popup description is superseded. Actual native keyboard/modal behavior in this new flow remains NOT_VERIFIED. Future forms/drawers must use the same bounded scroll owner.
+ 
+ ## Manual acceptance checklist
+ 

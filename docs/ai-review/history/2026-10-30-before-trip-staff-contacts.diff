@@ -1,0 +1,146 @@
+--- a/mobile/utils/child-map-marker.ts
++++ b/mobile/utils/child-map-marker.ts
+@@ -5 +5,2 @@
+-export const childMapPinSize = { width: 52, height: 66 } as const;
++export const childMapPinSize = { width: 24, height: 30 } as const;
++const portraitSize = childMapPinSize.width * 0.75;
+@@ -8 +9,3 @@
+-  .child-map-pin { position: relative; width: 52px; height: 66px; filter: drop-shadow(0 3px 3px rgba(23,36,59,.25)); }
++  .child-map-pin { position: relative; width: ${childMapPinSize.width}px; height: ${childMapPinSize.height}px; filter: drop-shadow(0 1px 2px rgba(23,36,59,.25)); }
++  .child-map-pin::before { content: ''; position: absolute; width: 44px; height: 44px;
++    left: ${(childMapPinSize.width - 44) / 2}px; top: ${(childMapPinSize.height - 44) / 2}px; }
+@@ -10 +13,2 @@
+-  .child-map-pin-face { position: absolute; left: 7px; top: 7px; width: 38px; height: 38px; border-radius: 50%;
++  .child-map-pin-face { position: absolute; left: ${(childMapPinSize.width - portraitSize) / 2}px;
++    top: ${childMapPinSize.height * 26 / 66 - portraitSize / 2}px; width: ${portraitSize}px; height: ${portraitSize}px; border-radius: 50%;
+@@ -12 +16 @@
+-    justify-content: center; font-family: system-ui, sans-serif; font-size: 17px; font-weight: 800; }
++    justify-content: center; font-family: system-ui, sans-serif; font-size: 10px; font-weight: 800; }
+@@ -29,2 +33,2 @@
+-      var words = name.replace(/\\s*\\(Con bạn\\)\\s*$/, '').trim().split(/\\s+/);
+-      pin.initial.textContent = (words[words.length - 1] || '?').charAt(0).toUpperCase();
++      var fullName = name.replace(/\\s*\\(Con bạn\\)\\s*$/, '');
++      pin.initial.textContent = (fullName || 'H').charAt(0).toUpperCase();
+@@ -32 +36 @@
+-      if (url === pin.url) return;
++      if (url === pin.url && !pin.failed) return;
+@@ -33,0 +38 @@
++      pin.failed = false;
+@@ -43,0 +49 @@
++        pin.failed = false;
+@@ -48,0 +55 @@
++        pin.failed = true;
+@@ -66 +73 @@
+-      var pin = { studentId: studentId, name: name, face: face, initial: initial, image: null, url: null };
++      var pin = { studentId: studentId, name: name, face: face, initial: initial, image: null, url: null, failed: false };
+--- a/mobile/hooks/use-parent-map-avatars.ts
++++ b/mobile/hooks/use-parent-map-avatars.ts
+@@ -1,2 +1 @@
+-import { useCallback, useState } from 'react';
+-import { useFocusEffect } from 'expo-router';
++import { useState } from 'react';
+@@ -3,0 +3 @@
++import { useActiveRefresh } from '@/hooks/use-active-refresh';
+@@ -7,3 +7,3 @@
+-/** Read only the signed-in parent's linked children, once per screen focus. */
+-export function useParentMapAvatars(identity: string, enabled: boolean): readonly MapChild[] {
+-  const [snapshot, setSnapshot] = useState<{ identity: string; children: MapChild[] } | null>(null);
++/** Refresh the same student profiles used by Tracking; never share data across accounts. */
++export function useParentMapAvatars(identity: string, enabled: boolean) {
++  const [snapshot, setSnapshot] = useState<{ identity: string; children: MapChild[]; revision: number } | null>(null);
+@@ -11,10 +11,18 @@
+-  useFocusEffect(useCallback(() => {
+-    if (!enabled) return;
+-    let current = true;
+-    mobileApiClient.getLinkedStudents().then(children => {
+-      if (current) setSnapshot({ identity, children: children.map(({ id, fullName, avatarUrl }) => ({ id, fullName, avatarUrl })) });
+-    }).catch(() => {
+-      if (current) setSnapshot({ identity, children: [] });
+-    });
+-    return () => { current = false; };
+-  }, [identity, enabled]));
++  useActiveRefresh(JSON.stringify([identity, enabled]), async ({ isCurrent }) => {
++    if (!enabled) return false;
++    try {
++      const children = await mobileApiClient.getLinkedStudents();
++      if (!isCurrent()) return;
++      setSnapshot(previous => ({ identity,
++        children: children.map(({ id, fullName, avatarUrl }) => ({ id, fullName, avatarUrl })),
++        revision: previous?.identity === identity ? previous.revision + 1 : 1,
++      }));
++    } catch (error: any) {
++      if (!isCurrent()) return;
++      if ([401, 403, 404].includes(error?.statusCode)) {
++        setSnapshot(null);
++        return false;
++      }
++      // Retain known avatars on temporary errors; the foreground loop retries.
++    }
++  }, 20000);
+@@ -22 +30,2 @@
+-  return enabled && snapshot?.identity === identity ? snapshot.children : [];
++  const current = enabled && snapshot?.identity === identity ? snapshot : null;
++  return { children: current?.children ?? [], revision: current?.revision ?? 0 };
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -218 +218 @@
+-  const linkedMapChildren = useParentMapAvatars(identity, isParent);
++  const { children: linkedMapChildren, revision: mapAvatarRevision } = useParentMapAvatars(identity, isParent);
+@@ -413 +412,0 @@
+-          var hasChildPins = false;
+@@ -423 +421,0 @@
+-              hasChildPins = true;
+@@ -429 +427 @@
+-              iconAnchor: ownChildPin ? [${childMapPinSize.width / 2}, ${childMapPinSize.height - 1}] : [14, 14],
++              iconAnchor: ownChildPin ? [${childMapPinSize.width / 2}, ${childMapPinSize.height * 65 / 66}] : [14, 14],
+@@ -446,3 +444 @@
+-            map.fitBounds(bounds, hasChildPins
+-              ? { paddingTopLeft: [50, ${childMapPinSize.height + 16}], paddingBottomRight: [50, 50] }
+-              : { padding: [50, 50] });
++            map.fitBounds(bounds, { padding: [50, 50] });
+@@ -573,0 +570 @@
++  // A fresh successful read also retries an image that failed at the same URL.
+@@ -576 +573 @@
+-  }, [mapAvatars]);
++  }, [mapAvatars, mapAvatarRevision]);
+--- a/docs/architecture/mobile-parent-map-markers.md
++++ b/docs/architecture/mobile-parent-map-markers.md
+@@ -10,2 +10,2 @@
+-- Khung52×66 CSS px, ảnh tròn38px với `object-fit: cover`.
+-- Mũi ghim neo tại `[26,65]`, đúng tọa độ điểm đón/trả. Popup neo phía trên ghim.
++- Khung24×30 CSS px, ảnh tròn18px với `object-fit: cover`, tương đương chiều cao icon Parking/trường thay cho ghim52×66 cũ. Vùng nhận nhấn trong suốt44×44px, không làm ảnh ghim lớn hơn.
++- Mũi ghim neo tại `[12, 30×65/66]`, đúng tọa độ điểm đón/trả. Popup neo phía trên ghim.
+@@ -13 +13 @@
+-- Chưa có ảnh, đang tải, ảnh lỗi hoặc nguồn ảnh không khả dụng: giữ ghim, hiện chữ cái cuối tên. Không sinh ảnh học sinh giả. Ảnh có sẵn sẽ tự thay chữ khi tải thành công.
++- Chưa có ảnh, đang tải, ảnh lỗi hoặc nguồn ảnh không khả dụng: giữ ghim, hiện chữ đầu tên giống StudentCard/chi tiết học sinh/Home. Không sinh ảnh học sinh giả. Ảnh có sẵn sẽ tự thay chữ khi tải thành công.
+@@ -21 +21,12 @@
+-[useParentMapAvatars](../../mobile/hooks/use-parent-map-avatars.ts) chỉ đọc cho PARENT, một lần mỗi khi màn hình focus. Không gộp lỗi ảnh vào controller vận hành hoặc polling5s của chuyến. Khi đổi identity/role, dữ liệu cũ không được trả về; callback hết hiệu lực sau blur/unmount/đổi scope. Đọc lỗi trả danh sách ảnh rỗng, bản đồ vẫn dùng chữ dự phòng. Focus lại sẽ thử đọc lại.
++[useParentMapAvatars](../../mobile/hooks/use-parent-map-avatars.ts) chỉ đọc cho PARENT, ngay khi focus và mỗi20s lúc active qua useActiveRefresh hiện có. Không gộp lỗi ảnh vào controller vận hành/polling5s chuyến. Khi đổi identity/role, dữ liệu cũ không được trả về; isCurrent chặn kết quả sau blur/background/unmount/đổi scope. Lỗi tạm giữ ảnh đã biết và thử lại ở nhịp sau;401/403/404 xóa dữ liệu ảnh, dừng đến khi focus lại. Khi chưa có dữ liệu vẫn hiện chữ dự phòng. Mỗi lần đọc thành công tăng revision để thử lại ảnh lỗi ở cùng URL; ảnh đã tải được không tạo lại node.
++
++Nguồn ảnh đồng bộ với các trang hiện có, không tự tạo bản sao ảnh hoặc lấy ảnh phụ huynh:
++
++| Nơi hiển thị | Nguồn |
++| --- | --- |
++| Theo dõi / StudentCard | GET /parents/students → student.avatarUrl |
++| Chi tiết học sinh | GET /parents/students/:id → student.avatarUrl |
++| Card Trang chủ | API Home → studentAvatar từ cùng Student.avatarUrl |
++| Ghim bản đồ | GET /parents/students → avatarUrl, join studentId của own stop |
++
++Các view khác giữ nguyên source/logic; fallback trên ghim dùng chữ đầu tên như các view này. Ảnh đổi ở hồ sơ sẽ được ghim đọc lại ở nhịp20s tiếp theo khi active hoặc ngay khi focus lại; còn phụ thuộc thời gian request/tải ảnh, không hứa đồng bộ tức thời khi offline/background hoặc backend khác cấu hình.
+@@ -33 +44 @@
+-`createChildMapPin(studentId, name)` tạo HTMLElement để truyền vào `L.divIcon`. `setChildMapAvatars(children)` cập nhật các face đã có qua ID, không tạo lại marker hay map. Mảng chỉ chứa `id/fullName/avatarUrl` sau bộ lọc quyền. Khi URL không đổi giữ node ảnh, không tải lại liên tục. URL đổi xóa ảnh cũ; callback cũ không được ghi đè ảnh mới. Thiếu dữ liệu cho một pin sẽ bỏ ảnh cũ và trở về chữ dự phòng.
++`createChildMapPin(studentId, name)` tạo HTMLElement để truyền vào `L.divIcon`. `setChildMapAvatars(children)` cập nhật các face đã có qua ID, không tạo lại marker hay map. Mảng chỉ chứa `id/fullName/avatarUrl` sau bộ lọc quyền. Khi URL không đổi và ảnh đang tải/đã tải được thì giữ node, không tải lại liên tục. Nếu ảnh trước đã lỗi, lần bridge update sau sẽ tạo lại img ở cùng URL để thử lại; không có vòng lặp retry nhanh. URL đổi xóa ảnh cũ; callback cũ không được ghi đè ảnh mới. Thiếu dữ liệu cho một pin sẽ bỏ ảnh cũ và trở về chữ dự phòng.
+@@ -35 +46 @@
+-`childMapPinSize` dùng chung cho Leaflet iconSize/iconAnchor/popupAnchor. Muốn đổi kích thước cần cập nhật CSS/SVG crop tương ứng, giữ mũi ghim trỏ tọa độ. Leaflet1.9.4 hiện có hỗ trợ HTMLElement trong divIcon; [API reference](https://leafletjs.com/reference#divicon).
++`childMapPinSize` dùng chung cho CSS và Leaflet iconSize/iconAnchor/popupAnchor. Portrait tính theo chiều rộng, tâm và tip tính theo hệ tọa độ SVG52×66, không để thông số CSS và Leaflet lệch nhau khi đổi size. Leaflet1.9.4 hiện có hỗ trợ HTMLElement trong divIcon; [API reference](https://leafletjs.com/reference#divicon).
+@@ -43 +54 @@
+-Marker Leaflet có aria-label Điểm đón/Điểm trả kèm tên con; SVG/ảnh trang trí không tạo nhãn lặp. Focus ring trên wrapper keyboard. Khung ghim lớn hơn marker cũ; fitBounds tăng đệm trên82px khi có ghim ảnh để tránh cắt đầu ghim, các màn/role không có ghim vẫn padding50px cũ. Safe area/bottom sheet/map controls giữ nguyên. Không thêm animation hoặc auto-pan khi ảnh tải.
++Marker Leaflet có aria-label Điểm đón/Điểm trả kèm tên con; SVG/ảnh trang trí không tạo nhãn lặp. Focus ring trên wrapper keyboard. Ghim đã thu nhỏ nên fitBounds trở về padding50px cũ cho mọi role. Safe area/bottom sheet/map controls giữ nguyên. Không thêm animation hoặc auto-pan khi ảnh tải.
+@@ -50 +61 @@
+-- PASS kiểm tra component trên Chromium ở320/390px: ghim52×66, khung ảnh tròn, tải ảnh thành công, thiếu ảnh, lỗi ảnh, chặn URL javascript, khôi phục ảnh và giữ node khi URL không đổi; không tràn ngang. Preview dùng logo có sẵn làm input kiểm tra khung ảnh, không phải ảnh con/DTO chuyến hoặc response API giả.
++- PASS kiểm tra component Chromium320/390px: ghim24×30, ảnh18px, so sánh với Parking32×32/trường34×34 (tính cả border CSS cũ), không tràn ngang. Tải ảnh tốt giữ node; lỗi404 rồi asset có lại được thử lại thành công ở cùng URL; fallback chữ đầu H khi thiếu tên. Preview chỉ dùng logo có sẵn để kiểm tra khung ảnh, không phải ảnh con/DTO chuyến hoặc response API giả. Kết quả shape52×66 của đợt trước là lịch sử, không size hiện hành.
+--- a/docs/architecture/mobile-parent-home-ui.md
++++ b/docs/architecture/mobile-parent-home-ui.md
+@@ -7 +7 @@
+-Từ card → Theo dõi lộ trình, điểm đón/trả riêng của mỗi con trên `/trip/[id]` dùng ghim giọt nước có avatar theo ảnh PO cung cấp, thay marker ngôi sao. Ảnh ghép theo studentId qua API danh sách con có sẵn, không đổi dữ liệu chuyến và không reload bản đồ khi ảnh cập nhật. [Nguồn ảnh, privacy, component/lifecycle và kiểm chứng](mobile-parent-map-markers.md).
++Từ card → Theo dõi lộ trình, điểm đón/trả riêng của mỗi con trên `/trip/[id]` dùng ghim giọt nước24×30 có avatar18px theo ảnh PO cung cấp, thay marker ngôi sao. Ảnh ghép theo studentId từ cùng hồ sơ học sinh như Theo dõi/chi tiết/Home, đọc lại20s lúc active và khi focus, thử lại ảnh lỗi cùng URL. Fallback chữ đầu tên giống các view khác; không đổi dữ liệu chuyến và không reload bản đồ khi ảnh cập nhật. [Nguồn ảnh, privacy, component/lifecycle và kiểm chứng](mobile-parent-map-markers.md).

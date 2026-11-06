@@ -1,0 +1,372 @@
+diff --git a/mobile/app/(tabs)/index.tsx b/mobile/app/(tabs)/index.tsx
+index 495762f..8c56969 100644
+--- a/mobile/app/(tabs)/index.tsx
++++ b/mobile/app/(tabs)/index.tsx
+@@ -15,0 +16 @@ import { colors } from '@/constants/theme';
++import { parentHomeStyles } from '@/components/parent/home-styles';
+@@ -26,0 +28 @@ export default function HomeScreen() {
++  const isParent = user?.role === 'PARENT';
+@@ -117,2 +119,2 @@ export default function HomeScreen() {
+-      style={styles.container}
+-      contentContainerStyle={styles.content}
++      style={[styles.container, isParent && parentHomeStyles.container]}
++      contentContainerStyle={[styles.content, isParent && parentHomeStyles.content]}
+@@ -124,3 +126,3 @@ export default function HomeScreen() {
+-      <View style={styles.utilityCard}>
+-        <View style={styles.utilityHeader}>
+-          <Text style={styles.utilityCardTitle}>Tiện ích</Text>
++      <View style={[styles.utilityCard, isParent && parentHomeStyles.utilityCard]}>
++        <View style={[styles.utilityHeader, isParent && parentHomeStyles.utilityHeader]}>
++          <Text style={[styles.utilityCardTitle, isParent && parentHomeStyles.utilityCardTitle]}>Tiện ích</Text>
+@@ -128 +130,3 @@ export default function HomeScreen() {
+-            style={styles.refreshIconBtn}
++            accessibilityRole={isParent ? "button" : undefined}
++            accessibilityLabel={isParent ? "Làm mới trang chủ" : undefined}
++            style={[styles.refreshIconBtn, isParent && parentHomeStyles.refreshIconBtn]}
+@@ -130 +134 @@ export default function HomeScreen() {
+-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
++            hitSlop={isParent ? undefined : { top: 10, bottom: 10, left: 10, right: 10 }}
+@@ -136 +140 @@ export default function HomeScreen() {
+-        <View style={styles.utilityCenter}>
++        <View style={[styles.utilityCenter, isParent && parentHomeStyles.utilityCenter]}>
+@@ -138 +142,3 @@ export default function HomeScreen() {
+-            style={styles.utilityActionBtn}
++            style={[styles.utilityActionBtn, isParent && parentHomeStyles.utilityActionBtn]}
++            accessibilityRole={isParent ? 'button' : undefined}
++            accessibilityLabel={isParent ? 'Báo nghỉ' : undefined}
+@@ -142 +148 @@ export default function HomeScreen() {
+-            <View style={styles.utilityIconWrap}>
++            <View style={[styles.utilityIconWrap, isParent && parentHomeStyles.utilityIconWrap]}>
+@@ -145 +151 @@ export default function HomeScreen() {
+-            <Text style={styles.utilityActionText}>Báo nghỉ</Text>
++            <Text style={[styles.utilityActionText, isParent && parentHomeStyles.utilityActionText]}>Báo nghỉ</Text>
+@@ -150 +156 @@ export default function HomeScreen() {
+-              style={styles.utilityActionBtn}
++              style={[styles.utilityActionBtn, isParent && parentHomeStyles.utilityActionBtn]}
+@@ -157 +163 @@ export default function HomeScreen() {
+-              <Text style={styles.utilityActionText}>Sự cố</Text>
++              <Text style={[styles.utilityActionText, isParent && parentHomeStyles.utilityActionText]}>Sự cố</Text>
+@@ -165 +171 @@ export default function HomeScreen() {
+-        <View style={styles.loadingContainer}>
++        <View style={[styles.loadingContainer, isParent && parentHomeStyles.loadingContainer]}>
+@@ -167 +173 @@ export default function HomeScreen() {
+-          <Text style={styles.loadingText}>Đang cập nhật chuyến xe...</Text>
++          <Text style={[styles.loadingText, isParent && parentHomeStyles.loadingText]}>Đang cập nhật chuyến xe...</Text>
+@@ -170 +176 @@ export default function HomeScreen() {
+-        <View style={styles.emptyContainer}>
++        <View style={[styles.emptyContainer, isParent && parentHomeStyles.emptyContainer]}>
+@@ -172,4 +178,4 @@ export default function HomeScreen() {
+-          <Text style={styles.emptyTitle}>Lỗi kết nối</Text>
+-          <Text style={styles.emptySubtitle}>{error}</Text>
+-          <TouchableOpacity style={styles.actionBtn} onPress={loadHomeData}>
+-            <Text style={styles.actionBtnText}>Thử lại</Text>
++          <Text style={[styles.emptyTitle, isParent && parentHomeStyles.emptyTitle]}>Lỗi kết nối</Text>
++          <Text style={[styles.emptySubtitle, isParent && parentHomeStyles.emptySubtitle]}>{error}</Text>
++          <TouchableOpacity accessibilityRole={isParent ? 'button' : undefined} style={[styles.actionBtn, isParent && parentHomeStyles.actionBtn]} onPress={loadHomeData}>
++            <Text style={[styles.actionBtnText, isParent && parentHomeStyles.actionBtnText]}>Thử lại</Text>
+@@ -379 +385,2 @@ export default function HomeScreen() {
+-          <View style={styles.parentCardList}>
++          <View style={parentHomeStyles.parentCardList}>
++            <Text accessibilityRole="header" style={parentHomeStyles.sectionTitle}>Chuyến xe của con</Text>
+@@ -383 +390 @@ export default function HomeScreen() {
+-                <View key={card.studentId} style={styles.tripCard}>
++                <View key={card.studentId} style={parentHomeStyles.tripCard}>
+@@ -385,2 +392,2 @@ export default function HomeScreen() {
+-                  <View style={styles.parentStudentHeader}>
+-                    <View style={styles.avatarCircle}>
++                  <View style={parentHomeStyles.parentStudentHeader}>
++                    <View style={parentHomeStyles.avatarCircle}>
+@@ -389,3 +396,3 @@ export default function HomeScreen() {
+-                    <View style={{ flex: 1 }}>
+-                      <Text style={styles.studentName}>{card.studentName}</Text>
+-                      <Text style={styles.metaText}>{card.schoolName}</Text>
++                    <View style={parentHomeStyles.identity}>
++                      <Text style={parentHomeStyles.studentName}>{card.studentName}</Text>
++                      <Text style={parentHomeStyles.metaText}>{card.schoolName}</Text>
+@@ -393 +400,8 @@ export default function HomeScreen() {
+-                    <View
++                  </View>
++                  <View
++                    style={[
++                      parentHomeStyles.statusPill,
++                      { backgroundColor: getStatusBadge(card.tripStatus).bg },
++                    ]}
++                  >
++                    <Text
+@@ -395,2 +409,2 @@ export default function HomeScreen() {
+-                        styles.statusPill,
+-                        { backgroundColor: getStatusBadge(card.tripStatus).bg },
++                        parentHomeStyles.statusPillText,
++                        { color: getStatusBadge(card.tripStatus).text },
+@@ -399,9 +413,2 @@ export default function HomeScreen() {
+-                      <Text
+-                        style={[
+-                          styles.statusPillText,
+-                          { color: getStatusBadge(card.tripStatus).text },
+-                        ]}
+-                      >
+-                        {getStatusBadge(card.tripStatus).label}
+-                      </Text>
+-                    </View>
++                      {getStatusBadge(card.tripStatus).label}
++                    </Text>
+@@ -411,2 +418,2 @@ export default function HomeScreen() {
+-                  <View style={styles.parentRouteBox}>
+-                    <View style={styles.directionRow}>
++                  <View style={parentHomeStyles.parentRouteBox}>
++                    <View style={parentHomeStyles.directionRow}>
+@@ -418 +425 @@ export default function HomeScreen() {
+-                      <Text style={styles.parentRouteName} numberOfLines={1}>
++                      <Text style={parentHomeStyles.parentRouteName}>
+@@ -422 +429 @@ export default function HomeScreen() {
+-                    <View style={styles.parentTimeRow}>
++                    <View style={parentHomeStyles.parentTimeRow}>
+@@ -424 +431 @@ export default function HomeScreen() {
+-                      <Text style={styles.parentTimeText}>
++                      <Text style={parentHomeStyles.parentTimeText}>
+@@ -431,2 +438,2 @@ export default function HomeScreen() {
+-                  <View style={[styles.attendanceBox, { backgroundColor: att.bg }]}>
+-                    <View style={styles.attendanceBoxHeader}>
++                  <View style={[parentHomeStyles.attendanceBox, { backgroundColor: att.bg }]}>
++                    <View style={parentHomeStyles.attendanceBoxHeader}>
+@@ -434 +441 @@ export default function HomeScreen() {
+-                      <Text style={[styles.attendanceBoxTitle, { color: att.text }]}>
++                      <Text style={[parentHomeStyles.attendanceBoxTitle, { color: att.text }]}>
+@@ -438 +445 @@ export default function HomeScreen() {
+-                        <Text style={[styles.markedAtText, { color: att.text }]}>
++                        <Text style={[parentHomeStyles.markedAtText, { color: att.text }]}>
+@@ -448,3 +455,3 @@ export default function HomeScreen() {
+-                      <View style={styles.absenceReasonBox}>
+-                        <Text style={styles.absenceReasonLabel}>Lý do vắng:</Text>
+-                        <Text style={styles.absenceReasonContent}>{card.absenceReason}</Text>
++                      <View style={parentHomeStyles.absenceReasonBox}>
++                        <Text style={parentHomeStyles.absenceReasonLabel}>Lý do vắng:</Text>
++                        <Text style={parentHomeStyles.absenceReasonContent}>{card.absenceReason}</Text>
+@@ -456,2 +463,2 @@ export default function HomeScreen() {
+-                  <View style={styles.parentDriverRow}>
+-                    <Text style={styles.parentDriverText}>
++                  <View style={parentHomeStyles.parentDriverRow}>
++                    <Text style={parentHomeStyles.parentDriverText}>
+@@ -466 +473,3 @@ export default function HomeScreen() {
+-                      style={styles.primaryBtn}
++                      style={parentHomeStyles.primaryBtn}
++                      accessibilityRole="button"
++                      accessibilityLabel={`Theo dõi lộ trình của ${card.studentName}`}
+@@ -470,2 +479,2 @@ export default function HomeScreen() {
+-                      <Text style={styles.primaryBtnText}>Theo dõi lộ trình</Text>
+-                      <Ionicons name="navigate-outline" size={16} color="#FFFFFF" />
++                      <Text style={parentHomeStyles.primaryBtnText}>Theo dõi lộ trình</Text>
++                      <Ionicons name="navigate-outline" size={16} color={colors.foreground} />
+@@ -476 +485,3 @@ export default function HomeScreen() {
+-                        style={styles.leaveNoticeCardBtn}
++                        style={[parentHomeStyles.leaveNoticeCardBtn, isRequesting(card.tripId) && parentHomeStyles.disabled]}
++                        accessibilityRole="button"
++                        accessibilityLabel={`Báo nghỉ chuyến này cho ${card.studentName}`}
+@@ -492 +503 @@ export default function HomeScreen() {
+-                          <ActivityIndicator size="small" color="#D97706" />
++                          <ActivityIndicator size="small" color={colors.navigationActive} />
+@@ -495,2 +506,2 @@ export default function HomeScreen() {
+-                            <Ionicons name="calendar-outline" size={16} color="#D97706" />
+-                            <Text style={styles.leaveNoticeCardBtnText}>Báo nghỉ chuyến này</Text>
++                            <Ionicons name="calendar-outline" size={16} color={colors.navigationActive} />
++                            <Text style={parentHomeStyles.leaveNoticeCardBtnText}>Báo nghỉ chuyến này</Text>
+@@ -507 +518 @@ export default function HomeScreen() {
+-          <View style={styles.emptyContainer}>
++          <View style={parentHomeStyles.emptyContainer}>
+@@ -509,2 +520,2 @@ export default function HomeScreen() {
+-            <Text style={styles.emptyTitle}>Chưa có chuyến xe cho con</Text>
+-            <Text style={styles.emptySubtitle}>
++            <Text style={parentHomeStyles.emptyTitle}>Chưa có chuyến xe cho con</Text>
++            <Text style={parentHomeStyles.emptySubtitle}>
+@@ -514 +525,3 @@ export default function HomeScreen() {
+-              style={styles.secondaryBtn}
++              style={parentHomeStyles.secondaryBtn}
++              accessibilityRole="button"
++              accessibilityLabel="Xem lịch tuần của con"
+@@ -518 +531 @@ export default function HomeScreen() {
+-              <Text style={styles.secondaryBtnText}>Xem lịch tuần của con</Text>
++              <Text style={parentHomeStyles.secondaryBtnText}>Xem lịch tuần của con</Text>
+@@ -819,90 +831,0 @@ const styles = StyleSheet.create({
+-  parentCardList: {
+-    gap: 16,
+-  },
+-  parentStudentHeader: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    gap: 10,
+-  },
+-  avatarCircle: {
+-    width: 38,
+-    height: 38,
+-    borderRadius: 19,
+-    backgroundColor: '#E2E8F0',
+-    alignItems: 'center',
+-    justifyContent: 'center',
+-  },
+-  studentName: {
+-    fontSize: 16,
+-    fontWeight: '700',
+-    color: '#0F172A',
+-  },
+-  parentRouteBox: {
+-    backgroundColor: '#F8FAFC',
+-    padding: 10,
+-    borderRadius: 10,
+-    borderWidth: 1,
+-    borderColor: '#E2E8F0',
+-    gap: 4,
+-  },
+-  directionRow: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    gap: 6,
+-  },
+-  parentRouteName: {
+-    fontSize: 13,
+-    fontWeight: '600',
+-    color: '#0F172A',
+-  },
+-  parentTimeRow: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    gap: 6,
+-  },
+-  parentTimeText: {
+-    fontSize: 12,
+-    color: '#64748B',
+-  },
+-  attendanceBox: {
+-    padding: 12,
+-    borderRadius: 10,
+-    gap: 6,
+-  },
+-  attendanceBoxHeader: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    gap: 8,
+-  },
+-  attendanceBoxTitle: {
+-    fontSize: 13,
+-    fontWeight: '700',
+-    flex: 1,
+-  },
+-  markedAtText: {
+-    fontSize: 12,
+-    fontWeight: '600',
+-  },
+-  absenceReasonBox: {
+-    borderTopWidth: 1,
+-    borderTopColor: 'rgba(0,0,0,0.06)',
+-    paddingTop: 6,
+-  },
+-  absenceReasonLabel: {
+-    fontSize: 11,
+-    fontWeight: '600',
+-    color: '#991B1B',
+-  },
+-  absenceReasonContent: {
+-    fontSize: 12,
+-    color: '#7F1D1D',
+-    marginTop: 2,
+-    lineHeight: 16,
+-  },
+-  parentDriverRow: {
+-    paddingVertical: 2,
+-  },
+-  parentDriverText: {
+-    fontSize: 12,
+-    color: '#64748B',
+-  },
+
+diff --git a/mobile/components/parent/home-styles.ts b/mobile/components/parent/home-styles.ts
+new file mode 100644
+index 0000000..d53041b
+--- /dev/null
++++ b/mobile/components/parent/home-styles.ts
+@@ -0,0 +1,86 @@
++import { StyleSheet } from 'react-native';
++import { colors } from '@/constants/theme';
++
++// V1 parent-home proportions; scoped to PARENT so staff Home stays unchanged.
++const tones = {
++  cardBorder: '#EDE8DD',
++  route: '#F7F8FA',
++  routeBorder: '#EFF1F4',
++  avatar: '#DCE9F8',
++  dangerText: '#991B1B',
++  dangerContent: '#7F1D1D',
++} as const;
++
++const shadow = {
++  shadowColor: colors.navigationShadow,
++  shadowOffset: { width: 0, height: 3 },
++  shadowOpacity: 0.07,
++  shadowRadius: 8,
++  elevation: 3,
++};
++
++export const parentHomeStyles = StyleSheet.create({
++  container: { backgroundColor: colors.background },
++  content: { width: '100%', maxWidth: 560, alignSelf: 'center', padding: 16, paddingBottom: 24, gap: 20 },
++  utilityCard: { ...shadow, backgroundColor: colors.surface, borderRadius: 16,
++    borderColor: tones.cardBorder, borderWidth: 1, padding: 16, marginBottom: 0 },
++  utilityHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
++  utilityCardTitle: { fontSize: 16, lineHeight: 23, color: colors.foreground,
++    fontWeight: '700', textTransform: 'none', letterSpacing: 0 },
++  refreshIconBtn: { width: 48, height: 48, borderRadius: 24, padding: 0,
++    backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
++  utilityCenter: { flexDirection: 'row', justifyContent: 'center', paddingVertical: 4 },
++  utilityActionBtn: { minHeight: 80, minWidth: 96, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, paddingVertical: 8 },
++  utilityIconWrap: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.navigationHighlight,
++    alignItems: 'center', justifyContent: 'center', marginBottom: 7, elevation: 0, shadowOpacity: 0 },
++  utilityActionText: { fontSize: 12, lineHeight: 18, fontWeight: '700', color: colors.foreground },
++  sectionTitle: { color: colors.foreground, fontSize: 19, lineHeight: 26, fontWeight: '700' },
++  parentCardList: { gap: 14 },
++  tripCard: { ...shadow, backgroundColor: colors.surface, padding: 16, borderRadius: 20,
++    borderWidth: 1, borderColor: tones.cardBorder, gap: 14 },
++  parentStudentHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
++  identity: { flex: 1, minWidth: 0 },
++  avatarCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: tones.avatar,
++    alignItems: 'center', justifyContent: 'center' },
++  studentName: { fontSize: 16, lineHeight: 23, fontWeight: '700', color: colors.foreground },
++  metaText: { fontSize: 12, lineHeight: 18, color: colors.mutedText, marginTop: 2 },
++  statusPill: { alignSelf: 'flex-start', maxWidth: '100%', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
++  statusPillText: { fontSize: 11, lineHeight: 17, fontWeight: '600' },
++  parentRouteBox: { backgroundColor: tones.route, padding: 12, borderRadius: 14,
++    borderColor: tones.routeBorder, borderWidth: 1, gap: 8 },
++  directionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7 },
++  parentRouteName: { fontSize: 13, lineHeight: 20, fontWeight: '600', color: colors.foreground, flex: 1, minWidth: 0 },
++  parentTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
++  parentTimeText: { fontSize: 13, lineHeight: 20, color: colors.foreground, flex: 1 },
++  attendanceBox: { padding: 12, borderRadius: 14, gap: 8 },
++  attendanceBoxHeader: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
++  attendanceBoxTitle: { fontSize: 13, lineHeight: 20, fontWeight: '700', flex: 1, minWidth: 100 },
++  markedAtText: { fontSize: 12, lineHeight: 18, fontWeight: '600' },
++  absenceReasonBox: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tones.cardBorder, paddingTop: 8 },
++  absenceReasonLabel: { fontSize: 11, lineHeight: 17, fontWeight: '600', color: tones.dangerText },
++  absenceReasonContent: { fontSize: 12, lineHeight: 18, color: tones.dangerContent, marginTop: 2 },
++  parentDriverRow: { paddingVertical: 2 },
++  parentDriverText: { fontSize: 12, lineHeight: 19, color: colors.mutedText },
++  primaryBtn: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
++    gap: 8, backgroundColor: colors.primary, paddingVertical: 13, paddingHorizontal: 16, borderRadius: 24 },
++  primaryBtnText: { flexShrink: 1, fontSize: 14, lineHeight: 20, fontWeight: '700', color: colors.foreground, textAlign: 'center' },
++  leaveNoticeCardBtn: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
++    paddingVertical: 12, paddingHorizontal: 12, borderRadius: 24, borderWidth: 1,
++    borderColor: colors.primary, backgroundColor: colors.background },
++  leaveNoticeCardBtnText: { flexShrink: 1, fontSize: 13, lineHeight: 20, fontWeight: '700',
++    textAlign: 'center', color: colors.navigationActive },
++  disabled: { opacity: 0.5 },
++  loadingContainer: { backgroundColor: colors.surface, borderRadius: 20, padding: 32,
++    alignItems: 'center', justifyContent: 'center', gap: 12 },
++  loadingText: { fontSize: 13, lineHeight: 20, color: colors.mutedText, textAlign: 'center' },
++  emptyContainer: { backgroundColor: colors.surface, borderColor: tones.cardBorder, borderWidth: 1,
++    borderRadius: 20, padding: 24, alignItems: 'center', gap: 12 },
++  emptyTitle: { fontSize: 16, lineHeight: 23, fontWeight: '700', color: colors.foreground, textAlign: 'center' },
++  emptySubtitle: { fontSize: 13, lineHeight: 20, color: colors.mutedText, textAlign: 'center', marginBottom: 4 },
++  secondaryBtn: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
++    paddingVertical: 12, paddingHorizontal: 16, borderRadius: 24, backgroundColor: colors.navigationHighlight },
++  secondaryBtnText: { flexShrink: 1, fontSize: 13, lineHeight: 20, fontWeight: '600', color: colors.foreground, textAlign: 'center' },
++  actionBtn: { minHeight: 48, paddingVertical: 12, paddingHorizontal: 24, justifyContent: 'center',
++    borderRadius: 24, backgroundColor: colors.primary },
++  actionBtnText: { fontSize: 13, lineHeight: 20, fontWeight: '700', color: colors.foreground },
++});

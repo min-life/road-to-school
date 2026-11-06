@@ -1,0 +1,58 @@
+--- a/mobile/app/(tabs)/index.tsx
++++ b/mobile/app/(tabs)/index.tsx
+@@ -422,7 +422,4 @@
+-                  {/* Attendance Card (D10: Parent sees absence reason if ABSENT) */}
+-                  <View style={[parentHomeStyles.attendanceBox, { backgroundColor: att.bg }]}>
+-                    <View style={parentHomeStyles.attendanceBoxHeader}>
+-                      <Ionicons name={att.icon as any} size={18} color={att.text} />
+-                      <Text style={[parentHomeStyles.attendanceBoxTitle, { color: att.text }]}>
+-                        {att.label}
+-                      </Text>
++                  {/* Attendance details; the status badge stays in the card header. */}
++                  {(student.markedAt || (student.attendanceStatus === 'PRESENT' && student.childIsAlighted && student.childAlightedAt)
++                    || (student.attendanceStatus === 'ABSENT' && student.absenceReason)) ? (
++                    <View style={[parentHomeStyles.attendanceBox, { backgroundColor: att.bg }]}>
+@@ -434,0 +432,13 @@
++                      {student.attendanceStatus === 'PRESENT' && student.childIsAlighted && student.childAlightedAt ? (
++                        <Text style={[parentHomeStyles.markedAtText, { color: att.text }]}>
++                          Xuống xe{' '}
++                          {journeyRecordedClock(student.childAlightedAt) ?? '—:—'}
++                        </Text>
++                      ) : null}
++
++                      {student.attendanceStatus === 'ABSENT' && student.absenceReason ? (
++                        <View style={parentHomeStyles.absenceReasonBox}>
++                          <Text style={parentHomeStyles.absenceReasonLabel}>Lý do vắng:</Text>
++                          <Text style={parentHomeStyles.absenceReasonContent}>{student.absenceReason}</Text>
++                        </View>
++                      ) : null}
+@@ -436,15 +446 @@
+-
+-                    {student.attendanceStatus === 'PRESENT' && student.childIsAlighted && student.childAlightedAt ? (
+-                      <Text style={[parentHomeStyles.markedAtText, { color: att.text }]}>
+-                        Xuống xe{' '}
+-                        {journeyRecordedClock(student.childAlightedAt) ?? '—:—'}
+-                      </Text>
+-                    ) : null}
+-
+-                    {student.attendanceStatus === 'ABSENT' && student.absenceReason ? (
+-                      <View style={parentHomeStyles.absenceReasonBox}>
+-                        <Text style={parentHomeStyles.absenceReasonLabel}>Lý do vắng:</Text>
+-                        <Text style={parentHomeStyles.absenceReasonContent}>{student.absenceReason}</Text>
+-                      </View>
+-                    ) : null}
+-                  </View>
++                  ) : null}
+--- a/docs/architecture/mobile-parent-student-journey.md
++++ b/docs/architecture/mobile-parent-student-journey.md
+@@ -47 +47 @@
+-[Tag điểm danh + giờ / giờ xuống xe / lý do vắng V2]
++[Giờ điểm danh / giờ xuống xe / lý do vắng V2 nếu có]
+@@ -55,0 +56,2 @@
++
++Tag điểm danh chỉ hiển thị ở header card, bỏ nhãn và icon trạng thái lặp bên dưới thanh hành trình/dòng kết thúc tuyến theo lịch. Phần mở rộng giữ giờ điểm danh, giờ xuống xe và lý do vắng nếu có; không render hộp chi tiết rỗng khi thiếu cả ba thông tin. Logic xác định trạng thái và hành vi các nút giữ nguyên.
+--- a/docs/architecture/mobile-parent-home-ui.md
++++ b/docs/architecture/mobile-parent-home-ui.md
+@@ -5,0 +6,2 @@
++
++Tag điểm danh chỉ giữ ở header card. Đã bỏ tag trạng thái lặp dưới rail/dòng kết thúc tuyến theo lịch; phần mở rộng vẫn giữ giờ điểm danh, giờ xuống xe và lý do vắng khi có. Không hiển thị hộp chi tiết rỗng. Quy tắc này thay thế mô tả hiển thị tag chi tiết trong các mục lịch sử bên dưới.

@@ -1,0 +1,99 @@
+diff --git "a/C:\\Users\\phuon\\AppData\\Local\\Temp\\switch-before-settings.txt" b/mobile/app/(tabs)/settings.tsx
+index 78c80bb..b21f49c 100644
+--- "a/C:\\Users\\phuon\\AppData\\Local\\Temp\\switch-before-settings.txt"
++++ b/mobile/app/(tabs)/settings.tsx
+@@ -2 +2 @@ import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+-import React, { useState } from 'react';
++import React, { useRef, useState } from 'react';
+@@ -14,0 +15 @@ import {
++  Switch,
+@@ -26 +27,17 @@ export default function SettingsScreen() {
+-  const { enablePush, disablePush, pushStatus } = useNotifications();
++  const { enablePush, disablePush, pushStatus, pushEnabled } = useNotifications();
++  const [isChangingPush, setIsChangingPush] = useState(false);
++  const changingPush = useRef(false);
++  const handlePushChange = async (enabled: boolean) => {
++    if (changingPush.current) return;
++    changingPush.current = true;
++    setIsChangingPush(true);
++    try {
++      if (enabled) await enablePush();
++      else await disablePush();
++    } catch {
++      Alert.alert('Thông báo', 'Chưa thể cập nhật thông báo trên thiết bị');
++    } finally {
++      changingPush.current = false;
++      setIsChangingPush(false);
++    }
++  };
+@@ -385,0 +403,14 @@ export default function SettingsScreen() {
++            <View style={[styles.actionButton, styles.pushRow]}>
++              <Ionicons name="notifications-outline" size={18} color={colors.mutedText} />
++              <View style={styles.pushLabel}>
++                <Text style={styles.pushTitle}>Thông báo thiết bị</Text>
++                {!!pushStatus && <Text style={styles.settingValue} accessibilityLiveRegion="polite">{pushStatus}</Text>}
++              </View>
++              <Switch accessibilityLabel="Thông báo thiết bị"
++                accessibilityState={{ busy: isChangingPush }}
++                value={pushEnabled} disabled={isChangingPush || isLoggingOut}
++                onValueChange={value => { void handlePushChange(value); }}
++                trackColor={{ false: colors.border, true: colors.primary }}
++                thumbColor={colors.surface} ios_backgroundColor={colors.border} />
++            </View>
++
+@@ -400,19 +430,0 @@ export default function SettingsScreen() {
+-      {/* System Settings Card */}
+-      <View style={[styles.card, { marginTop: 16 }]}>
+-        <Text style={styles.sectionTitle}>Thông báo thiết bị</Text>
+-        <Text style={styles.settingValue} accessibilityLiveRegion="polite">
+-          {pushStatus || 'Thông báo ngoài ứng dụng'}
+-        </Text>
+-        <View style={styles.pushActions}>
+-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Bật thông báo thiết bị"
+-            style={styles.pushButton} activeOpacity={0.7} onPress={() => { void enablePush(); }}>
+-            <Text style={styles.pushButtonText}>Bật</Text>
+-          </TouchableOpacity>
+-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Tắt thông báo trên thiết bị"
+-            style={[styles.pushButton, styles.pushDisableButton]} activeOpacity={0.7}
+-            onPress={() => { void disablePush().catch(() => Alert.alert('Thông báo', 'Chưa thể tắt thông báo đẩy')); }}>
+-            <Text style={styles.pushButtonText}>Tắt trên thiết bị</Text>
+-          </TouchableOpacity>
+-        </View>
+-      </View>
+-
+@@ -745,5 +757,3 @@ const styles = StyleSheet.create({
+-  pushActions: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 16 },
+-  pushButton: { minHeight: 48, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 24,
+-    justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary },
+-  pushDisableButton: { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
+-  pushButtonText: { color: colors.foreground, fontSize: 13, lineHeight: 20, fontWeight: '600' },
++  pushRow: { minHeight: 56 },
++  pushLabel: { flex: 1, minWidth: 0, marginLeft: 10, marginRight: 10 },
++  pushTitle: { color: colors.foreground, fontSize: 14, lineHeight: 20, fontWeight: '600' },
+
+diff --git "a/C:\\Users\\phuon\\AppData\\Local\\Temp\\switch-before-context.txt" b/mobile/context/notifications-context.tsx
+index fc77c7b..27bbb56 100644
+--- "a/C:\\Users\\phuon\\AppData\\Local\\Temp\\switch-before-context.txt"
++++ b/mobile/context/notifications-context.tsx
+@@ -36,0 +37 @@ interface ContextValue {
++  pushEnabled: boolean;
+@@ -54,0 +56,2 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
++  const [enabledIdentity, setEnabledIdentity] = useState<string | null>(null);
++  useEffect(() => { setEnabledIdentity(null); setPushStatus(''); }, [identity]);
+@@ -112 +115,4 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
+-        if (identityRef.current === scope) setPushStatus('Đã bật thông báo đẩy');
++        if (identityRef.current === scope) {
++          setPushStatus('Đã bật thông báo đẩy');
++          setEnabledIdentity(scope);
++        }
+@@ -187,0 +194 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
++          else if (!cancelled && identityRef.current === scope) setEnabledIdentity(null);
+@@ -287,0 +295 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
++        if (identityRef.current === identity) setEnabledIdentity(null);
+@@ -301,0 +310 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
++    if (identityRef.current === identity) setEnabledIdentity(null);
+@@ -303 +312 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
+-  }, [user?.id]);
++  }, [user?.id, identity]);
+@@ -312,0 +322 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
++        pushEnabled: nativePush && enabledIdentity === identity,
