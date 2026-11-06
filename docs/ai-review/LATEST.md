@@ -23,6 +23,8 @@ Source useTripNavigation là foreground engine: blur màn hình, đổi identity
 No application code changes. Chỉ cập nhật LATEST.md/LATEST.diff và archive báo cáo cũ trong history/2026-11-03-before-off-route-popup-diagnosis.md/.diff.
 Source đã rà: api/src/incidents/incidents-detector.service.ts, incidents.service.ts, incidents.module.ts; api/src/trips/trip-navigation.service.ts/trips.module.ts; mobile/hooks/use-trip-navigation.ts; mobile/app/trip/[id].tsx; mobile/services/api-client.ts; mobile/components/trip-navigation-controls.tsx.
 
+https://github.com/min-life/road-to-school/pull/6/conflict?name=docs%252Fai-review%252FLATEST.md&ancestor_oid=f285bba470a2b805d30feb8ad72151ed152b1549&base_oid=6955ff2f89d34f64cc0f1839d790039a95f50ae5&head_oid=fc6b7e4c01d2f2cc7724d377e558638cec84c7fb## 6. Database Changes
+None. Không đọc/ghi DB, tạo dữ liệu, seed hoặc gọi API mutation.
 ## 6. Database Changes
 None. Mọi truy vấn Prisma đều chạy trong SET TRANSACTION READ ONLY trên local 127.0.0.1:5433/roadtoschool. Không viết position/incidents/notifications, không reset hoặc cập nhật trip.
 
@@ -50,6 +52,7 @@ Phân biệt deviation UI >40m/đoạn hiện hành và auto-incident >=100m/rou
 Demo bằng hai phiên/thiết bị riêng: giữ màn Driver foreground, điều khiển xe lệch route gốc khoảng150m ít nhất40s trong khi xem Attendant ở phiên khác để nguồn vị trí không bị dừng trước khi đủ chuỗi.
 
 ## 13. Approval Status
+Implementation theo yêu cầu trực tiếp PO. WAITING FOR USER REVIEW; chưa commit/push task mới này, không suy rộng yêu cầu push ở task trước sang thay đổi hiện tại.
 Người dùng chỉ yêu cầu tìm nguyên nhân. Hoàn tất chẩn đoán, chưa triển khai sửa code hoặc thay dữ liệu. WAITING FOR USER REVIEW / APPROVAL nếu cần đổi hành vi.
 # AI Review — Master Business Improvement Plan (Sections 3.4 – 3.18 Full Implementation)
 
