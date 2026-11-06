@@ -1,0 +1,8 @@
+--- a/mobile/components/staff/staff-trip-card.tsx
++++ b/mobile/components/staff/staff-trip-card.tsx
+@@ -1,4 +1,4 @@
+-mport React from 'react';
++import React from 'react';
+ import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+ import Ionicons from '@expo/vector-icons/Ionicons';
+ import type { MobileHomeTrip, Role } from '@/services/api-client';

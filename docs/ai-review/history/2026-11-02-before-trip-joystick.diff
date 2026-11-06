@@ -1,0 +1,19 @@
+diff --git a/mobile/app/trip/[id].tsx b/mobile/app/trip/[id].tsx
+index fd6ac92..ca73352 100644
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -1375,5 +1375,9 @@ export default function MobileTripDetailScreen() {
+-                    <Image
+-                      source={require('@/assets/driver/Bus.png')}
+-                      style={{ width: 24, height: 24 }}
+-                      resizeMode="contain"
+-                    />
++                    {isDriverOrAttendant ? (
++                      <Ionicons name="bus-outline" size={24} color="#D97706" />
++                    ) : (
++                      <Image
++                        source={require('@/assets/driver/Bus.png')}
++                        style={{ width: 24, height: 24 }}
++                        resizeMode="contain"
++                      />
++                    )}

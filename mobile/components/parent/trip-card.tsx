@@ -11,6 +11,9 @@ import type { StudentJourneyBadge } from '@/utils/parent-journey-stage';
 type Props = {
   studentName: string;
   avatarUrl?: string | null;
+  leading?: ReactNode;
+  summaryContent?: ReactNode;
+  accessibilityLabel?: string;
   schoolName: string;
   status: { label: string; bg: string; text: string };
   children: ReactNode;
@@ -23,7 +26,7 @@ type Props = {
 };
 
 /** Owns disclosure only; the parent keeps trip data, permissions and action handlers. */
-export function ParentTripCard({ studentName, avatarUrl, schoolName, status, children, journey, studentStatus, readiness, hasIncident, attention, stale }: Props) {
+export function ParentTripCard({ studentName, avatarUrl, leading, summaryContent, accessibilityLabel, schoolName, status, children, journey, studentStatus, readiness, hasIncident, attention, stale }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [visible, setVisible] = useState(false);
   const [contentHeight, setContentHeight] = useState(0);
@@ -53,7 +56,7 @@ export function ParentTripCard({ studentName, avatarUrl, schoolName, status, chi
     <View style={[parentHomeStyles.tripCard, styles.card, expanded && styles.expandedCard, cardTone && { borderColor: cardTone.border }]}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${studentName}, ${schoolName}, ${status.label}${studentStatus ? ', ' + studentStatus.label : ''}${readiness ? ', ' + readiness.label : ''}${hasIncident ? ', Chuyến có sự cố' : ''}${stale ? ', Chưa cập nhật đầy đủ' : ''}`}
+        accessibilityLabel={accessibilityLabel ?? `${studentName}, ${schoolName}, ${status.label}${studentStatus ? ', ' + studentStatus.label : ''}${readiness ? ', ' + readiness.label : ''}${hasIncident ? ', Chuyến có sự cố' : ''}${stale ? ', Chưa cập nhật đầy đủ' : ''}`}
         accessibilityHint={expanded ? 'Thu gọn thông tin chuyến xe' : 'Mở rộng thông tin chuyến xe'}
         accessibilityState={{ expanded }}
         aria-expanded={expanded}
@@ -61,7 +64,7 @@ export function ParentTripCard({ studentName, avatarUrl, schoolName, status, chi
         style={({ pressed }) => [styles.summary, cardTone && { backgroundColor: cardTone.bg }, pressed && styles.pressed]}
       >
         {/* Student photo comes from the card, independently of the parent's profile photo. */}
-        <UserAvatar avatarUrl={avatarUrl} fullName={studentName} size={48} />
+        {leading ?? <UserAvatar avatarUrl={avatarUrl} fullName={studentName} size={48} />}
         <View style={parentHomeStyles.identity}>
           <View style={[styles.nameStatusRow, stacked && styles.stacked]}>
             <Text style={[parentHomeStyles.studentName, styles.name]}>{studentName}</Text>
@@ -79,6 +82,7 @@ export function ParentTripCard({ studentName, avatarUrl, schoolName, status, chi
               <Ionicons name="chevron-down" size={16} color={colors.navigationActive} accessible={false} />
             </Animated.View>
           </View>
+          {summaryContent}
           {(studentStatus || readiness || hasIncident || stale) && <View style={styles.studentTags}>
             {studentStatus && <View style={[styles.studentBadge, { backgroundColor: journeyTones[studentStatus.tone].bg, borderColor: journeyTones[studentStatus.tone].border }]}>
               <Ionicons name={studentStatus.icon} size={14} color={journeyTones[studentStatus.tone].text} accessible={false} />

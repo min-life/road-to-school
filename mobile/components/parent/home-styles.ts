@@ -23,34 +23,48 @@ const shadow = {
 export const parentHomeStyles = StyleSheet.create({
   container: { backgroundColor: colors.background },
   content: { width: '100%', maxWidth: 560, alignSelf: 'center', padding: 16, paddingBottom: 24, gap: 20 },
-  utilityCard: { ...shadow, backgroundColor: colors.surface, borderRadius: 16,
-    borderColor: tones.cardBorder, borderWidth: 1, padding: 16, marginBottom: 0 },
+  utilityCard: {
+    ...shadow, backgroundColor: colors.surface, borderRadius: 16,
+    borderColor: tones.cardBorder, borderWidth: 1, padding: 16, marginBottom: 0
+  },
   utilityHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  utilityCardTitle: { fontSize: 16, lineHeight: 23, color: colors.foreground,
-    fontWeight: '700', textTransform: 'none', letterSpacing: 0 },
-  refreshIconBtn: { width: 48, height: 48, borderRadius: 24, padding: 0,
-    backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
+  utilityCardTitle: {
+    fontSize: 16, lineHeight: 23, color: colors.foreground,
+    fontWeight: '700', textTransform: 'none', letterSpacing: 0
+  },
+  refreshIconBtn: {
+    width: 48, height: 48, borderRadius: 24, padding: 0,
+    backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center'
+  },
   utilityCenter: { flexDirection: 'row', justifyContent: 'center', paddingVertical: 4 },
   utilityActionBtn: { minHeight: 80, minWidth: 96, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, paddingVertical: 8 },
-  utilityIconWrap: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.navigationHighlight,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 7, elevation: 0, shadowOpacity: 0 },
+  utilityIconWrap: {
+    width: 48, height: 48, borderRadius: 24, backgroundColor: colors.navigationHighlight,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 7, elevation: 0, shadowOpacity: 0
+  },
   utilityActionText: { fontSize: 12, lineHeight: 18, fontWeight: '700', color: colors.foreground },
   sectionTitle: { color: colors.foreground, fontSize: 19, lineHeight: 26, fontWeight: '700' },
   sectionHeader: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   sectionDate: { flexShrink: 1, fontSize: 12, lineHeight: 19, fontWeight: '600', color: colors.mutedText },
   parentCardList: { gap: 14 },
-  tripCard: { ...shadow, backgroundColor: colors.surface, padding: 16, borderRadius: 20,
-    borderWidth: 1, borderColor: tones.cardBorder, gap: 14 },
+  tripCard: {
+    ...shadow, backgroundColor: colors.surface, padding: 16, borderRadius: 20,
+    borderWidth: 1, borderColor: tones.cardBorder, gap: 14
+  },
   parentStudentHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   identity: { flex: 1, minWidth: 0 },
-  avatarCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: tones.avatar,
-    alignItems: 'center', justifyContent: 'center' },
+  avatarCircle: {
+    width: 48, height: 48, borderRadius: 24, backgroundColor: tones.avatar,
+    alignItems: 'center', justifyContent: 'center'
+  },
   studentName: { fontSize: 16, lineHeight: 23, fontWeight: '700', color: colors.foreground },
   metaText: { fontSize: 12, lineHeight: 18, color: colors.mutedText, marginTop: 2 },
   statusPill: { alignSelf: 'flex-start', maxWidth: '100%', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   statusPillText: { fontSize: 11, lineHeight: 17, fontWeight: '600' },
-  parentRouteBox: { backgroundColor: tones.route, padding: 12, borderRadius: 14,
-    borderColor: tones.routeBorder, borderWidth: 1, gap: 8 },
+  parentRouteBox: {
+    backgroundColor: tones.route, padding: 12, borderRadius: 14,
+    borderColor: tones.routeBorder, borderWidth: 1, gap: 8
+  },
   directionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7 },
   parentRouteName: { fontSize: 13, lineHeight: 20, fontWeight: '600', color: colors.foreground, flex: 1, minWidth: 0 },
   parentTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
@@ -66,26 +80,40 @@ export const parentHomeStyles = StyleSheet.create({
   vehicleDetailRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   vehicleDetailText: { flex: 1, minWidth: 0, fontSize: 13, lineHeight: 20, color: colors.foreground },
   parentDriverText: { fontSize: 12, lineHeight: 19, color: colors.mutedText },
-  primaryBtn: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, backgroundColor: colors.primary, paddingVertical: 13, paddingHorizontal: 16, borderRadius: 24 },
+  primaryBtn: {
+    minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, backgroundColor: colors.primary, paddingVertical: 13, paddingHorizontal: 16, borderRadius: 24
+  },
   primaryBtnText: { flexShrink: 1, fontSize: 14, lineHeight: 20, fontWeight: '700', color: colors.foreground, textAlign: 'center' },
-  leaveNoticeCardBtn: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+  leaveNoticeCardBtn: {
+    minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 12, paddingHorizontal: 12, borderRadius: 24, borderWidth: 1,
-    borderColor: colors.primary, backgroundColor: colors.background },
-  leaveNoticeCardBtnText: { flexShrink: 1, fontSize: 13, lineHeight: 20, fontWeight: '700',
-    textAlign: 'center', color: colors.navigationActive },
+    borderColor: colors.primary, backgroundColor: colors.background
+  },
+  leaveNoticeCardBtnText: {
+    flexShrink: 1, fontSize: 13, lineHeight: 20, fontWeight: '700',
+    textAlign: 'center', color: colors.navigationActive
+  },
   disabled: { opacity: 0.5 },
-  loadingContainer: { backgroundColor: colors.surface, borderRadius: 20, padding: 32,
-    alignItems: 'center', justifyContent: 'center', gap: 12 },
+  loadingContainer: {
+    backgroundColor: colors.surface, borderRadius: 20, padding: 32,
+    alignItems: 'center', justifyContent: 'center', gap: 12
+  },
   loadingText: { fontSize: 13, lineHeight: 20, color: colors.mutedText, textAlign: 'center' },
-  emptyContainer: { backgroundColor: colors.surface, borderColor: tones.cardBorder, borderWidth: 1,
-    borderRadius: 20, padding: 24, alignItems: 'center', gap: 12 },
+  emptyContainer: {
+    backgroundColor: colors.surface, borderColor: tones.cardBorder, borderWidth: 1,
+    borderRadius: 20, padding: 24, alignItems: 'center', gap: 12
+  },
   emptyTitle: { fontSize: 16, lineHeight: 23, fontWeight: '700', color: colors.foreground, textAlign: 'center' },
   emptySubtitle: { fontSize: 13, lineHeight: 20, color: colors.mutedText, textAlign: 'center', marginBottom: 4 },
-  secondaryBtn: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 12, paddingHorizontal: 16, borderRadius: 24, backgroundColor: colors.navigationHighlight },
+  secondaryBtn: {
+    minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: 12, paddingHorizontal: 16, borderRadius: 24, backgroundColor: colors.navigationHighlight
+  },
   secondaryBtnText: { flexShrink: 1, fontSize: 13, lineHeight: 20, fontWeight: '600', color: colors.foreground, textAlign: 'center' },
-  actionBtn: { minHeight: 48, paddingVertical: 12, paddingHorizontal: 24, justifyContent: 'center',
-    borderRadius: 24, backgroundColor: colors.primary },
+  actionBtn: {
+    minHeight: 48, paddingVertical: 12, paddingHorizontal: 24, justifyContent: 'center',
+    borderRadius: 24, backgroundColor: colors.primary
+  },
   actionBtnText: { fontSize: 13, lineHeight: 20, fontWeight: '700', color: colors.foreground },
 });

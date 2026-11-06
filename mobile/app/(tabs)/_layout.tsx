@@ -51,7 +51,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Trang chủ',
-          headerShown: !isParent,
+          headerShown: false,
           headerTitle: 'RoadToSchool',
           tabBarIcon: ({ focused }) => (
             <Ionicons

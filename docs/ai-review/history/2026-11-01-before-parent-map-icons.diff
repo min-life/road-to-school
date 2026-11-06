@@ -1,0 +1,111 @@
+diff --git a/mobile/app/trip/[id].tsx b/mobile/app/trip/[id].tsx
+index 234a065..901b8ed 100644
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -43,2 +42,0 @@ import { getTripMapSnapshot } from '@/utils/trip-map-data';
+-import { numberedMapPinScript, staffSchoolSvg, staffBusSvg } from '@/utils/staff-map-marker';
+-import { hasTripBottomAction } from '@/utils/trip-map-layout';
+@@ -45,0 +44,2 @@ import { childMapPinCss, childMapPinScript, childMapPinSize, serializeMapScriptV
++import { staffSchoolSvg, staffBusSvg } from '@/utils/staff-map-marker';
++import { hasTripBottomAction } from '@/utils/trip-map-layout';
+@@ -97 +96,0 @@ export default function MobileTripDetailScreen() {
+-  const [bottomActionHeight, setBottomActionHeight] = useState(0);
+@@ -98,0 +98 @@ export default function MobileTripDetailScreen() {
++  const [bottomActionHeight, setBottomActionHeight] = useState(0);
+@@ -402 +401,0 @@ export default function MobileTripDetailScreen() {
+-          ${isDriverOrAttendant ? '.staff-map-icon { box-sizing: border-box; display: flex; align-items: center; justify-content: center; }' : ''}
+@@ -403,0 +403 @@ export default function MobileTripDetailScreen() {
++          ${isDriverOrAttendant ? '.staff-map-icon { box-sizing: border-box; display: flex; align-items: center; justify-content: center; }' : ''}
+@@ -417,2 +416,0 @@ export default function MobileTripDetailScreen() {
+-          ${isDriverOrAttendant ? numberedMapPinScript : ''}
+-          var staffMap = ${isDriverOrAttendant};
+@@ -419,0 +418 @@ export default function MobileTripDetailScreen() {
++          var staffMap = ${isDriverOrAttendant};
+@@ -423,2 +421,0 @@ export default function MobileTripDetailScreen() {
+-            var numberedPin = staffMap && (s.type === 'PICKUP' || s.type === 'DROPOFF');
+-            var schoolStop = s.type === 'SCHOOL_ARRIVAL' || s.type === 'SCHOOL_DEPARTURE';
+@@ -425,0 +423,2 @@ export default function MobileTripDetailScreen() {
++            var staffStopPin = staffMap && (s.type === 'PICKUP' || s.type === 'DROPOFF');
++            var schoolStop = s.type === 'SCHOOL_ARRIVAL' || s.type === 'SCHOOL_DEPARTURE';
+@@ -431,2 +429,0 @@ export default function MobileTripDetailScreen() {
+-            } else if (numberedPin) {
+-              iconHtml = window.createNumberedMapPin(s.order);
+@@ -433,0 +431,2 @@ export default function MobileTripDetailScreen() {
++            } else if (staffStopPin) {
++              iconHtml = window.createChildMapPin(null, s.name);
+@@ -435 +433,0 @@ export default function MobileTripDetailScreen() {
+-            var pinMarker = ownChildPin || numberedPin;
+@@ -436,0 +435 @@ export default function MobileTripDetailScreen() {
++            var pinMarker = ownChildPin || staffStopPin;
+@@ -443,2 +441,0 @@ export default function MobileTripDetailScreen() {
+-            } else if (numberedPin && marker.getElement()) {
+-              marker.getElement().setAttribute('aria-label', 'Điểm dừng ' + s.order + ': ' + s.name);
+@@ -445,0 +443,2 @@ export default function MobileTripDetailScreen() {
++            } else if (staffStopPin && marker.getElement()) {
++              marker.getElement().setAttribute('aria-label', 'Điểm dừng ' + s.order + ': ' + s.name);
+diff --git a/mobile/utils/staff-map-marker.ts b/mobile/utils/staff-map-marker.ts
+index f499d21..0c6b0a2 100644
+--- a/mobile/utils/staff-map-marker.ts
++++ b/mobile/utils/staff-map-marker.ts
+@@ -1,19 +0,0 @@
+-import { mapPinSvg } from './child-map-marker';
+-
+-/** Same silhouette/face as the Parent pin; order is text, never interpolated HTML. */
+-export const numberedMapPinScript = `
+-  window.createNumberedMapPin = function(order) {
+-    var root = document.createElement('div');
+-    root.className = 'child-map-pin';
+-    root.setAttribute('aria-hidden', 'true');
+-    root.innerHTML = ${JSON.stringify(mapPinSvg)};
+-    var face = document.createElement('div');
+-    face.className = 'child-map-pin-face';
+-    var label = document.createElement('span');
+-    label.textContent = String(order);
+-    face.appendChild(label);
+-    root.appendChild(face);
+-    return root;
+-  };
+-`;
+-
+diff --git a/mobile/scripts/staff-map-marker.test.ts b/mobile/scripts/staff-map-marker.test.ts
+index ffb32e1..c17461d 100644
+--- a/mobile/scripts/staff-map-marker.test.ts
++++ b/mobile/scripts/staff-map-marker.test.ts
+@@ -4,2 +4,2 @@ import { Script } from 'node:vm';
+-import { mapPinSvg } from '../utils/child-map-marker';
+-import { numberedMapPinScript, staffBusSvg, staffSchoolSvg } from '../utils/staff-map-marker';
++import { childMapPinScript, mapPinSvg } from '../utils/child-map-marker';
++import { staffBusSvg, staffSchoolSvg } from '../utils/staff-map-marker';
+@@ -10,0 +11 @@ type PresentationElement = {
++  style: Record<string, string>;
+@@ -17 +18 @@ function markerFactory() {
+-    window: {} as { createNumberedMapPin: (order: unknown) => PresentationElement },
++    window: {} as { createChildMapPin: (id: null, name: string) => PresentationElement },
+@@ -22 +23 @@ function markerFactory() {
+-      children: [],
++      children: [], style: {},
+@@ -27,2 +28,2 @@ function markerFactory() {
+-  new Script(numberedMapPinScript).runInNewContext(scope);
+-  return scope.window.createNumberedMapPin;
++  new Script(childMapPinScript).runInNewContext(scope);
++  return (name: string) => scope.window.createChildMapPin(null, name);
+@@ -32,2 +33,2 @@ describe('Staff pins reuse the unchanged Parent pin frame', () => {
+-  it('uses the same SVG, dimensions class and face without a separate avatar store', () => {
+-    const root = markerFactory()(2);
++  it('uses the Parent renderer and frame for a staff name initial', () => {
++    const root = markerFactory()('a');
+@@ -38 +39 @@ describe('Staff pins reuse the unchanged Parent pin frame', () => {
+-    assert.equal(root.children[0].children[0].textContent, '2');
++    assert.equal(root.children[0].children[0].textContent, 'A');
+@@ -40,2 +41,6 @@ describe('Staff pins reuse the unchanged Parent pin frame', () => {
+-  it('preserves a full multi-digit order instead of an initial', () => {
+-    assert.equal(markerFactory()(27).children[0].children[0].textContent, '27');
++  it('uppercases Vietnamese initials exactly like Parent', () => {
++    assert.equal(markerFactory()('đông').children[0].children[0].textContent, 'Đ');
++    assert.equal(markerFactory()('nguyễn').children[0].children[0].textContent, 'N');
++  });
++  it('keeps the Parent fallback for an empty name', () => {
++    assert.equal(markerFactory()('').children[0].children[0].textContent, 'H');
+@@ -48 +53 @@ describe('Staff pins reuse the unchanged Parent pin frame', () => {
+-    assert.equal(root.children[0].children[0].textContent, text);
++    assert.equal(root.children[0].children[0].textContent, '<');
