@@ -1,0 +1,73 @@
+--- a/mobile/utils/search-text.ts
++++ b/mobile/utils/search-text.ts
+@@ -1,8 +1,9 @@
+-/** Match every search word across display fields, ignoring Vietnamese marks and case. */
++/** Match a contiguous substring in one display field, ignoring Vietnamese marks and case. */
+ export function matchesSearchText(query: string, fields: readonly (string | null | undefined)[]): boolean {
+   const normalize = (value: string) => value.toLowerCase().normalize('NFD')
+-    .replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+-  const words = normalize(query).trim().split(/\s+/).filter(Boolean);
+-  const text = normalize(fields.filter(Boolean).join(' '));
+-  return words.every(word => text.includes(word));
++    .replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/\s+/g, ' ');
++  if (!query.trim()) return true;
++  const search = normalize(query).trim();
++  if (!search) return false;
++  return fields.some(field => typeof field === 'string' && normalize(field).includes(search));
+ }
+--- a/mobile/scripts/search-text.test.ts
++++ b/mobile/scripts/search-text.test.ts
+@@ -15,12 +15,26 @@
+   it('matches parts of codes without changing leading zeroes', () => {
+     assert.equal(matchesSearchText('001', ['HS-0012']), true);
+   });
+-  it('matches every word across fields in either order', () => {
+-    assert.equal(matchesSearchText('  binh\t001 ', ['HS-0012', 'Hòa Bình']), true);
+-    assert.equal(matchesSearchText('001 binh', ['Hòa Bình', 'HS-0012']), true);
++  it('matches the requested partial Vietnamese text, including a single character', () => {
++    for (const query of ['ăn', 'ĂN', 'an', 'vĂn', 'n', '  văn   a ']) {
++      assert.equal(matchesSearchText(query, ['Nguyễn Văn A']), true, query);
++    }
+   });
+-  it('does not accept a result when any word is missing', () => {
+-    assert.equal(matchesSearchText('binh 002', ['Hòa Bình', 'HS-0012']), false);
++  it('requires the entire substring, without scattered letters or a typo fallback', () => {
++    for (const query of ['ăx', 'zzzz', 'nguyen a', 'van nguyen', 'xxx văn']) {
++      assert.equal(matchesSearchText(query, ['Nguyễn Văn A']), false, query);
++    }
++  });
++  it('checks each field separately instead of joining words across fields', () => {
++    assert.equal(matchesSearchText('binh 001', ['Hòa Bình', 'HS-0012']), false);
++    assert.equal(matchesSearchText('binh hs', ['Hòa Bình', 'HS-0012']), false);
++    assert.equal(matchesSearchText('hoa binh', ['HS-0012', 'Hòa Bình']), true);
++  });
++  it('ignores surrounding and repeated whitespace in a phrase', () => {
++    assert.equal(matchesSearchText('  hoa\tbinh  ', ['Hòa   Bình']), true);
++  });
++  it('does not treat a query consisting only of combining marks as a blank search', () => {
++    assert.equal(matchesSearchText('\u0301', ['Nguyễn Văn A']), false);
+   });
+   it('accepts missing fields and treats punctuation literally', () => {
+     assert.equal(matchesSearchText('[', [null, undefined, '']), false);
+--- a/docs/architecture/mobile-leave-student-card.md
++++ b/docs/architecture/mobile-leave-student-card.md
+@@ -35,7 +35,7 @@
+ 
+ - Khung trắng bo24 rộng tối đa420, gutter16. Header có nút đóng48; card bo18/padding14, màu theme, viền vàng nâu và nền vàng nhạt khi chọn, cùng dấu tích và nhãn Đang chọn để không phụ thuộc màu. Tên/mã/trường wrap đầy đủ, không ellipsis.
+ - Chiều cao popup là min(560, chiều cao viewport trừ safe area và gutter32), giữ vị trí ô tìm kiếm ổn định khi kết quả thay đổi. Đây là kích thước khung, không phải offset/chiều cao bàn phím giả định. Nội dung cuộn trong KeyboardScrollView riêng; header đóng luôn ở ngoài vùng cuộn.
+-- Tìm ngay trong danh sách linked hiện có bằng [matchesSearchText](../../mobile/utils/search-text.ts), theo tên/mã/trường, không phân biệt hoa thường hoặc dấu tiếng Việt/đ. Mỗi từ khóa phải xuất hiện trong các trường; không sắp xếp lại dữ liệu hoặc đổi selection khi lọc. Không GET search, không gửi query hay lấy học sinh ngoài linked list.
++- Tìm ngay trong danh sách linked hiện có bằng [matchesSearchText](../../mobile/utils/search-text.ts), theo tên/mã/trường, không phân biệt hoa thường hoặc dấu tiếng Việt/đ. Từ cập nhật01/11 tiếp theo, toàn bộ chuỗi nhập phải là đoạn ký tự liên tiếp trong ít nhất một trường; không ghép các từ rải rác hoặc nối tên/mã/trường thành một chuỗi chung. Ví dụ `ăn`, `ĂN`, `an` đều khớp text `Nguyễn Văn A`; `ăx` không khớp. Query rỗng/whitespace hiện tất cả; query chỉ có dấu kết hợp Unicode không hiện tất cả. Chuẩn hóa khoảng trắng đầu/cuối/lặp, không sửa dữ liệu. Không sắp xếp lại dữ liệu hoặc đổi selection khi lọc. Không GET search, không gửi query hay lấy học sinh ngoài linked list.
+ - Có số kết quả, nút xóa query và trạng thái Không tìm thấy học sinh kèm Xóa tìm kiếm; không nhầm không khớp với chưa liên kết. Loading/error/retry và empty liên kết vẫn riêng. Query rỗng hiển thị toàn bộ danh sách, kể cả học sinh disabled (giữ policy của caller).
+ - Chọn card đóng popup/dismiss bàn phím; nút đóng, backdrop riêng và Android Back đóng tương tự. Popup chỉ mount khi mở nên query được xóa khi đóng rồi mở lại; selectedId của form giữ nguyên. Backdrop là sibling absolute, không bọc input/card và không chặn responder cuộn.
+ - TextInput có accessibilityLabel, không autoFocus; icon trang trí ẩn, card có selected/disabled và tên truy cập gồm tên/mã/trường. Search/clear/close đáp ứng hit target48. Không tự thêm animation ngoài fade Modal hiện có.
+--- a/docs/architecture/mobile-ui-implementation-status.md
++++ b/docs/architecture/mobile-ui-implementation-status.md
+@@ -5,6 +5,8 @@
+ ## Popup chọn học sinh — card và tìm kiếm (01/11/2026, local)
+ 
+ LinkedStudentPicker dùng StudentPickerDialog chung cho Báo nghỉ/Đổi điểm. Popup bo24, card avatar48/tên/mã/trường, viền/nền vàng nhạt + dấu tích/Đang chọn. Search theo tên/mã/trường ngay trên linked list, bỏ dấu/hoa thường, có số kết quả, xóa query và trạng thái không tìm thấy; giữ policy/selectedId và không có API search mới. Khung ổn định theo viewport/safe area, KeyboardScrollView riêng, không autoFocus. [Component/search/keyboard/giới hạn](mobile-leave-student-card.md#popup-card-và-tìm-kiếm--01112026). Chưa commit/push; native acceptance chưa xác minh.
++
++Điều chỉnh search01/11 theo phản hồi: khớp chuỗi con liên tiếp trong từng trường thay vì tách từ rồi tìm rải trên nhiều trường. `ăn`/`ĂN` khớp `Nguyễn Văn A`; ký tự sai như `ăx` không khớp text đó. Vẫn tìm trên tên, mã hoặc trường, không fuzzy/khớp từng chữ rời. [Quy tắc và tests](../../mobile/scripts/search-text.test.ts).
+ 
+ ## Tạo báo nghỉ — chọn học sinh giống Đổi điểm (01/11/2026, local)
+ 

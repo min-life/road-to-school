@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { AppAlert as Alert } from '@/services/app-alert';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,12 +9,16 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Alert,
+  useWindowDimensions,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors } from '@/constants/theme';
+import { AppHeader } from '@/components/navigation/app-header';
+import { FloatingAddButton, FLOATING_ADD_CONTENT_INSET } from '@/components/navigation/floating-add-button';
+import { requestHistoryStyles as historyStyles } from '@/constants/request-history-styles';
+import { listLinkedStudentRequests } from '@/services/parent-request-history';
 import {
   mobileApiClient,
   StudentUpdateRequest,
@@ -23,7 +28,9 @@ import {
 } from '@/services/api-client';
 
 interface RequestListViewProps {
-  studentId: string;
+  /** Omit to show requests across the parent's currently linked children. */
+  studentId?: string;
+  appearance?: 'default' | 'leave-history';
   requestType: RequestType;
   title: string;
   createRoute: string;
@@ -33,6 +40,7 @@ interface RequestListViewProps {
 
 export function RequestListView({
   studentId,
+  appearance = 'default',
   requestType,
   title,
   createRoute,
@@ -41,6 +49,8 @@ export function RequestListView({
 }: RequestListViewProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
+  const isHistoryAppearance = appearance === 'leave-history';
 
   const [student, setStudent] = useState<ParentLinkedStudentDetail | null>(null);
   const [statusFilter, setStatusFilter] = useState<RequestStatus | 'ALL'>('ALL');
@@ -51,52 +61,67 @@ export function RequestListView({
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestGeneration = useRef(0);
 
   // Load student detail for name & disabled state
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    setStudent(current => current?.id === studentId ? current : null);
     if (!studentId) return;
     mobileApiClient
       .getLinkedStudentDetail(studentId)
-      .then(setStudent)
+      .then(result => { if (active) setStudent(result); })
       .catch((err) => console.warn('Could not load student in RequestListView:', err));
-  }, [studentId]);
+    return () => { active = false; };
+  }, [studentId]));
 
   // Fetch requests from Server with strict type & status filter
   const fetchRequests = useCallback(
     async (targetPage = 1, isPull = false) => {
-      if (!studentId) return;
+      const generation = ++requestGeneration.current;
+      const isCurrent = () => generation === requestGeneration.current;
       try {
-        if (isPull) setIsRefreshing(true);
-        else setIsLoading(true);
+        setIsRefreshing(isPull);
+        setIsLoading(!isPull);
         setError(null);
 
-        const res = await mobileApiClient.listParentStudentRequests(studentId, {
+        if (studentId === '') throw new Error('Không tìm thấy học sinh. Vui lòng quay lại.');
+        const query = {
           page: targetPage,
           limit: 10,
           type: requestType,
           status: statusFilter === 'ALL' ? undefined : statusFilter,
-        });
+        };
+        const res = studentId
+          ? await mobileApiClient.listParentStudentRequests(studentId, query)
+          : await listLinkedStudentRequests(query, isCurrent);
+        if (!isCurrent()) return;
 
         setRequests(res.items);
         setTotal(res.total);
         setTotalPages(res.totalPages);
-        setPage(targetPage);
+        setPage(res.page);
       } catch (err: any) {
+        if (!isCurrent()) return;
+        setRequests([]);
         setError(err?.message || 'Không thể tải danh sách yêu cầu cập nhật.');
       } finally {
-        setIsLoading(false);
-        setIsRefreshing(false);
+        if (isCurrent()) {
+          setIsLoading(false);
+          setIsRefreshing(false);
+        }
       }
     },
     [studentId, requestType, statusFilter]
   );
 
-  useEffect(() => {
-    fetchRequests(1);
-  }, [fetchRequests]);
+  useFocusEffect(useCallback(() => {
+    void fetchRequests(1);
+    return () => { requestGeneration.current += 1; };
+  }, [fetchRequests]));
 
   const handleCreateRequest = () => {
-    if (!studentId) return;
+    if (studentId === '') return;
     if (student && student.status === 'DISABLED') {
       Alert.alert(
         'Không thể tạo yêu cầu',
@@ -106,7 +131,7 @@ export function RequestListView({
     }
     router.push({
       pathname: createRoute as any,
-      params: { studentId },
+      params: studentId ? { studentId } : {},
     });
   };
 
@@ -152,7 +177,7 @@ export function RequestListView({
 
     return (
       <TouchableOpacity
-        style={styles.card}
+        style={[styles.card, isHistoryAppearance && historyStyles.card]}
         activeOpacity={0.7}
         onPress={() => {
           router.push({
@@ -161,8 +186,8 @@ export function RequestListView({
           });
         }}
       >
-        <View style={styles.cardHeader}>
-          <View style={styles.cardTypeRow}>
+        <View style={[styles.cardHeader, isHistoryAppearance && historyStyles.cardHeader]}>
+          <View style={[styles.cardTypeRow, isHistoryAppearance && historyStyles.cardTypeRow]}>
             <View
               style={[
                 styles.typeIconCircle,
@@ -175,14 +200,18 @@ export function RequestListView({
                 color={isAddress ? '#2563EB' : '#D97706'}
               />
             </View>
-            <Text style={styles.cardTypeTitle}>
+            <Text style={[styles.cardTypeTitle, isHistoryAppearance && historyStyles.cardTypeTitle]}>
               {isAddress ? 'Địa chỉ đón trả' : 'Thông tin học sinh'}
             </Text>
           </View>
           {getStatusBadge(item.status)}
         </View>
 
-        <Text style={styles.summaryText} numberOfLines={2}>
+        {studentId === undefined && (
+          <Text style={[styles.studentName, isHistoryAppearance && historyStyles.studentName]}>{item.studentName}</Text>
+        )}
+
+        <Text style={[styles.summaryText, isHistoryAppearance && historyStyles.summary]} numberOfLines={2}>
           {summary}
         </Text>
 
@@ -200,7 +229,7 @@ export function RequestListView({
           </View>
         )}
 
-        <View style={styles.cardFooter}>
+        <View style={[styles.cardFooter, isHistoryAppearance && historyStyles.footer]}>
           <View style={styles.timeRow}>
             <Ionicons name="time-outline" size={13} color="#94A3B8" />
             <Text style={styles.timeText}>
@@ -223,9 +252,50 @@ export function RequestListView({
     );
   };
 
+  const stateContent = isLoading ? (
+    <View style={[styles.centerBox, isHistoryAppearance && historyStyles.state]}>
+      <ActivityIndicator size="large" color={colors.primary} />
+      <Text style={[styles.loadingText, isHistoryAppearance && historyStyles.loadingText]}>Đang tải danh sách yêu cầu...</Text>
+    </View>
+  ) : error ? (
+    <View style={[styles.centerBox, isHistoryAppearance && historyStyles.state]}>
+      <Ionicons name="alert-circle-outline" size={40} color="#EF4444" />
+      <Text style={styles.errorText}>{error}</Text>
+      <TouchableOpacity style={styles.retryButton} onPress={() => fetchRequests(page)}>
+        <Text style={styles.retryButtonText}>Thử lại</Text>
+      </TouchableOpacity>
+    </View>
+  ) : (
+    <View style={[styles.centerBox, isHistoryAppearance && historyStyles.state, isHistoryAppearance && historyStyles.empty]}>
+      <View style={isHistoryAppearance ? historyStyles.emptyIcon : undefined}>
+        <Ionicons
+          name={isAddress ? 'location-outline' : 'document-text-outline'}
+          size={isHistoryAppearance ? 40 : 48}
+          color={isHistoryAppearance ? '#94A3B8' : '#CBD5E1'}
+        />
+      </View>
+      <Text style={[styles.emptyTitle, isHistoryAppearance && historyStyles.emptyTitle]}>Chưa có yêu cầu nào</Text>
+      <Text style={[styles.emptySubtitle, isHistoryAppearance && historyStyles.emptySubtitle,
+        isHistoryAppearance && { minHeight: historyStyles.emptySubtitle.lineHeight * 2 * fontScale }]}>{emptyMessage}</Text>
+      {!isHistoryAppearance && <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel={createButtonLabel}
+        style={styles.createFirstButton}
+        onPress={handleCreateRequest}
+        disabled={student?.status === 'DISABLED'}
+      >
+        <Ionicons name="add-circle-outline" size={18} color="#1E293B" />
+        <Text style={styles.createFirstButtonText}>{createButtonLabel}</Text>
+      </TouchableOpacity>}
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       {/* Header */}
+      {isHistoryAppearance ? (
+        <AppHeader title={title} subtitle={student?.fullName} onBack={() => router.back()} />
+      ) : (
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={colors.foreground} />
@@ -239,6 +309,8 @@ export function RequestListView({
           )}
         </View>
         <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={createButtonLabel}
           style={[
             styles.addButton,
             student?.status === 'DISABLED' && styles.addButtonDisabled,
@@ -251,9 +323,10 @@ export function RequestListView({
           <Text style={styles.addButtonText}>Tạo mới</Text>
         </TouchableOpacity>
       </View>
+      )}
 
       {/* Status Filter Tabs */}
-      <View style={styles.filtersSection}>
+      <View style={[styles.filtersSection, isHistoryAppearance && historyStyles.filters]}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -272,6 +345,7 @@ export function RequestListView({
               key={filter.key}
               style={[
                 styles.filterPill,
+                isHistoryAppearance && historyStyles.filterPill,
                 statusFilter === filter.key && styles.filterPillActive,
               ]}
               onPress={() => setStatusFilter(filter.key)}
@@ -290,40 +364,13 @@ export function RequestListView({
       </View>
 
       {/* Main Content / Vertical List */}
-      {isLoading ? (
-        <View style={styles.centerBox}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Đang tải danh sách yêu cầu...</Text>
-        </View>
-      ) : error ? (
-        <View style={styles.centerBox}>
-          <Ionicons name="alert-circle-outline" size={40} color="#EF4444" />
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={() => fetchRequests(page)}
-          >
-            <Text style={styles.retryButtonText}>Thử lại</Text>
-          </TouchableOpacity>
-        </View>
-      ) : requests.length === 0 ? (
-        <View style={styles.centerBox}>
-          <Ionicons
-            name={isAddress ? 'location-outline' : 'document-text-outline'}
-            size={48}
-            color="#CBD5E1"
-          />
-          <Text style={styles.emptyTitle}>Chưa có yêu cầu nào</Text>
-          <Text style={styles.emptySubtitle}>{emptyMessage}</Text>
-          <TouchableOpacity
-            style={styles.createFirstButton}
-            onPress={handleCreateRequest}
-            disabled={student?.status === 'DISABLED'}
-          >
-            <Ionicons name="add-circle-outline" size={18} color="#1E293B" />
-            <Text style={styles.createFirstButtonText}>{createButtonLabel}</Text>
-          </TouchableOpacity>
-        </View>
+      {isLoading || error || requests.length === 0 ? (
+        isHistoryAppearance ? (
+          <ScrollView contentContainerStyle={[historyStyles.content, { paddingBottom: insets.bottom + FLOATING_ADD_CONTENT_INSET }]}
+            refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => fetchRequests(1, true)} tintColor={colors.primary} />}>
+            {stateContent}
+          </ScrollView>
+        ) : stateContent
       ) : (
         <FlatList
           data={requests}
@@ -331,7 +378,7 @@ export function RequestListView({
           renderItem={renderRequestItem}
           contentContainerStyle={[
             styles.listContent,
-            { paddingBottom: insets.bottom + 24 },
+            { paddingBottom: insets.bottom + (isHistoryAppearance ? FLOATING_ADD_CONTENT_INSET : 24) },
           ]}
           refreshControl={
             <RefreshControl
@@ -342,7 +389,7 @@ export function RequestListView({
           }
           ListFooterComponent={
             totalPages > 1 ? (
-              <View style={styles.paginationRow}>
+              <View style={[styles.paginationRow, isHistoryAppearance && historyStyles.pagination]}>
                 <TouchableOpacity
                   style={[
                     styles.pageButton,
@@ -375,6 +422,8 @@ export function RequestListView({
           }
         />
       )}
+      {isHistoryAppearance && <FloatingAddButton label={createButtonLabel} onPress={handleCreateRequest}
+        disabled={student?.status === 'DISABLED'} bottom={insets.bottom + 16} right={insets.right + 20} />}
     </View>
   );
 }
@@ -416,6 +465,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   addButton: {
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.primary,
@@ -557,6 +607,12 @@ const styles = StyleSheet.create({
     color: '#1E293B',
     lineHeight: 18,
     marginBottom: 10,
+  },
+  studentName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.foreground,
+    marginBottom: 6,
   },
   cardFooter: {
     flexDirection: 'row',

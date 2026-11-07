@@ -1,0 +1,9 @@
+diff --git a/mobile/app/trip/[id].tsx b/mobile/app/trip/[id].tsx
+index 1e1f1e4..01ccc0e 100644
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -2943,2 +2943,2 @@ const styles = StyleSheet.create({
+-  tabBarStaff: { flexDirection: 'row', flexGrow: 1, alignItems: 'stretch' },
+-  tabButtonStaff: { flexGrow: 1, flexShrink: 0, flexBasis: 'auto', minWidth: 0, paddingHorizontal: 0, gap: 3 },
++  tabBarStaff: { flexDirection: 'row', flexGrow: 1, alignItems: 'stretch', gap: 8, paddingRight: 8 },
++  tabButtonStaff: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', minHeight: 44, paddingHorizontal: 12, gap: 6 },

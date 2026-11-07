@@ -1,0 +1,280 @@
+--- /dev/null
++++ b/mobile/components/auth/otp-request-summary.tsx
+@@ -0,0 +1,47 @@
++import { StyleSheet, Text, View } from 'react-native';
++import Ionicons from '@expo/vector-icons/Ionicons';
++import { colors } from '@/constants/theme';
++
++type SummaryRow = { label: string; value: string; stacked?: boolean };
++
++/** Read-only review of the submitted draft; never owns OTP or request payloads. */
++export function OtpRequestSummary({ title, subjectLabel, subjectName, rows }: {
++  title: string;
++  subjectLabel: string;
++  subjectName?: string;
++  rows: readonly SummaryRow[];
++}) {
++  return <View style={styles.card}>
++    <View style={styles.header}>
++      <View style={styles.icon}><Ionicons name="document-text-outline" size={18} color={colors.navigationActive} accessible={false} /></View>
++      <Text accessibilityRole="header" style={styles.title}>{title}</Text>
++    </View>
++    <View style={styles.subject}>
++      <Text style={styles.label}>{subjectLabel}</Text>
++      <Text style={styles.subjectName}>{subjectName?.trim() || 'Chưa có thông tin'}</Text>
++    </View>
++    <View style={styles.rows}>
++      {rows.map(row => <View key={row.label} style={row.stacked ? styles.stacked : styles.row}>
++        <Text style={[styles.label, !row.stacked && styles.rowLabel]}>{row.label}</Text>
++        <Text style={[styles.value, !row.stacked && styles.rowValue]}>{row.value}</Text>
++      </View>)}
++    </View>
++  </View>;
++}
++
++const styles = StyleSheet.create({
++  card: { width: '100%', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
++    borderRadius: 20, padding: 16, marginVertical: 12, gap: 14 },
++  header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
++  icon: { width: 34, height: 34, borderRadius: 11, backgroundColor: colors.navigationHighlight, alignItems: 'center', justifyContent: 'center' },
++  title: { flex: 1, minWidth: 0, color: colors.foreground, fontSize: 15, lineHeight: 21, fontWeight: '700' },
++  subject: { gap: 4, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
++  subjectName: { color: colors.foreground, fontSize: 16, lineHeight: 23, fontWeight: '700' },
++  rows: { gap: 12 },
++  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
++  stacked: { gap: 4 },
++  label: { color: colors.mutedText, fontSize: 12, lineHeight: 20 },
++  rowLabel: { width: '34%' },
++  value: { color: colors.foreground, fontSize: 13, lineHeight: 20, fontWeight: '600' },
++  rowValue: { flex: 1, minWidth: 0 },
++});
+--- /dev/null
++++ b/mobile/utils/otp-summary.ts
+@@ -0,0 +1,38 @@
++const UNKNOWN = 'Chưa có thông tin';
++
++/** Presentation parsing only; callers retain the original request JSON for verification. */
++export function readSummaryObject(value?: string): Record<string, unknown> | null {
++  try {
++    const parsed: unknown = JSON.parse(value || '');
++    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
++      ? parsed as Record<string, unknown> : null;
++  } catch {
++    return null;
++  }
++}
++
++export function summaryText(value: unknown, fallback = UNKNOWN): string {
++  return typeof value === 'string' && value.trim() ? value.trim() : fallback;
++}
++
++export function summaryDate(value?: string): string {
++  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return UNKNOWN;
++  const [year, month, day] = value.split('-').map(Number);
++  const date = new Date(0);
++  date.setUTCFullYear(year, month - 1, day);
++  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return UNKNOWN;
++  return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
++}
++
++export function summaryTimeRange(start?: string, end?: string): string {
++  const clock = (value?: string) => value && /^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(value) ? value.slice(0, 5) : null;
++  const first = clock(start), last = clock(end);
++  if (!first && !last) return 'Theo lịch';
++  return `${first || UNKNOWN} – ${last || UNKNOWN}`;
++}
++
++export function summaryCoordinates(latitude: unknown, longitude: unknown): string {
++  if (typeof latitude !== 'number' || typeof longitude !== 'number' || !Number.isFinite(latitude)
++    || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return UNKNOWN;
++  return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
++}
+--- /dev/null
++++ b/mobile/scripts/otp-summary.test.ts
+@@ -0,0 +1,34 @@
++import { describe, it } from 'node:test';
++import assert from 'node:assert/strict';
++import { readSummaryObject, summaryCoordinates, summaryDate, summaryText, summaryTimeRange } from '../utils/otp-summary.ts';
++
++// Pure text, JSON and numeric formatting only; no requests, challenges or business fixtures.
++describe('OTP summary presentation', () => {
++  it('only reads JSON objects and safely rejects broken or non-object JSON', () => {
++    for (const value of [undefined, '', '{', 'null', '[]', '1', '"text"']) assert.equal(readSummaryObject(value), null);
++    assert.deepEqual(readSummaryObject('{"text":"original","number":0}'), { text: 'original', number: 0 });
++  });
++  it('preserves entered text without coercing missing values or objects', () => {
++    assert.equal(summaryText('  Nội dung\nxuống dòng  '), 'Nội dung\nxuống dòng');
++    for (const value of [undefined, null, {}, 0, ' ']) assert.equal(summaryText(value), 'Chưa có thông tin');
++    assert.equal(summaryText('', 'Không nhập'), 'Không nhập');
++  });
++  it('formats calendar dates without timezone shifts and rejects impossible dates', () => {
++    assert.equal(summaryDate('2026-11-01'), '01/11/2026');
++    assert.equal(summaryDate('2024-02-29'), '29/02/2024');
++    for (const value of [undefined, '2026-02-29', '2026-13-01', '2026-11-31', '2026-11-01T00:00:00Z']) assert.equal(summaryDate(value), 'Chưa có thông tin');
++  });
++  it('keeps scheduled time ranges and represents missing or invalid times honestly', () => {
++    assert.equal(summaryTimeRange('06:15', '07:00:00'), '06:15 – 07:00');
++    assert.equal(summaryTimeRange('06:15'), '06:15 – Chưa có thông tin');
++    assert.equal(summaryTimeRange(undefined, '07:00'), 'Chưa có thông tin – 07:00');
++    assert.equal(summaryTimeRange('25:00', 'invalid'), 'Theo lịch');
++  });
++  it('formats selected coordinates to the same six decimals as the form, including zero', () => {
++    assert.equal(summaryCoordinates(0, 0), '0.000000, 0.000000');
++    assert.equal(summaryCoordinates(-90, 180), '-90.000000, 180.000000');
++    assert.equal(summaryCoordinates(1.12345678, 2.12345678), '1.123457, 2.123457');
++    for (const value of [null, '0', NaN, Infinity, 91]) assert.equal(summaryCoordinates(value, 0), 'Chưa có thông tin');
++    assert.equal(summaryCoordinates(0, -181), 'Chưa có thông tin');
++  });
++});
+--- a/mobile/app/leave-notices/create.tsx
++++ b/mobile/app/leave-notices/create.tsx
+@@ -231,6 +231,8 @@
+           routeName: currentTrip.routeName,
+           serviceDate: currentTrip.serviceDate,
+           direction: currentTrip.direction,
++          scheduledStartTime: currentTrip.scheduledStartTime || '',
++          scheduledEndTime: currentTrip.scheduledEndTime || '',
+         },
+       } as any);
+     } catch (err: any) {
+--- a/mobile/app/leave-notices/otp.tsx
++++ b/mobile/app/leave-notices/otp.tsx
+@@ -17,6 +17,8 @@
+ import Ionicons from '@expo/vector-icons/Ionicons';
+ import { colors } from '@/constants/theme';
+ import { mobileApiClient, MaskedContactChannel } from '@/services/api-client';
++import { OtpRequestSummary } from '@/components/auth/otp-request-summary';
++import { summaryDate, summaryText, summaryTimeRange } from '@/utils/otp-summary';
+ 
+ export default function LeaveNoticeOtpScreen() {
+   const insets = useSafeAreaInsets();
+@@ -32,6 +34,8 @@
+     routeName?: string;
+     serviceDate?: string;
+     direction?: string;
++    scheduledStartTime?: string;
++    scheduledEndTime?: string;
+   }>();
+ 
+   const [challengeId, setChallengeId] = useState(params.challengeId || '');
+@@ -165,6 +169,17 @@
+           </Text>
+         </View>
+ 
++        <OtpRequestSummary title="Thông tin báo nghỉ"
++          subjectLabel={params.studentId ? 'Học sinh' : 'Người báo nghỉ'} subjectName={params.subjectName}
++          rows={[
++            { label: 'Ngày', value: summaryDate(params.serviceDate) },
++            { label: 'Chiều', value: params.direction === 'TO_SCHOOL' ? 'Chiều đi (Đến trường)'
++              : params.direction === 'TO_PARKING' ? 'Chiều về (Về nhà)' : 'Chưa có thông tin' },
++            { label: 'Chuyến xe', value: summaryText(params.routeName), stacked: true },
++            { label: 'Giờ dự kiến', value: summaryTimeRange(params.scheduledStartTime, params.scheduledEndTime) },
++            { label: 'Lý do', value: summaryText(params.reason, 'Không nhập'), stacked: true },
++          ]} />
++
+         {/* OTP Input */}
+         <View style={styles.inputContainer}>
+           <TextInput
+--- a/mobile/components/parent/create-address-request-view.tsx
++++ b/mobile/components/parent/create-address-request-view.tsx
+@@ -206,6 +206,7 @@
+           challengeId: otpRes.challengeId,
+           maskedPhone: otpRes.maskedPhone,
+           proposedDataJson: JSON.stringify(proposedData),
++          studentName: student.fullName,
+         },
+       });
+     } catch (err: any) {
+--- a/mobile/app/parent/create-request/verify-otp.tsx
++++ b/mobile/app/parent/create-request/verify-otp.tsx
+@@ -20,6 +20,8 @@
+   mobileApiClient,
+   RequestType,
+ } from '@/services/api-client';
++import { OtpRequestSummary } from '@/components/auth/otp-request-summary';
++import { readSummaryObject, summaryCoordinates, summaryText } from '@/utils/otp-summary';
+ 
+ export default function VerifyOtpRequestScreen() {
+   const router = useRouter();
+@@ -30,9 +32,12 @@
+     challengeId: string;
+     maskedPhone: string;
+     proposedDataJson: string;
++    studentName?: string;
+   }>();
+ 
+   const { studentId, type, challengeId, maskedPhone, proposedDataJson } = params;
++  const addressSummary = React.useMemo(() => type === 'ADDRESS_UPDATE'
++    ? readSummaryObject(proposedDataJson) : null, [type, proposedDataJson]);
+ 
+   const [otp, setOtp] = useState('');
+   const [isVerifying, setIsVerifying] = useState(false);
+@@ -113,6 +118,13 @@
+           <Text style={styles.phoneHighlight}>{maskedPhone || 'của bạn'}</Text>.
+         </Text>
+ 
++        {type === 'ADDRESS_UPDATE' && <OtpRequestSummary title="Thông tin đổi điểm đón/trả"
++          subjectLabel="Học sinh" subjectName={params.studentName}
++          rows={[
++            { label: 'Địa chỉ mới', value: summaryText(addressSummary?.addressText), stacked: true },
++            { label: 'Tọa độ đã chọn', value: summaryCoordinates(addressSummary?.latitude, addressSummary?.longitude), stacked: true },
++          ]} />}
++
+         {/* Error banner */}
+         {errorMessage && (
+           <View style={styles.errorBanner}>
+--- a/docs/architecture/mobile-otp-ui.md
++++ b/docs/architecture/mobile-otp-ui.md
+@@ -1,6 +1,29 @@
+ # Mobile OTP — kế thừa giao diện V1
+ 
+-Cập nhật 29/10/2026 (Asia/Saigon). Implementation local trên V2, chưa commit/push. Tài liệu này ghi nhận phần trình bày của **cả 5 màn nhập/xác nhận OTP**; không thay đổi contract xác thực hoặc chứng nhận gửi mã thực tế.
++Giao diện nền29/10/2026; cập nhật thẻ tóm tắt01/11/2026 (Asia/Saigon), local chưa commit/push lần cập nhật này. Tài liệu ghi nhận phần trình bày của **cả 5 màn nhập/xác nhận OTP**; không thay đổi contract xác thực hoặc chứng nhận gửi mã thực tế.
++
++## Thẻ tóm tắt Báo nghỉ và Đổi điểm — 01/11/2026
++
++Ở `/leave-notices/otp` và nhánh `ADDRESS_UPDATE` của `/parent/create-request/verify-otp`, bổ sung thẻ đọc lại thông tin **sau phần giới thiệu/kênh nhận mã, trước ô nhập OTP**. Thẻ không có input hoặc thao tác gửi riêng; không đưa thẻ Xác nhận thông tin đã bỏ trở lại trang Tạo báo nghỉ.
++
++| Màn | Thông tin trong thẻ | Nguồn snapshot |
++| --- | --- | --- |
++| Báo nghỉ | Học sinh/người báo nghỉ, ngày, chiều, tên chuyến, giờ dự kiến, lý do hoặc Không nhập | Các params subjectName/serviceDate/direction/routeName/reason đã có; thêm scheduledStartTime/scheduledEndTime từ chuyến đang chọn |
++| Đổi điểm | Tên học sinh, địa chỉ mới, tọa độ đã chọn | Thêm studentName từ detail con đang chọn; đọc addressText/latitude/longitude từ proposedDataJson đã có |
++
++Nhánh `INFORMATION_UPDATE` dùng cùng route OTP được giữ nguyên, không render thẻ Đổi điểm. Không fetch hồ sơ/chuyến mới trên OTP và không gọi search/map lại; thông tin là snapshot của form đã gửi mã, không thay bằng data mới sau đó. Tên bị thiếu trên deep link/URL cũ hiển thị Chưa có thông tin, không tự lấy tên con đầu tiên hoặc hiển thị ID kỹ thuật.
++
++### Component và cách mở rộng
++
++[OtpRequestSummary](../../mobile/components/auth/otp-request-summary.tsx) nhận `title`, `subjectLabel`, `subjectName?`, `rows: readonly { label: string; value: string; stacked?: boolean }[]`. Không sở hữu API/router/OTP state. `stacked` dành cho tên chuyến, địa chỉ, lý do dài: label trên value; dòng gọn như ngày/chiều/giờ có label34%, value flex. Muốn thêm thông tin chỉ bổ sung row từ dữ liệu form thực, không chuyển request payload vào component hoặc sinh dữ liệu khi thiếu.
++
++Nền trắng/viền theme/bo20/padding16; header icon nền vàng nhạt, tên đối tượng đậm, divider phân nhóm. Text wrap toàn bộ, không numberOfLines/ellipsis, không hardcode chiều cao card. Thẻ nằm trong KeyboardScrollView hiện có, cùng vùng form max430/safe area và cơ chế cuộn tới OTP; giữ autofocus của ô mã, không thêm KeyboardAvoidingView hoặc offset bàn phím.
++
++[otp-summary.ts](../../mobile/utils/otp-summary.ts) chỉ format presentation: JSON object guard/catch, string fallback, ngày lịch DD/MM/YYYY không dịch timezone, giờ HH:mm, tọa độ6decimals cùng form. Query JSON sai/missing/array/null không làm render throw hoặc thành dữ liệu giả. Không sửa proposedDataJson ban đầu: handleVerify vẫn parse và gửi payload như trước; helper không thay API validation. Không hiển thị OTP/challengeId hoặc dữ liệu liên hệ chưa che trong thẻ.
++
++### Kiểm chứng cập nhật thẻ
++
++5 pure tests tại [otp-summary.test.ts](../../mobile/scripts/otp-summary.test.ts): JSON/text/date/time/coordinates, không fake business DTO/OTP request. Typecheck và AST comparison xác minh handlers OTP/resend/confirm, trường nhập và toàn bộ creator handlers giữ nguyên trừ route metadata hiển thị. Kết quả build và giới hạn thực tế tại [AI Review](../ai-review/LATEST.md); các kiểm chứng29/10 phía dưới là lịch sử, không chứng nhận thẻ mới trên điện thoại. Chưa gửi/xác nhận OTP hoặc tạo challenge để thử UI.
+ 
+ ## Phạm vi và source map
+ 
+@@ -12,7 +35,7 @@
+ | `/parent/create-request/verify-otp` | [verify-otp.tsx](../../mobile/app/parent/create-request/verify-otp.tsx) | Dùng chung cho yêu cầu cập nhật thông tin/địa chỉ, người giám hộ, thông báo hiệu lực mã, lỗi và xác nhận/gửi yêu cầu |
+ | `/leave-notices/otp` | [otp.tsx](../../mobile/app/leave-notices/otp.tsx) | Toàn bộ kênh nhận mã, nhãn SMS console khi có, countdown, gửi lại, lỗi và xác nhận báo nghỉ |
+ 
+-Các màn yêu cầu gửi mã như Đăng ký, Quên mật khẩu, Liên kết học sinh, tạo yêu cầu và tạo báo nghỉ không phải màn nhập OTP, không được sửa trong task này. Màn cập nhật học sinh không có resend trước đây nên không thêm nút resend.
++Trong task giao diện29/10, các màn yêu cầu gửi mã như Đăng ký, Quên mật khẩu, Liên kết học sinh, tạo yêu cầu và tạo báo nghỉ không thuộc phạm vi chỉnh sửa. Riêng cập nhật01/11 ở trên bổ sung display route metadata từ form Báo nghỉ/Đổi điểm, không đổi API gửi mã. Màn cập nhật học sinh không có resend trước đây nên không thêm nút resend.
+ 
+ ## Nguồn thiết kế V1
+ 
+--- a/docs/architecture/mobile-ui-implementation-status.md
++++ b/docs/architecture/mobile-ui-implementation-status.md
+@@ -1,6 +1,10 @@
+ # Hiện trạng giao diện Mobile — Onboarding, xác thực và điều hướng
+ 
+ Ngày cập nhật: **29/10/2026 (Asia/Saigon)**. Commit `db02de6` là mốc Phase1 trên nhánh `dongnnp/mobile/refactor-ui`; các cập nhật local được ghi riêng bên dưới. Tài liệu này ghi nhận phần đã triển khai trong đợt chuyển phong cách V1 sang V2; không phải phê duyệt toàn bộ kế hoạch chuyển giao diện hoặc chứng nhận nghiệm thu thiết bị.
++
++## OTP Báo nghỉ/Đổi điểm — thẻ tóm tắt (01/11/2026, local)
++
++Hai trang nhập OTP có OtpRequestSummary chung phía trên ô mã. Báo nghỉ hiển thị đối tượng/ngày/chiều/chuyến/giờ dự kiến/lý do; Đổi điểm hiển thị tên con/địa chỉ mới/tọa độ. Dùng snapshot params và proposedDataJson từ form, chỉ thêm tên con/giờ chuyến cho trình bày, không thêm GET/endpoint hoặc đổi payload xác nhận. INFORMATION_UPDATE không hiện thẻ Đổi điểm. Card wrap/cuộn cùng KeyboardScrollView, giữ autofocus/OTP/resend/countdown. [Component/fields/source/kiểm chứng](mobile-otp-ui.md#thẻ-tóm-tắt-báo-nghỉ-và-đổi-điểm--01112026). Chưa commit/push, native/OTP runtime chưa xác minh.
+ 
+ ## Popup chọn học sinh — card và tìm kiếm (01/11/2026, local)
+ 

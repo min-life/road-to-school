@@ -5,6 +5,9 @@ export const colors = {
   surface: '#FFFFFF',
   border: '#E2E8F0',
   mutedText: '#64748B',
+  navigationActive: '#996300',
+  navigationHighlight: '#FFF3D2',
+  navigationShadow: '#17243B',
   success: '#10B981',
   error: '#EF4444',
 } as const;

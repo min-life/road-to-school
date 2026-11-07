@@ -1,0 +1,215 @@
+--- a/mobile/app/parent/change-stop.tsx
++++ b/mobile/app/parent/change-stop.tsx
+@@ -7,0 +8 @@
++      appearance="leave-history"
+--- a/mobile/components/parent/RequestListView.tsx
++++ b/mobile/components/parent/RequestListView.tsx
+@@ -11,0 +12 @@
++  useWindowDimensions,
+@@ -16,0 +18,2 @@
++import { AppHeader, HeaderAction } from '@/components/navigation/app-header';
++import { requestHistoryStyles as historyStyles } from '@/constants/request-history-styles';
+@@ -28,0 +32 @@
++  appearance?: 'default' | 'leave-history';
+@@ -37,0 +42 @@
++  appearance = 'default',
+@@ -45,0 +51,2 @@
++  const { fontScale } = useWindowDimensions();
++  const isHistoryAppearance = appearance === 'leave-history';
+@@ -172 +179 @@
+-        style={styles.card}
++        style={[styles.card, isHistoryAppearance && historyStyles.card]}
+@@ -181,2 +188,2 @@
+-        <View style={styles.cardHeader}>
+-          <View style={styles.cardTypeRow}>
++        <View style={[styles.cardHeader, isHistoryAppearance && historyStyles.cardHeader]}>
++          <View style={[styles.cardTypeRow, isHistoryAppearance && historyStyles.cardTypeRow]}>
+@@ -195 +202 @@
+-            <Text style={styles.cardTypeTitle}>
++            <Text style={[styles.cardTypeTitle, isHistoryAppearance && historyStyles.cardTypeTitle]}>
+@@ -203 +210 @@
+-          <Text style={styles.studentName}>{item.studentName}</Text>
++          <Text style={[styles.studentName, isHistoryAppearance && historyStyles.studentName]}>{item.studentName}</Text>
+@@ -206 +213 @@
+-        <Text style={styles.summaryText} numberOfLines={2}>
++        <Text style={[styles.summaryText, isHistoryAppearance && historyStyles.summary]} numberOfLines={2}>
+@@ -224 +231 @@
+-        <View style={styles.cardFooter}>
++        <View style={[styles.cardFooter, isHistoryAppearance && historyStyles.footer]}>
+@@ -246,0 +254,38 @@
++  const stateContent = isLoading ? (
++    <View style={[styles.centerBox, isHistoryAppearance && historyStyles.state]}>
++      <ActivityIndicator size="large" color={colors.primary} />
++      <Text style={[styles.loadingText, isHistoryAppearance && historyStyles.loadingText]}>Đang tải danh sách yêu cầu...</Text>
++    </View>
++  ) : error ? (
++    <View style={[styles.centerBox, isHistoryAppearance && historyStyles.state]}>
++      <Ionicons name="alert-circle-outline" size={40} color="#EF4444" />
++      <Text style={styles.errorText}>{error}</Text>
++      <TouchableOpacity style={styles.retryButton} onPress={() => fetchRequests(page)}>
++        <Text style={styles.retryButtonText}>Thử lại</Text>
++      </TouchableOpacity>
++    </View>
++  ) : (
++    <View style={[styles.centerBox, isHistoryAppearance && historyStyles.state, isHistoryAppearance && historyStyles.empty]}>
++      <View style={isHistoryAppearance ? historyStyles.emptyIcon : undefined}>
++        <Ionicons
++          name={isAddress ? 'location-outline' : 'document-text-outline'}
++          size={isHistoryAppearance ? 40 : 48}
++          color={isHistoryAppearance ? '#94A3B8' : '#CBD5E1'}
++        />
++      </View>
++      <Text style={[styles.emptyTitle, isHistoryAppearance && historyStyles.emptyTitle]}>Chưa có yêu cầu nào</Text>
++      <Text style={[styles.emptySubtitle, isHistoryAppearance && historyStyles.emptySubtitle,
++        isHistoryAppearance && { minHeight: historyStyles.emptySubtitle.lineHeight * 2 * fontScale }]}>{emptyMessage}</Text>
++      <TouchableOpacity
++        accessibilityRole="button"
++        accessibilityLabel={createButtonLabel}
++        style={[styles.createFirstButton, isHistoryAppearance && student?.status === 'DISABLED' && historyStyles.disabled]}
++        onPress={handleCreateRequest}
++        disabled={student?.status === 'DISABLED'}
++      >
++        <Ionicons name="add-circle-outline" size={18} color="#1E293B" />
++        <Text style={styles.createFirstButtonText}>{createButtonLabel}</Text>
++      </TouchableOpacity>
++    </View>
++  );
++
+@@ -249,0 +295,5 @@
++      {isHistoryAppearance ? (
++        <AppHeader title={title} subtitle={student?.fullName} onBack={() => router.back()}
++          actions={<HeaderAction icon="add" label={createButtonLabel}
++            onPress={handleCreateRequest} disabled={student?.status === 'DISABLED'} />} />
++      ) : (
+@@ -276,0 +327 @@
++      )}
+@@ -279 +330 @@
+-      <View style={styles.filtersSection}>
++      <View style={[styles.filtersSection, isHistoryAppearance && historyStyles.filters]}>
+@@ -297,0 +349 @@
++                isHistoryAppearance && historyStyles.filterPill,
+@@ -316,34 +368,7 @@
+-      {isLoading ? (
+-        <View style={styles.centerBox}>
+-          <ActivityIndicator size="large" color={colors.primary} />
+-          <Text style={styles.loadingText}>Đang tải danh sách yêu cầu...</Text>
+-        </View>
+-      ) : error ? (
+-        <View style={styles.centerBox}>
+-          <Ionicons name="alert-circle-outline" size={40} color="#EF4444" />
+-          <Text style={styles.errorText}>{error}</Text>
+-          <TouchableOpacity
+-            style={styles.retryButton}
+-            onPress={() => fetchRequests(page)}
+-          >
+-            <Text style={styles.retryButtonText}>Thử lại</Text>
+-          </TouchableOpacity>
+-        </View>
+-      ) : requests.length === 0 ? (
+-        <View style={styles.centerBox}>
+-          <Ionicons
+-            name={isAddress ? 'location-outline' : 'document-text-outline'}
+-            size={48}
+-            color="#CBD5E1"
+-          />
+-          <Text style={styles.emptyTitle}>Chưa có yêu cầu nào</Text>
+-          <Text style={styles.emptySubtitle}>{emptyMessage}</Text>
+-          <TouchableOpacity
+-            style={styles.createFirstButton}
+-            onPress={handleCreateRequest}
+-            disabled={student?.status === 'DISABLED'}
+-          >
+-            <Ionicons name="add-circle-outline" size={18} color="#1E293B" />
+-            <Text style={styles.createFirstButtonText}>{createButtonLabel}</Text>
+-          </TouchableOpacity>
+-        </View>
++      {isLoading || error || requests.length === 0 ? (
++        isHistoryAppearance ? (
++          <ScrollView contentContainerStyle={[historyStyles.content, { paddingBottom: insets.bottom + 24 }]}
++            refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => fetchRequests(1, true)} tintColor={colors.primary} />}>
++            {stateContent}
++          </ScrollView>
++        ) : stateContent
+@@ -368 +393 @@
+-              <View style={styles.paginationRow}>
++              <View style={[styles.paginationRow, isHistoryAppearance && historyStyles.pagination]}>
+--- /dev/null
++++ b/mobile/constants/request-history-styles.ts
+@@ -0,0 +1,47 @@
++import { StyleSheet } from 'react-native';
++import { colors } from './theme';
++
++/** Match the existing Leave history layout without changing request data/actions. */
++export const requestHistoryStyles = StyleSheet.create({
++  content: { padding: 16, gap: 12 },
++  filters: { borderBottomColor: colors.border },
++  filterPill: { paddingHorizontal: 12, paddingVertical: 5 },
++  state: {
++    flex: 0,
++    padding: 0,
++    paddingVertical: 60,
++    alignItems: 'center',
++    justifyContent: 'center',
++    gap: 12,
++  },
++  empty: { gap: 8 },
++  emptyIcon: {
++    width: 64, height: 64, borderRadius: 32,
++    backgroundColor: '#F1F5F9',
++    alignItems: 'center', justifyContent: 'center', marginBottom: 8,
++  },
++  emptyTitle: {
++    fontSize: 16, fontWeight: '700', color: '#334155',
++    marginTop: 0, textAlign: 'center',
++  },
++  emptySubtitle: {
++    color: colors.mutedText, maxWidth: 260, lineHeight: 18,
++    marginTop: 0, marginBottom: 8,
++  },
++  loadingText: { marginTop: 0 },
++  disabled: { opacity: 0.5 },
++  card: {
++    borderRadius: 16, padding: 16, gap: 12,
++    shadowOpacity: 0.04, marginBottom: 0,
++  },
++  cardHeader: { gap: 8, alignItems: 'flex-start', marginBottom: 0 },
++  cardTypeRow: { flex: 1, minWidth: 0 },
++  cardTypeTitle: { flexShrink: 1 },
++  studentName: { fontSize: 15, marginBottom: 0 },
++  summary: {
++    backgroundColor: '#F8FAFC', padding: 10, borderRadius: 10,
++    marginBottom: 0,
++  },
++  footer: { borderTopColor: '#F1F5F9', paddingTop: 10, flexWrap: 'wrap', gap: 8 },
++  pagination: { flexWrap: 'wrap', gap: 8 },
++});
+--- a/docs/architecture/mobile-parent-stop-requests.md
++++ b/docs/architecture/mobile-parent-stop-requests.md
+@@ -9 +9 @@
+-  [Quay lại] [Đổi điểm đón/trả] [Tạo mới]
++  [Quay lại] [Đổi điểm đón/trả] [+]
+@@ -20,0 +21,13 @@
++## Style đồng bộ Báo nghỉ — 30/10/2026
++
++Route Đổi điểm bật `appearance="leave-history"` trong RequestListView. Các route yêu cầu riêng từ Hồ sơ học sinh giữ appearance mặc định. Đây là biến thể trình bày, không thêm loader, filter/status nghiệp vụ hoặc callback điều hướng.
++
++- Cùng AppHeader/HeaderAction với Báo nghỉ: tiêu đề/back bên trái, nút dấu **+** bên phải có accessibilityLabel **Tạo yêu cầu đổi điểm**, cùng safe area và kích thước48px.
++- Dải trạng thái giữ đủ năm bộ lọc của yêu cầu; padding pill12×5, nền trắng, active navy như Báo nghỉ. Cuộn ngang và ẩn thanh cuộn sẵn có.
++- Loading/error/empty nằm trong ScrollView có padding16 và bottom inset; empty có paddingVertical60, icon tròn64, title16, description12/18, gap8. Không căn giữa toàn bộ chiều cao màn hình như trước. Nút vàng **Tạo yêu cầu đổi điểm** nằm ngay dưới mô tả, cùng cách đặt với **Tạo báo nghỉ mới**.
++- Mô tả ngắn của Đổi điểm vẫn giữ nguyên; vùng mô tả có chiều cao tối thiểu tương đương hai dòng18×fontScale để CTA không bị kéo lên so với mô tả hai dòng ở Báo nghỉ. Đây là minHeight theo chữ, không tọa độ tuyệt đối của nút; văn bản dài vẫn mở rộng/cuộn, không cắt chữ hoặc bù bàn phím cố định.
++- Card trắng bo16/padding16/gap12/shadow nhẹ; địa chỉ trong nền phụ, footer wrap khi hẹp. Giữ đầy đủ tên con, loại yêu cầu, badge trạng thái, địa chỉ đề xuất, resolution, thời gian và Chi tiết. Giữ total, Trước/Sau và số trang; pagination được xuống dòng khi hẹp.
++- Lịch sử rỗng vẫn có CTA và dấu +; có dữ liệu dùng dấu + trên header như Báo nghỉ. Cả hai giữ cùng handleCreateRequest và đích bộ chọn hiện có. Retry/refresh, guard và disabled giữ nguyên.
++
++Style nằm tại [request-history-styles.ts](../../mobile/constants/request-history-styles.ts). Không sửa source trang Báo nghỉ, form/OTP, bộ chọn hoặc service gộp yêu cầu. Kiểm chứng layout dùng JSX/style thật tách riêng để SSR bằng React Native Web, không mock API/records:320/390px CTA hai trang cùng y353 trong preview inset0, không tràn ngang; desktop1440px không tràn. Không dùng số đo preview làm tọa độ trong production hoặc coi là nghiệm thu iPhone thật.
++
+@@ -27 +40 @@
+-- [RequestListView.tsx](../../mobile/components/parent/RequestListView.tsx): `studentId?: string`; có ID giữ API và hành vi tạo yêu cầu riêng; bỏ prop này để hiển thị tổng hợp. ID rỗng từ URL lỗi báo lỗi, không chuyển thành chế độ tổng hợp. Các props `requestType/title/createRoute/createButtonLabel/emptyMessage` giữ nguyên.
++- [RequestListView.tsx](../../mobile/components/parent/RequestListView.tsx): `studentId?: string`; có ID giữ API và hành vi tạo yêu cầu riêng; bỏ prop này để hiển thị tổng hợp. ID rỗng từ URL lỗi báo lỗi, không chuyển thành chế độ tổng hợp. `appearance?: 'default' | 'leave-history'` mặc định default, dùng leave-history riêng cho trang Đổi điểm; các props `requestType/title/createRoute/createButtonLabel/emptyMessage` giữ nguyên.
+@@ -31 +44 @@
+-View tổng hợp thêm tên con trên mỗi card; giữ địa chỉ, badge trạng thái, resolution, ngày giờ và route detail. Nút Tạo mới có nhãn accessibility và minHeight44. Không thêm input hoặc xử lý bàn phím mới; header/safe area/FlatList/pull refresh theo view sẵn có. Bộ chọn giữ AppHeader trong flow và bottom inset, maxWidth560. Tab yêu cầu riêng cũng hưởng focus refresh và guard chống response cũ; không đổi contract/validation hay quyền thao tác.
++View tổng hợp thêm tên con trên mỗi card; giữ địa chỉ, badge trạng thái, resolution, ngày giờ và route detail. Nút tạo trên header mới dùng HeaderAction48; ở appearance mặc định vẫn giữ Tạo mới/minHeight44. Không thêm input hoặc xử lý bàn phím mới; header/safe area/FlatList/pull refresh theo view sẵn có. Bộ chọn giữ AppHeader trong flow và bottom inset, maxWidth560. Tab yêu cầu riêng cũng hưởng focus refresh và guard chống response cũ; không đổi contract/validation hay quyền thao tác.
+--- a/docs/architecture/mobile-parent-home-ui.md
++++ b/docs/architecture/mobile-parent-home-ui.md
+@@ -109,0 +110,2 @@
++
++Restyle30/10 tiếp theo: lịch sử Đổi điểm bật appearance leave-history, cùng AppHeader/dấu +, status pills và card style Báo nghỉ. CTA **Tạo yêu cầu đổi điểm** ở khối empty phía trên, cùng vị trí tương đối với **Tạo báo nghỉ mới**, thay căn giữa toàn màn hình. Giữ toàn bộ dữ liệu/filter/Chi tiết/phân trang và luồng chọn con; per-student views mặc định không restyle. [Style/nguồn/verification](mobile-parent-stop-requests.md#style-đồng-bộ-báo-nghỉ--30102026).

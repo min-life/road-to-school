@@ -1,0 +1,125 @@
+diff --git a/mobile/app/parent/schedule.tsx b/mobile/app/parent/schedule.tsx
+--- a/mobile/app/parent/schedule.tsx
++++ b/mobile/app/parent/schedule.tsx
+@@ -213 +213 @@ export default function ParentStudentScheduleScreen() {
+-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
++                  <View style={styles.headerBadges}>
+@@ -250 +250 @@ export default function ParentStudentScheduleScreen() {
+-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
++                  <View style={styles.footerActions}>
+@@ -396 +396,2 @@ const styles = StyleSheet.create({
+-    alignItems: 'center',
++    flexWrap: 'wrap',
++    alignItems: 'flex-start',
+@@ -397,0 +399 @@ const styles = StyleSheet.create({
++    gap: 8,
+@@ -399,0 +402,8 @@ const styles = StyleSheet.create({
++  headerBadges: {
++    flexDirection: 'row',
++    flexWrap: 'wrap',
++    alignItems: 'center',
++    gap: 6,
++    maxWidth: '100%',
++    minWidth: 0,
++  },
+@@ -407,0 +418,2 @@ const styles = StyleSheet.create({
++    maxWidth: '100%',
++    flexShrink: 1,
+@@ -409,0 +422,2 @@ const styles = StyleSheet.create({
++    flexShrink: 1,
++    minWidth: 0,
+@@ -419 +433,2 @@ const styles = StyleSheet.create({
+-    marginLeft: 4,
++    maxWidth: '100%',
++    minWidth: 0,
+@@ -424,0 +440 @@ const styles = StyleSheet.create({
++    flexShrink: 1,
+@@ -432,0 +449 @@ const styles = StyleSheet.create({
++    flexShrink: 1,
+@@ -440,0 +458 @@ const styles = StyleSheet.create({
++    flexShrink: 1,
+@@ -448,0 +467 @@ const styles = StyleSheet.create({
++    flexShrink: 1,
+@@ -465,3 +484,3 @@ const styles = StyleSheet.create({
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'space-between',
++    flexDirection: 'column',
++    alignItems: 'stretch',
++    gap: 10,
+@@ -474 +493 @@ const styles = StyleSheet.create({
+-    alignItems: 'center',
++    alignItems: 'flex-start',
+@@ -475,0 +495 @@ const styles = StyleSheet.create({
++    minWidth: 0,
+@@ -477,0 +498,2 @@ const styles = StyleSheet.create({
++    flex: 1,
++    minWidth: 0,
+@@ -478,0 +501 @@ const styles = StyleSheet.create({
++    lineHeight: 18,
+@@ -485 +508,15 @@ const styles = StyleSheet.create({
+-    gap: 2,
++    justifyContent: 'flex-end',
++    gap: 4,
++    marginLeft: 'auto',
++    minHeight: 48,
++    minWidth: 0,
++    maxWidth: '100%',
++    flexShrink: 1,
++  },
++  footerActions: {
++    flexDirection: 'row',
++    flexWrap: 'wrap',
++    alignItems: 'center',
++    gap: 10,
++    minWidth: 0,
++    width: '100%',
+@@ -487,0 +525 @@ const styles = StyleSheet.create({
++    flexShrink: 1,
+@@ -488,0 +527 @@ const styles = StyleSheet.create({
++    lineHeight: 18,
+@@ -492,0 +532,3 @@ const styles = StyleSheet.create({
++    marginLeft: 'auto',
++    maxWidth: '100%',
++    flexShrink: 1,
+@@ -493,0 +536 @@ const styles = StyleSheet.create({
++    lineHeight: 17,
+@@ -527,0 +571,3 @@ const styles = StyleSheet.create({
++    minHeight: 48,
++    maxWidth: '100%',
++    flexShrink: 1,
+@@ -529,2 +575,2 @@ const styles = StyleSheet.create({
+-    paddingHorizontal: 8,
+-    paddingVertical: 4,
++    paddingHorizontal: 12,
++    paddingVertical: 8,
+@@ -533,0 +580 @@ const styles = StyleSheet.create({
++    flexShrink: 1,
+@@ -534,0 +582 @@ const styles = StyleSheet.create({
++    lineHeight: 18,
+diff --git a/docs/architecture/mobile-ui-implementation-status.md b/docs/architecture/mobile-ui-implementation-status.md
+--- a/docs/architecture/mobile-ui-implementation-status.md
++++ b/docs/architecture/mobile-ui-implementation-status.md
+@@ -4,0 +5,22 @@ Ngày cập nhật: **29/10/2026 (Asia/Saigon)**. Commit `db02de6` là mốc Pha
++## Lịch học & Xe đưa đón — chống tràn card (29/10/2026, local)
++
++Đã sửa [parent/schedule.tsx](../../mobile/app/parent/schedule.tsx) để biển số/hãng xe dài không đẩy Báo nghỉ hoặc Xem lộ trình ra khỏi card. Đây là điều chỉnh layout của lịch học sinh PARENT, không thay lịch nhân sự hoặc Web Admin.
++
++```text
++[Giờ bắt đầu – kết thúc] [Chiều] [Trạng thái]
++Tên tuyến
++Tên trường
++─────────────────────────────────────────
++[Biển số / Hãng xe — đầy đủ, tự xuống dòng]
++[Báo nghỉ]                    [Xem lộ trình]
++```
++
++Giờ và nhóm badge tự chuyển hàng khi thiếu chỗ; từng badge giới hạn theo vùng card. Footer tách hai hàng: vehicleInfo/vehicleText chiếm bề ngang có thể co với flex1/minWidth0; footerActions là hàng độc lập có flexWrap. ActionLink/virtualNotice canh phải, thao tác tự sang hàng khi vùng hiển thị quá hẹp. Báo nghỉ/Xem lộ trình có minHeight48. Nội dung không dùng numberOfLines, ellipsis, cắt chuỗi hoặc overflow hidden để giấu lỗi bố cục; chiều cao card tăng theo nội dung.
++
++Giữ đầy đủ giờ bắt đầu/kết thúc, chiều, trạng thái, tuyến, trường, biển số, hãng xe và fallback Chưa gán xe. Giữ getScheduleStatusLabel, isVirtual/isClickable, canReportLeave, disabled/spinner, stopPropagation, payload Báo nghỉ, onSuccess refresh, route chi tiết hoặc nhãn Chưa tạo chuyến. Bộ chọn tuần/ngày, Hôm nay, ngày Việt Nam, polling12000ms, pull-to-refresh, loading/error/empty và padding safe area giữ nguyên.
++
++PASS TypeScript, Expo export iOS/Android/Web/server và đối chiếu toàn bộ phần render/controller trước StyleSheet: giống snapshot sau khi thay ngược đúng hai tham chiếu style của wrapper. API client, status helper và lịch nhân sự byte-identical. PASS Chromium IAB preview16 bố cục (4 kiểu trình bày ×240/320/390/1440px): chuỗi có khoảng trắng/liền mạch, hai thao tác, một thao tác, nhãn Chưa tạo chuyến. Tất cả text/thao tác nằm trong card, không tràn ngang; 240px xác nhận hai thao tác tự chuyển hàng. Preview chỉ dùng nhãn UI và stylesheet thật, không DTO/record/API hoặc dữ liệu nghiệp vụ giả; script/server/tab tạm đã dọn.
++
++NOT_VERIFIED: Expo Go iPhone/Android, Safari iOS/Chrome Android, Dynamic Type và luồng thật có phiên PARENT/OTP/báo nghỉ. Không tạo dữ liệu hoặc gọi mutation để kiểm tra. Chưa commit/push. [Báo cáo task](../ai-review/LATEST.md).
++
++

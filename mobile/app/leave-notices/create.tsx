@@ -1,15 +1,16 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { AppAlert as Alert } from '@/services/app-alert';
+import { AppModal as Modal } from '@/components/app-alert';
+import { AppHeader } from '@/components/navigation/app-header';
+import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   StyleSheet,
   Text,
   View,
-  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   TextInput,
-  Alert,
-  Modal,
-} from 'react-native';
+  } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -18,10 +19,12 @@ import { useAuth } from '@/context/auth-context';
 import {
   mobileApiClient,
   LeaveNoticeTripOption,
-  MaskedContactChannel,
   ParentLinkedStudentItem,
 } from '@/services/api-client';
 import { getVietnamToday } from '@/utils/date';
+import { parseLeaveOtpWaitSeconds } from '@/utils/leave-otp-cooldown';
+import { useLeaveOtpCooldown } from '@/hooks/use-leave-otp-cooldown';
+import { LinkedStudentPicker } from '@/components/parent/linked-student-picker';
 
 function formatDateDisplay(dateStr: string): string {
   if (!dateStr) return '';
@@ -42,7 +45,9 @@ export default function CreateLeaveNoticeScreen() {
   // State: Student selection (Parent only)
   const [students, setStudents] = useState<ParentLinkedStudentItem[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string>(params.studentId || '');
-  const [studentModalVisible, setStudentModalVisible] = useState(false);
+  const [studentsLoading, setStudentsLoading] = useState(isParent);
+  const [studentsError, setStudentsError] = useState<string | null>(null);
+  const [studentsAttempt, setStudentsAttempt] = useState(0);
 
   // State: Date & Direction selection
   const todayStr = getVietnamToday();
@@ -62,7 +67,6 @@ export default function CreateLeaveNoticeScreen() {
 
   // State: Trips options
   const [trips, setTrips] = useState<LeaveNoticeTripOption[]>([]);
-  const [maskedChannels, setMaskedChannels] = useState<MaskedContactChannel[]>([]);
   const [subjectName, setSubjectName] = useState<string>('');
   const [selectedTripId, setSelectedTripId] = useState<string>('');
   const [reason, setReason] = useState<string>('');
@@ -70,21 +74,32 @@ export default function CreateLeaveNoticeScreen() {
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [submittingOtp, setSubmittingOtp] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const otpRequestInFlight = useRef(false);
+  const { remainingSeconds: otpWaitSeconds, start: startOtpWait } = useLeaveOtpCooldown(
+    JSON.stringify([user?.id ?? '', isParent ? selectedStudentId : null]),
+  );
 
   // Load linked students if Parent
   useEffect(() => {
+    let current = true;
     if (isParent) {
+      setStudentsLoading(true);
+      setStudentsError(null);
       mobileApiClient
         .getLinkedStudents()
         .then((res) => {
+          if (!current) return;
           setStudents(res || []);
-          if (!selectedStudentId && res && res.length > 0) {
-            setSelectedStudentId(res[0].id);
-          }
         })
-        .catch(() => setStudents([]));
+        .catch((failure: unknown) => {
+          if (!current) return;
+          setStudents([]);
+          setStudentsError(failure instanceof Error ? failure.message : 'Không thể tải học sinh.');
+        })
+        .finally(() => { if (current) setStudentsLoading(false); });
     }
-  }, [isParent, selectedStudentId]);
+    return () => { current = false; };
+  }, [isParent, studentsAttempt]);
 
   // Fetch available trips options whenever Student, Date, or Direction changes
   useEffect(() => {
@@ -104,7 +119,6 @@ export default function CreateLeaveNoticeScreen() {
       .then((res) => {
         if (!current) return;
         setTrips(res.trips || []);
-        setMaskedChannels(res.maskedChannels || []);
         setSubjectName(res.subjectName || '');
 
         // If prefilled tripId is in options and available, select it.
@@ -122,7 +136,6 @@ export default function CreateLeaveNoticeScreen() {
         if (!current) return;
         setError(err?.message || 'Không thể tải danh sách chuyến xe phù hợp');
         setTrips([]);
-        setMaskedChannels([]);
         setSelectedTripId('');
       })
       .finally(() => {
@@ -136,7 +149,6 @@ export default function CreateLeaveNoticeScreen() {
 
   // Selected trip object
   const currentTrip = trips.find((t) => t.tripId === selectedTripId);
-  const selectedStudent = students.find((s) => s.id === selectedStudentId);
 
   // Calendar grid calculations
   const calendarDays = useMemo(() => {
@@ -194,7 +206,8 @@ export default function CreateLeaveNoticeScreen() {
       return;
     }
 
-    if (submittingOtp) return;
+    if (submittingOtp || otpRequestInFlight.current || otpWaitSeconds > 0) return;
+    otpRequestInFlight.current = true;
     setSubmittingOtp(true);
     setError(null);
 
@@ -218,62 +231,39 @@ export default function CreateLeaveNoticeScreen() {
           routeName: currentTrip.routeName,
           serviceDate: currentTrip.serviceDate,
           direction: currentTrip.direction,
+          scheduledStartTime: currentTrip.scheduledStartTime || '',
+          scheduledEndTime: currentTrip.scheduledEndTime || '',
         },
       } as any);
     } catch (err: any) {
+      const wait = err?.statusCode === 400 || err?.statusCode === 429
+        ? parseLeaveOtpWaitSeconds(err?.message) : null;
+      if (wait !== null && startOtpWait(wait)) return;
       const msg = err?.message || 'Không thể gửi mã xác thực OTP. Vui lòng thử lại.';
       setError(msg);
       Alert.alert('Lỗi gửi OTP', msg);
     } finally {
+      otpRequestInFlight.current = false;
       setSubmittingOtp(false);
     }
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#1E293B" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tạo báo nghỉ</Text>
-        <View style={{ width: 36 }} />
-      </View>
+      <AppHeader title="Tạo báo nghỉ" onBack={() => router.back()} />
 
-      <ScrollView
+      <KeyboardScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Step 1: Select Student (Parent only) */}
         {isParent && (
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Học sinh</Text>
-            {isFixedStudent ? (
-              <View style={styles.fixedField}>
-                <Ionicons name="person-circle-outline" size={20} color="#1E293B" />
-                <Text style={styles.fixedFieldText}>
-                  {selectedStudent?.fullName || 'Học sinh'}
-                </Text>
-                <View style={styles.fixedBadge}>
-                  <Text style={styles.fixedBadgeText}>Cố định</Text>
-                </View>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={styles.dropdownBtn}
-                onPress={() => setStudentModalVisible(true)}
-                activeOpacity={0.8}
-              >
-                <View style={styles.dropdownLeft}>
-                  <Ionicons name="person-circle-outline" size={20} color="#D97706" />
-                  <Text style={styles.dropdownBtnText}>
-                    {selectedStudent?.fullName || 'Chọn học sinh'}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-down" size={18} color="#64748B" />
-              </TouchableOpacity>
-            )}
-          </View>
+          <LinkedStudentPicker students={students} selectedId={selectedStudentId} fixed={isFixedStudent}
+            loading={studentsLoading} error={studentsError} canSelectStudent={() => true}
+            onSelect={id => { setSelectedStudentId(id); setSelectedTripId(''); }}
+            onRetry={() => setStudentsAttempt(value => value + 1)}
+            onLink={() => router.push('/parent/link-student')} />
         )}
 
         {/* Step 2: Select Date (Calendar Datepicker) */}
@@ -374,7 +364,9 @@ export default function CreateLeaveNoticeScreen() {
             <View style={styles.emptyTripsBox}>
               <Ionicons name="information-circle-outline" size={24} color="#94A3B8" />
               <Text style={styles.emptyTripsText}>
-                Không có chuyến xe đã lập lịch nào phù hợp trong ngày và chiều đã chọn.
+                {isParent && !selectedStudentId
+                  ? 'Chọn học sinh để xem chuyến xe phù hợp.'
+                  : 'Không có chuyến xe đã lập lịch nào phù hợp trong ngày và chiều đã chọn.'}
               </Text>
             </View>
           ) : (
@@ -459,114 +451,30 @@ export default function CreateLeaveNoticeScreen() {
           </View>
         )}
 
-        {/* Step 6: Confirmation Summary Card */}
-        {currentTrip && (
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryTitle}>Xác nhận thông tin</Text>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Đối tượng:</Text>
-              <Text style={styles.summaryValue}>{subjectName || 'Bạn'}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Chuyến:</Text>
-              <Text style={styles.summaryValue}>{currentTrip.routeName}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Ngày & Chiều:</Text>
-              <Text style={styles.summaryValue}>
-                {formatDateDisplay(selectedDate)} · {selectedDirection === 'TO_SCHOOL' ? 'Chiều đi' : 'Chiều về'}
-              </Text>
-            </View>
-
-            {maskedChannels.length > 0 && (
-              <View style={styles.otpNoticeBox}>
-                <Ionicons name="shield-checkmark-outline" size={16} color="#D97706" />
-                <Text style={styles.otpNoticeText}>
-                  OTP sẽ được gửi tới:{' '}
-                  {maskedChannels
-                    .map((c) => `${c.destination}${c.isConsole ? ' (SMS console)' : ''}`)
-                    .join(' & ')}
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-
         {/* Submit Button */}
         <TouchableOpacity
           style={[
             styles.submitBtn,
-            (!selectedTripId || submittingOtp) && styles.submitBtnDisabled,
+            (!selectedTripId || submittingOtp || otpWaitSeconds > 0) && styles.submitBtnDisabled,
           ]}
           onPress={handleRequestOtp}
-          disabled={!selectedTripId || submittingOtp}
+          disabled={!selectedTripId || submittingOtp || otpWaitSeconds > 0}
+          accessibilityRole="button"
+          accessibilityLabel={submittingOtp ? 'Đang gửi mã xác thực OTP' : otpWaitSeconds > 0
+            ? `Gửi lại OTP sau ${otpWaitSeconds}s` : 'Gửi mã xác thực OTP'}
+          accessibilityState={{ disabled: !selectedTripId || submittingOtp || otpWaitSeconds > 0, busy: submittingOtp }}
           activeOpacity={0.85}
         >
           {submittingOtp ? (
             <ActivityIndicator size="small" color="#1E293B" />
           ) : (
             <>
-              <Text style={styles.submitBtnText}>Gửi mã xác thực OTP</Text>
-              <Ionicons name="arrow-forward" size={18} color="#1E293B" />
+              <Text style={styles.submitBtnText}>{otpWaitSeconds > 0 ? `Gửi lại OTP sau ${otpWaitSeconds}s` : 'Gửi mã xác thực OTP'}</Text>
+              <Ionicons name={otpWaitSeconds > 0 ? 'time-outline' : 'arrow-forward'} size={18} color="#1E293B" />
             </>
           )}
         </TouchableOpacity>
-      </ScrollView>
-
-      {/* Student Selection Modal */}
-      <Modal
-        visible={studentModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setStudentModalVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setStudentModalVisible(false)}
-        >
-          <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Chọn học sinh</Text>
-              <TouchableOpacity onPress={() => setStudentModalVisible(false)}>
-                <Ionicons name="close" size={22} color="#64748B" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={{ maxHeight: 320 }}>
-              {students.map((stu) => {
-                const isSelected = stu.id === selectedStudentId;
-                return (
-                  <TouchableOpacity
-                    key={stu.id}
-                    style={[styles.modalItem, isSelected && styles.modalItemSelected]}
-                    onPress={() => {
-                      setSelectedStudentId(stu.id);
-                      setSelectedTripId('');
-                      setStudentModalVisible(false);
-                    }}
-                  >
-                    <Ionicons
-                      name="person-circle-outline"
-                      size={22}
-                      color={isSelected ? '#D97706' : '#64748B'}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.modalItemTitle, isSelected && styles.modalItemTitleActive]}>
-                        {stu.fullName}
-                      </Text>
-                      <Text style={styles.modalItemSub}>
-                        Mã: {stu.code} · {stu.schoolName}
-                      </Text>
-                    </View>
-                    {isSelected && <Ionicons name="checkmark-circle" size={20} color="#D97706" />}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+      </KeyboardScrollView>
 
       {/* Calendar Datepicker Modal */}
       <Modal
@@ -662,24 +570,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFDF6',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
-  },
-  backBtn: {
-    padding: 6,
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1E293B',
-  },
   content: {
     padding: 16,
     gap: 16,
@@ -693,34 +583,6 @@ const styles = StyleSheet.create({
     color: '#334155',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-  },
-  fixedField: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  fixedFieldText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1E293B',
-  },
-  fixedBadge: {
-    backgroundColor: '#E2E8F0',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  fixedBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#475569',
   },
   dropdownBtn: {
     flexDirection: 'row',
@@ -907,49 +769,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#B91C1C',
   },
-  summaryCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 8,
-  },
-  summaryTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1E293B',
-    marginBottom: 4,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  summaryValue: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#1E293B',
-  },
-  otpNoticeBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 6,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
-  otpNoticeText: {
-    fontSize: 11,
-    color: '#D97706',
-    flex: 1,
-    fontWeight: '500',
-  },
   submitBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -984,58 +803,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
   },
-  modalContent: {
-    width: '100%',
-    maxWidth: 360,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    paddingBottom: 12,
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1E293B',
-  },
-  modalItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-  },
-  modalItemSelected: {
-    backgroundColor: '#FEF9C3',
-  },
-  modalItemTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1E293B',
-  },
-  modalItemTitleActive: {
-    fontWeight: '700',
-    color: '#92400E',
-  },
-  modalItemSub: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 1,
-  },
-
   /* Calendar Modal */
   calendarModalContent: {
     width: '100%',

@@ -1,0 +1,50 @@
+diff --git a/mobile/app/trip/[id].tsx b/mobile/app/trip/[id].tsx
+index ee31955..fd6ac92 100644
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -1274,6 +1274,2 @@ export default function MobileTripDetailScreen() {
+-                /* DRIVER / ATTENDANT: Horizontally scrollable 4 tabs */
+-                <ScrollView
+-                  horizontal
+-                  showsHorizontalScrollIndicator={false}
+-                  contentContainerStyle={styles.tabBar}
+-                >
++                /* Staff keeps attendance; all four tabs use the Parent's fixed row. */
++                <View style={[styles.tabBarParent, styles.tabBarStaff]}>
+@@ -1282 +1278 @@ export default function MobileTripDetailScreen() {
+-                    style={[styles.tabButton, activeTab === 'INFO' && styles.tabButtonActive]}
++                    style={[styles.tabButton, styles.tabButtonParent, styles.tabButtonStaff, activeTab === 'INFO' && styles.tabButtonActive]}
+@@ -1291,0 +1288,2 @@ export default function MobileTripDetailScreen() {
++                        styles.tabButtonTextParent,
++                        styles.tabButtonTextStaff,
+@@ -1301 +1299 @@ export default function MobileTripDetailScreen() {
+-                    style={[styles.tabButton, activeTab === 'STOPS' && styles.tabButtonActive]}
++                    style={[styles.tabButton, styles.tabButtonParent, styles.tabButtonStaff, activeTab === 'STOPS' && styles.tabButtonActive]}
+@@ -1310,0 +1309,2 @@ export default function MobileTripDetailScreen() {
++                        styles.tabButtonTextParent,
++                        styles.tabButtonTextStaff,
+@@ -1320 +1320 @@ export default function MobileTripDetailScreen() {
+-                    style={[styles.tabButton, activeTab === 'ATTENDANCE' && styles.tabButtonActive]}
++                    style={[styles.tabButton, styles.tabButtonParent, styles.tabButtonStaff, activeTab === 'ATTENDANCE' && styles.tabButtonActive]}
+@@ -1329,0 +1330,2 @@ export default function MobileTripDetailScreen() {
++                        styles.tabButtonTextParent,
++                        styles.tabButtonTextStaff,
+@@ -1340,0 +1343,2 @@ export default function MobileTripDetailScreen() {
++                      styles.tabButtonParent,
++                      styles.tabButtonStaff,
+@@ -1351,0 +1356,2 @@ export default function MobileTripDetailScreen() {
++                        styles.tabButtonTextParent,
++                        styles.tabButtonTextStaff,
+@@ -1359 +1365 @@ export default function MobileTripDetailScreen() {
+-                </ScrollView>
++                </View>
+@@ -2933,6 +2939,3 @@ const styles = StyleSheet.create({
+-  tabBar: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    gap: 4,
+-    paddingRight: 16,
+-  },
++  tabBarStaff: { alignItems: 'stretch' },
++  tabButtonStaff: { minWidth: 0 },
++  tabButtonTextStaff: { flexShrink: 1, textAlign: 'center' },

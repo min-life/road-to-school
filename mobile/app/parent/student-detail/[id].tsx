@@ -1,3 +1,5 @@
+import { AppAlert as Alert } from '@/services/app-alert';
+import { AppHeader } from '@/components/navigation/app-header';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
@@ -7,8 +9,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Image,
-  Alert,
-} from 'react-native';
+  } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -96,14 +97,8 @@ export default function StudentDetailScreen() {
 
   if (errorMessage || !student) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color={colors.foreground} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Chi tiết học sinh</Text>
-          <View style={{ width: 40 }} />
-        </View>
+      <View style={styles.container}>
+        <AppHeader title="Chi tiết học sinh" onBack={() => router.back()} />
 
         <View style={styles.centerContainer}>
           <Ionicons name="alert-circle-outline" size={48} color={colors.error} />
@@ -122,17 +117,7 @@ export default function StudentDetailScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-          disabled={isUnlinking}
-        >
-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Hồ sơ học sinh</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <AppHeader title="Hồ sơ học sinh" onBack={() => router.back()} backDisabled={isUnlinking} />
 
       <ScrollView
         contentContainerStyle={[
@@ -236,11 +221,6 @@ export default function StudentDetailScreen() {
                 <Text style={[styles.actionTitle, !isAvailable && styles.actionTextDisabled]}>
                   Cập nhật thông tin học sinh
                 </Text>
-                <Text style={styles.actionSubtext}>
-                  {isAvailable
-                    ? 'Yêu cầu thay đổi tên học sinh hoặc số điện thoại'
-                    : 'Không thể cập nhật khi học sinh bị vô hiệu hóa'}
-                </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
             </TouchableOpacity>
@@ -267,11 +247,6 @@ export default function StudentDetailScreen() {
                 <Text style={[styles.actionTitle, !isAvailable && styles.actionTextDisabled]}>
                   Cập nhật địa chỉ đón trả
                 </Text>
-                <Text style={styles.actionSubtext}>
-                  {isAvailable
-                    ? 'Yêu cầu thay đổi địa chỉ đón trả trên tuyến xe'
-                    : 'Không thể cập nhật khi học sinh bị vô hiệu hóa'}
-                </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
             </TouchableOpacity>
@@ -292,9 +267,6 @@ export default function StudentDetailScreen() {
               </View>
               <View style={styles.actionTextContainer}>
                 <Text style={styles.actionTitle}>Tuyến đường đưa đón</Text>
-                <Text style={styles.actionSubtext}>
-                  Lộ trình di chuyển, giờ đón/trả và xe dự kiến
-                </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
             </TouchableOpacity>
@@ -315,9 +287,6 @@ export default function StudentDetailScreen() {
               </View>
               <View style={styles.actionTextContainer}>
                 <Text style={styles.actionTitle}>Lịch học & Xe đưa đón</Text>
-                <Text style={styles.actionSubtext}>
-                  Lịch trình các chuyến xe đưa đón theo từng ngày trong tuần
-                </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
             </TouchableOpacity>
@@ -338,9 +307,6 @@ export default function StudentDetailScreen() {
               </View>
               <View style={styles.actionTextContainer}>
                 <Text style={styles.actionTitle}>Báo nghỉ</Text>
-                <Text style={styles.actionSubtext}>
-                  Xem lịch sử báo nghỉ và tạo báo nghỉ cho chuyến xe
-                </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
             </TouchableOpacity>
@@ -363,9 +329,6 @@ export default function StudentDetailScreen() {
                 <Text style={[styles.actionTitle, { color: '#DC2626' }]}>
                   Hủy liên kết học sinh
                 </Text>
-                <Text style={styles.actionSubtext}>
-                  Gỡ học sinh khỏi danh sách theo dõi của phụ huynh
-                </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color="#F87171" />
             </TouchableOpacity>
@@ -380,28 +343,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.foreground,
   },
   content: {
     padding: 16,
@@ -632,10 +573,5 @@ const styles = StyleSheet.create({
   },
   actionTextDisabled: {
     color: '#94A3B8',
-  },
-  actionSubtext: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
   },
 });

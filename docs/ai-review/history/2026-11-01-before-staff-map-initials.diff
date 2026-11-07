@@ -1,0 +1,204 @@
+diff --git a/mobile/app/trip/[id].tsx b/mobile/app/trip/[id].tsx
+index 1bcc04c..3d91abd 100644
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -43,0 +44,2 @@ import { childMapPinCss, childMapPinScript, childMapPinSize, serializeMapScriptV
++import { numberedMapPinScript, staffSchoolSvg, staffBusSvg } from '@/utils/staff-map-marker';
++import { hasTripBottomAction } from '@/utils/trip-map-layout';
+@@ -56 +57,0 @@ const EXPANDED_HEIGHT = Math.round(SCREEN_HEIGHT * 0.72);
+-const FIXED_BOTTOM_ACTION_HEIGHT = 74;
+@@ -96,0 +98 @@ export default function MobileTripDetailScreen() {
++  const [bottomActionHeight, setBottomActionHeight] = useState(0);
+@@ -400,0 +403 @@ export default function MobileTripDetailScreen() {
++          ${isDriverOrAttendant ? '.staff-map-icon { box-sizing: border-box; display: flex; align-items: center; justify-content: center; }' : ''}
+@@ -414,0 +418,2 @@ export default function MobileTripDetailScreen() {
++          ${isDriverOrAttendant ? numberedMapPinScript : ''}
++          var staffMap = ${isDriverOrAttendant};
+@@ -418,0 +424,2 @@ export default function MobileTripDetailScreen() {
++            var numberedPin = staffMap && (s.type === 'PICKUP' || s.type === 'DROPOFF');
++            var schoolStop = s.type === 'SCHOOL_ARRIVAL' || s.type === 'SCHOOL_DEPARTURE';
+@@ -422 +429 @@ export default function MobileTripDetailScreen() {
+-              iconHtml = '<div class="school-marker">🏫</div>';
++              iconHtml = '<div class="school-marker' + (staffMap ? ' staff-map-icon' : '') + '">' + (staffMap ? ${serializeMapScriptValue(staffSchoolSvg)} : '🏫') + '</div>';
+@@ -424,0 +432,2 @@ export default function MobileTripDetailScreen() {
++            } else if (numberedPin) {
++              iconHtml = window.createNumberedMapPin(s.order);
+@@ -426,0 +436 @@ export default function MobileTripDetailScreen() {
++            var pinMarker = ownChildPin || numberedPin;
+@@ -428,3 +438,3 @@ export default function MobileTripDetailScreen() {
+-              iconSize: ownChildPin ? [${childMapPinSize.width}, ${childMapPinSize.height}] : [28, 28],
+-              iconAnchor: ownChildPin ? [${childMapPinSize.width / 2}, ${childMapPinSize.height * 65 / 66}] : [14, 14],
+-              popupAnchor: ownChildPin ? [0, -${childMapPinSize.height - 5}] : [0, 0] });
++              iconSize: pinMarker ? [${childMapPinSize.width}, ${childMapPinSize.height}] : staffMap && schoolStop ? [30, 30] : [28, 28],
++              iconAnchor: pinMarker ? [${childMapPinSize.width / 2}, ${childMapPinSize.height * 65 / 66}] : staffMap && schoolStop ? [15, 15] : [14, 14],
++              popupAnchor: pinMarker ? [0, -${childMapPinSize.height - 5}] : [0, 0] });
+@@ -433,0 +444,2 @@ export default function MobileTripDetailScreen() {
++            } else if (numberedPin && marker.getElement()) {
++              marker.getElement().setAttribute('aria-label', 'Điểm dừng ' + s.order + ': ' + s.name);
+@@ -458 +470 @@ export default function MobileTripDetailScreen() {
+-              if (!vehicle) vehicle = L.marker(n.position, {icon: L.divIcon({className:'',html:'<div class="school-marker">🚌</div>',iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
++              if (!vehicle) vehicle = L.marker(n.position, {icon: L.divIcon({className:'',html:'<div class="school-marker' + (staffMap ? ' staff-map-icon' : '') + '">' + (staffMap ? ${serializeMapScriptValue(staffBusSvg)} : '🚌') + '</div>',iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
+@@ -510 +522 @@ export default function MobileTripDetailScreen() {
+-  }, [mapData, tilemapKey]);
++  }, [mapData, tilemapKey, isDriverOrAttendant]);
+@@ -831,6 +843,2 @@ export default function MobileTripDetailScreen() {
+-  const showBottomAction =
+-    isDriverOrAttendant &&
+-    operationalState?.status !== 'COMPLETED' &&
+-    operationalState?.status !== 'CANCELLED';
+-
+-  const bottomActionOffset = showBottomAction ? FIXED_BOTTOM_ACTION_HEIGHT + insets.bottom : 0;
++  const showBottomAction = hasTripBottomAction(user?.role, operationalState?.status);
++  const bottomActionOffset = showBottomAction ? bottomActionHeight : 0;
+@@ -2045 +2053,2 @@ export default function MobileTripDetailScreen() {
+-        <View style={[styles.fixedBottomActionContainer, { paddingBottom: insets.bottom + 8 }]}>
++        <View onLayout={event => setBottomActionHeight(event.nativeEvent.layout.height)}
++          style={[styles.fixedBottomActionContainer, { paddingBottom: insets.bottom + 8 }]}>
+diff --git a/mobile/utils/child-map-marker.ts b/mobile/utils/child-map-marker.ts
+index 6bdab2f..c139638 100644
+--- a/mobile/utils/child-map-marker.ts
++++ b/mobile/utils/child-map-marker.ts
+@@ -7,0 +8,2 @@ const portraitSize = childMapPinSize.width * 0.75;
++export const mapPinSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 66"><path d="M26 1C12.2 1 1 12.2 1 26c0 17.5 25 39 25 39s25-21.5 25-39C51 12.2 39.8 1 26 1Z" fill="${pinBody}" stroke="${colors.surface}" stroke-width="1.2"/><circle cx="26" cy="26" r="22" fill="${colors.surface}" stroke="${colors.foreground}" stroke-width=".6"/><circle cx="26" cy="26" r="20" fill="none" stroke="${colors.navigationActive}" stroke-width=".6"/></svg>`;
++
+@@ -67 +69 @@ export const childMapPinScript = `
+-      root.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 66"><path d="M26 1C12.2 1 1 12.2 1 26c0 17.5 25 39 25 39s25-21.5 25-39C51 12.2 39.8 1 26 1Z" fill="${pinBody}" stroke="${colors.surface}" stroke-width="1.2"/><circle cx="26" cy="26" r="22" fill="${colors.surface}" stroke="${colors.foreground}" stroke-width=".6"/><circle cx="26" cy="26" r="20" fill="none" stroke="${colors.navigationActive}" stroke-width=".6"/></svg>';
++      root.innerHTML = '${mapPinSvg}';
+diff --git a/mobile/utils/staff-map-marker.ts b/mobile/utils/staff-map-marker.ts
+new file mode 100644
+--- /dev/null
++++ b/mobile/utils/staff-map-marker.ts
+@@ -0,0 +1,23 @@
++import { mapPinSvg } from './child-map-marker';
++
++/** Same silhouette/face as the Parent pin; order is text, never interpolated HTML. */
++export const numberedMapPinScript = `
++  window.createNumberedMapPin = function(order) {
++    var root = document.createElement('div');
++    root.className = 'child-map-pin';
++    root.setAttribute('aria-hidden', 'true');
++    root.innerHTML = ${JSON.stringify(mapPinSvg)};
++    var face = document.createElement('div');
++    face.className = 'child-map-pin-face';
++    var label = document.createElement('span');
++    label.textContent = String(order);
++    face.appendChild(label);
++    root.appendChild(face);
++    return root;
++  };
++`;
++
++// Fixed outline icons only for staff; the Parent's existing emoji markers stay intact.
++const svgStart = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" style="vertical-align:middle" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">';
++export const staffSchoolSvg = svgStart + '<path d="M3 21V9l9-6 9 6v12H3Z M9 21v-7h6v7 M3 10h18 M7 12v3 M17 12v3"/><circle cx="12" cy="7" r="1"/></svg>';
++export const staffBusSvg = svgStart + '<rect x="5" y="3" width="14" height="16" rx="3"/><path d="M5 11h14 M9 3v8 M15 3v8 M8 19v2 M16 19v2"/><circle cx="8" cy="15" r="1"/><circle cx="16" cy="15" r="1"/></svg>';
+diff --git a/mobile/utils/trip-map-layout.ts b/mobile/utils/trip-map-layout.ts
+new file mode 100644
+--- /dev/null
++++ b/mobile/utils/trip-map-layout.ts
+@@ -0,0 +1,8 @@
++import type { Role } from '../services/api-client';
++
++/** Reserve space only for a role/status branch that actually renders footer content. */
++export function hasTripBottomAction(role: Role | undefined, status: string | undefined): boolean {
++  return role === 'DRIVER'
++    ? status === 'SCHEDULED' || status === 'IN_PROGRESS'
++    : role === 'BUS_ATTENDANT' && status === 'SCHEDULED';
++}
+diff --git a/mobile/scripts/trip-map-layout.test.ts b/mobile/scripts/trip-map-layout.test.ts
+new file mode 100644
+--- /dev/null
++++ b/mobile/scripts/trip-map-layout.test.ts
+@@ -0,0 +1,30 @@
++import { describe, it } from 'node:test';
++import assert from 'node:assert/strict';
++import { hasTripBottomAction } from '../utils/trip-map-layout';
++
++// Role/status primitives only; no Trip/User records or API responses.
++describe('Trip map footer visibility', () => {
++  it('never reserves an operation footer for Parent', () => {
++    for (const status of [undefined, 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']) {
++      assert.equal(hasTripBottomAction('PARENT', status), false);
++    }
++  });
++  it('shows the driver footer only where an existing action is rendered', () => {
++    assert.equal(hasTripBottomAction('DRIVER', 'SCHEDULED'), true);
++    assert.equal(hasTripBottomAction('DRIVER', 'IN_PROGRESS'), true);
++    for (const status of [undefined, 'COMPLETED', 'CANCELLED', 'UNKNOWN']) {
++      assert.equal(hasTripBottomAction('DRIVER', status), false);
++    }
++  });
++  it('does not leave an empty attendant footer during a running trip', () => {
++    assert.equal(hasTripBottomAction('BUS_ATTENDANT', 'SCHEDULED'), true);
++    for (const status of [undefined, 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']) {
++      assert.equal(hasTripBottomAction('BUS_ATTENDANT', status), false);
++    }
++  });
++  it('does not grant footer controls to an unknown or admin role', () => {
++    for (const role of [undefined, 'SYSTEM_ADMIN', 'SCHOOL_ADMIN'] as const) {
++      assert.equal(hasTripBottomAction(role, 'SCHEDULED'), false);
++    }
++  });
++});
+diff --git a/mobile/scripts/staff-map-marker.test.ts b/mobile/scripts/staff-map-marker.test.ts
+new file mode 100644
+--- /dev/null
++++ b/mobile/scripts/staff-map-marker.test.ts
+@@ -0,0 +1,57 @@
++import { describe, it } from 'node:test';
++import assert from 'node:assert/strict';
++import { Script } from 'node:vm';
++import { mapPinSvg } from '../utils/child-map-marker';
++import { numberedMapPinScript, staffBusSvg, staffSchoolSvg } from '../utils/staff-map-marker';
++
++// Minimal DOM presentation only; no Student/Trip records, locations or API mocks.
++type PresentationElement = {
++  tag: string; className: string; innerHTML: string; textContent: string;
++  attributes: Record<string, string>; children: PresentationElement[];
++  setAttribute: (key: string, value: string) => void;
++  appendChild: (child: PresentationElement) => void;
++};
++
++function markerFactory() {
++  const scope = {
++    window: {} as { createNumberedMapPin: (order: unknown) => PresentationElement },
++    document: { createElement: element },
++  };
++  function element(tag: string): PresentationElement {
++    return { tag, className: '', innerHTML: '', textContent: '', attributes: {} as Record<string, string>,
++      children: [],
++      setAttribute(key: string, value: string) { this.attributes[key] = value; },
++      appendChild(child: PresentationElement) { this.children.push(child); },
++    };
++  }
++  new Script(numberedMapPinScript).runInNewContext(scope);
++  return scope.window.createNumberedMapPin;
++}
++
++describe('Staff pins reuse the unchanged Parent pin frame', () => {
++  it('uses the same SVG, dimensions class and face without a separate avatar store', () => {
++    const root = markerFactory()(2);
++    assert.equal(root.className, 'child-map-pin');
++    assert.equal(root.innerHTML, mapPinSvg);
++    assert.equal(root.attributes['aria-hidden'], 'true');
++    assert.equal(root.children[0].className, 'child-map-pin-face');
++    assert.equal(root.children[0].children[0].textContent, '2');
++  });
++  it('preserves a full multi-digit order instead of an initial', () => {
++    assert.equal(markerFactory()(27).children[0].children[0].textContent, '27');
++  });
++  it('never puts stop labels into HTML', () => {
++    const text = '</span><img src=x onerror=alert(1)>';
++    const root = markerFactory()(text);
++    assert.equal(root.innerHTML, mapPinSvg);
++    assert.equal(root.children[0].children[0].innerHTML, '');
++    assert.equal(root.children[0].children[0].textContent, text);
++  });
++  it('uses fixed outline school/bus graphics without platform-dependent emoji', () => {
++    for (const icon of [staffSchoolSvg, staffBusSvg]) {
++      assert.ok(icon.startsWith('<svg '));
++      assert.ok(icon.includes('stroke="currentColor"'));
++      assert.equal(/🏫|🚌|<script|<foreignObject|<image/i.test(icon), false);
++    }
++  });
++});

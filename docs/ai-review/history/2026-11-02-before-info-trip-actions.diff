@@ -1,0 +1,32 @@
+diff --git a/mobile/components/trip-navigation-controls.tsx b/mobile/components/trip-navigation-controls.tsx
+index 3049552..18b2620 100644
+--- a/mobile/components/trip-navigation-controls.tsx
++++ b/mobile/components/trip-navigation-controls.tsx
+@@ -22 +22,2 @@ export function TripNavigationControls(p: Props) {
+-    style={[styles.button, p.mode === source && styles.selected]}><Text style={styles.text}>{title}</Text></Pressable>;
++    style={[styles.button, p.testMode && styles.modeButton, p.mode === source && styles.selected]}>
++    <Text style={[styles.text, p.testMode && styles.modeText]}>{title}</Text></Pressable>;
+@@ -49 +50,2 @@ export function TripNavigationControls(p: Props) {
+-    {p.canPublish && <View style={styles.row}>
++    {(p.canPublish || (p.testMode && !!p.mode)) && <View style={[styles.row, p.testMode && styles.modeRow]}>
++      {p.canPublish && <>
+@@ -54 +56 @@ export function TripNavigationControls(p: Props) {
+-    </View>}
++      </>}
+@@ -56,2 +57,0 @@ export function TripNavigationControls(p: Props) {
+-      <View style={styles.speedRow}>
+-        <Text style={styles.small}>Tốc độ mô phỏng:</Text>
+@@ -77 +76,0 @@ export function TripNavigationControls(p: Props) {
+-      </View>
+@@ -78,0 +78 @@ export function TripNavigationControls(p: Props) {
++    </View>}
+@@ -91,2 +91,4 @@ const styles = StyleSheet.create({
+-  speedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 2 },
+-  speedStepper: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.background, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 8, borderColor: colors.border, borderWidth: 1 },
++  modeRow: { flexWrap: 'nowrap', alignItems: 'center', gap: 4 },
++  modeButton: { flex: 1, minWidth: 0, paddingHorizontal: 4, alignItems: 'center' },
++  modeText: { fontSize: 11, textAlign: 'center' },
++  speedStepper: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.background, paddingHorizontal: 4, paddingVertical: 3, borderRadius: 8, borderColor: colors.border, borderWidth: 1 },
+@@ -96 +98 @@ const styles = StyleSheet.create({
+-  speedValueText: { fontSize: 12, fontWeight: '700', color: colors.foreground, minWidth: 54, textAlign: 'center' },
++  speedValueText: { fontSize: 11, fontWeight: '700', color: colors.foreground, minWidth: 48, textAlign: 'center' },

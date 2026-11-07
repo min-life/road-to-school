@@ -1,0 +1,42 @@
+diff --git a/mobile/app/parent/change-stop.tsx b/mobile/app/parent/change-stop.tsx
+index 054129f..0cac06b 100644
+--- a/mobile/app/parent/change-stop.tsx
++++ b/mobile/app/parent/change-stop.tsx
+@@ -6,0 +7 @@ import { AppHeader } from '@/components/navigation/app-header';
++import { TrackingEmptyState } from '@/components/parent/tracking-empty-state';
+@@ -38,2 +39,2 @@ export default function ChangeStopScreen() {
+-        ListEmptyComponent={<View style={styles.state}><Text style={styles.name}>Chưa có học sinh liên kết</Text>
+-          <Pressable accessibilityRole="button" onPress={() => router.push('/parent/link-student')} style={styles.button}><Text style={styles.label}>Liên kết học sinh</Text></Pressable></View>}
++        ListEmptyComponent={<TrackingEmptyState title="Chưa có học sinh liên kết" description={null}
++          onLink={() => router.push('/parent/link-student')} />}
+diff --git a/mobile/components/parent/tracking-empty-state.tsx b/mobile/components/parent/tracking-empty-state.tsx
+index ec6b200..34ef98b 100644
+--- a/mobile/components/parent/tracking-empty-state.tsx
++++ b/mobile/components/parent/tracking-empty-state.tsx
+@@ -5,2 +5,12 @@ import { colors } from '@/constants/theme';
+-/** V1 artwork/layout with V2's existing link action and copy. No data ownership. */
+-export function TrackingEmptyState({ onLink }: { onLink: () => void }) {
++type TrackingEmptyStateProps = {
++  onLink: () => void;
++  title?: string;
++  description?: string | null;
++};
++
++/** Shared linked-student empty card. V2 screens own the copy and link action. */
++export function TrackingEmptyState({
++  onLink,
++  title = 'Chưa có học sinh nào',
++  description = 'Nhấn vào nút bên dưới để liên kết với học sinh bằng mã định danh hoặc quét mã QR.',
++}: TrackingEmptyStateProps) {
+@@ -17,4 +27,2 @@ export function TrackingEmptyState({ onLink }: { onLink: () => void }) {
+-    <Text accessibilityRole="header" style={styles.title}>Chưa có học sinh nào</Text>
+-    <Text style={styles.description}>
+-      Nhấn vào nút bên dưới để liên kết với học sinh bằng mã định danh hoặc quét mã QR.
+-    </Text>
++    <Text accessibilityRole="header" style={styles.title}>{title}</Text>
++    {!!description && <Text style={styles.description}>{description}</Text>}
+@@ -22 +30 @@ export function TrackingEmptyState({ onLink }: { onLink: () => void }) {
+-      style={styles.button} onPress={onLink} activeOpacity={0.8}>
++      style={[styles.button, !description && styles.buttonWithoutDescription]} onPress={onLink} activeOpacity={0.8}>
+@@ -38,0 +47 @@ const styles = StyleSheet.create({
++  buttonWithoutDescription: { marginTop: 20 },

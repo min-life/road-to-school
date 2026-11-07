@@ -1,4 +1,9 @@
-import type { Instruction, LocationPoint, Position } from '../services/trip-navigation';
+import type { Instruction, LocationPoint, LocationSource, Position } from '../services/trip-navigation';
+
+export function shouldHandOffToManual(source: LocationSource | null, stopType: string | undefined, metres: number) {
+  return source === 'TEST_AUTO' && (stopType === 'PICKUP' || stopType === 'DROPOFF')
+    && metres >= 0 && metres <= 100;
+}
 
 export type Coordinate = [number, number];
 const R = 6371000, RAD = Math.PI / 180;
