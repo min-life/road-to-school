@@ -1,3 +1,47 @@
+# Cập nhật 07/11/2026 — Đồng bộ tài liệu FE theo API
+
+- PO yêu cầu tài liệu FE khớp API hiện hành, các bug API còn lại triển khai sau.
+- Đã sửa sai lệch tài liệu R04/R05 và bổ sung contract Mobile/báo nghỉ, cấu hình local cùng giới hạn kiểm chứng trong FE_INTEGRATION_GUIDE.
+- R01/R02/R07/R08/R09 vẫn chờ sửa. Mục 13 của hướng dẫn FE ghi hành vi hiện tại và ảnh hưởng tích hợp, chưa đánh dấu các bug này hoàn thành.
+- Master plan AA19 lưu quyết định phạm vi. LATEST lưu báo cáo cập nhật tài liệu, báo cáo audit chi tiết trước đó ở history/2026-11-07-before-fe-guide-alignment.md.
+
+# Cập nhật 07/11/2026 — Bản vá F01–F10 đã hoàn tất source
+
+- PO chốt F04-A và F08-A. Reopen dựng dữ liệu chuyến theo tuyến/lịch hiện hành và ghi audit. Trip đã Ready giữ giờ khi ngày đó còn dịch vụ.
+- Typecheck, build, lint các file mới sửa và Swagger đạt. Nghiệm thu nghiệp vụ vẫn chờ dữ liệu được cấp.
+- Xem master plan AA15, FE guide mục 12 và LATEST. DB local ở mốc 19 migrations đã xác minh trước đó.
+
+# Cập nhật 06/11/2026 — Đã migrate địa giới local
+
+- PO duyệt migrate, đã apply20261106010000_school_student_geography vào roadtoschool/public localhost:5432.19migrations up to date.
+- SELECT metadata xác nhận province_id/ward_id/ward của schools và students đều TEXT nullable, migration finished/không rollback. Không backfill/seed/reset hoặc gọi provider.
+- API typecheck đạt. Không chạy script test/cron/nghiệp vụ để thử. Dữ liệu cũ chưa có ID vẫn hiện khi bỏ filter, dropdown có thể rỗng.
+- Các ghi chú pending địa giới bên dưới là lịch sử trước phê duyệt này. Xem docs/ai-review/LATEST.md và FE guide mục11; runtime/UAT vẫn chưa nghiệm thu.
+
+# Cập nhật 06/11/2026 — Source bộ lọc địa giới, DDL mới chưa apply
+
+- PO đã duyệt provinceId/wardId/ward nullable trên School/Student và query optional cho school/student/preparation. Chỉ áp filter người dùng chọn; eligibility độc lập, không tự dùng tỉnh/phường của trường/bãi.
+- Hai GET location-options theo scope đã duyệt, đọc dữ liệu có sẵn, không backfill hoặc gọi VietMap khi GET. Tạo/đổi tọa độ dùng địa giới mới Reverse v4; giữ addressText/payload cũ.
+- Migration20261106010000_school_student_geography chỉ tạo DDL, **chưa apply**. Audit migration trước vẫn đã apply18migrations local; source mới cần6cột geography trước runtime.
+- Typecheck/build/Prisma validate/generate đạt; SwaggerHTTP200 kiểm2API mới/optional query/response fields, không init DB/scheduler. Không chạy script test/provider/mutation, không sửa env/FE.
+- Xem master plan Z7, FE guide mục11, LATEST. Chưa UAT runtime; chưa commit/push.
+
+# Cập nhật 06/11/2026 — Đã apply migration audit local
+
+- Theo phê duyệt mới của PO, đã apply 20261106000000_operation_and_parent_link_audit vào PostgreSQL roadtoschool/public tại localhost:5432.
+- 18 migrations up to date; metadata xác nhận trips.operation_audit và students.parent_link_audit đều JSONB nullable. Không reset/seed/backfill hay sửa dữ liệu nghiệp vụ để thử.
+- Typecheck API đạt. Không chạy test scripts hoặc khởi động scheduler/API nghiệp vụ. Source client đã generate từ bước trước, schema không đổi trong lượt migrate.
+- Các ghi chú migration pending bên dưới là lịch sử trước lần duyệt này. Runtime/FE/UAT vẫn chưa nghiệm thu. Báo cáo: docs/ai-review/LATEST.md.
+
+# Cập nhật 06/11/2026 — Đồng bộ 3.1–3.18, phần độc lập
+
+- Đã cập nhật source API: SĐT+email khi tạo nhân sự, OTP transaction, khóa writer chung, đồng bộ Trip đúng mốc/giữ override, khả dụng nguồn lực, bãi theo ngày/cấu hình bắt buộc, thu hồi Parent link, correction/cancel-all-absent/reopen, GPS/late-risk/close incident, masking Parent và dashboard.
+- Schema thêm hai field JSON nullable Trip.operationAudit, Student.parentLinkAudit; migration 20261106000000_operation_and_parent_link_audit **chỉ tạo DDL, chưa apply**. Prisma client đã generate. Không sửa env, không test scripts/seed/provider/mutation để thử.
+- Typecheck/build/Prisma validate đạt; Swagger UI/OpenAPI kiểm HTTP không init DB/scheduler. Chưa UAT runtime/đồng thời/cron/FE, không tái sử dụng kết quả193 tests lịch sử để xác nhận code mới.
+- Workflow thay plan cùng nhóm học sinh được PO tách chốt riêng; không đánh dấu hoàn tất toàn bộ master plan.
+- Plan chung: docs/ai-review/business-improvement-master-plan-3.4-3.18.md mục Z. Contract FE: docs/FE_INTEGRATION_GUIDE.md. Báo cáo: docs/ai-review/LATEST.md.
+- Các mốc hoàn tất bên dưới là lịch sử, xem trạng thái và giới hạn cập nhật này trước.
+
 # RoadToSchool — Theo dõi hoàn thiện nghiệp vụ
 
 > Ngày lập: 29/10/2026 (Asia/Saigon).
@@ -93,6 +137,8 @@ Phân biệt bắt buộc: RoutePlan là phương án; Route là tuyến một c
 Tất cả đường dẫn API có tiền tố `/api/v1`. Đây là ánh xạ từ phân tích source trong chat, không phải biên bản chạy thực tế.
 
 ### WF-01 — Tài khoản
+
+**Quyết định bổ sung 06/11/2026:** nhân sự DRIVER/SCHOOL_ADMIN/BUS_ATTENDANT bắt buộc có cả email và số điện thoại khi tạo. Bàn giao mật khẩu vẫn chỉ qua email. Quyết định BUSINESS_APPROVED, chưa triển khai phone required vào API. Client tạo nhân sự phải chuẩn bị cả hai field; chính sách tài khoản cũ thiếu phone còn chờ chốt. Xem auth-api-improvement-plan.md và Master Plan mục Y3.
 
 **Hiện hành:** 3.1 đã IMPLEMENTED theo nhật ký cuối file; các mô tả “chưa triển khai” dưới đây là lịch sử. Chưa VERIFIED gửi thật/runtime.
 

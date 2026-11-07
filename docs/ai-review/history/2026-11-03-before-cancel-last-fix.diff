@@ -1,0 +1,28 @@
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -2857,7 +2857,7 @@
+     textAlignVertical: 'top',
+     minHeight: 70,
+   },
+-  modalLaterBtn: { ...parentHomeStyles.secondaryBtn, flex: 1 },
++  modalLaterBtn: parentHomeStyles.secondaryBtn,
+   modalLaterBtnText: parentHomeStyles.secondaryBtnText,
+   bottomSheet: {
+     position: 'absolute',
+@@ -3438,13 +3438,13 @@
+     lineHeight: 18,
+   },
+   modalBtnRow: {
+-    flexDirection: 'row',
++    flexDirection: 'column',
+     gap: 10,
+     marginTop: 8,
+   },
+-  modalCancelBtn: { ...parentHomeStyles.secondaryBtn, flex: 1 },
++  modalCancelBtn: parentHomeStyles.secondaryBtn,
+   modalCancelBtnText: parentHomeStyles.secondaryBtnText,
+-  modalConfirmBtn: { ...parentHomeStyles.primaryBtn, flex: 1 },
++  modalConfirmBtn: parentHomeStyles.primaryBtn,
+   modalConfirmBtnText: parentHomeStyles.primaryBtnText,
+   absenceInput: {
+     backgroundColor: '#F8FAFC',

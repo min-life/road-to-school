@@ -1,0 +1,44 @@
+diff --git a/mobile/app/trip/[id].tsx b/mobile/app/trip/[id].tsx
+index 901b8ed..ee31955 100644
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -44 +43,0 @@ import { childMapPinCss, childMapPinScript, childMapPinSize, serializeMapScriptV
+-import { staffSchoolSvg, staffBusSvg } from '@/utils/staff-map-marker';
+@@ -403 +401,0 @@ export default function MobileTripDetailScreen() {
+-          ${isDriverOrAttendant ? '.staff-map-icon { box-sizing: border-box; display: flex; align-items: center; justify-content: center; }' : ''}
+@@ -424 +421,0 @@ export default function MobileTripDetailScreen() {
+-            var schoolStop = s.type === 'SCHOOL_ARRIVAL' || s.type === 'SCHOOL_DEPARTURE';
+@@ -428 +425 @@ export default function MobileTripDetailScreen() {
+-              iconHtml = '<div class="school-marker' + (staffMap ? ' staff-map-icon' : '') + '">' + (staffMap ? ${serializeMapScriptValue(staffSchoolSvg)} : '🏫') + '</div>';
++              iconHtml = '<div class="school-marker">🏫</div>';
+@@ -437,2 +434,2 @@ export default function MobileTripDetailScreen() {
+-              iconSize: pinMarker ? [${childMapPinSize.width}, ${childMapPinSize.height}] : staffMap && schoolStop ? [30, 30] : [28, 28],
+-              iconAnchor: pinMarker ? [${childMapPinSize.width / 2}, ${childMapPinSize.height * 65 / 66}] : staffMap && schoolStop ? [15, 15] : [14, 14],
++              iconSize: pinMarker ? [${childMapPinSize.width}, ${childMapPinSize.height}] : [28, 28],
++              iconAnchor: pinMarker ? [${childMapPinSize.width / 2}, ${childMapPinSize.height * 65 / 66}] : [14, 14],
+@@ -469 +466 @@ export default function MobileTripDetailScreen() {
+-              if (!vehicle) vehicle = L.marker(n.position, {icon: L.divIcon({className:'',html:'<div class="school-marker' + (staffMap ? ' staff-map-icon' : '') + '">' + (staffMap ? ${serializeMapScriptValue(staffBusSvg)} : '🚌') + '</div>',iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
++              if (!vehicle) vehicle = L.marker(n.position, {icon: L.divIcon({className:'',html:'<div class="school-marker">🚌</div>',iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
+diff --git a/mobile/scripts/staff-map-marker.test.ts b/mobile/scripts/staff-map-marker.test.ts
+index c17461d..5dacbcf 100644
+--- a/mobile/scripts/staff-map-marker.test.ts
++++ b/mobile/scripts/staff-map-marker.test.ts
+@@ -5 +4,0 @@ import { childMapPinScript, mapPinSvg } from '../utils/child-map-marker';
+-import { staffBusSvg, staffSchoolSvg } from '../utils/staff-map-marker';
+@@ -55,7 +53,0 @@ describe('Staff pins reuse the unchanged Parent pin frame', () => {
+-  it('uses fixed outline school/bus graphics without platform-dependent emoji', () => {
+-    for (const icon of [staffSchoolSvg, staffBusSvg]) {
+-      assert.ok(icon.startsWith('<svg '));
+-      assert.ok(icon.includes('stroke="currentColor"'));
+-      assert.equal(/🏫|🚌|<script|<foreignObject|<image/i.test(icon), false);
+-    }
+-  });
+diff --git a/mobile/utils/staff-map-marker.ts b/mobile/utils/staff-map-marker.ts
+deleted file mode 100644
+--- a/mobile/utils/staff-map-marker.ts
++++ /dev/null
+@@ -1,4 +0,0 @@
+-// Fixed outline icons only for staff; the Parent's existing emoji markers stay intact.
+-const svgStart = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" style="vertical-align:middle" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">';
+-export const staffSchoolSvg = svgStart + '<path d="M3 21V9l9-6 9 6v12H3Z M9 21v-7h6v7 M3 10h18 M7 12v3 M17 12v3"/><circle cx="12" cy="7" r="1"/></svg>';
+-export const staffBusSvg = svgStart + '<rect x="5" y="3" width="14" height="16" rx="3"/><path d="M5 11h14 M9 3v8 M15 3v8 M8 19v2 M16 19v2"/><circle cx="8" cy="15" r="1"/><circle cx="16" cy="15" r="1"/></svg>';

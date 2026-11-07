@@ -1,3 +1,6 @@
+import { AppAlert as Alert } from '@/services/app-alert';
+import { AppHeader } from '@/components/navigation/app-header';
+import { FloatingAddButton, FLOATING_ADD_CONTENT_INSET } from '@/components/navigation/floating-add-button';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
@@ -7,8 +10,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Alert,
-} from 'react-native';
+  } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -174,26 +176,9 @@ export default function LeaveNoticesHistoryScreen() {
       ];
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#1E293B" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Báo nghỉ</Text>
-        <TouchableOpacity
-          style={styles.addBtn}
-          onPress={() =>
-            router.push({
-              pathname: '/leave-notices/create',
-              params: selectedStudentId ? { studentId: selectedStudentId } : {},
-            } as any)
-          }
-          activeOpacity={0.8}
-        >
-          <Ionicons name="add" size={22} color="#1E293B" />
-        </TouchableOpacity>
-      </View>
+      <AppHeader title="Báo nghỉ" onBack={() => router.back()} />
 
       {/* Status Filter Row */}
       <View style={styles.statusFilterRow}>
@@ -217,7 +202,7 @@ export default function LeaveNoticesHistoryScreen() {
 
       {/* Main List */}
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + FLOATING_ADD_CONTENT_INSET }]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
@@ -236,18 +221,6 @@ export default function LeaveNoticesHistoryScreen() {
             <Text style={styles.emptySubtitle}>
               Bạn chưa gửi đơn báo nghỉ nào hoặc không có đơn phù hợp với bộ lọc hiện tại.
             </Text>
-            <TouchableOpacity
-              style={styles.createNowBtn}
-              onPress={() =>
-                router.push({
-                  pathname: '/leave-notices/create',
-                  params: selectedStudentId ? { studentId: selectedStudentId } : {},
-                } as any)
-              }
-            >
-              <Ionicons name="add-circle-outline" size={18} color="#1E293B" />
-              <Text style={styles.createNowBtnText}>Tạo báo nghỉ mới</Text>
-            </TouchableOpacity>
           </View>
         ) : (
           notices.map((notice) => {
@@ -319,6 +292,11 @@ export default function LeaveNoticesHistoryScreen() {
           })
         )}
       </ScrollView>
+      <FloatingAddButton label="Tạo báo nghỉ" bottom={insets.bottom + 16} right={insets.right + 20}
+        onPress={() => router.push({
+          pathname: '/leave-notices/create',
+          params: selectedStudentId ? { studentId: selectedStudentId } : {},
+        } as any)} />
     </View>
   );
 }
@@ -327,32 +305,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFDF6',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
-  },
-  backBtn: {
-    padding: 6,
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1E293B',
-  },
-  addBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: '#FFCB56',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   chipsRow: {
     backgroundColor: '#FFFFFF',
@@ -450,20 +402,6 @@ const styles = StyleSheet.create({
     maxWidth: 260,
     lineHeight: 18,
     marginBottom: 8,
-  },
-  createNowBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#FFCB56',
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  createNowBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1E293B',
   },
   card: {
     backgroundColor: '#FFFFFF',

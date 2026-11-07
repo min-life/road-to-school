@@ -26,7 +26,7 @@ export class TripIncidentResponseDto {
   @ApiPropertyOptional({ example: 'Giáo viên phụ xe chưa tới', nullable: true })
   description?: string | null;
 
-  @ApiPropertyOptional({ description: 'Bằng chứng ngữ cảnh lúc phát hiện', nullable: true })
+  @ApiPropertyOptional({ description: 'Bằng chứng lúc phát hiện: latitude/longitude, addressText nullable, locationSource REPORTED/RECORDED/LAST_KNOWN/UNKNOWN và capturedAt nullable', nullable: true })
   context?: any | null;
 
   @ApiPropertyOptional({ example: 'admin-uuid-1', nullable: true })

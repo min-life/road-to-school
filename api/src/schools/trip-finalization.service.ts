@@ -1,3 +1,5 @@
+import { closeCancelledTripTasks } from '../trips/utils/close-cancelled-trip-tasks.js';
+import { lockOperations } from '../trips/utils/operations-lock.js';
 import {
   BadRequestException,
   ConflictException,
@@ -18,10 +20,10 @@ import {
 @Injectable()
 export class TripFinalizationService {
   constructor(private readonly prisma: PrismaService) {}
-  async list(actor: User) {
+  async list(actor: User, schoolId?: string) {
     if (actor.role !== 'SYSTEM_ADMIN') throw new ForbiddenException();
     const trips = await this.prisma.trip.findMany({
-      where: { status: { in: ['SCHEDULED', 'IN_PROGRESS'] } },
+      where: { ...(schoolId ? { schoolId } : {}), status: { in: ['SCHEDULED', 'IN_PROGRESS'] } },
       include: { attendances: true },
       orderBy: { serviceDate: 'asc' },
     });
@@ -50,6 +52,7 @@ export class TripFinalizationService {
     if (!dto.reason.trim())
       throw new BadRequestException('Cần lý do chốt chuyến');
     return this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
       const ref = await tx.trip.findUnique({
         where: { id },
         select: { schoolId: true },
@@ -111,7 +114,8 @@ export class TripFinalizationService {
           },
         });
       if (dto.finalStatus === 'CANCELLED')
-        await notifyCancelledTrips(
+        await closeCancelledTripTasks(tx, [id]);
+      await notifyCancelledTrips(
           tx,
           [id],
           `admin-finalization:${id}`,

@@ -154,6 +154,13 @@ Toàn bộ Web và Mobile sử dụng thống nhất bộ token màu thương hi
 
 ---
 
+### 3.5. Mobile Keyboard & Focus Visibility
+- Mọi input/textarea trong trang, modal hoặc drawer phải có vùng cuộn để ô đang nhập nằm trong phần nhìn thấy, phía trên bàn phím với khoảng cách nhỏ vừa đủ.
+- Chỉ cuộn khi ô bị che; dựa trên viewport và bàn phím thực tế, không dùng chiều cao bàn phím hay khoảng đẩy cố định cho mọi thiết bị.
+- Cho phép cuộn biểu mẫu dài và chuyển giữa các ô khi bàn phím còn mở. Khi đóng bàn phím, bỏ phần bù và giữ nội dung đã nhập.
+- Với Mobile Expo, dùng `KeyboardScrollView`; mỗi modal/drawer có vùng nhập cần một vùng cuộn riêng. Không bù bàn phím hai lần bằng cách lồng trong `KeyboardAvoidingView`.
+- Kiểm chứng trên thiết bị và Safari iOS/Chrome Android khi có điều kiện; báo rõ môi trường đã chạy và phần `NOT_VERIFIED`. Chi tiết: [mobile-keyboard-behavior.md](architecture/mobile-keyboard-behavior.md).
+
 ## 4. General Code & Maintainability Rules
 
 ### 4.1. Đơn giản, Dễ bảo trì (Student Project First)

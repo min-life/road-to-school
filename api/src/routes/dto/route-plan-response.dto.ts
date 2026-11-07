@@ -3,6 +3,8 @@ import { RoutePlanStatus } from '@prisma/client';
 import { RouteResponseDto } from './route-response.dto.js';
 
 export class RoutePlanResponseDto {
+  @ApiPropertyOptional({ type: String, nullable: true, example: '2026-11-10', description: 'Ngày đầu đủ lịch phục vụ sau activation; null khi chưa ACTIVE hoặc chưa có ngày phù hợp. Không đồng nghĩa Trip đã sinh.' })
+  firstServiceDate?: string | null;
   @ApiProperty({ example: 'plan-uuid-1' })
   id: string;
 

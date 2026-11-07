@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/constants/theme';
 
 interface NetworkBannerProps {
@@ -9,7 +10,7 @@ interface NetworkBannerProps {
 
 export function NetworkBanner({ onRetry, isRetrying = false }: NetworkBannerProps) {
   return (
-    <View style={styles.banner} accessibilityRole="alert">
+    <SafeAreaView style={styles.banner} edges={['top', 'left', 'right']} accessibilityRole="alert">
       <View style={styles.textContainer}>
         <Text style={styles.title}>Không thể kết nối máy chủ</Text>
         <Text style={styles.message}>Vui lòng kiểm tra lại đường truyền mạng của thiết bị.</Text>
@@ -26,7 +27,7 @@ export function NetworkBanner({ onRetry, isRetrying = false }: NetworkBannerProp
           <Text style={styles.retryText}>Thử lại</Text>
         )}
       </TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 }
 

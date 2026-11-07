@@ -3,7 +3,7 @@ type MapTrip = {
   stops: readonly {
     stopOrder: number; latitude: number; longitude: number; stopType: string;
     studentName?: string | null; addressText?: string | null;
-    plannedArrivalTime?: string | null; isMyChild?: boolean;
+    plannedArrivalTime?: string | null; isMyChild?: boolean; studentId?: string | null;
   }[];
 };
 
@@ -15,6 +15,7 @@ export function getTripMapSnapshot(trip: MapTrip | null): string {
       order: stop.stopOrder, lat: stop.latitude, lng: stop.longitude, type: stop.stopType,
       name: stop.studentName || stop.addressText, address: stop.addressText,
       eta: stop.plannedArrivalTime || '', isMyChild: stop.isMyChild ?? false,
+      studentId: stop.isMyChild ? stop.studentId ?? null : null,
     })),
   } : null);
 }

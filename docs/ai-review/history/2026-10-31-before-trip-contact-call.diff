@@ -1,0 +1,205 @@
+--- a/mobile/app/leave-notices/create.tsx
++++ b/mobile/app/leave-notices/create.tsx
+@@ -27,0 +28,2 @@
++import { UserAvatar } from '@/components/user-avatar';
++import { LeaveStudentCard } from '@/components/parent/leave-student-card';
+@@ -254,25 +256,2 @@
+-            {isFixedStudent ? (
+-              <View style={styles.fixedField}>
+-                <Ionicons name="person-circle-outline" size={20} color="#1E293B" />
+-                <Text style={styles.fixedFieldText}>
+-                  {selectedStudent?.fullName || 'Học sinh'}
+-                </Text>
+-                <View style={styles.fixedBadge}>
+-                  <Text style={styles.fixedBadgeText}>Cố định</Text>
+-                </View>
+-              </View>
+-            ) : (
+-              <TouchableOpacity
+-                style={styles.dropdownBtn}
+-                onPress={() => setStudentModalVisible(true)}
+-                activeOpacity={0.8}
+-              >
+-                <View style={styles.dropdownLeft}>
+-                  <Ionicons name="person-circle-outline" size={20} color="#D97706" />
+-                  <Text style={styles.dropdownBtnText}>
+-                    {selectedStudent?.fullName || 'Chọn học sinh'}
+-                  </Text>
+-                </View>
+-                <Ionicons name="chevron-down" size={18} color="#64748B" />
+-              </TouchableOpacity>
+-            )}
++            <LeaveStudentCard student={selectedStudent} fixed={isFixedStudent}
++              onPress={() => setStudentModalVisible(true)} />
+@@ -523,6 +502,2 @@
+-                    <Ionicons
+-                      name="person-circle-outline"
+-                      size={22}
+-                      color={isSelected ? '#D97706' : '#64748B'}
+-                    />
+-                    <View style={{ flex: 1 }}>
++                    <UserAvatar avatarUrl={stu.avatarUrl} fullName={stu.fullName || 'Học sinh'} size={40} />
++                    <View style={{ flex: 1, minWidth: 0 }}>
+@@ -653,28 +627,0 @@
+-  fixedField: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    gap: 10,
+-    backgroundColor: '#F8FAFC',
+-    borderRadius: 12,
+-    borderWidth: 1,
+-    borderColor: '#E2E8F0',
+-    paddingHorizontal: 14,
+-    paddingVertical: 12,
+-  },
+-  fixedFieldText: {
+-    flex: 1,
+-    fontSize: 14,
+-    fontWeight: '700',
+-    color: '#1E293B',
+-  },
+-  fixedBadge: {
+-    backgroundColor: '#E2E8F0',
+-    paddingHorizontal: 8,
+-    paddingVertical: 3,
+-    borderRadius: 6,
+-  },
+-  fixedBadgeText: {
+-    fontSize: 11,
+-    fontWeight: '600',
+-    color: '#475569',
+-  },
+@@ -931,2 +878,6 @@
+-    paddingHorizontal: 8,
+-    borderRadius: 12,
++    paddingHorizontal: 12,
++    borderRadius: 14,
++    borderWidth: 1,
++    borderColor: colors.border,
++    backgroundColor: colors.surface,
++    marginBottom: 8,
+@@ -935 +886,2 @@
+-    backgroundColor: '#FEF9C3',
++    backgroundColor: colors.navigationHighlight,
++    borderColor: colors.primary,
+@@ -938,2 +890,3 @@
+-    fontSize: 14,
+-    fontWeight: '600',
++    fontSize: 15,
++    lineHeight: 21,
++    fontWeight: '700',
+@@ -949,0 +903 @@
++    lineHeight: 16,
+--- /dev/null
++++ b/mobile/components/parent/leave-student-card.tsx
+@@ -0,0 +1,65 @@
++import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
++import Ionicons from '@expo/vector-icons/Ionicons';
++import { UserAvatar } from '@/components/user-avatar';
++import { colors } from '@/constants/theme';
++import type { ParentLinkedStudentItem } from '@/services/api-client';
++
++type Props = {
++  student?: Pick<ParentLinkedStudentItem, 'fullName' | 'avatarUrl' | 'schoolName' | 'code'>;
++  fixed: boolean;
++  onPress: () => void;
++};
++
++/** A linked child's identity; selection and fixed-student behavior stay with the screen. */
++export function LeaveStudentCard({ student, fixed, onPress }: Props) {
++  const name = student?.fullName || (fixed ? 'Học sinh' : 'Chọn học sinh');
++  const identity = <>
++    <View style={styles.avatarFrame}>
++      <UserAvatar avatarUrl={student?.avatarUrl} fullName={student?.fullName || 'Học sinh'} size={48} />
++    </View>
++    <View style={styles.identity}>
++      <Text style={styles.name}>{name}</Text>
++      {!!student?.schoolName && <Text style={styles.school}>{student.schoolName}</Text>}
++      {(student?.code || fixed) && <View style={styles.details}>
++        {!!student?.code && <View style={styles.codeRow}>
++          <Ionicons name="id-card-outline" size={13} color={colors.mutedText} accessible={false} />
++          <Text style={styles.code}>Mã: {student.code}</Text>
++        </View>}
++        {fixed && <View style={styles.fixedBadge}>
++          <Ionicons name="lock-closed-outline" size={11} color={colors.mutedText} accessible={false} />
++          <Text style={styles.fixedText}>Cố định</Text>
++        </View>}
++      </View>}
++    </View>
++    {!fixed && <View style={styles.chevron}>
++      <Ionicons name="chevron-down" size={18} color={colors.navigationActive} accessible={false} />
++    </View>}
++  </>;
++
++  return fixed ? <View style={styles.card}>{identity}</View> : (
++    <TouchableOpacity style={styles.card} activeOpacity={0.8} onPress={onPress}
++      accessibilityRole="button" accessibilityLabel={[name, student?.schoolName, student?.code && `Mã: ${student.code}`].filter(Boolean).join(', ')}
++      accessibilityHint="Mở danh sách chọn học sinh">
++      {identity}
++    </TouchableOpacity>
++  );
++}
++
++const styles = StyleSheet.create({
++  card: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, backgroundColor: colors.surface,
++    borderWidth: 1, borderColor: colors.border, borderRadius: 20, shadowColor: colors.navigationShadow,
++    shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
++  avatarFrame: { padding: 2, borderRadius: 27, borderWidth: 1, borderColor: colors.navigationHighlight,
++    backgroundColor: colors.background, flexShrink: 0 },
++  identity: { flex: 1, minWidth: 0, gap: 4 },
++  name: { fontSize: 16, lineHeight: 22, fontWeight: '700', color: colors.foreground },
++  school: { fontSize: 12, lineHeight: 18, color: colors.mutedText },
++  details: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 2 },
++  codeRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1, minWidth: 0 },
++  code: { fontSize: 11, lineHeight: 16, color: colors.mutedText, flexShrink: 1 },
++  fixedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F1F5F9',
++    borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3 },
++  fixedText: { fontSize: 11, fontWeight: '600', color: colors.mutedText },
++  chevron: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.navigationHighlight,
++    alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
++});
+--- a/docs/architecture/mobile-ui-implementation-status.md
++++ b/docs/architecture/mobile-ui-implementation-status.md
+@@ -3,0 +4,4 @@
++
++## Tạo báo nghỉ — card học sinh có avatar (31/10/2026, local)
++
++Thẻ Học sinh dùng LeaveStudentCard: avatar48, tên/trường/mã theo bố cục card Parent, giữ Cố định hoặc mũi tên chọn con; tên/trường dài xuống dòng đầy đủ. Popup có avatar40 riêng mỗi con và giữ đủ tên/mã/trường/checkmark. Dùng Student.avatarUrl qua UserAvatar chung, thiếu/lỗi ảnh dùng chữ đầu tên; không ảnh phụ huynh hoặc dữ liệu mẫu. Logic chọn con/chuyến và OTP/countdown giữ nguyên. [Component/source/verification](mobile-leave-student-card.md). Chưa commit/push; native/photo UAT chưa xác minh.
+--- /dev/null
++++ b/docs/architecture/mobile-leave-student-card.md
+@@ -0,0 +1,35 @@
++# Tạo báo nghỉ — card học sinh có avatar
++
++31/10/2026, Mobile V2, local chưa commit/push.
++
++## Bố cục và thông tin
++
++Thẻ Học sinh trong [Tạo báo nghỉ](../../mobile/app/leave-notices/create.tsx) dùng [LeaveStudentCard](../../mobile/components/parent/leave-student-card.tsx):
++
++```text
++[Avatar] Tên học sinh                     [v] (khi được đổi con)
++         Tên trường
++         Mã học sinh · [Cố định] (khi vào từ hồ sơ con)
++```
++
++- Nền trắng, border theo theme, bo20, padding16, shadow nhẹ và màu chữ như Parent Home/các card hiện có.
++- Avatar48px có viền nền kem mảnh, identity dùng flex/minWidth0, tên16/22, trường12/18 và mã11/16; text xuống dòng tự nhiên, không numberOfLines/ellipsis. Badge Cố định nằm trong hàng metadata có wrap, không ép tên/trường vào một cột quá hẹp.
++- Trước đây thẻ chính chỉ hiện tên; nay hiện thêm trường/mã đã có từ linked-student payload, không lấy thông tin bằng API mới. Cố định vẫn là view không mở popup; thẻ chọn vẫn nhấn toàn bộ để mở popup như trước.
++- Popup giữ tên/mã/trường/checkmark và callback chọn hiện có, thay icon person bằng avatar40px riêng từng con. Các row có border/bo14, selected viền vàng/nền kem, đủ khoảng cách để đọc; không đổi danh sách, điều kiện chọn hoặc cách reset chuyến sau chọn.
++
++## Component và avatar
++
++`LeaveStudentCard` nhận `student?: Pick<ParentLinkedStudentItem, 'fullName' | 'avatarUrl' | 'schoolName' | 'code'>`, `fixed: boolean`, `onPress: () => void`. Component thuần trình bày, không API/auth/state nghiệp vụ. Thiếu dữ liệu ban đầu giữ nhãn **Học sinh** hoặc **Chọn học sinh** theo mode như trước.
++
++Dùng [UserAvatar](../../mobile/components/user-avatar.tsx) cho cả thẻ chính và row popup. Nguồn `getLinkedStudents → Student.avatarUrl`, không lấy avatar phụ huynh, ảnh con đầu tiên hoặc logo làm ảnh mẫu. Thiếu ảnh hoặc tải ảnh lỗi dùng chữ đầu tên theo component chung; URL đổi reset trạng thái lỗi. Fallback Học sinh khi chưa có tên, không tạo ảnh giả. UserAvatar giữ nguyên source, cùng component với Home, cùng nguồn dữ liệu học sinh ở Theo dõi/hồ sơ/bản đồ.
++
++School/code chỉ render khi payload có giá trị; không tự tạo trường hoặc mã thay thế. Role PARENT/isFixedStudent, loading options, ngày/chiều/chuyến/lý do, modal calendar, luồng OTP/cooldown và API hiện có giữ nguyên. Calendar dropdown và style màn khác không đổi. Không thêm package/asset hoặc sửa backend.
++
++## Kiểm chứng và giới hạn
++
++- Typecheck và Expo export iOS/Android/Web/server đạt; source/AST đối chiếu controllers/API calls/modal selection giữ nguyên.
++- Preview React Native Web SSR dùng component/row JSX/style/UserAvatar thật và trường hiển thị từ SELECT read-only các con đã liên kết trong local. Không mock API hoặc tạo Student records. Kiểm tra320/390/1440px không tràn ngang, tên/trường/mã đầy đủ và fixed badge giữ; các mode được trình bày cùng nhau chỉ để đối chiếu component, không phải ảnh chụp toàn bộ form đang hoạt động.
++- Local hiện có2con được đọc, cả2chưa có avatar_url; preview chỉ xác minh fallback và layout. Dữ liệu mang tiền tố UI TEST là dữ liệu đã có do PO chuẩn bị trước, không được agent tạo trong task này. Không upload ảnh hay sửa DB để ép test.
++- NOT_VERIFIED ảnh hồ sơ thật/ảnh lỗi trên thiết bị, flow có xác thực, popup native/VoiceOver/Dynamic Type trên iPhone/Android. Không coi SSR là kiểm thử callback navigation hoặc gửi OTP.
++
++Kết quả và phạm vi đầy đủ: [AI Review](../ai-review/LATEST.md).

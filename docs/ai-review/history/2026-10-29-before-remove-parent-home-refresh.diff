@@ -1,0 +1,1159 @@
+diff --git a/mobile/app/(auth)/verify-otp.tsx b/mobile/app/(auth)/verify-otp.tsx
+--- a/mobile/app/(auth)/verify-otp.tsx
++++ b/mobile/app/(auth)/verify-otp.tsx
+@@ -0,0 +1,3 @@
++import { SafeAreaView } from 'react-native-safe-area-context';
++import { OtpHero } from '@/components/auth/otp-hero';
++import { otpStyles } from '@/constants/otp-styles';
+@@ -10 +12,0 @@ import {
+-  Platform,
+@@ -107,3 +109 @@ export default function VerifyOtpScreen() {
+-    <View
+-      style={styles.keyboardContainer}
+-    >
++    <SafeAreaView style={styles.keyboardContainer} edges={['top', 'bottom', 'left', 'right']}>
+@@ -124,2 +123,0 @@ export default function VerifyOtpScreen() {
+-            <Text style={styles.headerTitle}>Xác thực mã OTP</Text>
+-            <View style={{ width: 24 }} />
+@@ -126,0 +125,2 @@ export default function VerifyOtpScreen() {
++          <OtpHero />
++          <Text accessibilityRole="header" style={styles.headerTitle}>Xác thực mã OTP</Text>
+@@ -164,0 +165 @@ export default function VerifyOtpScreen() {
++              accessibilityLabel="Nhập mã OTP"
+@@ -187 +188 @@ export default function VerifyOtpScreen() {
+-              <TouchableOpacity
++              <TouchableOpacity style={otpStyles.linkButton}
+@@ -222 +223 @@ export default function VerifyOtpScreen() {
+-    </View>
++    </SafeAreaView>
+@@ -232,4 +233 @@ const styles = StyleSheet.create({
+-    flexGrow: 1,
+-    paddingHorizontal: 20,
+-    paddingVertical: 24,
+-    justifyContent: 'center',
++    ...otpStyles.authContent,
+@@ -238,11 +236 @@ const styles = StyleSheet.create({
+-    backgroundColor: colors.surface,
+-    borderRadius: 20,
+-    paddingHorizontal: 24,
+-    paddingVertical: 28,
+-    shadowColor: '#000',
+-    shadowOffset: { width: 0, height: 4 },
+-    shadowOpacity: 0.08,
+-    shadowRadius: 10,
+-    elevation: 3,
+-    borderWidth: 1,
+-    borderColor: '#F1F5F9',
++    ...otpStyles.authFrame,
+@@ -251,4 +239 @@ const styles = StyleSheet.create({
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'space-between',
+-    marginBottom: 12,
++    ...otpStyles.backRow,
+@@ -257,2 +242 @@ const styles = StyleSheet.create({
+-    padding: 4,
+-    marginLeft: -4,
++    ...otpStyles.backButton,
+@@ -261,3 +245 @@ const styles = StyleSheet.create({
+-    fontSize: 18,
+-    fontWeight: '700',
+-    color: colors.foreground,
++    ...otpStyles.heading,
+@@ -266,5 +248 @@ const styles = StyleSheet.create({
+-    fontSize: 13,
+-    color: colors.mutedText,
+-    marginBottom: 24,
+-    textAlign: 'center',
+-    lineHeight: 20,
++    ...otpStyles.description,
+@@ -273 +251 @@ const styles = StyleSheet.create({
+-    fontWeight: '700',
++    fontWeight: "700",
+@@ -277,10 +255 @@ const styles = StyleSheet.create({
+-    backgroundColor: '#FEF2F2',
+-    borderWidth: 1,
+-    borderColor: '#FECACA',
+-    borderRadius: 12,
+-    paddingHorizontal: 14,
+-    paddingVertical: 10,
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    gap: 8,
+-    marginBottom: 20,
++    ...otpStyles.error,
+@@ -289,4 +258 @@ const styles = StyleSheet.create({
+-    fontSize: 13,
+-    color: colors.error,
+-    flex: 1,
+-    lineHeight: 18,
++    ...otpStyles.errorText,
+@@ -295,5 +261 @@ const styles = StyleSheet.create({
+-    position: 'relative',
+-    flexDirection: 'row',
+-    justifyContent: 'space-between',
+-    marginBottom: 16,
+-    paddingHorizontal: 4,
++    ...otpStyles.boxes,
+@@ -302,8 +264 @@ const styles = StyleSheet.create({
+-    width: 44,
+-    height: 52,
+-    borderRadius: 12,
+-    borderWidth: 1.5,
+-    borderColor: colors.border,
+-    backgroundColor: '#FAFAFA',
+-    alignItems: 'center',
+-    justifyContent: 'center',
++    ...otpStyles.box,
+@@ -312,3 +267 @@ const styles = StyleSheet.create({
+-    borderColor: colors.primary,
+-    backgroundColor: '#FFFFFF',
+-    borderWidth: 2,
++    ...otpStyles.boxActive,
+@@ -317,2 +270 @@ const styles = StyleSheet.create({
+-    borderColor: '#CBD5E1',
+-    backgroundColor: '#FFFFFF',
++    ...otpStyles.boxFilled,
+@@ -321,4 +273 @@ const styles = StyleSheet.create({
+-    fontSize: 22,
+-    fontWeight: '700',
+-    color: colors.foreground,
+-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
++    ...otpStyles.character,
+@@ -327,6 +276 @@ const styles = StyleSheet.create({
+-    position: 'absolute',
+-    opacity: 0,
+-    top: 0,
+-    left: 0,
+-    width: '100%',
+-    height: '100%',
++    ...otpStyles.hiddenInput,
+@@ -340,2 +284 @@ const styles = StyleSheet.create({
+-    fontSize: 13,
+-    color: colors.mutedText,
++    ...otpStyles.meta,
+@@ -348,3 +291 @@ const styles = StyleSheet.create({
+-    fontSize: 13,
+-    fontWeight: '700',
+-    color: '#D97706',
++    ...otpStyles.link,
+@@ -353,5 +294 @@ const styles = StyleSheet.create({
+-    backgroundColor: colors.primary,
+-    height: 48,
+-    borderRadius: 12,
+-    alignItems: 'center',
+-    justifyContent: 'center',
++    ...otpStyles.button,
+@@ -363,2 +300,4 @@ const styles = StyleSheet.create({
+-    flexDirection: 'row',
+-    alignItems: 'center',
++    flexDirection: "row",
++    flexWrap: "wrap",
++    alignItems: "center",
++    justifyContent: "center",
+@@ -368,3 +307 @@ const styles = StyleSheet.create({
+-    fontSize: 15,
+-    fontWeight: '700',
+-    color: colors.foreground,
++    ...otpStyles.buttonText,
+
+diff --git a/mobile/app/(auth)/reset-password.tsx b/mobile/app/(auth)/reset-password.tsx
+--- a/mobile/app/(auth)/reset-password.tsx
++++ b/mobile/app/(auth)/reset-password.tsx
+@@ -0,0 +1,3 @@
++import { SafeAreaView } from 'react-native-safe-area-context';
++import { OtpHero } from '@/components/auth/otp-hero';
++import { otpStyles } from '@/constants/otp-styles';
+@@ -10 +12,0 @@ import {
+-  Platform,
+@@ -118,3 +120 @@ export default function ResetPasswordScreen() {
+-    <View
+-      style={styles.keyboardContainer}
+-    >
++    <SafeAreaView style={styles.keyboardContainer} edges={['top', 'bottom', 'left', 'right']}>
+@@ -135,2 +134,0 @@ export default function ResetPasswordScreen() {
+-            <Text style={styles.headerTitle}>Đặt lại mật khẩu</Text>
+-            <View style={{ width: 24 }} />
+@@ -137,0 +136,2 @@ export default function ResetPasswordScreen() {
++          {!success && <OtpHero compact />}
++          <Text accessibilityRole="header" style={styles.headerTitle}>Đặt lại mật khẩu</Text>
+@@ -182 +182 @@ export default function ResetPasswordScreen() {
+-                    <TouchableOpacity onPress={handleResend} disabled={isResending}>
++                    <TouchableOpacity style={otpStyles.linkButton} onPress={handleResend} disabled={isResending}>
+@@ -187,0 +188 @@ export default function ResetPasswordScreen() {
++                  accessibilityLabel="Nhập mã OTP"
+@@ -290 +291 @@ export default function ResetPasswordScreen() {
+-    </View>
++    </SafeAreaView>
+@@ -300,4 +301 @@ const styles = StyleSheet.create({
+-    flexGrow: 1,
+-    paddingHorizontal: 20,
+-    paddingVertical: 24,
+-    justifyContent: 'center',
++    ...otpStyles.authContent,
+@@ -306,11 +304 @@ const styles = StyleSheet.create({
+-    backgroundColor: colors.surface,
+-    borderRadius: 20,
+-    paddingHorizontal: 24,
+-    paddingVertical: 28,
+-    shadowColor: '#000',
+-    shadowOffset: { width: 0, height: 4 },
+-    shadowOpacity: 0.08,
+-    shadowRadius: 10,
+-    elevation: 3,
+-    borderWidth: 1,
+-    borderColor: '#F1F5F9',
++    ...otpStyles.authFrame,
+@@ -319,4 +307 @@ const styles = StyleSheet.create({
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'space-between',
+-    marginBottom: 16,
++    ...otpStyles.backRow,
+@@ -325,2 +310 @@ const styles = StyleSheet.create({
+-    padding: 4,
+-    marginLeft: -4,
++    ...otpStyles.backButton,
+@@ -329,3 +313,2 @@ const styles = StyleSheet.create({
+-    fontSize: 18,
+-    fontWeight: '700',
+-    color: colors.foreground,
++    ...otpStyles.heading,
++    marginBottom: 20,
+@@ -352,10 +335 @@ const styles = StyleSheet.create({
+-    backgroundColor: '#FEF2F2',
+-    borderWidth: 1,
+-    borderColor: '#FECACA',
+-    borderRadius: 12,
+-    paddingHorizontal: 14,
+-    paddingVertical: 10,
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    gap: 8,
+-    marginBottom: 16,
++    ...otpStyles.error,
+@@ -364,4 +338 @@ const styles = StyleSheet.create({
+-    fontSize: 13,
+-    color: colors.error,
+-    flex: 1,
+-    lineHeight: 18,
++    ...otpStyles.errorText,
+@@ -373,4 +344 @@ const styles = StyleSheet.create({
+-    fontSize: 13,
+-    fontWeight: '600',
+-    color: colors.foreground,
+-    marginBottom: 6,
++    ...otpStyles.label,
+@@ -379,3 +347,5 @@ const styles = StyleSheet.create({
+-    flexDirection: 'row',
+-    justifyContent: 'space-between',
+-    alignItems: 'center',
++    flexDirection: "row",
++    flexWrap: "wrap",
++    alignItems: "center",
++    justifyContent: "space-between",
++    gap: 8,
+@@ -385,2 +355 @@ const styles = StyleSheet.create({
+-    fontSize: 12,
+-    color: colors.mutedText,
++    ...otpStyles.meta,
+@@ -393,3 +362 @@ const styles = StyleSheet.create({
+-    fontSize: 12,
+-    fontWeight: '700',
+-    color: '#D97706',
++    ...otpStyles.link,
+@@ -398,8 +365 @@ const styles = StyleSheet.create({
+-    height: 48,
+-    borderWidth: 1,
+-    borderColor: colors.border,
+-    borderRadius: 12,
+-    paddingHorizontal: 14,
+-    fontSize: 14,
+-    color: colors.foreground,
+-    backgroundColor: '#FAFAFA',
++    ...otpStyles.codeInput,
+@@ -408,5 +368 @@ const styles = StyleSheet.create({
+-    fontSize: 20,
+-    fontWeight: '700',
+-    letterSpacing: 8,
+-    textAlign: 'center',
+-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
++    ...otpStyles.codeInput,
+@@ -415,7 +371 @@ const styles = StyleSheet.create({
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    borderWidth: 1,
+-    borderColor: colors.border,
+-    borderRadius: 12,
+-    backgroundColor: '#FAFAFA',
+-    height: 48,
++    ...otpStyles.fieldShell,
+@@ -424,5 +374 @@ const styles = StyleSheet.create({
+-    flex: 1,
+-    height: '100%',
+-    paddingHorizontal: 14,
+-    fontSize: 14,
+-    color: colors.foreground,
++    ...otpStyles.field,
+@@ -431,3 +377,5 @@ const styles = StyleSheet.create({
+-    paddingHorizontal: 14,
+-    height: '100%',
+-    justifyContent: 'center',
++    minWidth: 48,
++    minHeight: 54,
++    paddingHorizontal: 12,
++    justifyContent: "center",
++    alignItems: "center",
+@@ -436,5 +384 @@ const styles = StyleSheet.create({
+-    backgroundColor: colors.primary,
+-    height: 48,
+-    borderRadius: 12,
+-    alignItems: 'center',
+-    justifyContent: 'center',
++    ...otpStyles.button,
+@@ -447,2 +391,4 @@ const styles = StyleSheet.create({
+-    flexDirection: 'row',
+-    alignItems: 'center',
++    flexDirection: "row",
++    flexWrap: "wrap",
++    alignItems: "center",
++    justifyContent: "center",
+@@ -452,3 +398 @@ const styles = StyleSheet.create({
+-    fontSize: 15,
+-    fontWeight: '700',
+-    color: colors.foreground,
++    ...otpStyles.buttonText,
+@@ -457,3 +401,2 @@ const styles = StyleSheet.create({
+-    marginTop: 18,
+-    alignItems: 'center',
+-    paddingVertical: 4,
++    ...otpStyles.linkButton,
++    marginTop: 12,
+@@ -462,3 +405 @@ const styles = StyleSheet.create({
+-    fontSize: 13,
+-    fontWeight: '600',
+-    color: colors.mutedText,
++    ...otpStyles.link,
+@@ -488,4 +429 @@ const styles = StyleSheet.create({
+-    backgroundColor: colors.primary,
+-    paddingHorizontal: 24,
+-    paddingVertical: 12,
+-    borderRadius: 12,
++    ...otpStyles.button,
+@@ -494,3 +432 @@ const styles = StyleSheet.create({
+-    fontSize: 14,
+-    fontWeight: '700',
+-    color: colors.foreground,
++    ...otpStyles.buttonText,
+
+diff --git a/mobile/app/parent/verify-otp.tsx b/mobile/app/parent/verify-otp.tsx
+--- a/mobile/app/parent/verify-otp.tsx
++++ b/mobile/app/parent/verify-otp.tsx
+@@ -0,0 +1,3 @@
++import { useSafeAreaInsets } from 'react-native-safe-area-context';
++import { OtpHero } from '@/components/auth/otp-hero';
++import { otpStyles } from '@/constants/otp-styles';
+@@ -11 +13,0 @@ import {
+-  Platform,
+@@ -19,0 +22 @@ export default function VerifyOtpScreen() {
++  const insets = useSafeAreaInsets();
+@@ -124 +127 @@ export default function VerifyOtpScreen() {
+-      <KeyboardScrollView contentContainerStyle={styles.content}>
++      <KeyboardScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
+@@ -127,3 +130 @@ export default function VerifyOtpScreen() {
+-          <View style={styles.iconCircle}>
+-            <Ionicons name="chatbubble-ellipses-outline" size={36} color="#D97706" />
+-          </View>
++          <OtpHero />
+@@ -147,0 +149 @@ export default function VerifyOtpScreen() {
++              accessibilityLabel="Nhập mã OTP"
+@@ -197 +199 @@ export default function VerifyOtpScreen() {
+-            <TouchableOpacity
++            <TouchableOpacity style={otpStyles.linkButton}
+@@ -227 +229 @@ const styles = StyleSheet.create({
+-    padding: 20,
++    ...otpStyles.content,
+@@ -230,20 +232 @@ const styles = StyleSheet.create({
+-    backgroundColor: colors.surface,
+-    borderRadius: 22,
+-    padding: 24,
+-    alignItems: 'center',
+-    borderWidth: 1,
+-    borderColor: colors.border,
+-    shadowColor: '#000',
+-    shadowOffset: { width: 0, height: 2 },
+-    shadowOpacity: 0.06,
+-    shadowRadius: 6,
+-    elevation: 2,
+-  },
+-  iconCircle: {
+-    width: 68,
+-    height: 68,
+-    borderRadius: 34,
+-    backgroundColor: '#FEF3C7',
+-    justifyContent: 'center',
+-    alignItems: 'center',
+-    marginBottom: 16,
++    ...otpStyles.section,
+@@ -252,4 +235 @@ const styles = StyleSheet.create({
+-    fontSize: 20,
+-    fontWeight: '800',
+-    color: colors.foreground,
+-    marginBottom: 6,
++    ...otpStyles.heading,
+@@ -258,3 +238,2 @@ const styles = StyleSheet.create({
+-    fontSize: 13,
+-    color: colors.mutedText,
+-    textAlign: 'center',
++    ...otpStyles.description,
++    marginBottom: 0,
+@@ -263,5 +242 @@ const styles = StyleSheet.create({
+-    fontSize: 16,
+-    fontWeight: '700',
+-    color: colors.foreground,
+-    marginTop: 4,
+-    marginBottom: 20,
++    ...otpStyles.destination,
+@@ -270,10 +245 @@ const styles = StyleSheet.create({
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    gap: 8,
+-    backgroundColor: '#FEF2F2',
+-    borderWidth: 1,
+-    borderColor: '#FECACA',
+-    borderRadius: 12,
+-    padding: 12,
+-    marginBottom: 16,
+-    width: '100%',
++    ...otpStyles.error,
+@@ -282,4 +248 @@ const styles = StyleSheet.create({
+-    flex: 1,
+-    fontSize: 12,
+-    color: '#DC2626',
+-    fontWeight: '500',
++    ...otpStyles.errorText,
+@@ -288,10 +251 @@ const styles = StyleSheet.create({
+-    width: '100%',
+-    backgroundColor: '#F8FAFC',
+-    borderWidth: 2,
+-    borderColor: colors.primary,
+-    borderRadius: 16,
+-    paddingHorizontal: 20,
+-    height: 56,
+-    justifyContent: 'center',
+-    alignItems: 'center',
+-    marginBottom: 16,
++    ...otpStyles.inputWrap,
+@@ -300,7 +254 @@ const styles = StyleSheet.create({
+-    fontSize: 26,
+-    fontWeight: '800',
+-    letterSpacing: 10,
+-    color: colors.foreground,
+-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+-    textAlign: 'center',
+-    width: '100%',
++    ...otpStyles.codeInput,
+@@ -308,0 +257,2 @@ const styles = StyleSheet.create({
++    width: "100%",
++    alignItems: "center",
+@@ -312,2 +262,2 @@ const styles = StyleSheet.create({
+-    flexDirection: 'row',
+-    alignItems: 'center',
++    flexDirection: "row",
++    alignItems: "center",
+@@ -315 +265 @@ const styles = StyleSheet.create({
+-    backgroundColor: '#FEF3C7',
++    backgroundColor: colors.navigationHighlight,
+@@ -317,2 +267,2 @@ const styles = StyleSheet.create({
+-    paddingVertical: 5,
+-    borderRadius: 12,
++    paddingVertical: 6,
++    borderRadius: 16,
+@@ -321,3 +271,3 @@ const styles = StyleSheet.create({
+-    fontSize: 12,
+-    fontWeight: '700',
+-    color: '#92400E',
++    ...otpStyles.meta,
++    color: colors.navigationActive,
++    fontWeight: "600",
+@@ -331,12 +281,2 @@ const styles = StyleSheet.create({
+-    backgroundColor: colors.primary,
+-    width: '100%',
+-    height: 52,
+-    borderRadius: 14,
+-    justifyContent: 'center',
+-    alignItems: 'center',
+-    shadowColor: '#000',
+-    shadowOffset: { width: 0, height: 2 },
+-    shadowOpacity: 0.1,
+-    shadowRadius: 4,
+-    elevation: 2,
+-    marginBottom: 18,
++    ...otpStyles.button,
++    marginBottom: 12,
+@@ -348,3 +288 @@ const styles = StyleSheet.create({
+-    fontSize: 15,
+-    fontWeight: '700',
+-    color: colors.foreground,
++    ...otpStyles.buttonText,
+@@ -353,2 +291,5 @@ const styles = StyleSheet.create({
+-    flexDirection: 'row',
+-    alignItems: 'center',
++    flexDirection: "row",
++    flexWrap: "wrap",
++    justifyContent: "center",
++    alignItems: "center",
++    width: "100%",
+@@ -357,2 +298 @@ const styles = StyleSheet.create({
+-    fontSize: 13,
+-    color: colors.mutedText,
++    ...otpStyles.meta,
+@@ -361,3 +301 @@ const styles = StyleSheet.create({
+-    fontSize: 13,
+-    fontWeight: '700',
+-    color: '#D97706',
++    ...otpStyles.link,
+
+diff --git a/mobile/app/parent/create-request/verify-otp.tsx b/mobile/app/parent/create-request/verify-otp.tsx
+--- a/mobile/app/parent/create-request/verify-otp.tsx
++++ b/mobile/app/parent/create-request/verify-otp.tsx
+@@ -0,0 +1,2 @@
++import { OtpHero } from '@/components/auth/otp-hero';
++import { otpStyles } from '@/constants/otp-styles';
+@@ -106,3 +108 @@ export default function VerifyOtpRequestScreen() {
+-        <View style={styles.iconCircle}>
+-          <Ionicons name="shield-checkmark" size={36} color="#D97706" />
+-        </View>
++        <OtpHero />
+@@ -126,0 +127 @@ export default function VerifyOtpRequestScreen() {
++            accessibilityLabel="Nhập mã OTP"
+@@ -169,13 +170 @@ const styles = StyleSheet.create({
+-    flexGrow: 1,
+-    padding: 24,
+-    alignItems: 'center',
+-  },
+-  iconCircle: {
+-    width: 72,
+-    height: 72,
+-    borderRadius: 36,
+-    backgroundColor: '#FEF3C7',
+-    justifyContent: 'center',
+-    alignItems: 'center',
+-    marginTop: 20,
+-    marginBottom: 16,
++    ...otpStyles.content,
+@@ -184,4 +173 @@ const styles = StyleSheet.create({
+-    fontSize: 20,
+-    fontWeight: '800',
+-    color: '#1E293B',
+-    marginBottom: 8,
++    ...otpStyles.heading,
+@@ -190,6 +176 @@ const styles = StyleSheet.create({
+-    fontSize: 13,
+-    color: '#64748B',
+-    textAlign: 'center',
+-    lineHeight: 18,
+-    marginBottom: 20,
+-    paddingHorizontal: 16,
++    ...otpStyles.description,
+@@ -202,10 +183 @@ const styles = StyleSheet.create({
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    backgroundColor: '#FEF2F2',
+-    borderWidth: 1,
+-    borderColor: '#FECACA',
+-    borderRadius: 10,
+-    padding: 10,
+-    gap: 8,
+-    width: '100%',
+-    marginBottom: 16,
++    ...otpStyles.error,
+@@ -214,3 +186 @@ const styles = StyleSheet.create({
+-    flex: 1,
+-    fontSize: 12,
+-    color: '#B91C1C',
++    ...otpStyles.errorText,
+@@ -219,3 +189 @@ const styles = StyleSheet.create({
+-    width: '100%',
+-    alignItems: 'center',
+-    marginBottom: 16,
++    ...otpStyles.inputWrap,
+@@ -224,11 +192 @@ const styles = StyleSheet.create({
+-    width: 220,
+-    height: 56,
+-    borderWidth: 2,
+-    borderColor: '#CBD5E1',
+-    borderRadius: 14,
+-    fontSize: 28,
+-    fontWeight: '800',
+-    textAlign: 'center',
+-    letterSpacing: 10,
+-    color: '#1E293B',
+-    backgroundColor: '#FFFFFF',
++    ...otpStyles.codeInput,
+@@ -237,6 +195 @@ const styles = StyleSheet.create({
+-    fontSize: 11,
+-    color: '#94A3B8',
+-    textAlign: 'center',
+-    lineHeight: 16,
+-    marginBottom: 24,
+-    paddingHorizontal: 16,
++    ...otpStyles.hint,
+@@ -245,11 +198 @@ const styles = StyleSheet.create({
+-    width: '100%',
+-    backgroundColor: colors.primary,
+-    height: 48,
+-    borderRadius: 12,
+-    justifyContent: 'center',
+-    alignItems: 'center',
+-    shadowColor: '#000',
+-    shadowOffset: { width: 0, height: 2 },
+-    shadowOpacity: 0.1,
+-    shadowRadius: 4,
+-    elevation: 2,
++    ...otpStyles.button,
+@@ -261,3 +204 @@ const styles = StyleSheet.create({
+-    fontSize: 15,
+-    fontWeight: '700',
+-    color: '#1E293B',
++    ...otpStyles.buttonText,
+
+diff --git a/mobile/app/leave-notices/otp.tsx b/mobile/app/leave-notices/otp.tsx
+--- a/mobile/app/leave-notices/otp.tsx
++++ b/mobile/app/leave-notices/otp.tsx
+@@ -0,0 +1,3 @@
++import { useSafeAreaInsets } from 'react-native-safe-area-context';
++import { OtpHero } from '@/components/auth/otp-hero';
++import { otpStyles } from '@/constants/otp-styles';
+@@ -18,0 +22 @@ export default function LeaveNoticeOtpScreen() {
++  const insets = useSafeAreaInsets();
+@@ -134 +138 @@ export default function LeaveNoticeOtpScreen() {
+-      <KeyboardScrollView contentContainerStyle={styles.content}>
++      <KeyboardScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
+@@ -137,3 +141 @@ export default function LeaveNoticeOtpScreen() {
+-          <View style={styles.iconCircle}>
+-            <Ionicons name="key-outline" size={28} color="#D97706" />
+-          </View>
++          <OtpHero />
+@@ -168,0 +171 @@ export default function LeaveNoticeOtpScreen() {
++            accessibilityLabel="Nhập mã OTP"
+@@ -199 +202 @@ export default function LeaveNoticeOtpScreen() {
+-            <TouchableOpacity onPress={handleResend} disabled={resending}>
++            <TouchableOpacity style={otpStyles.linkButton} onPress={handleResend} disabled={resending}>
+@@ -233 +236 @@ const styles = StyleSheet.create({
+-    backgroundColor: '#FFFDF6',
++    backgroundColor: colors.background,
+@@ -236,3 +239,2 @@ const styles = StyleSheet.create({
+-    padding: 20,
+-    gap: 20,
+-    alignItems: 'center',
++    ...otpStyles.content,
++    gap: 12,
+@@ -241,22 +243 @@ const styles = StyleSheet.create({
+-    width: '100%',
+-    backgroundColor: '#FFFFFF',
+-    borderRadius: 16,
+-    padding: 20,
+-    alignItems: 'center',
+-    borderWidth: 1,
+-    borderColor: '#E2E8F0',
+-    gap: 8,
+-    shadowColor: '#000',
+-    shadowOffset: { width: 0, height: 1 },
+-    shadowOpacity: 0.04,
+-    shadowRadius: 3,
+-    elevation: 2,
+-  },
+-  iconCircle: {
+-    width: 56,
+-    height: 56,
+-    borderRadius: 28,
+-    backgroundColor: '#FEF3C7',
+-    alignItems: 'center',
+-    justifyContent: 'center',
+-    marginBottom: 4,
++    ...otpStyles.section,
+@@ -265,3 +246 @@ const styles = StyleSheet.create({
+-    fontSize: 16,
+-    fontWeight: '700',
+-    color: '#1E293B',
++    ...otpStyles.heading,
+@@ -270,3 +249,3 @@ const styles = StyleSheet.create({
+-    gap: 4,
+-    marginVertical: 4,
+-    alignItems: 'center',
++    gap: 6,
++    marginVertical: 8,
++    width: "100%",
+@@ -275,2 +254,2 @@ const styles = StyleSheet.create({
+-    flexDirection: 'row',
+-    alignItems: 'center',
++    flexDirection: "row",
++    alignItems: "center",
+@@ -277,0 +257 @@ const styles = StyleSheet.create({
++    width: "100%",
+@@ -280,3 +260,6 @@ const styles = StyleSheet.create({
+-    fontSize: 13,
+-    fontWeight: '600',
+-    color: '#334155',
++    flex: 1,
++    minWidth: 0,
++    fontSize: 14,
++    lineHeight: 22,
++    fontWeight: "600",
++    color: colors.foreground,
+@@ -290,4 +273,2 @@ const styles = StyleSheet.create({
+-    fontSize: 12,
+-    color: '#64748B',
+-    textAlign: 'center',
+-    lineHeight: 18,
++    ...otpStyles.description,
++    marginBottom: 0,
+@@ -296,2 +277 @@ const styles = StyleSheet.create({
+-    width: '100%',
+-    alignItems: 'center',
++    ...otpStyles.inputWrap,
+@@ -300,11 +280 @@ const styles = StyleSheet.create({
+-    width: '80%',
+-    backgroundColor: '#FFFFFF',
+-    borderRadius: 16,
+-    borderWidth: 2,
+-    borderColor: '#FFCB56',
+-    paddingVertical: 14,
+-    textAlign: 'center',
+-    fontSize: 28,
+-    fontWeight: '800',
+-    letterSpacing: 10,
+-    color: '#1E293B',
++    ...otpStyles.codeInput,
+@@ -313,7 +283 @@ const styles = StyleSheet.create({
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    gap: 6,
+-    paddingHorizontal: 12,
+-    paddingVertical: 8,
+-    borderRadius: 10,
+-    backgroundColor: '#FEE2E2',
++    ...otpStyles.error,
+@@ -322,3 +286 @@ const styles = StyleSheet.create({
+-    fontSize: 12,
+-    color: '#B91C1C',
+-    fontWeight: '500',
++    ...otpStyles.errorText,
+@@ -327,2 +289 @@ const styles = StyleSheet.create({
+-    alignItems: 'center',
+-    paddingVertical: 4,
++    alignItems: "center",
+@@ -331,2 +292 @@ const styles = StyleSheet.create({
+-    fontSize: 13,
+-    color: '#64748B',
++    ...otpStyles.meta,
+@@ -335,4 +295 @@ const styles = StyleSheet.create({
+-    fontSize: 13,
+-    fontWeight: '700',
+-    color: '#D97706',
+-    textDecorationLine: 'underline',
++    ...otpStyles.link,
+@@ -341,12 +298 @@ const styles = StyleSheet.create({
+-    width: '100%',
+-    backgroundColor: '#FFCB56',
+-    paddingVertical: 14,
+-    borderRadius: 14,
+-    alignItems: 'center',
+-    justifyContent: 'center',
+-    shadowColor: '#000',
+-    shadowOffset: { width: 0, height: 2 },
+-    shadowOpacity: 0.08,
+-    shadowRadius: 4,
+-    elevation: 2,
+-    marginTop: 8,
++    ...otpStyles.button,
+@@ -355,3 +301 @@ const styles = StyleSheet.create({
+-    backgroundColor: '#CBD5E1',
+-    shadowOpacity: 0,
+-    elevation: 0,
++    ...otpStyles.disabled,
+@@ -360,3 +304 @@ const styles = StyleSheet.create({
+-    fontSize: 14,
+-    fontWeight: '700',
+-    color: '#1E293B',
++    ...otpStyles.buttonText,
+
+diff --git a/mobile/components/auth/otp-hero.tsx b/mobile/components/auth/otp-hero.tsx
+new file mode 100644
+--- /dev/null
++++ b/mobile/components/auth/otp-hero.tsx
+@@ -0,0 +1,33 @@
++import { Image, StyleSheet, View, useWindowDimensions } from 'react-native';
++
++/** V1 illustration only. The screen keeps OTP state, actions and keyboard ownership. */
++export function OtpHero({ compact = false }: { compact?: boolean }) {
++  const { width } = useWindowDimensions();
++  // Width-based sizing stays stable when Android's keyboard resizes the viewport.
++  const size = Math.max(112, Math.min(compact ? 176 : 224, width - 128));
++  return (
++    <View
++      pointerEvents="none"
++      style={[styles.frame, { width: size, height: (size * 652) / 648 }]}
++    >
++      <Image
++        source={require('../../assets/images/auth/verify-phone.jpg')}
++        resizeMode="contain"
++        accessible={false}
++        style={styles.image}
++      />
++    </View>
++  );
++}
++
++const styles = StyleSheet.create({
++  frame: {
++    alignSelf: 'center',
++    marginBottom: 20,
++  },
++  image: {
++    width: '100%',
++    height: '100%',
++    borderRadius: 20,
++  },
++});
+
+diff --git a/mobile/constants/otp-styles.ts b/mobile/constants/otp-styles.ts
+new file mode 100644
+--- /dev/null
++++ b/mobile/constants/otp-styles.ts
+@@ -0,0 +1,237 @@
++import { Platform, StyleSheet, type TextStyle } from 'react-native';
++import { colors } from '@/constants/theme';
++const typography: TextStyle = {
++  fontFamily: Platform.select({
++    ios: 'system-ui',
++    android: 'sans-serif',
++  }),
++  fontStyle: 'normal',
++  fontWeight: '400',
++  letterSpacing: 0,
++};
++/** Presentation tokens shared by all five V2 OTP screens; no validation or flow. */
++export const otpStyles = StyleSheet.create({
++  content: {
++    flexGrow: 1,
++    width: '100%',
++    maxWidth: 430,
++    alignSelf: 'center',
++    paddingHorizontal: 24,
++    paddingTop: 12,
++    paddingBottom: 24,
++    alignItems: 'stretch',
++  },
++  authContent: {
++    flexGrow: 1,
++    alignItems: 'center',
++    paddingTop: 12,
++    paddingBottom: 24,
++  },
++  authFrame: {
++    width: '100%',
++    maxWidth: 430,
++    paddingHorizontal: 24,
++    paddingBottom: 12,
++  },
++  section: {
++    width: '100%',
++    alignItems: 'stretch',
++  },
++  backRow: {
++    minHeight: 48,
++    marginBottom: 8,
++    alignItems: 'flex-start',
++    justifyContent: 'center',
++  },
++  backButton: {
++    width: 48,
++    minHeight: 48,
++    marginLeft: -10,
++    alignItems: 'center',
++    justifyContent: 'center',
++    borderRadius: 24,
++  },
++  heading: {
++    fontSize: 26,
++    lineHeight: 34,
++    fontWeight: '700',
++    color: colors.foreground,
++    textAlign: 'left',
++    marginBottom: 8,
++  },
++  description: {
++    fontSize: 14,
++    lineHeight: 22,
++    color: colors.mutedText,
++    textAlign: 'left',
++    marginBottom: 16,
++  },
++  destination: {
++    fontSize: 16,
++    lineHeight: 24,
++    fontWeight: '700',
++    color: colors.foreground,
++    textAlign: 'center',
++    marginTop: 8,
++    marginBottom: 20,
++  },
++  inputWrap: {
++    width: '100%',
++    marginBottom: 16,
++  },
++  codeInput: {
++    ...typography,
++    width: '100%',
++    minHeight: 54,
++    paddingHorizontal: 12,
++    paddingVertical: 12,
++    backgroundColor: colors.surface,
++    borderWidth: 1,
++    borderColor: colors.border,
++    borderRadius: 13,
++    fontSize: 22,
++    fontWeight: '700',
++    letterSpacing: 6,
++    color: colors.foreground,
++    textAlign: 'center',
++    outlineColor: colors.navigationActive,
++  },
++  boxes: {
++    position: 'relative',
++    width: '100%',
++    flexDirection: 'row',
++    justifyContent: 'space-between',
++    gap: 8,
++    marginBottom: 16,
++  },
++  box: {
++    flex: 1,
++    minWidth: 0,
++    maxWidth: 46,
++    minHeight: 54,
++    backgroundColor: colors.surface,
++    borderWidth: 1,
++    borderColor: colors.border,
++    borderRadius: 13,
++    alignItems: 'center',
++    justifyContent: 'center',
++  },
++  boxActive: {
++    borderWidth: 2,
++    borderColor: colors.navigationActive,
++    backgroundColor: colors.surface,
++  },
++  boxFilled: {
++    borderColor: colors.primary,
++    backgroundColor: colors.surface,
++  },
++  character: {
++    ...typography,
++    fontSize: 22,
++    fontWeight: '700',
++    color: colors.foreground,
++    textAlign: 'center',
++  },
++  hiddenInput: {
++    ...typography,
++    fontSize: 22,
++    position: 'absolute',
++    opacity: 0,
++    top: 0,
++    left: 0,
++    width: '100%',
++    height: '100%',
++  },
++  field: {
++    ...typography,
++    flex: 1,
++    minWidth: 0,
++    minHeight: 54,
++    paddingHorizontal: 12,
++    paddingVertical: 12,
++    fontSize: 15,
++    color: colors.foreground,
++    outlineColor: colors.navigationActive,
++  },
++  fieldShell: {
++    minHeight: 54,
++    flexDirection: 'row',
++    alignItems: 'center',
++    backgroundColor: colors.surface,
++    borderWidth: 1,
++    borderColor: colors.border,
++    borderRadius: 13,
++  },
++  label: {
++    fontSize: 13,
++    lineHeight: 20,
++    fontWeight: '600',
++    color: colors.foreground,
++    marginBottom: 6,
++  },
++  button: {
++    width: '100%',
++    minHeight: 52,
++    paddingHorizontal: 20,
++    paddingVertical: 14,
++    borderRadius: 26,
++    backgroundColor: colors.primary,
++    alignItems: 'center',
++    justifyContent: 'center',
++  },
++  buttonText: {
++    fontSize: 15,
++    lineHeight: 22,
++    fontWeight: '700',
++    color: colors.foreground,
++    textAlign: 'center',
++    flexShrink: 1,
++  },
++  disabled: {
++    opacity: 0.5,
++  },
++  linkButton: {
++    minHeight: 48,
++    alignItems: 'center',
++    justifyContent: 'center',
++  },
++  link: {
++    fontSize: 14,
++    lineHeight: 20,
++    fontWeight: '700',
++    color: colors.navigationActive,
++    textAlign: 'center',
++  },
++  meta: {
++    fontSize: 13,
++    lineHeight: 20,
++    color: colors.mutedText,
++    textAlign: 'center',
++  },
++  hint: {
++    fontSize: 12,
++    lineHeight: 18,
++    color: colors.mutedText,
++    textAlign: 'center',
++    marginBottom: 20,
++  },
++  error: {
++    width: '100%',
++    flexDirection: 'row',
++    alignItems: 'center',
++    gap: 8,
++    borderWidth: 1,
++    borderColor: colors.error,
++    backgroundColor: colors.surface,
++    borderRadius: 12,
++    padding: 12,
++    marginBottom: 16,
++  },
++  errorText: {
++    flex: 1,
++    fontSize: 13,
++    lineHeight: 20,
++    color: '#B91C1C',
++  },
++});
++
+
+diff --git a/docs/architecture/mobile-otp-ui.md b/docs/architecture/mobile-otp-ui.md
+new file mode 100644
+--- /dev/null
++++ b/docs/architecture/mobile-otp-ui.md
+@@ -0,0 +1,87 @@
++# Mobile OTP — kế thừa giao diện V1
++
++Cập nhật 29/10/2026 (Asia/Saigon). Implementation local trên V2, chưa commit/push. Tài liệu này ghi nhận phần trình bày của **cả 5 màn nhập/xác nhận OTP**; không thay đổi contract xác thực hoặc chứng nhận gửi mã thực tế.
++
++## Phạm vi và source map
++
++| Route | File | Nội dung V2 được giữ |
++| --- | --- | --- |
++| `/(auth)/verify-otp` | [verify-otp.tsx](../../mobile/app/(auth)/verify-otp.tsx) | Sáu ô hiển thị dùng một TextInput ẩn, identifier, countdown, gửi lại, đăng ký/xác thực, quay lại đăng ký |
++| `/(auth)/reset-password` | [reset-password.tsx](../../mobile/app/(auth)/reset-password.tsx) | OTP, banner trung tính chống dò tài khoản, hai trường mật khẩu và nút hiện/ẩn, gửi lại, hoàn tất, nhánh thành công và quay về Login |
++| `/parent/verify-otp` | [verify-otp.tsx](../../mobile/app/parent/verify-otp.tsx) | Liên kết học sinh, số điện thoại che, timer/hết hạn, gửi lại, xác nhận liên kết và khóa quay lại khi đang xác thực |
++| `/parent/create-request/verify-otp` | [verify-otp.tsx](../../mobile/app/parent/create-request/verify-otp.tsx) | Dùng chung cho yêu cầu cập nhật thông tin/địa chỉ, người giám hộ, thông báo hiệu lực mã, lỗi và xác nhận/gửi yêu cầu |
++| `/leave-notices/otp` | [otp.tsx](../../mobile/app/leave-notices/otp.tsx) | Toàn bộ kênh nhận mã, nhãn SMS console khi có, countdown, gửi lại, lỗi và xác nhận báo nghỉ |
++
++Các màn yêu cầu gửi mã như Đăng ký, Quên mật khẩu, Liên kết học sinh, tạo yêu cầu và tạo báo nghỉ không phải màn nhập OTP, không được sửa trong task này. Màn cập nhật học sinh không có resend trước đây nên không thêm nút resend.
++
++## Nguồn thiết kế V1
++
++Chỉ đọc `C:\dongnnp\study-work\code\he-thong-giam-sat-xe-dua-don-hoc-sinh`:
++
++- `mobile/src/app/otp-verify/index.tsx`: minh họa xác thực, phân cấp tiêu đề/mô tả, sáu ô trắng bo góc, khoảng cách và CTA vàng dạng pill.
++- `mobile/src/components/parent/students/ParentOtpForm.tsx` và `mobile/src/const/parent-otp-styles.ts`: cách trình bày một trường mã cho phụ huynh.
++- `mobile/assets/auth/verify-phone.jpg` → [V2 asset](../../mobile/assets/images/auth/verify-phone.jpg), giữ nguyên byte, JPEG 648×652, 38.503 bytes. SHA-256 hai bản giống nhau: `6a02ced282ccc263a6293517cb5f6be845b6cb041f70268c7299f25b572ddd78`.
++
++Kế thừa nền kem, hình minh họa điện thoại/khiên vàng, chữ đậm màu navy, bề mặt input trắng, bo góc 13 và nút vàng bo tròn. Dùng palette/font hệ thống hiện có của V2; không thêm font, package hoặc cấu trúc code V1. Không sao chép nhãn/nút để thay nghiệp vụ V2.
++
++## Component và cách dùng
++
++[OtpHero](../../mobile/components/auth/otp-hero.tsx) chỉ render ảnh trang trí, không có state OTP, router hoặc API. Ảnh dùng require tĩnh, contain, giữ tỉ lệ 648:652, không bắt pointer và không đọc lặp qua screen reader.
++
++```tsx
++import { OtpHero } from '@/components/auth/otp-hero';
++
++<OtpHero />
++<OtpHero compact /> // Biểu mẫu dài: Đặt lại mật khẩu
++```
++
++`compact?: boolean`, mặc định false. Chiều rộng = `max(112, min(compact ? 176 : 224, windowWidth - 128))`; chiều cao theo tỉ lệ ảnh. Kích thước phụ thuộc chiều rộng, không co hình theo chiều cao viewport khi bàn phím Android mở. Màn reset chỉ hiện hero ở nhánh chưa thành công.
++
++[otpStyles](../../mobile/constants/otp-styles.ts) là các style trình bày dùng chung: vùng nội dung, tiêu đề, mô tả, destination, codeInput, sáu boxes/character, password field, CTA, resend/meta/hint và lỗi. Màn có thể spread từng token vào StyleSheet riêng, giữ logic và điều kiện trên màn:
++
++```tsx
++import { otpStyles } from '@/constants/otp-styles';
++
++const styles = StyleSheet.create({
++  content: { ...otpStyles.content },
++  otpInput: { ...otpStyles.codeInput },
++  verifyButton: { ...otpStyles.button },
++});
++```
++
++Mở rộng bằng token/override trình bày có phạm vi; không chuyển validation, countdown, route params hoặc quyền truy cập vào component ảnh/style. Trường OTP vẫn nhận paste theo TextInput hiện có. Có accessibilityLabel cho trường mã; auth heading có role header.
++
++## Bảo toàn hành vi V2
++
++- State, effects, timer, format countdown, API payloads, handler thành công/lỗi, Alert và router giữ nguyên. Không sửa backend, schema, migrations, auth context hoặc API client.
++- Đăng ký vẫn sáu ô với một input ẩn; input giữ hình học phủ đúng hàng ô để đo vùng đang nhập. Các màn còn lại vẫn một ô mã, không tách form reset thành bước mới.
++- Liên kết học sinh vẫn có `maxLength={8}` và điều kiện chấp nhận 4–8 ký tự hiện có. Bốn màn còn lại giữ giới hạn 6. Không áp validation mới để đồng nhất hình thức.
++- Giữ `editable`, `disabled`, loading, resend cooldown và autoFocus đúng từng màn. Không thêm autoFocus cho reset hoặc bỏ autoFocus ở các màn OTP đang có. Login/Quên mật khẩu không bị sửa.
++- Thông điệp V2 và mọi nút nghiệp vụ được giữ; không seed dữ liệu, gửi OTP hoặc xác nhận qua API để thử UI.
++
++## Responsive, safe area và bàn phím
++
++Vùng form tối đa 430px, căn giữa, padding ngang 24px; input/nút co theo vùng nội dung. Sáu ô dùng flex, maxWidth 46, minWidth 0, gap 8; không cố định tổng chiều rộng gây tràn trên màn hẹp. Destination dài được xuống dòng, kênh nhận OTP báo nghỉ dùng flexShrink thông qua vùng text flex/minWidth 0. Nút tối thiểu 52px, vùng chạm resend/back/eye tối thiểu 48px; chiều cao dùng minHeight để nội dung có thể tăng.
++
++Hai màn auth dùng SafeAreaView; ba màn nghiệp vụ giữ AppHeader và safe area phía trên hiện có. Link/báo nghỉ bổ sung padding dưới theo inset; màn cập nhật giữ cách cộng inset dưới sẵn có. Nội dung nằm trong luồng, không có header/CTA overlay mới.
++
++Tất cả giữ [KeyboardScrollView](mobile-keyboard-behavior.md) làm chủ cuộn và phần bàn phím che khuất. Không thêm KeyboardAvoidingView hoặc độ đẩy bàn phím cố định. Form reset dài và nội dung thấp hơn màn hình vẫn cuộn được; state nhập không bị reset do thay key/remount input. Kiểu chữ field thường đặt system font/weight/letterSpacing 0; OTP khai báo spacing riêng. Web giữ focus outline màu thương hiệu.
++
++## Kiểm chứng và giới hạn
++
++| Kiểm tra | Kết quả |
++| --- | --- |
++| `npx --no-install tsc --noEmit` tại mobile | PASS |
++| `npx --no-install expo export --platform all` | PASS iOS/Android/Web/server; build output ngoài repo |
++| So sánh AST trước/sau của 5 màn | PASS: state/effects/handlers, control props/callbacks, text và lời gọi API/router; chỉ thêm hook inset trình bày ở link/báo nghỉ |
++| Auth context, API client, hai KeyboardScrollView | Byte-identical với đầu task |
++| SHA-256 ảnh V1/V2 | PASS |
++| Chromium IAB preview 5 cây JSX/style tại 320×568, 390×844, 1440×900 | 15 lượt: ảnh tải đúng, không tràn ngang, input nằm trong viewport theo chiều ngang; form dài cuộn được; sáu ô đăng ký hiển thị mã nhập; giới hạn input link vẫn 8 |
++| Runtime đầy đủ có xác thực, gửi lại/xác nhận OTP, timer theo thời gian, error/loading/success qua backend | NOT_VERIFIED — `BLOCKED_BY_TEST_DATA_POLICY`; không gọi mutation, không tạo bản ghi/challenge để test |
++| Expo Go iPhone/Android, bàn phím thật, notch/home indicator, Safari iOS/Chrome Android, VoiceOver/font scale | NOT_VERIFIED — không có thiết bị/simulator mobile kết nối |
++
++Preview tạm lấy JSX và StyleSheet thực của năm màn, dùng chuỗi placeholder và callback cục bộ không gọi API; không giả phiên đăng nhập hoặc trả phản hồi backend giả cho app. Không thay cho kiểm thử route/auth trên ứng dụng thật. Toolbar preview không thuộc sản phẩm. Script preview đã được xóa khỏi repo sau kiểm tra.
++
++Build có cảnh báo môi trường `NO_COLOR`/`FORCE_COLOR`, không làm thất bại export. Mobile không có script lint trong package.json; không cài CLI bổ sung. Các cập nhật local trước task được bảo toàn. [Báo cáo task](../ai-review/LATEST.md) và [diff riêng](../ai-review/LATEST.diff).
++
++Bước nghiệm thu tiếp theo: PO kiểm tra đủ năm màn trên Expo Go iPhone bằng các luồng/dữ liệu được phép, gồm bàn phím và nút cuối form.
+
+diff --git a/mobile/assets/images/auth/verify-phone.jpg b/mobile/assets/images/auth/verify-phone.jpg
+new file mode 100644
+Binary files /dev/null and b/mobile/assets/images/auth/verify-phone.jpg differ

@@ -132,8 +132,21 @@ describe('LeaveNoticesService', () => {
       },
       trip: {
         findUnique: vi.fn(),
+        findUniqueOrThrow: vi.fn(async ({ where }: any) => {
+          const trip = await prismaMock.trip.findUnique({ where });
+          return trip || {
+            id: where?.id || 'trip-1',
+            status: TripStatus.SCHEDULED,
+            actualStartTime: null,
+            serviceDate: new Date('2026-10-26'),
+            schoolId: 'school-1',
+            school: { id: 'school-1', name: 'Trường 1', isActive: true, contractStartDate: new Date('2020-01-01'), contractEndDate: new Date('2030-01-01') },
+            route: { id: 'route-1', name: 'Tuyến 01', routePlan: null },
+            attendances: [],
+          };
+        }),
         findFirst: vi.fn(),
-        findMany: vi.fn(),
+        findMany: vi.fn().mockResolvedValue([]),
         update: vi.fn(),
       },
       tripAttendance: {
@@ -145,11 +158,14 @@ describe('LeaveNoticesService', () => {
       leaveNotice: {
         findUnique: vi.fn(),
         findFirst: vi.fn(),
-        findMany: vi.fn(),
+        findMany: vi.fn().mockResolvedValue([]),
         create: vi.fn(),
         update: vi.fn(),
         updateMany: vi.fn(),
         count: vi.fn(),
+      },
+      tripIncident: {
+        updateMany: vi.fn(),
       },
       user: {
         findUnique: vi.fn(),
@@ -160,6 +176,7 @@ describe('LeaveNoticesService', () => {
     otpServiceMock = {
       createLeaveNoticeChallenge: vi.fn(),
       verifyAndConsumeLeaveNoticeChallenge: vi.fn(),
+      withVerifiedChallenge: vi.fn(async (params: any, work: any) => work(prismaMock, { id: params?.challengeId || 'challenge-1' })),
       maskIdentifier: vi.fn((dest, channel) => `${channel}:${dest}`),
       isConsole: vi.fn((channel) => channel === 'SMS'),
     };
@@ -442,13 +459,13 @@ describe('LeaveNoticesService', () => {
           data: expect.objectContaining({
             kind: LeaveNoticeKind.STUDENT,
             status: LeaveNoticeStatus.RECORDED,
-            attendanceBefore: {
+            attendanceBefore: expect.objectContaining({
               status: AttendanceStatus.UNMARKED,
               absenceReason: null,
               markedById: null,
               markedAt: null,
               alightedAt: null,
-            },
+            }),
           }),
         }),
       );
@@ -543,11 +560,13 @@ describe('LeaveNoticesService', () => {
     });
 
     it('should restore attendance snapshot on student notice withdrawal if reason still matches', async () => {
+      const now = new Date();
       prismaMock.leaveNotice.findUnique.mockResolvedValue({
         id: 'notice-1',
         tripId: 'trip-1',
         studentId: 'stu-1',
         reportedById: mockParent.id,
+        createdAt: now,
         kind: LeaveNoticeKind.STUDENT,
         status: LeaveNoticeStatus.RECORDED,
         attendanceBefore: {
@@ -556,6 +575,7 @@ describe('LeaveNoticesService', () => {
           markedById: null,
           markedAt: null,
           alightedAt: null,
+          appliedMarkedAt: now.getTime(),
         },
         trip: {
           id: 'trip-1',
@@ -577,6 +597,8 @@ describe('LeaveNoticesService', () => {
         id: 'att-1',
         status: AttendanceStatus.ABSENT,
         absenceReason: 'Phụ huynh xin nghỉ',
+        markedById: mockParent.id,
+        markedAt: now,
       });
 
       prismaMock.leaveNotice.update.mockResolvedValue({

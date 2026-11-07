@@ -1,0 +1,33 @@
+diff --git a/mobile/app/trip/[id].tsx b/mobile/app/trip/[id].tsx
+index 19a3bed..9f0b713 100644
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -1223,2 +1223,7 @@ export default function MobileTripDetailScreen() {
+-                /* Staff keeps attendance; all four tabs use the Parent's fixed row. */
+-                <View style={[styles.tabBarParent, styles.tabBarStaff]}>
++                /* Keep staff labels and counts on one line; allow horizontal scrolling. */
++                <ScrollView
++                  horizontal
++                  showsHorizontalScrollIndicator={false}
++                  style={styles.tabScrollStaff}
++                  contentContainerStyle={styles.tabBarStaff}
++                >
+@@ -1234,0 +1240 @@ export default function MobileTripDetailScreen() {
++                      numberOfLines={1}
+@@ -1255,0 +1262 @@ export default function MobileTripDetailScreen() {
++                      numberOfLines={1}
+@@ -1276,0 +1284 @@ export default function MobileTripDetailScreen() {
++                      numberOfLines={1}
+@@ -1302,0 +1311 @@ export default function MobileTripDetailScreen() {
++                      numberOfLines={1}
+@@ -1314 +1323 @@ export default function MobileTripDetailScreen() {
+-                </View>
++                </ScrollView>
+@@ -2902,3 +2911,4 @@ const styles = StyleSheet.create({
+-  tabBarStaff: { alignItems: 'stretch' },
+-  tabButtonStaff: { minWidth: 0 },
+-  tabButtonTextStaff: { flexShrink: 1, textAlign: 'center' },
++  tabScrollStaff: { flexGrow: 0 },
++  tabBarStaff: { flexDirection: 'row', flexGrow: 1, alignItems: 'stretch' },
++  tabButtonStaff: { flexGrow: 1, flexShrink: 0, flexBasis: 'auto', minWidth: 0, paddingHorizontal: 0, gap: 3 },
++  tabButtonTextStaff: { flexShrink: 0, textAlign: 'center' },

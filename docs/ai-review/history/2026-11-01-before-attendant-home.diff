@@ -1,0 +1,102 @@
+diff --git a/mobile/app/(tabs)/index.tsx b/mobile/app/(tabs)/index.tsx
+index 25a66ee..1c95931 100644
+--- a/mobile/app/(tabs)/index.tsx
++++ b/mobile/app/(tabs)/index.tsx
+@@ -129,7 +129,7 @@ export default function HomeScreen() {
+     }
+   };
+ 
+-  const HomeScrollView = isParent
++  const HomeScrollView = isParent || isDriver
+     ? ParentHomeScrollView
+     : isDriverOrAttendant
+     ? StaffHomeScrollView
+@@ -141,6 +141,14 @@ export default function HomeScreen() {
+         fullName: user?.fullName, avatarUrl: user?.avatarUrl,
+         onOpenLeave: () => router.push('/leave-notices' as any),
+         onChangeStop: () => router.push('/parent/change-stop')
++      } : isDriver ? {
++        fullName: user?.fullName, avatarUrl: user?.avatarUrl,
++        title: user?.fullName || 'Tài xế',
++        subtitle: `Tài xế · ${homeTrip?.schoolName || 'Bãi xe trung tâm'}`,
++        actions: [
++          { label: 'Báo nghỉ', icon: 'calendar-outline' as const, onPress: () => router.push('/leave-notices' as any) },
++          { label: 'Sự cố', icon: 'warning-outline' as const, onPress: () => router.push('/incidents' as any) },
++        ],
+       } : isDriverOrAttendant ? {
+         fullName: user?.fullName,
+         avatarUrl: user?.avatarUrl,
+@@ -179,6 +187,11 @@ export default function HomeScreen() {
+       ) : isDriverOrAttendant ? (
+         /* ================= DRIVER & ATTENDANT HOME (D06: Single Trip) ================= */
+         hasHomeTrip && homeTrip ? (
++          <>
++          {isDriver && <View style={parentHomeStyles.sectionHeader}>
++            <Text accessibilityRole="header" style={parentHomeStyles.sectionTitle}>Chuyến xe của bạn</Text>
++            <Text style={parentHomeStyles.sectionDate}>{journeyServiceDate(homeTrip.serviceDate)}</Text>
++          </View>}
+           <StaffTripCard
+             role={user?.role}
+             trip={homeTrip}
+@@ -197,6 +210,7 @@ export default function HomeScreen() {
+             canReportLeave={Boolean(homeTrip.canReportLeave)}
+             getStatusBadge={getStatusBadge}
+           />
++          </>
+         ) : (
+           <View style={staffHomeStyles.emptyContainer}>
+             <Ionicons name="bus-outline" size={48} color="#94A3B8" />
+diff --git a/mobile/components/parent/home-scroll-view.tsx b/mobile/components/parent/home-scroll-view.tsx
+index cac0e99..d3b2d16 100644
+--- a/mobile/components/parent/home-scroll-view.tsx
++++ b/mobile/components/parent/home-scroll-view.tsx
+@@ -1,4 +1,4 @@
+-import { cloneElement, type ReactNode, useState } from 'react';
++import { cloneElement, type ComponentProps, type ReactNode, useState } from 'react';
+ import { Pressable, ScrollView, ScrollViewProps, StyleSheet, Text, View } from 'react-native';
+ import { useSafeAreaInsets } from 'react-native-safe-area-context';
+ import Ionicons from '@expo/vector-icons/Ionicons';
+@@ -13,12 +13,20 @@ type Props = ScrollViewProps & {
+   avatarUrl?: string | null;
+   onOpenLeave?: () => void;
+   onChangeStop?: () => void;
++  title?: string;
++  subtitle?: string;
++  actions?: readonly { label: string; icon: ComponentProps<typeof Ionicons>['name']; onPress?: () => void }[];
+   /** Optional presentation slot; the app uses its existing NotificationBell by default. */
+   notification?: ReactNode;
+ };
+ 
+-/** V1 expanded/compact presentation. Owns scrolling only; no business requests. */
++/** Shared parent/driver presentation. Owns scrolling only; no business requests. */
+ export function ParentHomeScrollView({ fullName, avatarUrl, onOpenLeave, onChangeStop,
++  title = `Xin chào${fullName ? `, ${fullName}` : ''}`, subtitle = 'Đồng hành cùng con mỗi ngày',
++  actions = [
++    { label: 'Báo nghỉ', icon: 'calendar-outline', onPress: onOpenLeave },
++    { label: 'Đổi điểm', icon: 'location-outline', onPress: onChangeStop },
++  ],
+   notification, refreshControl, style, contentContainerStyle, onScroll, onLayout, children, ...props }: Props) {
+   const insets = useSafeAreaInsets();
+   const [rowHeight, setRowHeight] = useState(48);
+@@ -29,10 +37,6 @@ export function ParentHomeScrollView({ fullName, avatarUrl, onOpenLeave, onChang
+   const cardHeight = 12 + 48 + 8 + labelHeight + 12;
+   const expandedHeight = collapsedHeight + 16 + cardHeight + 16;
+   const headerHeight = compact ? collapsedHeight : expandedHeight;
+-  const actions = [
+-    { label: 'Báo nghỉ', icon: 'calendar-outline' as const, onPress: onOpenLeave },
+-    { label: 'Đổi điểm', icon: 'location-outline' as const, onPress: onChangeStop },
+-  ];
+ 
+   return <View style={[style, styles.screen]} onLayout={event => setViewport(event.nativeEvent.layout.height)}>
+     <ScrollView {...props} style={styles.scroll}
+@@ -63,8 +67,8 @@ export function ParentHomeScrollView({ fullName, avatarUrl, onOpenLeave, onChang
+           <View pointerEvents="none" accessibilityElementsHidden={compact}
+             importantForAccessibility={compact ? 'no-hide-descendants' : 'auto'} aria-hidden={compact}
+             style={[styles.greeting, { opacity: compact ? 0 : 1 }]}>
+-            <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>Xin chào{fullName ? `, ${fullName}` : ''}</Text>
+-            <Text numberOfLines={1} style={styles.subtitle}>Đồng hành cùng con mỗi ngày</Text>
++            <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>{title}</Text>
++            <Text numberOfLines={1} style={styles.subtitle}>{subtitle}</Text>
+           </View>
+           {notification ?? <NotificationBell />}
+         </View>

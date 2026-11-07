@@ -1,0 +1,61 @@
+diff --git a/mobile/components/RoleSplash.tsx b/mobile/components/RoleSplash.tsx
+index 5c4df90..5e68d51 100644
+--- a/mobile/components/RoleSplash.tsx
++++ b/mobile/components/RoleSplash.tsx
+@@ -4,0 +5 @@ import { colors } from '@/constants/theme';
++import { ParentLoginSplash } from '@/components/parent/login-splash';
+@@ -51,0 +53,2 @@ export function RoleSplash({
++  if (role === 'PARENT') return <ParentLoginSplash progressWidth={barWidth} />;
++
+
+diff --git a/mobile/components/parent/login-splash.tsx b/mobile/components/parent/login-splash.tsx
+new file mode 100644
+index 0000000..9e635a0
+--- /dev/null
++++ b/mobile/components/parent/login-splash.tsx
+@@ -0,0 +1,45 @@
++import { ActivityIndicator, Animated, Image, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
++import { SafeAreaView } from 'react-native-safe-area-context';
++import { colors } from '@/constants/theme';
++
++/** Presentation only. RoleSplash continues to own its transition timer. */
++export function ParentLoginSplash({ progressWidth }: { progressWidth: Animated.AnimatedInterpolation<string> }) {
++  const { height } = useWindowDimensions();
++  return <SafeAreaView style={styles.overlay}>
++    <ScrollView contentContainerStyle={styles.scroll} bounces={false}>
++      <View style={styles.frame} accessibilityViewIsModal>
++        <Text style={styles.brand}>RoadToSchool</Text>
++        <View style={styles.card}>
++          <Image source={require('../../assets/images/onboarding/slide2.jpg')}
++            resizeMode="contain" accessible={false}
++            style={[styles.illustration, { height: Math.min(260, Math.max(140, height * 0.3)) }]} />
++          <Text accessibilityRole="header" style={styles.title}>Phụ huynh học sinh</Text>
++          <View style={styles.loading} accessibilityRole="progressbar" accessibilityLabel="Đang mở trang chủ">
++            <ActivityIndicator size="small" color={colors.navigationActive} />
++            <Text style={styles.subtitle}>Đang mở trang chủ...</Text>
++          </View>
++          <View style={styles.track} accessible={false}>
++            <Animated.View style={[styles.fill, { width: progressWidth }]} />
++          </View>
++        </View>
++      </View>
++    </ScrollView>
++  </SafeAreaView>;
++}
++
++const styles = StyleSheet.create({
++  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999, backgroundColor: colors.background },
++  scroll: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
++  frame: { width: '100%', maxWidth: 420, alignItems: 'center', gap: 20 },
++  brand: { color: colors.foreground, fontSize: 16, lineHeight: 24, fontWeight: '700', letterSpacing: 0.4 },
++  card: { width: '100%', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 28, borderRadius: 28,
++    backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
++    alignItems: 'center', shadowColor: colors.navigationShadow, shadowOffset: { width: 0, height: 6 },
++    shadowOpacity: 0.06, shadowRadius: 16, elevation: 2 },
++  illustration: { width: '100%', marginBottom: 12 },
++  title: { fontSize: 22, lineHeight: 30, fontWeight: '700', color: colors.foreground, textAlign: 'center' },
++  loading: { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, alignSelf: 'stretch' },
++  subtitle: { flexShrink: 1, fontSize: 13, lineHeight: 20, color: colors.mutedText, textAlign: 'center' },
++  track: { marginTop: 24, width: '100%', height: 5, borderRadius: 3, overflow: 'hidden', backgroundColor: colors.navigationHighlight },
++  fill: { height: '100%', borderRadius: 3, backgroundColor: colors.primary },
++});

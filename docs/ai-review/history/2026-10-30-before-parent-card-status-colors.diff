@@ -1,0 +1,68 @@
+--- a/mobile/utils/parent-journey-stage.ts
++++ b/mobile/utils/parent-journey-stage.ts
+@@ -16 +16,2 @@
+-export function studentJourneyBadge(attendance: ParentHomeCardItem['attendanceStatus'], alighted: boolean, schoolArrived: boolean, hasLeaveNotice: boolean): StudentJourneyBadge {
++export function studentJourneyBadge(attendance: ParentHomeCardItem['attendanceStatus'], alighted: boolean, schoolArrived: boolean,
++  hasLeaveNotice: boolean, direction?: ParentHomeCardItem['direction']): StudentJourneyBadge {
+@@ -20 +21 @@
+-  if (schoolArrived) return { label: 'Chưa xuống xe', tone: 'purple', icon: 'log-out-outline' };
++  if (schoolArrived || direction === 'TO_PARKING') return { label: 'Chưa xuống xe', tone: 'purple', icon: 'log-out-outline' };
+--- a/mobile/app/(tabs)/index.tsx
++++ b/mobile/app/(tabs)/index.tsx
+@@ -407 +407 @@
+-              const studentStatus = studentJourneyBadge(student.attendanceStatus, Boolean(student.childIsAlighted), schoolArrived, Boolean(card.hasLeaveNotice));
++              const studentStatus = studentJourneyBadge(student.attendanceStatus, Boolean(student.childIsAlighted), schoolArrived, Boolean(card.hasLeaveNotice), card.direction);
+--- a/mobile/scripts/parent-journey-stage.test.ts
++++ b/mobile/scripts/parent-journey-stage.test.ts
+@@ -48,0 +49,12 @@
++  it('uses the same alighting tags for return trips without asserting drop-off arrival', () => {
++    const pending = studentJourneyBadge('PRESENT', false, false, false, 'TO_PARKING');
++    const arrivedAtSchool = studentJourneyBadge('PRESENT', false, true, false, 'TO_SCHOOL');
++    assert.deepEqual(pending, arrivedAtSchool);
++    assert.deepEqual(studentJourneyBadge('PRESENT', true, false, false, 'TO_PARKING'),
++      studentJourneyBadge('PRESENT', true, true, false, 'TO_SCHOOL'));
++    assert.equal(studentJourneyBadge('UNMARKED', false, false, false, 'TO_PARKING').label, 'Chưa điểm danh');
++    assert.equal(studentJourneyBadge('ABSENT', false, false, true, 'TO_PARKING').label, 'Đã báo nghỉ');
++    assert.equal(studentJourneyBadge('ABSENT', false, false, false, 'TO_PARKING').label, 'Vắng mặt');
++    assert.equal(studentJourneyBadge('PRESENT', false, false, false, 'TO_SCHOOL').label, 'Đã điểm danh');
++    assert.equal(journeyStagePosition('IN_PROGRESS', 'TO_PARKING', 'PRESENT', false, false), 2 / 3);
++  });
+--- a/docs/architecture/mobile-parent-student-journey.md
++++ b/docs/architecture/mobile-parent-student-journey.md
+@@ -80 +80,18 @@
+-**Sửa TH2 theo yêu cầu PO:** trước đây trường hợp này trả position=null nên icon bus bị ẩn. Hiện trả0 để giữ icon trên rail tại mốc đầu trong lúc thiếu xác nhận lên xe của con; không có bubble số phút vì chưa minh họa chặng con đang trên xe. Khi attendance thành PRESENT, dùng mốc2/3 như cũ; khi xuống xe được xác nhận, dùng mốc1. Đây chỉ là fallback trình bày, không thay status chuyến, attendance, tọa độ GPS hoặc timestamps. Tag header vẫn Chưa điểm danh màu amber cho UNMARKED. TH1/TH3/chiều đi và ABSENT/CANCELLED/COMPLETED giữ nguyên. **TH4 đến điểm trả nhưng chưa xuống xe được PO yêu cầu để lại**, chưa thêm event hoặc sửa nhãn/vị trí cho trường hợp đó.
++**Sửa TH2 theo yêu cầu PO:** trước đây trường hợp này trả position=null nên icon bus bị ẩn. Hiện trả0 để giữ icon trên rail tại mốc đầu trong lúc thiếu xác nhận lên xe của con; không có bubble số phút vì chưa minh họa chặng con đang trên xe. Khi attendance thành PRESENT, dùng mốc2/3 như cũ; khi xuống xe được xác nhận, dùng mốc1. Đây chỉ là fallback trình bày, không thay status chuyến, attendance, tọa độ GPS hoặc timestamps. Tag header vẫn Chưa điểm danh màu amber cho UNMARKED. Vị trí TH1/TH3/chiều đi và ABSENT/CANCELLED/COMPLETED giữ nguyên.
++
++**Đồng bộ tag xuống xe chiều về theo yêu cầu PO mới nhất:** PRESENT + chưa có xác nhận xuống xe dùng tag Chưa xuống xe màu tím, cùng icon/tone như chiều đi đã đến trường nhưng chưa xuống. PRESENT + đã xác nhận xuống xe dùng tag Đã xuống xe màu xanh lá như chiều đi. Tag chưa xuống xe không khẳng định xe đã đến điểm trả; mốc arrival độc lập vẫn chưa có. Chỉ mở lại phần tag của TH4, không thêm event hoặc sửa vị trí bus.
++
++| Trường hợp chiều về | Tag của con ở header | Bus trên rail khi card còn được chọn |
++| --- | --- | --- |
++| SCHEDULED + UNMARKED | Chưa điểm danh, amber | Mốc trường0 |
++| SCHEDULED + PRESENT, chưa xuống | Chưa xuống xe, tím | Mốc trường0, chưa minh họa đã chạy |
++| IN_PROGRESS + UNMARKED (TH2) | Chưa điểm danh, amber | Mốc trường0 dự phòng, không ẩn bus |
++| IN_PROGRESS + PRESENT, chưa xuống (TH1) | Chưa xuống xe, tím | 2/3 chặng trường→điểm trả |
++| Xe đã đến điểm trả nhưng chưa xuống (TH4) | Chưa xuống xe, tím nếu PRESENT | Vẫn2/3 vì chưa có event xác nhận đến điểm trả độc lập; không tự suy ra đến đích |
++| PRESENT + đã xác nhận xuống (TH3) | Đã xuống xe, xanh lá | Mốc điểm trả1, bus thay nhà |
++| ABSENT + báo nghỉ còn hiệu lực | Đã báo nghỉ, đỏ | Không vẽ bus cho hành trình con |
++| ABSENT không báo nghỉ | Vắng mặt, đỏ | Không vẽ bus cho hành trình con |
++| CANCELLED | Tag chuyến Đã hủy; tag con vẫn theo attendance | Helper không vẽ bus; Home không lấy chuyến hủy |
++| COMPLETED | Tag con vẫn theo attendance/alighting nếu còn card tạm | Home không lấy chuyến hoàn thành; helper chỉ tới1 khi PRESENT + đã xuống, thiếu mốc xác nhận trả null |
++
++Các trường hợp có alighting xác nhận ở trên giả định dữ liệu hợp lệ, không tự xác nhận con đã xuống khi attendance còn UNMARKED/ABSENT. Home vẫn chỉ chọn một chuyến ưu tiên cho mỗi con, loại chuyến quá scheduled_end_at; việc cả card không còn được chọn khác với icon bus bị ẩn trong card. Học sinh PRESENT chờ khởi hành đã lên xe nhưng chưa xuống nên cũng dùng tag tím; status chuyến Chờ khởi hành giữ nguyên.
+@@ -93 +110 @@
+-| PRESENT chưa đến/chưa xuống | Đã điểm danh, xanh dương + check icon |
++| Chiều đi PRESENT chưa đến trường/chưa xuống | Đã điểm danh, xanh dương + check icon |
+@@ -94,0 +112 @@
++| Chiều về PRESENT chưa xuống (kể cả đang chờ xuất phát) | Chưa xuống xe, tím + icon xuống xe; không suy ra xe đã đến điểm trả |
+@@ -124,0 +143 @@
++- studentJourneyBadge(attendance, alighted, schoolArrived, hasLeaveNotice, direction?): direction lấy từ card hiện tại để chiều về PRESENT chưa xuống dùng tag tím; bỏ qua hoặc TO_SCHOOL giữ quy tắc chiều đi cũ. Luôn xét ABSENT/UNMARKED trước alighting để không gán xuống xe từ dữ liệu chưa xác nhận lên xe.
+@@ -134,2 +153,2 @@
+-- PASS Mobile tsc --noEmit và Expo export all iOS/Android/Web/server; outputs ngoài repo, không cài mới.
+-- PASS24 pure node:test checks:14 cũ +10 mới, enums/booleans/clock/geometry only, không records/DTO giả/API mock hoặc DB.
++- PASS Mobile tsc --noEmit sau cập nhật tag chiều về. Expo export all iOS/Android/Web/server đã chạy ở task mốc nghiệp vụ trước đó, không chạy lại cho thay đổi tag; outputs ngoài repo, không cài mới.
++- PASS26 pure node:test checks:14 cũ +12 stage/time checks gồm hồi quy TH2 và tag chiều về, enums/booleans/clock/geometry only, không records/DTO giả/API mock hoặc DB. Đối chiếu192 vị trí bus giữ nguyên;72 mapping tag chỉ đổi PRESENT/chưa xuống chiều về từ Đã điểm danh sang Chưa xuống xe khi chưa có school-arrival.
+--- a/docs/architecture/mobile-parent-home-ui.md
++++ b/docs/architecture/mobile-parent-home-ui.md
+@@ -5,0 +6,2 @@
++
++Chiều về: PRESENT chưa xác nhận xuống dùng tag Chưa xuống xe màu tím; đã xác nhận xuống dùng Đã xuống xe màu xanh lá, cùng chữ/icon/tone như chiều đi. Chưa điểm danh/ABSENT giữ nhãn riêng. Tag không xác nhận xe đã đến điểm trả; vị trí bus không đổi, xem [bảng đầy đủ chiều về](mobile-parent-student-journey.md#vị-trí-minh-họa-và-icon-trên-rail).

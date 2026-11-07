@@ -1,6 +1,12 @@
+import { configuredParking } from './parking-policy.js';
+import { closeCancelledTripTasks } from '../trips/utils/close-cancelled-trip-tasks.js';
+import { Cron } from '@nestjs/schedule';
+import { Prisma } from '@prisma/client';
+import { frozenTripWhere } from '../overview/operations-policy.js';
+import { lockOperations } from '../trips/utils/operations-lock.js';
 import { notifyPlan } from '../notifications/notification-events.js';
 import { notifyCancelledTrips } from '../notifications/notification-writer.js';
-import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, ConflictException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { RoutePlanStatus, TripStatus, LeaveNoticeStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -22,22 +28,17 @@ export class SystemSettingsService {
       where: { key: SystemSettingsService.PARKING_LOT_KEY },
     });
 
-    if (!setting || !setting.value) {
-      return {
-        addressText: 'Bãi đỗ xe trung tâm TP. Hồ Chí Minh',
-        latitude: 10.776889,
-        longitude: 106.700806,
-        updatedAt: null as any,
-      };
-    }
+    configuredParking(setting?.value);
 
-    const val = setting.value as any;
+    const val = setting!.value as any;
+    const due = val.scheduledChange?.effectiveDate <= vietnamToday() ? val.scheduledChange : null;
     return {
-      addressText: val.addressText || '',
-      latitude: Number(val.latitude) || 0,
-      longitude: Number(val.longitude) || 0,
-      updatedAt: setting.updatedAt ? setting.updatedAt.toISOString() : (null as any),
+      addressText: due?.newAddressText ?? val.addressText ?? '',
+      latitude: Number(due?.newLatitude ?? val.latitude) || 0,
+      longitude: Number(due?.newLongitude ?? val.longitude) || 0,
+      updatedAt: setting!.updatedAt ? setting!.updatedAt.toISOString() : (null as any),
       scheduledChange: val.scheduledChange || null,
+      maxOperatingRadiusKm: val.maxOperatingRadiusKm ?? 50,
     };
   }
 
@@ -86,6 +87,7 @@ export class SystemSettingsService {
           routeId: { in: routeIds },
           status: TripStatus.SCHEDULED,
           serviceDate: { gte: effectiveDateObj },
+          NOT: frozenTripWhere,
         },
       });
 
@@ -158,257 +160,216 @@ export class SystemSettingsService {
   async updateParkingLot(
     dto: UpdateParkingLotDto,
     userId: string,
-  ): Promise<ParkingLotResponseDto & { cancelledPlansCount?: number; cancelledTripsCount?: number }> {
-    if (!dto.addressText || !dto.addressText.trim()) {
-      throw new BadRequestException('Địa chỉ bãi xe không được để trống');
+  ): Promise<
+    ParkingLotResponseDto & {
+      cancelledPlansCount?: number;
+      cancelledTripsCount?: number;
     }
-
-    if (dto.latitude === undefined || isNaN(dto.latitude) || dto.latitude < -90 || dto.latitude > 90) {
-      throw new BadRequestException('Vĩ độ phải nằm trong khoảng từ -90 đến 90');
+  > {
+    if (
+      !dto.addressText?.trim() ||
+      !Number.isFinite(dto.latitude) ||
+      !Number.isFinite(dto.longitude) || Math.abs(dto.latitude) > 90 || Math.abs(dto.longitude) > 180
+    ) {
+      throw new BadRequestException('Địa chỉ và tọa độ bãi không hợp lệ');
     }
-
-    if (dto.longitude === undefined || isNaN(dto.longitude) || dto.longitude < -180 || dto.longitude > 180) {
-      throw new BadRequestException('Kinh độ phải nằm trong khoảng từ -180 đến 180');
-    }
-
-    const current = await this.getParkingLot();
-    const coordsChanged =
-      Math.abs(current.latitude - dto.latitude) > 1e-6 ||
-      Math.abs(current.longitude - dto.longitude) > 1e-6;
-
-    if (!coordsChanged) {
-      // Chỉ cập nhật nhãn địa chỉ -> không cascade
-      const setting = await this.prisma.systemSetting.upsert({
+    await this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
+      const stored = await tx.systemSetting.findUnique({
         where: { key: SystemSettingsService.PARKING_LOT_KEY },
-        create: {
-          key: SystemSettingsService.PARKING_LOT_KEY,
-          value: {
-            addressText: dto.addressText.trim(),
-            latitude: dto.latitude,
-            longitude: dto.longitude,
-          },
-          updatedById: userId,
-        },
-        update: {
-          value: {
-            addressText: dto.addressText.trim(),
-            latitude: dto.latitude,
-            longitude: dto.longitude,
-          },
-          updatedById: userId,
-        },
       });
-
-      return {
-        addressText: dto.addressText.trim(),
-        latitude: dto.latitude,
-        longitude: dto.longitude,
-        updatedAt: setting.updatedAt.toISOString(),
-        cancelledPlansCount: 0,
-        cancelledTripsCount: 0,
-      };
-    }
-
-    // Tọa độ thay đổi -> Hẹn ngày hiệu lực (effectiveDate)
-    const today = vietnamToday();
-    const tomorrowDate = new Date(`${today}T00:00:00.000Z`);
-    tomorrowDate.setUTCDate(tomorrowDate.getUTCDate() + 1);
-    const defaultEffectiveDate = tomorrowDate.toISOString().split('T')[0];
-    const effectiveDate = dto.effectiveDate || defaultEffectiveDate;
-
-    if (effectiveDate < defaultEffectiveDate) {
-      throw new BadRequestException('Ngày hiệu lực dời bãi xe phải từ ngày mai trở đi');
-    }
-    const effectiveDateObj = new Date(`${effectiveDate}T00:00:00.000Z`);
-
-    const reason = dto.reason || `Bãi xe trung tâm thay đổi vị trí sang ${dto.addressText.trim()} từ ngày ${effectiveDate}`;
-
-    const scheduledChange = {
-      newAddressText: dto.addressText.trim(),
-      newLatitude: dto.latitude,
-      newLongitude: dto.longitude,
-      effectiveDate,
-      reason,
-      scheduledAt: new Date().toISOString(),
-      scheduledById: userId,
-    };
-
-    const result = await this.prisma.$transaction(async (tx) => {
-      // 1. Tìm toàn bộ DRAFT và ACTIVE plans
-      const plans = await tx.routePlan.findMany({
-        where: {
-          status: { in: [RoutePlanStatus.DRAFT, RoutePlanStatus.ACTIVE] },
-        },
-        include: {
-          routes: { select: { id: true } },
-        },
-      });
-
-      const planIds = plans.map((p) => p.id);
-      const routeIds = plans.flatMap((p) => p.routes.map((r) => r.id));
-      let cancelledTripsCount = 0;
-
-      // 2. Chỉ hủy các chuyến xe SCHEDULED diễn ra từ ngày effectiveDate trở đi
-      if (routeIds.length > 0) {
-        const scheduledTrips = await tx.trip.findMany({
-          where: {
-            routeId: { in: routeIds },
-            status: TripStatus.SCHEDULED,
-            serviceDate: { gte: effectiveDateObj },
-          },
-          select: { id: true },
-        });
-
-        cancelledTripsCount = scheduledTrips.length;
-        const tripIds = scheduledTrips.map((t) => t.id);
-
-        if (tripIds.length > 0) {
-          await tx.trip.updateMany({
-            where: { id: { in: tripIds } },
-            data: {
-              status: TripStatus.CANCELLED,
-              cancellationReason: reason,
-              cancelledAt: new Date(),
-              cancelledById: userId,
-            },
-          });
-
-          await notifyCancelledTrips(tx, tripIds, 'parking_lot_relocation:' + effectiveDate, userId);
-          await tx.leaveNotice.updateMany({
-            where: {
-              tripId: { in: tripIds },
-              status: LeaveNoticeStatus.PENDING_REPLACEMENT,
-            },
-            data: {
-              status: LeaveNoticeStatus.TRIP_CANCELLED,
-              processedAt: new Date(),
-              processedById: userId,
-            },
-          });
+      const current = (stored?.value ?? {}) as Prisma.JsonObject;
+      if (stored && dto.expectedFingerprint) {
+        const impact = await this.getParkingLotImpact(dto.latitude, dto.longitude, dto.effectiveDate);
+        if (dto.expectedFingerprint !== impact.expectedFingerprint) {
+          throw new ConflictException('Tác động dời bãi đã thay đổi; tải lại impact');
         }
       }
-
-      // 3. Đánh dấu RoutePlan cần tối ưu lại (KHÔNG HỦY PLAN)
-      if (planIds.length > 0) {
-        await tx.routePlan.updateMany({
-          where: { id: { in: planIds } },
-          data: {
-            needsReoptimization: true,
-            reoptimizationReason: reason,
-          },
-        });
+      if (
+        current.scheduledChange &&
+        String((current.scheduledChange as Prisma.JsonObject).effectiveDate) <=
+          vietnamToday()
+      ) {
+        throw new BadRequestException(
+          'Lịch dời bãi đã đến hạn, cần áp dụng trước khi thay đổi tiếp',
+        );
       }
-
-      for (const planId of planIds) await notifyPlan(tx, planId, userId);
-
-      // 4. Lưu cấu hình bãi xe kèm lịch hẹn đổi vị trí
-      const setting = await tx.systemSetting.upsert({
+      const coordsChanged = !!stored && (
+        Math.abs(Number(current.latitude) - dto.latitude) > 1e-6 ||
+        Math.abs(Number(current.longitude) - dto.longitude) > 1e-6);
+      const tomorrow = new Date(new Date(vietnamToday()).getTime() + 86400000)
+        .toISOString()
+        .slice(0, 10);
+      const date = dto.effectiveDate ?? tomorrow;
+      if (
+        coordsChanged &&
+        (!/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+          !Number.isFinite(new Date(date).getTime()) ||
+          new Date(date).toISOString().slice(0, 10) !== date ||
+          date < tomorrow)
+      ) {
+        throw new BadRequestException(
+          'Ngày dời bãi phải hợp lệ và từ ngày mai',
+        );
+      }
+      const value: { [key: string]: Prisma.InputJsonValue | null } = {
+        ...(current as Prisma.InputJsonObject),
+        maxOperatingRadiusKm:
+          dto.maxOperatingRadiusKm ??
+          Number(current.maxOperatingRadiusKm ?? 50),
+      };
+      if (coordsChanged)
+        value.scheduledChange = {
+          newAddressText: dto.addressText.trim(),
+          newLatitude: dto.latitude,
+          newLongitude: dto.longitude,
+          effectiveDate: date,
+          reason: dto.reason?.trim() || 'Bãi xe thay đổi vị trí',
+          scheduledAt: new Date().toISOString(),
+          scheduledById: userId,
+        };
+      else {
+        value.addressText = dto.addressText.trim();
+        value.latitude = dto.latitude;
+        value.longitude = dto.longitude;
+      }
+      await tx.systemSetting.upsert({
         where: { key: SystemSettingsService.PARKING_LOT_KEY },
         create: {
           key: SystemSettingsService.PARKING_LOT_KEY,
-          value: {
-            addressText: current.addressText,
-            latitude: current.latitude,
-            longitude: current.longitude,
-            scheduledChange,
-          },
+          value,
           updatedById: userId,
         },
-        update: {
-          value: {
-            addressText: current.addressText,
-            latitude: current.latitude,
-            longitude: current.longitude,
-            scheduledChange,
-          },
-          updatedById: userId,
-        },
+        update: { value, updatedById: userId },
       });
-
-      return {
-        setting,
-        plansNeedingReoptimizationCount: planIds.length,
-        cancelledTripsCount,
-      };
     });
-
-    this.logger.log(
-      `Đã lên lịch dời bãi xe trung tâm ngày ${effectiveDate}: Đánh dấu ${result.plansNeedingReoptimizationCount} plans cần tối ưu lại, hủy ${result.cancelledTripsCount} trips SCHEDULED từ ngày hiệu lực.`,
-    );
-
     return {
-      addressText: current.addressText,
-      latitude: current.latitude,
-      longitude: current.longitude,
-      updatedAt: result.setting.updatedAt.toISOString(),
-      scheduledChange,
-      cancelledPlansCount: result.plansNeedingReoptimizationCount,
-      cancelledTripsCount: result.cancelledTripsCount,
+      ...(await this.getParkingLot()),
+      cancelledPlansCount: 0,
+      cancelledTripsCount: 0,
     };
   }
 
-  /**
-   * Hủy lịch hẹn dời bãi đỗ xe trung tâm
-   */
-  async cancelScheduledParkingLotChange(userId: string): Promise<ParkingLotResponseDto> {
-    const current = await this.getParkingLot();
-    if (!current.scheduledChange) {
-      throw new BadRequestException('Hiện không có lịch hẹn dời bãi xe nào đang chờ áp dụng');
-    }
-
-    const setting = await this.prisma.systemSetting.update({
-      where: { key: SystemSettingsService.PARKING_LOT_KEY },
-      data: {
-        value: {
-          addressText: current.addressText,
-          latitude: current.latitude,
-          longitude: current.longitude,
-          scheduledChange: null,
-        },
-        updatedById: userId,
-      },
-    });
-
-    return {
-      addressText: current.addressText,
-      latitude: current.latitude,
-      longitude: current.longitude,
-      updatedAt: setting.updatedAt.toISOString(),
-      scheduledChange: null,
-    };
-  }
-
-  /**
-   * Áp dụng lịch hẹn dời bãi xe (Khi đến ngày effectiveDate)
-   */
-  async applyScheduledParkingLotChange(): Promise<{ applied: boolean; effectiveDate?: string }> {
-    const setting = await this.prisma.systemSetting.findUnique({
-      where: { key: SystemSettingsService.PARKING_LOT_KEY },
-    });
-    if (!setting || !setting.value) return { applied: false };
-
-    const val = setting.value as any;
-    if (!val.scheduledChange) return { applied: false };
-
-    const change = val.scheduledChange;
-    const today = vietnamToday();
-
-    if (change.effectiveDate <= today) {
-      await this.prisma.systemSetting.update({
+  async cancelScheduledParkingLotChange(
+    userId: string,
+  ): Promise<ParkingLotResponseDto> {
+    await this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
+      const setting = await tx.systemSetting.findUnique({
         where: { key: SystemSettingsService.PARKING_LOT_KEY },
+      });
+      const value = setting?.value as Prisma.JsonObject | null;
+      const change = value?.scheduledChange as Prisma.JsonObject | null;
+      if (!setting || !value || !change)
+        throw new BadRequestException('Không có lịch dời bãi');
+      if (String(change.effectiveDate) <= vietnamToday())
+        throw new BadRequestException('Chỉ hủy lịch trước ngày hiệu lực');
+      await tx.systemSetting.update({
+        where: { id: setting.id },
         data: {
           value: {
-            addressText: change.newAddressText,
-            latitude: change.newLatitude,
-            longitude: change.newLongitude,
+            ...(value as Prisma.InputJsonObject),
             scheduledChange: null,
+          },
+          updatedById: userId,
+        },
+      });
+    });
+    return this.getParkingLot();
+  }
+
+  @Cron('0 * * * * *', { timeZone: 'Asia/Ho_Chi_Minh' })
+  async reconcileParkingLot(): Promise<void> {
+    try {
+      await this.applyScheduledParkingLotChange();
+    } catch {
+      this.logger.warn('Đối soát lịch dời bãi chưa hoàn tất; sẽ thử lại');
+    }
+  }
+
+  async applyScheduledParkingLotChange(): Promise<{
+    applied: boolean;
+    effectiveDate?: string;
+  }> {
+    return this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
+      const setting = await tx.systemSetting.findUnique({
+        where: { key: SystemSettingsService.PARKING_LOT_KEY },
+      });
+      const value = setting?.value as Prisma.JsonObject | null;
+      const change = value?.scheduledChange as Prisma.JsonObject | null;
+      if (!setting || !value || !change) return { applied: false };
+      const date = String(change.effectiveDate);
+      if (date > vietnamToday()) return { applied: false, effectiveDate: date };
+      const plans = await tx.routePlan.findMany({
+        where: { status: { in: ['DRAFT', 'ACTIVE'] } },
+        select: { id: true },
+      });
+      const planIds = plans.map((p) => p.id);
+      const trips = await tx.trip.findMany({
+        where: {
+          route: { routePlanId: { in: planIds } },
+          serviceDate: { gte: new Date(date) },
+          status: TripStatus.SCHEDULED,
+          NOT: frozenTripWhere,
+        },
+        select: { id: true },
+      });
+      const ids = trips.map((t) => t.id);
+      await tx.trip.updateMany({
+        where: {
+          id: { in: ids },
+          status: TripStatus.SCHEDULED,
+          NOT: frozenTripWhere,
+        },
+        data: {
+          status: TripStatus.CANCELLED,
+          cancelledAt: new Date(),
+          cancelledById: String(change.scheduledById),
+          cancellationReason: String(change.reason),
+        },
+      });
+      await tx.leaveNotice.updateMany({
+        where: {
+          tripId: { in: ids },
+          status: LeaveNoticeStatus.PENDING_REPLACEMENT,
+        },
+        data: {
+          status: LeaveNoticeStatus.TRIP_CANCELLED,
+          processedAt: new Date(),
+        },
+      });
+      await tx.routePlan.updateMany({
+        where: { id: { in: planIds } },
+        data: {
+          needsReoptimization: true,
+          reoptimizationReason: String(change.reason),
+        },
+      });
+      await tx.systemSetting.update({
+        where: { id: setting.id },
+        data: {
+          value: {
+            ...(value as Prisma.InputJsonObject),
+            addressText: String(change.newAddressText),
+            latitude: Number(change.newLatitude),
+            longitude: Number(change.newLongitude),
+            scheduledChange: null,
+            lastAppliedChange: change as Prisma.InputJsonObject,
           },
         },
       });
-      this.logger.log(`Đã chính thức áp dụng vị trí bãi đỗ xe mới: ${change.newAddressText}`);
-      return { applied: true, effectiveDate: change.effectiveDate };
-    }
-
-    return { applied: false, effectiveDate: change.effectiveDate };
+      await closeCancelledTripTasks(tx, ids);
+      await notifyCancelledTrips(
+        tx,
+        ids,
+        'parking:' + date,
+        String(change.scheduledById),
+      );
+      for (const plan of plans)
+        await notifyPlan(tx, plan.id, String(change.scheduledById));
+      return { applied: true, effectiveDate: date };
+    });
   }
+
 }

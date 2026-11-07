@@ -4,6 +4,9 @@ import { IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-
 import { RoutePlanStatus } from '@prisma/client';
 
 export class ListRoutePlansQueryDto {
+  @ApiPropertyOptional({ enum: ['true', 'false'], description: 'Lọc phương án đang cần tối ưu lại' })
+  @IsOptional() @IsString()
+  needsReoptimization?: string;
   @ApiPropertyOptional({
     description: 'Số thứ tự trang cần lấy (bắt đầu từ 1)',
     default: 1,

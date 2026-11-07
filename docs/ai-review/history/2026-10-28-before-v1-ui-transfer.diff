@@ -1,0 +1,104 @@
+diff --git a/api/scripts/db-local.ps1 b/api/scripts/db-local.ps1
+new file mode 100644
+index 0000000..28074c6
+--- /dev/null
++++ b/api/scripts/db-local.ps1
+@@ -0,0 +1,45 @@
++param(
++    [ValidateSet('start', 'stop', 'status')]
++    [string]$Action = 'status'
++)
++
++$ErrorActionPreference = 'Stop'
++$databaseRoot = Join-Path $env:LOCALAPPDATA 'RoadToSchool\postgresql-18.6'
++$databaseData = Join-Path $databaseRoot 'data'
++$databaseBin = Join-Path $databaseRoot 'pgsql\bin'
++$databaseControl = Join-Path $databaseBin 'pg_ctl.exe'
++$databaseLog = Join-Path $databaseRoot 'postgresql.log'
++
++if (!(Test-Path -LiteralPath $databaseControl) -or !(Test-Path -LiteralPath (Join-Path $databaseData 'PG_VERSION'))) {
++    throw "Local PostgreSQL is not initialized at $databaseRoot. See docs/local-database.md."
++}
++
++if ($Action -eq 'status') {
++    & $databaseControl status -D $databaseData
++    exit $LASTEXITCODE
++}
++
++& $databaseControl status -D $databaseData *> $null
++$databaseRunning = $LASTEXITCODE -eq 0
++if (($Action -eq 'start' -and $databaseRunning) -or ($Action -eq 'stop' -and !$databaseRunning)) {
++    Write-Output "PostgreSQL is already $(if ($databaseRunning) { 'running' } else { 'stopped' })."
++    exit 0
++}
++
++if ($Action -eq 'start') {
++    $databasePortBusy = Get-NetTCPConnection -LocalPort 5432 -State Listen -ErrorAction SilentlyContinue
++    if ($databasePortBusy) {
++        throw 'Port 5432 is occupied by another process. No process was stopped.'
++    }
++    $databaseArguments = "start -D `"$databaseData`" -l `"$databaseLog`" -w"
++} else {
++    $databaseArguments = "stop -D `"$databaseData`" -m fast -w"
++}
++
++$databaseProcess = Start-Process -FilePath $databaseControl -ArgumentList $databaseArguments -WindowStyle Hidden -PassThru
++# Wait for pg_ctl only; Start-Process -Wait also waits for the database server.
++$databaseProcess.WaitForExit()
++if ($databaseProcess.ExitCode -ne 0) {
++    throw "PostgreSQL $Action failed (exit $($databaseProcess.ExitCode)). Check $databaseLog."
++}
++Write-Output "PostgreSQL $Action completed (localhost:5432)."
+diff --git a/docs/local-database.md b/docs/local-database.md
+new file mode 100644
+index 0000000..48b1fef
+--- /dev/null
++++ b/docs/local-database.md
+@@ -0,0 +1,47 @@
++# PostgreSQL local (Windows)
++
++Database development của project được cài cho tài khoản Windows hiện tại, không cần Docker hay quyền Administrator.
++
++## Cấu hình
++
++- PostgreSQL 18.6 x64, binary từ [EDB](https://www.enterprisedb.com/download-postgresql-binaries), cùng phiên bản trong README.
++- Host: `127.0.0.1`, port: `5432`, database: `roadtoschool`, schema: `public`.
++- Tài khoản ứng dụng: `roadtoschool` (owner database, không phải superuser).
++- `api/.env` chứa `DATABASE_URL` và JWT secret local được tạo ngẫu nhiên; file đã được Git ignore. Không đưa nội dung file vào Git hoặc báo cáo.
++- Binary: `%LOCALAPPDATA%\RoadToSchool\postgresql-18.6\pgsql`.
++- Data: `%LOCALAPPDATA%\RoadToSchool\postgresql-18.6\data`.
++- Log: `%LOCALAPPDATA%\RoadToSchool\postgresql-18.6\postgresql.log`.
++- Thông tin quản trị PostgreSQL nằm trong `admin.pgpass` cùng thư mục cài đặt; đây là file bí mật local.
++- Server chỉ lắng nghe trên loopback; host authentication dùng SCRAM-SHA-256.
++
++## Chạy database
++
++Từ root repository, chạy trong PowerShell:
++
++```powershell
++powershell -NoProfile -ExecutionPolicy Bypass -File .\api\scripts\db-local.ps1 start
++powershell -NoProfile -ExecutionPolicy Bypass -File .\api\scripts\db-local.ps1 status
++```
++
++Database chạy nền. Sau khi restart Windows, chạy lại lệnh `start`; không cài Windows service hoặc tự động khởi động cùng hệ thống.
++
++Dừng database an toàn, giữ nguyên dữ liệu:
++
++```powershell
++powershell -NoProfile -ExecutionPolicy Bypass -File .\api\scripts\db-local.ps1 stop
++```
++
++Script chỉ điều khiển cluster nằm trong đường dẫn trên. Nếu port 5432 thuộc process khác, script báo lỗi và không dừng process đó.
++
++## Prisma và API
++
++14 migration sẵn có đã được áp dụng khi setup. Kiểm tra lại khi cần:
++
++```powershell
++cd api
++node node_modules/prisma/build/index.js migrate status
++```
++
++Chạy API bằng `npm run dev` sau khi database đang chạy. Database mới chưa có tài khoản hoặc dữ liệu nghiệp vụ. Không chạy seed/test tạo dữ liệu nếu chưa được Product Owner cho phép.
++
++Để kết nối bằng công cụ quản trị, lấy user/password từ `api/.env`. Thiết lập này áp dụng cho máy/tài khoản Windows hiện tại; không phải trình cài đặt tự động cho máy mới.

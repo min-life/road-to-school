@@ -154,7 +154,7 @@ export class DriversController {
   @ApiOperation({
     summary: 'Cập nhật trạng thái hoạt động của tài xế (Chỉ SYSTEM_ADMIN)',
     description:
-      'Chuyển trạng thái tài xế giữa hoạt động (isActive=true) và không hoạt động (isActive=false). Nếu tài xế còn tuyến ACTIVE hoặc chuyến SCHEDULED, bắt buộc truyền replacementUserId để bàn giao nguyên tử. Toàn bộ Session trên Mobile App sẽ bị thu hồi lập tức.',
+      'Chuyển trạng thái tài xế giữa hoạt động (isActive=true) và không hoạt động (isActive=false). Nếu tài xế còn tuyến ACTIVE hoặc chuyến SCHEDULED, bắt buộc truyền replacementUserId để bàn giao nguyên tử. Từ chối nếu còn chuyến Ready/đã điểm danh/đang chạy. Toàn bộ Session trên Mobile App sẽ bị thu hồi khi ngừng hoạt động thành công.',
   })
   @ApiParam({ name: 'id', description: 'ID tài xế (UUID v4)' })
   @ApiResponse({

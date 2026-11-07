@@ -190,8 +190,9 @@ export class SchoolLifecycleController {
     type: AdminTripResponseDto,
     isArray: true,
   })
-  pending(@CurrentUser() actor: User) {
-    return this.finalization.list(actor);
+  @ApiQuery({ name: 'schoolId', required: false, description: 'Lọc theo trường, cùng phạm vi count Dashboard' })
+  pending(@CurrentUser() actor: User, @Query('schoolId') schoolId?: string) {
+    return this.finalization.list(actor, schoolId);
   }
 
   @Post('trips/:id/admin-finalization')

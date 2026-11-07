@@ -1,0 +1,199 @@
+diff --git a/mobile/hooks/use-trip-navigation.ts b/mobile/hooks/use-trip-navigation.ts
+index ac55720..1cfe6d4 100644
+--- a/mobile/hooks/use-trip-navigation.ts
++++ b/mobile/hooks/use-trip-navigation.ts
+@@ -6 +6 @@ import { navigationApi, type Checkpoint, type LocationSource, type NavigationSeg
+-import { autoPosition, coordinate, cumulativeDistances, distance, joystickPosition, nextGuidance, projectProgress, splitSegment, type Coordinate } from '../utils/trip-navigation';
++import { autoPosition, coordinate, cumulativeDistances, distance, joystickPosition, nextGuidance, projectProgress, shouldHandOffToManual, splitSegment, type Coordinate } from '../utils/trip-navigation';
+@@ -259,0 +260,8 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
++    if (!busy.current && !routeBusy.current && shouldHandOffToManual(
++      cp.current.activeSource, target?.stopType, target ? distance(p, coordinate(target)) : Infinity,
++    )) {
++      setView(v => ({ ...v, position: p }));
++      // Switch before ADVANCE so the driver takes over at this stop, without moving to the next target.
++      void change('TEST_JOYSTICK');
++      return;
++    }
+diff --git a/mobile/utils/trip-navigation.ts b/mobile/utils/trip-navigation.ts
+index 86709e4..5ba0053 100644
+--- a/mobile/utils/trip-navigation.ts
++++ b/mobile/utils/trip-navigation.ts
+@@ -1 +1,6 @@
+-import type { Instruction, LocationPoint, Position } from '../services/trip-navigation';
++import type { Instruction, LocationPoint, LocationSource, Position } from '../services/trip-navigation';
++
++export function shouldHandOffToManual(source: LocationSource | null, stopType: string | undefined, metres: number) {
++  return source === 'TEST_AUTO' && (stopType === 'PICKUP' || stopType === 'DROPOFF')
++    && metres >= 0 && metres <= 100;
++}
+diff --git a/mobile/app/trip/[id].tsx b/mobile/app/trip/[id].tsx
+index f504275..011148a 100644
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -977 +977 @@ export default function MobileTripDetailScreen() {
+-      {/* Floating Header (Back Button & Báo sự cố Button) */}
++      {/* Floating Header (Back Button) */}
+@@ -991,52 +991 @@ export default function MobileTripDetailScreen() {
+-        {/* Báo sự cố Button (Only for assigned staff on SCHEDULED trips) */}
+-        {isDriverOrAttendant && (trip?.status === 'SCHEDULED' || incidentOptions?.canReport) && (
+-          <TouchableOpacity
+-            style={[
+-              styles.reportIncidentFloatingBtn,
+-              incidentOptions && !incidentOptions.canReport && styles.reportIncidentFloatingBtnDisabled,
+-            ]}
+-            onPress={() => {
+-              if (incidentOptions && !incidentOptions.canReport) {
+-                const reasonMap: Record<string, string> = {
+-                  ATTENDANT_ALREADY_READY: 'Giáo viên phụ xe đã xác nhận sẵn sàng khởi hành.',
+-                  INCIDENT_ALREADY_OPEN: 'Đang có báo cáo sự cố chưa được xử lý.',
+-                  TRIP_NOT_SCHEDULED: 'Chuyến xe đã bắt đầu hoặc không ở trạng thái chờ khởi hành.',
+-                  TOO_EARLY: `Chưa đến khung giờ báo sự cố (bắt đầu từ ${
+-                    incidentOptions.reportAvailableAt
+-                      ? new Date(incidentOptions.reportAvailableAt).toLocaleTimeString([], {
+-                          hour: '2-digit',
+-                          minute: '2-digit',
+-                        })
+-                      : '15 phút trước giờ chạy'
+-                  }).`,
+-                  SCHEDULED_END_TIME_EXCEEDED: 'Chuyến xe đã quá giờ kết thúc dự kiến.',
+-                  NOT_ASSIGNED_DRIVER: 'Bạn không phải tài xế được phân công cho chuyến này.',
+-                  NOT_ASSIGNED_ATTENDANT: 'Bạn không phải phụ xe được phân công cho chuyến này.',
+-                  MISSING_SCHEDULE_TIMES: 'Chuyến xe chưa có thông tin giờ bắt đầu/kết thúc lịch trình.',
+-                };
+-                Alert.alert(
+-                  'Không thể báo sự cố',
+-                  reasonMap[incidentOptions.disabledReason || ''] ||
+-                    'Hiện tại chuyến xe chưa đủ điều kiện để báo sự cố.',
+-                );
+-                return;
+-              }
+-              setReportModalVisible(true);
+-            }}
+-            activeOpacity={0.85}
+-          >
+-            <Ionicons
+-              name="warning"
+-              size={15}
+-              color={incidentOptions && !incidentOptions.canReport ? '#94A3B8' : '#DC2626'}
+-            />
+-            <Text
+-              style={[
+-                styles.reportIncidentFloatingBtnText,
+-                incidentOptions && !incidentOptions.canReport && { color: '#94A3B8' },
+-              ]}
+-            >
+-              Báo sự cố
+-            </Text>
+-          </TouchableOpacity>
+-        )}
++
+@@ -1995,0 +1945,52 @@ export default function MobileTripDetailScreen() {
++                {/* Báo sự cố */}
++                {isDriverOrAttendant && (trip?.status === 'SCHEDULED' || incidentOptions?.canReport) && (
++                  <TouchableOpacity
++                    style={[
++                      styles.reportIncidentButton,
++                      incidentOptions && !incidentOptions.canReport && styles.reportIncidentButtonDisabled,
++                    ]}
++                    onPress={() => {
++                      if (incidentOptions && !incidentOptions.canReport) {
++                        const reasonMap: Record<string, string> = {
++                          ATTENDANT_ALREADY_READY: 'Giáo viên phụ xe đã xác nhận sẵn sàng khởi hành.',
++                          INCIDENT_ALREADY_OPEN: 'Đang có báo cáo sự cố chưa được xử lý.',
++                          TRIP_NOT_SCHEDULED: 'Chuyến xe đã bắt đầu hoặc không ở trạng thái chờ khởi hành.',
++                          TOO_EARLY: `Chưa đến khung giờ báo sự cố (bắt đầu từ ${
++                            incidentOptions.reportAvailableAt
++                              ? new Date(incidentOptions.reportAvailableAt).toLocaleTimeString([], {
++                                  hour: '2-digit',
++                                  minute: '2-digit',
++                                })
++                              : '15 phút trước giờ chạy'
++                          }).`,
++                          SCHEDULED_END_TIME_EXCEEDED: 'Chuyến xe đã quá giờ kết thúc dự kiến.',
++                          NOT_ASSIGNED_DRIVER: 'Bạn không phải tài xế được phân công cho chuyến này.',
++                          NOT_ASSIGNED_ATTENDANT: 'Bạn không phải phụ xe được phân công cho chuyến này.',
++                          MISSING_SCHEDULE_TIMES: 'Chuyến xe chưa có thông tin giờ bắt đầu/kết thúc lịch trình.',
++                        };
++                        Alert.alert(
++                          'Không thể báo sự cố',
++                          reasonMap[incidentOptions.disabledReason || ''] ||
++                            'Hiện tại chuyến xe chưa đủ điều kiện để báo sự cố.',
++                        );
++                        return;
++                      }
++                      setReportModalVisible(true);
++                    }}
++                    activeOpacity={0.85}
++                  >
++                    <Ionicons
++                      name="warning"
++                      size={15}
++                      color={incidentOptions && !incidentOptions.canReport ? '#94A3B8' : '#DC2626'}
++                    />
++                    <Text
++                      style={[
++                        styles.reportIncidentButtonText,
++                        incidentOptions && !incidentOptions.canReport && { color: '#94A3B8' },
++                      ]}
++                    >
++                      Báo sự cố
++                    </Text>
++                  </TouchableOpacity>
++                )}
+@@ -2573 +2574 @@ const styles = StyleSheet.create({
+-  reportIncidentFloatingBtn: {
++  reportIncidentButton: {
+@@ -2575,0 +2577 @@ const styles = StyleSheet.create({
++    justifyContent: 'center',
+@@ -2576,0 +2579,2 @@ const styles = StyleSheet.create({
++    marginTop: 12,
++    marginBottom: 12,
+@@ -2579 +2583 @@ const styles = StyleSheet.create({
+-    borderRadius: 20,
++    borderRadius: 10,
+@@ -2583,5 +2586,0 @@ const styles = StyleSheet.create({
+-    shadowColor: '#000',
+-    shadowOffset: { width: 0, height: 2 },
+-    shadowOpacity: 0.12,
+-    shadowRadius: 4,
+-    elevation: 4,
+@@ -2589 +2588 @@ const styles = StyleSheet.create({
+-  reportIncidentFloatingBtnText: {
++  reportIncidentButtonText: {
+@@ -2594 +2593 @@ const styles = StyleSheet.create({
+-  reportIncidentFloatingBtnDisabled: {
++  reportIncidentButtonDisabled: {
+diff --git a/mobile/scripts/auto-manual-handoff.test.ts b/mobile/scripts/auto-manual-handoff.test.ts
+new file mode 100644
+--- /dev/null
++++ b/mobile/scripts/auto-manual-handoff.test.ts
+@@ -0,0 +1,29 @@
++import { describe, it } from 'node:test';
++import assert from 'node:assert/strict';
++import { shouldHandOffToManual } from '../utils/trip-navigation.ts';
++
++describe('Automatic driving hands off near student stops', () => {
++  it('hands off at 100 m or closer for pickup and dropoff', () => {
++    for (const stopType of ['PICKUP', 'DROPOFF']) {
++      for (const metres of [100, 99.9, 30, 0]) {
++        assert.equal(shouldHandOffToManual('TEST_AUTO', stopType, metres), true);
++      }
++      assert.equal(shouldHandOffToManual('TEST_AUTO', stopType, 100.1), false);
++    }
++  });
++  it('does not affect GPS, manual driving, or an inactive session', () => {
++    for (const source of ['LIVE', 'TEST_JOYSTICK', null] as const) {
++      assert.equal(shouldHandOffToManual(source, 'PICKUP', 20), false);
++    }
++  });
++  it('keeps school, parking and missing target stops automatic', () => {
++    for (const type of ['SCHOOL_ARRIVAL', 'SCHOOL_DEPARTURE', 'PARKING_START', 'PARKING_END', undefined]) {
++      assert.equal(shouldHandOffToManual('TEST_AUTO', type, 20), false);
++    }
++  });
++  it('ignores missing or invalid distance measurements', () => {
++    for (const metres of [NaN, Infinity, -1]) {
++      assert.equal(shouldHandOffToManual('TEST_AUTO', 'PICKUP', metres), false);
++    }
++  });
++});

@@ -23,6 +23,7 @@ import { CurrentUser } from '../auth/decorators/auth-user.decorator.js';
 import { Role } from '@prisma/client';
 import type { User } from '@prisma/client';
 import { IncidentsService } from './incidents.service.js';
+import { CloseIncidentDto } from './dto/close-incident.dto.js';
 import { CreateIncidentDto } from './dto/create-incident.dto.js';
 import { IncidentOptionsResponseDto } from './dto/incident-options-response.dto.js';
 import {
@@ -39,11 +40,29 @@ import { CancelTripIncidentDto } from './dto/cancel-trip-incident.dto.js';
 import { ConfirmIncidentDto } from './dto/confirm-incident.dto.js';
 import { ReplacementCandidatesResponseDto } from './dto/replacement-candidates-response.dto.js';
 
+@ApiResponse({ status: 400, description: 'Payload thiếu hoặc không hợp lệ' })
+@ApiResponse({ status: 401, description: 'Cần đăng nhập' })
+@ApiResponse({ status: 403, description: 'Không có quyền thực hiện hoặc không đúng phạm vi trường' })
+@ApiResponse({ status: 404, description: 'Không tìm thấy dữ liệu' })
 @ApiTags('Operational Incidents')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(AuthGuard, RolesGuard)
 @Controller()
 export class IncidentsController {
+  @Post('incidents/:id/close')
+  @Roles(Role.SYSTEM_ADMIN, Role.SCHOOL_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Đóng sự cố không người đón, giao thông hoặc GPS có lý do và trạng thái kỳ vọng' })
+  @ApiParam({ name: 'id' })
+  @ApiResponse({ status: 200, type: TripIncidentResponseDto, description: 'Đã đóng và lưu người, lý do, thời điểm' })
+  @ApiResponse({ status: 400, description: 'Sai loại sự cố hoặc dữ liệu' })
+  @ApiResponse({ status: 401, description: 'Phiên không hợp lệ' })
+  @ApiResponse({ status: 403, description: 'Không có quyền trong trường của chuyến' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy sự cố' })
+  @ApiResponse({ status: 409, description: 'Trạng thái đã thay đổi hoặc sự cố đã kết thúc' })
+  close(@Param('id') id: string, @Body() dto: CloseIncidentDto, @CurrentUser() user: User) {
+    return this.incidentsService.closeIncident(id, dto, user);
+  }
   constructor(private readonly incidentsService: IncidentsService) {}
 
   @Get('trips/:id/incident-options')

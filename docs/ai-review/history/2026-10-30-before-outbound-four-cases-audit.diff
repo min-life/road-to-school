@@ -1,0 +1,27 @@
+--- a/mobile/utils/parent-journey-stage.ts
++++ b/mobile/utils/parent-journey-stage.ts
+@@ -31 +31,4 @@
+-  if (direction === 'TO_PARKING') return attendance === 'PRESENT' ? 2 / 3 : null;
++  if (direction === 'TO_PARKING') {
++    // Keep a visible origin fallback until this child's boarding is confirmed.
++    return attendance === 'PRESENT' ? 2 / 3 : 0;
++  }
+--- a/mobile/scripts/parent-journey-stage.test.ts
++++ b/mobile/scripts/parent-journey-stage.test.ts
+@@ -25,0 +26,9 @@
++  });
++  it('keeps an unmarked return bus visible without confirming boarding or arrival', () => {
++    assert.equal(journeyStagePosition('IN_PROGRESS', 'TO_PARKING', 'UNMARKED', false, false), 0);
++    assert.equal(journeyStagePosition('IN_PROGRESS', 'TO_PARKING', 'UNMARKED', true, true), 0);
++    assert.equal(studentJourneyBadge('UNMARKED', false, false, false).label, 'Chưa điểm danh');
++    assert.equal(studentJourneyBadge('UNMARKED', false, false, false).tone, 'warning');
++    assert.equal(journeyStagePosition('IN_PROGRESS', 'TO_PARKING', 'ABSENT', false, false), null);
++    assert.equal(journeyStagePosition('CANCELLED', 'TO_PARKING', 'UNMARKED', false, false), null);
++    assert.equal(journeyStagePosition('COMPLETED', 'TO_PARKING', 'UNMARKED', false, false), null);
+--- a/docs/architecture/mobile-parent-student-journey.md
++++ b/docs/architecture/mobile-parent-student-journey.md
+@@ -78 +78,3 @@
+-| UNMARKED chiều về đang chạy nhưng chưa có boarding | Trung tính, không suy ra con đã lên xe |
++| UNMARKED chiều về đang chạy nhưng chưa có boarding (TH2) | Bus vẫn hiện tại mốc trường0, đường xám; tag Chưa điểm danh giữ nguyên. Vị trí dự phòng, không xác nhận vị trí xe thực hoặc con đã lên xe |
++
++**Sửa TH2 theo yêu cầu PO:** trước đây trường hợp này trả position=null nên icon bus bị ẩn. Hiện trả0 để giữ icon trên rail tại mốc đầu trong lúc thiếu xác nhận lên xe của con; không có bubble số phút vì chưa minh họa chặng con đang trên xe. Khi attendance thành PRESENT, dùng mốc2/3 như cũ; khi xuống xe được xác nhận, dùng mốc1. Đây chỉ là fallback trình bày, không thay status chuyến, attendance, tọa độ GPS hoặc timestamps. Tag header vẫn Chưa điểm danh màu amber cho UNMARKED. TH1/TH3/chiều đi và ABSENT/CANCELLED/COMPLETED giữ nguyên. **TH4 đến điểm trả nhưng chưa xuống xe được PO yêu cầu để lại**, chưa thêm event hoặc sửa nhãn/vị trí cho trường hợp đó.

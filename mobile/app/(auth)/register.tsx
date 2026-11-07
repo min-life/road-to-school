@@ -1,3 +1,4 @@
+import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState } from 'react';
 import {
   View,
@@ -6,10 +7,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
+  Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/auth-context';
@@ -87,13 +87,14 @@ export default function RegisterScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
+    <SafeAreaView
       style={styles.keyboardContainer}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      edges={['top', 'bottom', 'left', 'right']}
     >
-      <ScrollView
+      <KeyboardScrollView
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
         <View style={styles.card}>
           {/* Header & Back Button */}
@@ -102,12 +103,20 @@ export default function RegisterScreen() {
               onPress={() => router.back()}
               style={styles.backButton}
               accessibilityLabel="Quay lại"
+              accessibilityRole="button"
             >
               <Ionicons name="arrow-back" size={24} color={colors.foreground} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Đăng ký Phụ huynh</Text>
             <View style={{ width: 24 }} />
           </View>
+
+          <Image
+            source={require('@/assets/images/auth/register.jpg')}
+            style={styles.heroImage}
+            resizeMode="contain"
+            accessible={false}
+          />
+          <Text style={styles.headerTitle} accessibilityRole="header">Đăng ký Phụ huynh</Text>
 
           <Text style={styles.subtitle}>
             Tạo tài khoản để theo dõi lộ trình và xe buýt của con
@@ -123,25 +132,31 @@ export default function RegisterScreen() {
 
           {/* Form Fields */}
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Họ và tên Phụ huynh</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Nguyễn Văn A"
-              placeholderTextColor="#94A3B8"
-              value={fullName}
-              onChangeText={(text) => {
-                setFullName(text);
-                if (error) setError(null);
-              }}
-              editable={!isSubmitting}
-            />
+            {/* <Text style={styles.label}>Họ và tên Phụ huynh</Text> */}
+            <View style={styles.inputShell}>
+              <Ionicons name="person-outline" size={20} color={colors.mutedText} accessible={false} />
+              <TextInput
+                style={styles.input}
+                accessibilityLabel="Họ và tên"
+                placeholder="Họ và tên"
+                placeholderTextColor={colors.mutedText}
+                value={fullName}
+                onChangeText={(text) => {
+                  setFullName(text);
+                  if (error) setError(null);
+                }}
+                editable={!isSubmitting}
+              />
+            </View>
           </View>
 
           {/* Channel Selector */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Hình thức nhận mã xác thực</Text>
-            <View style={styles.channelContainer}>
+            <View style={styles.channelContainer} accessibilityRole="radiogroup" accessibilityLabel="Hình thức nhận mã xác thực">
               <TouchableOpacity
+                accessibilityRole="radio"
+                accessibilityState={{ checked: channel === 'SMS' }}
                 style={[
                   styles.channelTab,
                   channel === 'SMS' && styles.channelTabActive,
@@ -163,6 +178,8 @@ export default function RegisterScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
+                accessibilityRole="radio"
+                accessibilityState={{ checked: channel === 'EMAIL' }}
                 style={[
                   styles.channelTab,
                   channel === 'EMAIL' && styles.channelTabActive,
@@ -186,33 +203,39 @@ export default function RegisterScreen() {
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.label}>
+            {/* <Text style={styles.label}>
               {channel === 'SMS' ? 'Số điện thoại' : 'Địa chỉ Email'}
-            </Text>
-            <TextInput
-              style={styles.input}
-              placeholder={channel === 'SMS' ? '0912345678' : 'parent@example.com'}
-              placeholderTextColor="#94A3B8"
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType={channel === 'SMS' ? 'phone-pad' : 'email-address'}
-              value={identifier}
-              onChangeText={(text) => {
-                setIdentifier(text);
-                if (error) setError(null);
-              }}
-              editable={!isSubmitting}
-            />
+            </Text> */}
+            <View style={styles.inputShell}>
+              <Ionicons name={channel === 'SMS' ? 'call-outline' : 'mail-outline'} size={20} color={colors.mutedText} accessible={false} />
+              <TextInput
+                style={styles.input}
+                accessibilityLabel={channel === 'SMS' ? 'Số điện thoại' : 'Địa chỉ Email'}
+                placeholder={channel === 'SMS' ? 'Số điện thoại' : 'Địa chỉ Email'}
+                placeholderTextColor={colors.mutedText}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType={channel === 'SMS' ? 'phone-pad' : 'email-address'}
+                value={identifier}
+                onChangeText={(text) => {
+                  setIdentifier(text);
+                  if (error) setError(null);
+                }}
+                editable={!isSubmitting}
+              />
+            </View>
           </View>
 
           {/* Mật khẩu */}
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Mật khẩu (tối thiểu 6 ký tự)</Text>
+            {/* <Text style={styles.label}>Mật khẩu (tối thiểu 6 ký tự)</Text> */}
             <View style={styles.passwordInputContainer}>
+              <Ionicons name="lock-closed-outline" size={20} color={colors.mutedText} accessible={false} />
               <TextInput
                 style={styles.passwordInput}
-                placeholder="••••••••"
-                placeholderTextColor="#94A3B8"
+                accessibilityLabel="Mật khẩu (tối thiểu 6 ký tự)"
+                placeholder="Mật khẩu (tối thiểu 6 ký tự)"
+                placeholderTextColor={colors.mutedText}
                 secureTextEntry={!showPassword}
                 value={password}
                 onChangeText={(text) => {
@@ -224,11 +247,13 @@ export default function RegisterScreen() {
               <TouchableOpacity
                 style={styles.eyeButton}
                 onPress={() => setShowPassword(!showPassword)}
+                accessibilityRole="button"
+                accessibilityLabel={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
               >
                 <Ionicons
                   name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                   size={20}
-                  color="#64748B"
+                  color={colors.mutedText}
                 />
               </TouchableOpacity>
             </View>
@@ -236,12 +261,14 @@ export default function RegisterScreen() {
 
           {/* Xác nhận mật khẩu */}
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Xác nhận lại mật khẩu</Text>
+            {/* <Text style={styles.label}>Xác nhận lại mật khẩu</Text> */}
             <View style={styles.passwordInputContainer}>
+              <Ionicons name="lock-closed-outline" size={20} color={colors.mutedText} accessible={false} />
               <TextInput
                 style={styles.passwordInput}
-                placeholder="••••••••"
-                placeholderTextColor="#94A3B8"
+                accessibilityLabel="Xác nhận lại mật khẩu"
+                placeholder="Xác nhận lại mật khẩu"
+                placeholderTextColor={colors.mutedText}
                 secureTextEntry={!showConfirmPassword}
                 value={confirmPassword}
                 onChangeText={(text) => {
@@ -253,11 +280,13 @@ export default function RegisterScreen() {
               <TouchableOpacity
                 style={styles.eyeButton}
                 onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                accessibilityRole="button"
+                accessibilityLabel={showConfirmPassword ? 'Ẩn mật khẩu xác nhận' : 'Hiện mật khẩu xác nhận'}
               >
                 <Ionicons
                   name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
                   size={20}
-                  color="#64748B"
+                  color={colors.mutedText}
                 />
               </TouchableOpacity>
             </View>
@@ -267,6 +296,8 @@ export default function RegisterScreen() {
           <TouchableOpacity
             style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
             onPress={handleNext}
+            accessibilityRole="button"
+            accessibilityState={{ busy: isSubmitting, disabled: isSubmitting }}
             disabled={isSubmitting}
             activeOpacity={0.8}
           >
@@ -283,6 +314,7 @@ export default function RegisterScreen() {
           {/* Login Link */}
           <TouchableOpacity
             style={styles.loginLink}
+            accessibilityRole="button"
             onPress={() => router.push('/(auth)/login')}
             activeOpacity={0.7}
           >
@@ -291,173 +323,57 @@ export default function RegisterScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  keyboardContainer: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollContainer: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    paddingHorizontal: 24,
-    paddingVertical: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  backButton: {
-    padding: 4,
-    marginLeft: -4,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.foreground,
-  },
-  subtitle: {
-    fontSize: 13,
-    color: colors.mutedText,
-    marginBottom: 20,
-    textAlign: 'center',
-  },
+  keyboardContainer: { flex: 1, backgroundColor: colors.background },
+  scrollContainer: { flexGrow: 1, alignItems: 'center', paddingVertical: 8 },
+  card: { width: '100%', maxWidth: 430, paddingHorizontal: 24, paddingBottom: 24 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  backButton: { minWidth: 48, minHeight: 48, justifyContent: 'center' },
+  heroImage: { width: '100%', aspectRatio: 1.25, maxHeight: 210, alignSelf: 'center', marginBottom: 16 },
+  headerTitle: { fontSize: 28, fontWeight: '700', lineHeight: 38, color: colors.foreground, marginBottom: 8 },
+  subtitle: { fontSize: 15, lineHeight: 24, color: colors.mutedText, marginBottom: 24 },
   errorBanner: {
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.error, borderRadius: 12,
+    padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 20,
   },
-  errorText: {
-    fontSize: 13,
-    color: colors.error,
-    flex: 1,
-    lineHeight: 18,
-  },
-  formGroup: {
-    marginBottom: 14,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.foreground,
-    marginBottom: 6,
-  },
+  errorText: { fontSize: 14, color: colors.error, flex: 1, lineHeight: 20 },
+  formGroup: { marginBottom: 16 },
+  label: { fontSize: 14, fontWeight: '600', color: colors.foreground, marginBottom: 8 },
   channelContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 10,
-    padding: 3,
+    flexDirection: 'row', backgroundColor: colors.surface, borderColor: colors.border,
+    borderWidth: 1, borderRadius: 16, padding: 4, gap: 4,
   },
   channelTab: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderRadius: 8,
+    flex: 1, minHeight: 48, paddingVertical: 12, paddingHorizontal: 8,
+    alignItems: 'center', justifyContent: 'center', borderRadius: 12,
   },
-  channelTabActive: {
-    backgroundColor: colors.surface,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
+  channelTabActive: { backgroundColor: colors.primary },
+  channelTabText: { fontSize: 14, lineHeight: 22, fontWeight: '600', color: colors.mutedText, textAlign: 'center' },
+  channelTabTextActive: { color: colors.foreground },
+  inputShell: {
+    flexDirection: 'row', alignItems: 'center', minHeight: 54, borderWidth: 1,
+    borderColor: colors.border, borderRadius: 14, paddingLeft: 14, backgroundColor: colors.surface,
   },
-  channelTabText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.mutedText,
-  },
-  channelTabTextActive: {
-    color: colors.foreground,
-  },
-  input: {
-    height: 48,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    fontSize: 14,
-    color: colors.foreground,
-    backgroundColor: '#FAFAFA',
-  },
+  input: { flex: 1, minWidth: 0, minHeight: 54, paddingHorizontal: 12, paddingVertical: 14, fontSize: 16, color: colors.foreground },
   passwordInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    backgroundColor: '#FAFAFA',
-    height: 48,
+    flexDirection: 'row', alignItems: 'center', minHeight: 54, borderWidth: 1,
+    borderColor: colors.border, borderRadius: 14, paddingLeft: 14, backgroundColor: colors.surface,
   },
-  passwordInput: {
-    flex: 1,
-    height: '100%',
-    paddingHorizontal: 14,
-    fontSize: 14,
-    color: colors.foreground,
-  },
-  eyeButton: {
-    paddingHorizontal: 14,
-    height: '100%',
-    justifyContent: 'center',
-  },
+  passwordInput: { flex: 1, minWidth: 0, minHeight: 54, paddingHorizontal: 12, paddingVertical: 14, fontSize: 16, color: colors.foreground },
+  eyeButton: { minWidth: 48, minHeight: 54, alignItems: 'center', justifyContent: 'center' },
   submitButton: {
-    backgroundColor: colors.primary,
-    height: 48,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 10,
+    backgroundColor: colors.primary, minHeight: 52, borderRadius: 26, paddingHorizontal: 20,
+    paddingVertical: 14, alignItems: 'center', justifyContent: 'center', marginTop: 8,
   },
-  submitButtonDisabled: {
-    opacity: 0.5,
-  },
-  buttonLoadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  submitButtonText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.foreground,
-  },
-  loginLink: {
-    marginTop: 18,
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  loginLinkText: {
-    fontSize: 13,
-    color: colors.mutedText,
-  },
-  loginLinkBold: {
-    fontWeight: '700',
-    color: colors.foreground,
-  },
+  submitButtonDisabled: { opacity: 0.5 },
+  buttonLoadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 8 },
+  submitButtonText: { fontSize: 16, fontWeight: '700', color: colors.foreground, textAlign: 'center' },
+  loginLink: { marginTop: 20, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingVertical: 12 },
+  loginLinkText: { fontSize: 14, lineHeight: 22, color: colors.mutedText, textAlign: 'center' },
+  loginLinkBold: { fontWeight: '700', color: colors.foreground },
 });

@@ -1,3 +1,4 @@
+import { lockOperations } from '../trips/utils/operations-lock.js';
 import { tripBlockReason } from '../schools/school-policy.js';
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, Injectable, NotFoundException, Optional, UnauthorizedException } from '@nestjs/common';
 import { Prisma, Role, type User } from '@prisma/client';
@@ -48,6 +49,7 @@ export class TripNavigationService {
 
   private async locked<T>(id: string, share: boolean, work: (tx: Prisma.TransactionClient) => Promise<T>) {
     return this.prisma.$transaction(async tx => {
+      await lockOperations(tx);
       await tx.$executeRaw`SET LOCAL lock_timeout = '1500ms'`;
       if (share) await tx.$queryRaw`SELECT id FROM trips WHERE id = ${id} FOR SHARE`;
       else await tx.$queryRaw`SELECT id FROM trips WHERE id = ${id} FOR UPDATE`;
