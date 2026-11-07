@@ -110,13 +110,19 @@ describe('IncidentsService & IncidentsDetectorService', () => {
       $queryRaw: vi.fn(async () => []),
       trip: {
         findUnique: vi.fn(),
-        findMany: vi.fn(),
+        findFirst: vi.fn().mockResolvedValue(null),
+        findMany: vi.fn().mockResolvedValue([]),
         update: vi.fn(),
+      },
+      tripLocationPoint: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        findMany: vi.fn().mockResolvedValue([]),
+        create: vi.fn(),
       },
       tripIncident: {
         findUnique: vi.fn(),
         findFirst: vi.fn(),
-        findMany: vi.fn(),
+        findMany: vi.fn().mockResolvedValue([]),
         count: vi.fn(),
         create: vi.fn().mockResolvedValue({ id: 'unit-incident' }),
         update: vi.fn(),
@@ -502,6 +508,13 @@ describe('IncidentsService & IncidentsDetectorService', () => {
 
     it('tạo OFF_ROUTE khi lệch > 50m liên tục >= 15 giây với ít nhất 4 mẫu hợp lệ', async () => {
       const trip = { id: 'trip-1' };
+      mockPrisma.trip.findUnique.mockResolvedValue({
+        id: 'trip-1',
+        status: TripStatus.IN_PROGRESS,
+        serviceDate: new Date('2026-10-26'),
+        schoolId: 'school-1',
+        route: { routePlan: null },
+      });
       const polyline: [number, number][] = [
         [10.760, 106.660],
         [10.770, 106.660],

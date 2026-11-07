@@ -96,7 +96,7 @@ export class VehiclesController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Xe có chuyến IN_PROGRESS hoặc thiếu xe thay thế hợp lệ khi còn phân công',
+    description: 'Xe có chuyến Ready, đã điểm danh hoặc IN_PROGRESS hoặc thiếu xe thay thế hợp lệ khi còn phân công',
   })
   @ApiResponse({
     status: 404,

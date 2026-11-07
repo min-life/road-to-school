@@ -1,8 +1,8 @@
 import { Prisma } from '@prisma/client';
 import { serviceDay } from './school-policy.js';
+import { isTripFrozen } from '../overview/operations-policy.js';
 import {
   contractDate,
-  requiresAdminFinalization,
   vietnamToday,
 } from './school-effective-state.js';
 import {
@@ -23,7 +23,7 @@ export async function effectiveTripTiming(
   if (
     !trip ||
     trip.status !== 'SCHEDULED' ||
-    requiresAdminFinalization(trip) ||
+    isTripFrozen(trip) ||
     contractDate(trip.serviceDate) < vietnamToday()
   )
     return null;

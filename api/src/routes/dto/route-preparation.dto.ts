@@ -1,6 +1,9 @@
+import { GeographyFieldsDto } from '../../schools/dto/geography.dto.js';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-export class EligibleStudentItemDto {
+export class EligibleStudentItemDto extends GeographyFieldsDto {
+  @ApiPropertyOptional({ type: String, nullable: true })
+  province?: string | null;
   @ApiProperty({ example: 'stu-1' })
   id: string;
 
@@ -43,7 +46,9 @@ export class AvailableVehicleItemDto {
   color: string;
 }
 
-export class IneligibleStudentItemDto {
+export class IneligibleStudentItemDto extends GeographyFieldsDto {
+  @ApiPropertyOptional({ type: String, nullable: true })
+  province?: string | null;
   @ApiProperty({ example: 'stu-2' })
   id: string;
 
@@ -103,6 +108,10 @@ export class RoutePreparationDto {
     description: 'Thông tin trường học đang lập tuyến',
   })
   school: {
+    province?: string | null;
+    provinceId?: string | null;
+    wardId?: string | null;
+    ward?: string | null;
     id: string;
     name: string;
     addressText: string;

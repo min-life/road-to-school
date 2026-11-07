@@ -1,3 +1,8 @@
+import { closeCancelledTripTasks } from '../trips/utils/close-cancelled-trip-tasks.js';
+import { locationForCoordinates } from '../schools/location-province.js';
+import { recordAssignmentOverride } from '../trips/utils/trip-assignment-audit.js';
+import { CloseIncidentDto } from './dto/close-incident.dto.js';
+import { lockOperations } from '../trips/utils/operations-lock.js';
 import { assertTripPolicy } from '../schools/school-policy.js';
 import { assertResourcesNotAwaitingAdmin } from '../schools/contract-resource-policy.js';
 import { notifyIncident, notifyLeave } from '../notifications/notification-events.js';
@@ -53,6 +58,61 @@ export class IncidentsService {
     private readonly configService: ConfigService,
   ) {}
 
+  async closeIncident(id: string, dto: CloseIncidentDto, user: User) {
+    return this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
+      const incident = await tx.tripIncident.findUnique({
+        where: { id },
+        include: { trip: true },
+      });
+      if (!incident) throw new NotFoundException('Không tìm thấy sự cố');
+      if (
+        user.role !== Role.SYSTEM_ADMIN &&
+        (user.role !== Role.SCHOOL_ADMIN ||
+          user.schoolId !== incident.trip.schoolId)
+      ) {
+        throw new ForbiddenException('Không có quyền xử lý sự cố trường khác');
+      }
+      if (
+        !['NO_GUARDIAN_AT_STOP', 'TRAFFIC_DELAY', 'GPS_SIGNAL_LOST'].includes(
+          incident.type,
+        )
+      ) {
+        throw new BadRequestException(
+          'Loại sự cố này cần workflow xử lý riêng',
+        );
+      }
+      if (
+        incident.status !== dto.expectedStatus ||
+        ['CLOSED', 'RESOLVED', 'CONFIRMED'].includes(incident.status)
+      ) {
+        throw new ConflictException('Sự cố đã đổi trạng thái hoặc đã kết thúc');
+      }
+      const now = new Date();
+      const updated = await tx.tripIncident.update({
+        where: { id },
+        data: {
+          status: TripIncidentStatus.CLOSED,
+          processedById: user.id,
+          processedAt: now,
+          resolution: {
+            action: 'CLOSED_BY_ADMIN',
+            reason: dto.reason,
+            actorId: user.id,
+            occurredAt: now.toISOString(),
+          },
+        },
+        include: {
+          trip: { include: { route: true, school: true } },
+          reportedBy: true,
+          processedBy: true,
+        },
+      });
+      await notifyIncident(tx, id, user.id);
+      return this.mapToResponseDto(updated);
+    });
+  }
+
   isTestMode(): boolean {
     const mode =
       this.configService.get<string>('TRIP_OPERATION_MODE') || process.env.TRIP_OPERATION_MODE;
@@ -65,6 +125,7 @@ export class IncidentsService {
   async withTripLock<T>(id: string, work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
     return this.prisma.$transaction(
       async (tx) => {
+      await lockOperations(tx);
         await tx.$queryRaw(Prisma.sql`SELECT id FROM trips WHERE id = ${id} FOR UPDATE`);
         await assertTripPolicy(tx, id);
         return work(tx);
@@ -291,6 +352,7 @@ export class IncidentsService {
       }
     }
 
+    const reportedLocation = await locationForCoordinates(dto.latitude, dto.longitude);
     return this.withTripLock(tripId, async (tx) => {
       const trip = await tx.trip.findUnique({
         where: { id: tripId },
@@ -332,6 +394,19 @@ export class IncidentsService {
         }
       }
 
+      if ((dto.latitude == null) !== (dto.longitude == null)) {
+        throw new BadRequestException('Cần gửi đủ latitude và longitude');
+      }
+      const lastPosition = await tx.tripLocationPoint.findFirst({ where: { tripId }, orderBy: { sequence: 'desc' } });
+      if (dto.type === TripIncidentType.NO_GUARDIAN_AT_STOP) {
+        if (trip.direction !== 'TO_PARKING' || trip.status !== TripStatus.IN_PROGRESS || !dto.studentId) {
+          throw new ConflictException('Chỉ báo không người nhận cho học sinh chiều về đang chạy');
+        }
+        const child = await tx.tripAttendance.findUnique({ where: { tripId_studentId: { tripId, studentId: dto.studentId } } });
+        if (!child || child.excludedAt || child.status !== 'PRESENT' || child.alightedAt) {
+          throw new ConflictException('Học sinh không thuộc roster hoạt động hoặc không còn trên xe');
+        }
+      }
       const targetAssigneeId = isDriver ? trip.assignedBusAttendantId : trip.assignedDriverId;
       const targetAssignee = isDriver ? trip.assignedBusAttendant : trip.assignedDriver;
 
@@ -364,7 +439,6 @@ export class IncidentsService {
         where: {
           tripId,
           type: dto.type,
-          status: TripIncidentStatus.WAITING_ASSIGNMENT,
         },
         include: {
           trip: { include: { route: true, school: true } },
@@ -391,8 +465,11 @@ export class IncidentsService {
             context: {
               expectedAssigneeId: isStaffMissingIncident ? targetAssigneeId : undefined,
               expectedAssigneeName: isStaffMissingIncident ? (targetAssignee?.fullName || null) : undefined,
-              latitude: dto.latitude ?? null,
-              longitude: dto.longitude ?? null,
+              latitude: dto.latitude ?? lastPosition?.latitude ?? null,
+              longitude: dto.longitude ?? lastPosition?.longitude ?? null,
+              addressText: reportedLocation.addressText,
+              locationSource: dto.latitude != null ? 'REPORTED' : lastPosition ? 'LAST_KNOWN' : 'UNKNOWN',
+              capturedAt: dto.latitude != null ? now.toISOString() : lastPosition?.recordedAt.toISOString() ?? null,
               studentId: dto.studentId ?? null,
               reportedAt: now.toISOString(),
             },
@@ -947,6 +1024,9 @@ export class IncidentsService {
         const previousUserId = isAttendantIncident
           ? trip.assignedBusAttendantId
           : trip.assignedDriverId;
+        if (dto.replacementUserId === previousUserId) throw new BadRequestException('Dùng ARRIVED khi người cũ đã đến; REPLACED cần người khác');
+        await recordAssignmentOverride(tx, trip.id,
+          [isAttendantIncident ? 'assignedBusAttendantId' : 'assignedDriverId'], currentUser.id);
         // Cập nhật phân công chuyến xe
         if (isAttendantIncident) {
           await assertResourcesNotAwaitingAdmin(tx, { driverId: dto.replacementUserId, busAttendantId: dto.replacementUserId });
@@ -1151,6 +1231,7 @@ export class IncidentsService {
         },
       });
 
+      await closeCancelledTripTasks(tx, [trip.id]);
       await notifyCancelledTrips(tx, [trip.id], `incident:${id}`, currentUser.id);
       this.logger.log(`Trip ${trip.id} CANCELLED via Incident ${id} by user ${currentUser.id}`);
       return this.mapToResponseDto(updated);

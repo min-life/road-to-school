@@ -9,7 +9,7 @@ export class OverviewQueryDto {
 }
 
 export class OverviewTaskDto {
-  @ApiProperty() kind!: string;
+  @ApiProperty({ enum: ['INCIDENT', 'LEAVE', 'REQUEST', 'PLAN', 'ADMIN_FINALIZATION', 'REOPTIMIZATION'], description: 'Hai nhóm mới dành cho System Admin, count không phụ thuộc Notification.readAt' }) kind!: string;
   @ApiProperty() label!: string;
   @ApiProperty() count!: number;
   @ApiProperty({ description: 'Đích nội bộ với bộ lọc tương ứng; không tự thực hiện thao tác.' }) href!: string;

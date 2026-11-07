@@ -825,3 +825,576 @@ Mẫu cho lần sau: `v0.x — ngày | ý PO/ID quyết định | lựa chọn c
 - Không tự chốt thu phí/hoàn phí, multi-operator/multi-depot, qua đêm, full offline, rescue/medical workflows. Đây là các mở rộng cần PO chọn scope, không mặc định xuất hiện trong implementation 3.4–3.18.
 
 **Bước tiếp theo duy nhất:** PO cập nhật quyết định bắt đầu từ G-01/G-02 và mục 3.4; mọi phản hồi sẽ được ghi/sửa ngay trong file này và lan sang các phần phụ thuộc.
+
+## Y. Bộ nghiệp vụ đích sau đợt hoàn thiện P0–P6 — 06/11/2026
+
+Đây là bản tổng hợp theo yêu cầu PO trước implementation, bao gồm nền hiện có và các cải thiện 3.1–3.18. Các quyết định đã chốt trong hội thoại và cột CHỐT được ưu tiên. Phần còn chờ được ghi riêng ở Y22. Bản này mô tả hành vi phải đạt sau triển khai và nghiệm thu, không xác nhận source hiện đã thực hiện đủ. Chưa phê duyệt bổ sung endpoint/field/schema từ việc tổng hợp. P0–P6 là thứ tự kỹ thuật, các luồng 3.1–3.18 dưới đây là phạm vi nghiệp vụ.
+
+### Y1. Mô hình vận hành, vai trò và dữ liệu
+
+- Một nhà xe vận hành một bãi trung tâm, phục vụ nhiều trường theo hợp đồng. Một chuyến thuộc một trường. Nhân sự nhà xe gồm tài xế; trường quản lý giáo viên phụ xe và học sinh.
+- Năm role cố định. SYSTEM_ADMIN dùng Web để quản lý trường/hợp đồng/bãi/xe/tài xế, lập phương án, điều phối, sinh chuyến thủ công, duyệt học bù và chốt chuyến ngoại lệ. SCHOOL_ADMIN dùng Web để quản lý học sinh/liên kết sai/giáo viên trường mình, gán phụ xe, quản lý nghỉ trường/đề nghị học bù, xử lý yêu cầu thuộc thẩm quyền và duy nhất duyệt DRAFT → ACTIVE.
+- DRIVER dùng Mobile để xem lịch, Ready của phụ xe, Start, điều hướng/GPS, xác nhận đến trường, Complete, báo nghỉ và báo sự cố thuộc quyền. BUS_ATTENDANT dùng Mobile để Ready, điểm danh/QR/xuống xe, báo nghỉ/sự cố, xác nhận cảnh báo và hủy chiều về toàn vắng theo điều kiện.
+- PARENT dùng Mobile, quản lý tài khoản/liên kết, xem lịch và lịch sử con, báo nghỉ từng chuyến, yêu cầu sửa thông tin/địa chỉ và theo dõi xe theo quyền. Một tài khoản có một role, tài khoản riêng khi có vai trò khác.
+- School có nhiều Student, SchoolAdmin và BusAttendant. Parent–Student là nhiều–nhiều qua link. School có nhiều RoutePlan; Plan có nhiều Route một chiều; Route có các RouteStop; Route có Trip theo ngày. Trip có roster/TripAttendance và snapshot riêng, phân công thực tế, GPS, đơn nghỉ, sự cố và audit. Thông báo thuộc người nhận.
+- Phương án, tuyến và chuyến có ý nghĩa riêng. Đổi dữ liệu nguồn không sửa lịch sử đã hoàn thành. Học sinh được phục vụ phải hiện ở roster thực tế của chuyến; có hồ sơ hoặc link chưa tạo ra quyền được đón.
+
+### Y2. Quy tắc chung xuyên hệ thống
+
+- Ngày nghiệp vụ theo Việt Nam UTC+7. Hợp đồng gồm ngày cuối, hết hạn từ ngày kế tiếp. Lịch hẹn trường hiệu lực từ đầu ngày được chọn.
+- Trip SCHEDULED vẫn có thể frozen nếu phụ xe Ready, có điểm danh hoặc dấu vận hành. Trip đang chạy/đã hoàn thành giữ dữ liệu vận hành. Mutation thường lệ không đổi roster, điểm đón hoặc phân công của chuyến frozen.
+- Lifecycle 3.2 có ma trận riêng tại Y4/Y21. Điều phối sự cố có quyền riêng được duyệt, không biến điều phối thường lệ thành quyền sửa mọi chuyến.
+- Mỗi thay đổi dịch vụ một phạm vi phải kiểm trạng thái thực khi xác nhận. Tất cả thay đổi nghiệp vụ liên quan thành công cùng nhau hoặc bị từ chối toàn bộ. Bấm lặp/retry không tạo thêm link, notice, decision, Trip hoặc notification nghiệp vụ.
+- Giữ hai mức Route default và Trip assignment. Mọi đồng bộ phải đúng nguồn lực thuộc thay đổi, đúng ngày dịch vụ, snapshot/roster và giờ tuyệt đối cùng nhất quán, không chạm lịch sử.
+- Quyết định vẫn có hiệu lực theo ngày dù cron chưa cập nhật DB. Đọc dữ liệu không âm thầm hủy/chuyển trạng thái. Đối soát sau restart ghi nhận phần đến hạn và audit/notification đúng một lần. Khi mọi tiến trình tắt, việc ghi DB/gửi thông báo chờ tiến trình hoạt động trở lại.
+
+### Y3. 3.1 — Tài khoản, xác thực và bàn giao nhân sự
+
+1. Parent đăng ký bằng số điện thoại, xác thực OTP, đăng nhập Mobile. Đăng ký thành công chưa liên kết với học sinh.
+2. Admin tạo tài khoản nhân sự theo role/trường được quản lý. **PO bổ sung 06/11/2026: bắt buộc có cả email và số điện thoại** đối với DRIVER, SCHOOL_ADMIN và BUS_ATTENDANT. Sinh mật khẩu ban đầu và giao qua email đã lưu. Số điện thoại dùng cho liên hệ và các luồng OTP theo purpose/kênh hiện hành; bàn giao mật khẩu nhân sự chỉ qua email. API tạo nhân sự phải từ chối thiếu/rỗng/sai định dạng email hoặc số điện thoại trước khi tạo tài khoản. API và Swagger hiện yêu cầu phone khi tạo nhân sự. FE cần gửi cả email và phone. Chính sách bổ sung số cho tài khoản nhân sự cũ thiếu phone cần PO chốt trước khi áp quy tắc lên tài khoản hiện hữu.
+3. Nếu email thất bại sau tạo, giữ tài khoản để admin cấp lại mật khẩu. Trạng thái trả SENT khi máy chủ email chấp nhận, FAILED khi lỗi, CONSOLE khi log development. SENT không chứng minh người nhận đã đọc.
+4. Cấp lại mật khẩu cho cả nhân sự đã đăng nhập, kể cả đang có chuyến chạy. Lưu mật khẩu mới trước, mật khẩu cũ hết hiệu lực cho lần đăng nhập tiếp theo; session đang dùng tiếp tục tồn tại. Nếu email lỗi, admin gửi lại bằng một mật khẩu mới khác.
+5. OTP dùng đúng purpose/người/đối tượng/nội dung, còn hạn và còn lượt thử. Ghi nhận lần sai thực tế, không dùng lại mã đã consume, không tạo nghiệp vụ chỉ vì đã gửi OTP. Retry sau lỗi phải nhất quán với kết quả đã ghi.
+6. SMS qua mẫu test gửi thật của eSMS bằng Brandname thử được cấp, Sandbox không được diễn giải thành SMS thật. Development giữ console theo mode. OTP email theo cấu hình email, độc lập với chính sách bàn giao mật khẩu nhân sự.
+7. Người dùng có đăng nhập/refresh/logout/quên hoặc tự đổi mật khẩu và cập nhật hồ sơ trong quyền. Giữ phân biệt chính sách session tự đổi/quên mật khẩu với admin cấp lại nhân sự. Logout/hết session không làm mất Trip hay điểm danh. Đăng nhập lại tiếp tục khi còn được phân công và Trip còn cho phép.
+8. Mất số giám hộ liên hệ trường xác minh và sửa hồ sơ học sinh. Không tự chuyển account/login phone hoặc chuyển link do một yêu cầu đổi số giám hộ.
+
+### Y4. 3.2 — Trường, hợp đồng và hiệu lực dịch vụ
+
+1. Nhà xe khởi tạo trường, địa chỉ/tọa độ, hợp đồng, lịch tuần và giờ đưa đón. Giờ đến trường là giờ học sinh cần có mặt. Địa chỉ mô tả và tọa độ cùng một vị trí.
+2. Inactive phải hẹn từ ngày mai tới ngày cuối hợp đồng. Trước mốc, trường và phương án cũ tiếp tục theo điều kiện hiện hành. Tới mốc, hủy phương án cũ, xử lý Trip theo Y21 và chặn nghiệp vụ dịch vụ mới.
+3. SCHOOL_ADMIN/BUS_ATTENDANT của trường inactive không đăng nhập hoặc tiếp tục phiên tác nghiệp, me/refresh/request phù hợp trả 401 để FE logout. Active lại phải đăng nhập mới.
+4. Parent giữ account/link, xem dữ liệu cũ của con; mutation dịch vụ của con ở trường inactive bị chặn. Con ở trường còn hoạt động vẫn dùng bình thường. Unlink cá nhân giữ phạm vi hiện hành đã chốt.
+5. Active lại không hồi sinh plan/Trip đã hủy. Lịch inactive tương lai phải được hủy riêng nếu muốn bỏ, không tự mất do active.
+6. Gia hạn thuần giữ ngày bắt đầu. Khi không có DRAFT/ACTIVE, gia hạn theo kiểm tra hợp đồng hiện hành. Khi có DRAFT/ACTIVE, kiểm mọi nguồn lực đang được phân công vẫn phù hợp trong phần gia hạn, tránh chiếm nguồn lực đã dành cho hợp đồng khác. DRAFT chưa gán đủ không bị tự gán vì gia hạn.
+7. Hết hợp đồng hủy phương án cũ, giải phóng giữ chỗ theo hợp đồng. Giữ tuyến/điểm/phân công lịch sử và Trip hoàn thành. Chuyến ngoại lệ giữ bận tài nguyên tới chốt hành chính. Chỉ hết hợp đồng không khóa account, không unlink Parent. Gia hạn sau hết hạn không phục hồi phương án cũ.
+8. Đổi lịch tuần từ ngày mai tới hết hợp đồng, không sửa hôm nay. Tính đúng ngày chạy, giờ đầu/cuối và từng điểm theo lịch hiệu lực. Báo thay đổi lịch tới người liên quan.
+9. Đổi địa điểm được hẹn khi còn plan cũ. Trước ngày đổi dùng địa điểm/plan cũ; đến ngày đổi hủy toàn bộ plan cũ rồi tạo/duyệt plan mới theo địa điểm mới. Không tự tạo hoặc duyệt thay trường. Giữ quy tắc ngày sau activation, nên ngày chuyển có thể gián đoạn.
+10. Lịch hẹn đang chờ có thể hủy trước ngày hiệu lực, lưu dấu vết. FE phân biệt “đã hẹn” với “đã áp dụng”, trạng thái lưu với trạng thái hiệu lực. Response giữ thông tin đang có hiệu lực và metadata lịch hẹn đã duyệt.
+
+### Y5. 3.2 — Ngày nghỉ và học bù
+
+- Ngày nghỉ gồm phạm vi nhà xe hoặc một trường, lặp hằng năm hoặc một năm cụ thể, âm/dương lịch Việt Nam. Phân biệt tháng thường và tháng nhuận. Ngày không tồn tại trong năm thì bỏ lần xuất hiện đó.
+- SYSTEM_ADMIN quản lý nghỉ nhà xe. SCHOOL_ADMIN quản lý nghỉ trường mình, tạo yêu cầu học bù có giờ vận hành; SYSTEM_ADMIN duyệt hoặc từ chối.
+- Ngày nghỉ chỉ định phải báo trước ngày. Không tạo Trip mới vào ngày nghỉ hiệu lực. Trip đã sinh giữ tới ngày, tới ngày hủy hoặc đưa vào ngoại lệ theo Y21.
+- Hủy nghỉ hợp lệ trước ngày thì Trip gốc chưa hủy tiếp tục; không phục hồi ngầm các Trip đã CANCELLED vì nguyên nhân khác.
+- Học bù có hiệu lực sau duyệt và phải báo trước ngày. Có thể vượt lịch nghỉ của chính trường, không vượt bất kỳ nghỉ nhà xe nào.
+- Nếu nghỉ nhà xe được thêm sau học bù đã duyệt, học bù bị BLOCKED về hiệu lực, giữ approval và lý do, thông báo trường. Nếu bỏ nghỉ hợp lệ, tính lại eligibility; Trip đã CANCELLED cần reopen theo điều kiện.
+- Thứ tự xác định có dịch vụ là hiệu lực trường/hợp đồng/phương án, nghỉ nhà xe, học bù được duyệt, nghỉ trường, lịch tuần. Học bù không vượt các điều kiện dịch vụ nền.
+- Đợt 3.2 chưa chốt thao tác hủy MAKEUP đã duyệt; không coi hủy holiday và hủy makeup là cùng contract.
+
+### Y6. 3.3 — Xe, tài xế, phụ xe và bãi
+
+- Nhà xe quản lý xe/tài xế và trạng thái hoạt động. Trường quản lý phụ xe trường mình. Bật hoạt động không tự phục hồi ca hoặc plan cũ.
+- Xe đủ chỗ cho roster phục vụ, người đúng role/trường, active, không nghỉ hoặc vắng chưa giải quyết ở thời gian liên quan, không trùng nhiệm vụ và không bị giữ bận bởi Trip ngoại lệ.
+- Xe/tài xế phục vụ một trường trong thời gian hợp đồng theo rule đã chốt. Nguồn lực trong các phương án giữ chỗ hợp lệ không được lấy sang phạm vi xung đột.
+- Inactive phải xem tác động và bàn giao các phân công bắt buộc cho người/xe hợp lệ cùng một lần lưu. IN_PROGRESS chặn inactive; Trip Ready/đã điểm danh phải theo G-02 và ngoại lệ được duyệt. Không dừng account/xe rồi bỏ các chuyến không có nguồn lực.
+- Inactive nhân sự thu hồi session của nhân sự đó, khác cấp lại mật khẩu. Quyền quản trị theo role/trường.
+- Bãi trung tâm có vị trí đang dùng, lịch đổi vị trí và bán kính phục vụ cấu hình được theo phần mở rộng 3.5. Đổi vị trí từ ngày mai, trước mốc vẫn dùng bãi cũ. Tới mốc tuyến chưa phù hợp không được sinh/vận hành như đã tối ưu.
+- Đổi bãi giữ plan, đánh dấu needsReoptimization và lý do, xử lý các Trip từ mốc theo chính sách cần chốt Y22. Re-optimize từng tuyến giữ xe và nhóm học sinh, kiểm thời lượng tuyến và thời gian dừng. Một tuyến không đạt thì không lưu cả đợt. Thành công plan về DRAFT chờ trường duyệt.
+- Tên tuyến TDxx/TVxx có mã phân biệt, tách khỏi biển số để đổi xe không phải đổi tên tuyến.
+
+### Y7. 3.4 — Hồ sơ học sinh và liên kết Parent
+
+- SCHOOL_ADMIN tạo/sửa/xem hồ sơ học sinh trường mình, mã học sinh, địa chỉ/tọa độ và số giám hộ. AVAILABLE là đủ trạng thái hồ sơ để xét dịch vụ; có tuyến/roster mới xác định được lịch đón thực tế.
+- Parent nhập mã con và OTP tới guardianPhone trong hồ sơ trường để tạo link. Một Parent liên kết nhiều con, một trẻ nhiều Parent, quyền theo dõi bình đẳng. Không tạo trùng cùng link.
+- Parent tự hủy link không thay đổi hồ sơ, phân tuyến, roster hoặc lịch sử. Mất link thì quyền theo dõi tương lai phụ thuộc link hợp lệ.
+- Đổi guardianPhone giữ link hiện có. Nếu link sai, trường xác minh ngoài app rồi thu hồi đúng link kèm người/lý do/thời điểm, giữ link khác và lịch sử nghiệp vụ.
+- Chuyển trường/năm học đầy đủ nằm ngoài đợt hiện tại, không đổi schoolId rồi gán lịch sử cũ cho trường khác.
+
+### Y8. 3.5 — Chuẩn bị và tạo phương án
+
+1. Nhà xe chọn trường, học sinh AVAILABLE có vị trí hợp lệ và chưa được phục vụ trùng, xe phù hợp và cấu hình tuyến.
+2. Tỉnh/thành được lấy từ reverse geocoding khi lưu địa chỉ/tọa độ để hỗ trợ lọc. Khoảng cách Haversine điểm đón–bãi so với bán kính tối đa cấu hình bởi nhà xe. Quy tắc vượt bán kính phải theo ngoại lệ được duyệt, không chỉ ẩn khỏi danh sách để API trực tiếp vẫn dùng được. Default 50 km và trường hợp thiếu tỉnh/chất lượng geocode cần chốt Y22.
+3. Preview tối ưu nhóm học sinh, lộ trình hai chiều, sức chứa, thời gian di chuyển/tổng tuyến và thời gian dừng theo cấu hình. Xem nhóm đã xếp, chưa xếp, không khả thi và lý do.
+4. Có thể xác nhận DRAFT cho phần đã phục vụ được đủ theo yêu cầu, công khai nhóm chưa có tuyến để điều phối. Không đếm học sinh chưa xếp vào coverage/roster.
+5. Xác nhận kiểm lại trường, nguồn lực, học sinh, vị trí và dữ liệu nguồn. Preview hết hiệu lực phải làm lại; không lưu tuyến rỗng hoặc nửa đợt.
+6. DRAFT giữ chỗ xe theo quy tắc hợp đồng. Khảo sát thực địa điểm đón do nhà xe/trường thực hiện ngoài app; tối ưu bản đồ không xác nhận điểm đón an toàn.
+
+### Y9. 3.6 — Gán nguồn lực và phê duyệt
+
+- Nhà xe gán xe/tài xế, trường gán phụ xe cho nhóm tuyến đi/về. Một nhóm dùng bộ nguồn lực nhất quán, không trùng tài xế/phụ xe với nhóm khác trong cùng plan. Xe có thể phục vụ hai chiều của cùng nhóm.
+- Danh sách ứng viên có điều kiện đủ/không đủ và lý do. Khi lưu vẫn kiểm lại hoạt động, sức chứa, hợp đồng, đơn trường, thời gian và giữ bận thực tế.
+- Chỉ SCHOOL_ADMIN đúng trường duyệt DRAFT → ACTIVE. Readiness và commit duyệt cùng điều kiện, đủ hai chiều/roster/nguồn lực phù hợp.
+- Đổi riêng nguồn lực hợp lệ trên ACTIVE không đổi dịch vụ thì không phải duyệt lại. Đổi default có hiệu lực ngay, đồng bộ các Trip chưa frozen từ hôm nay; không đổi chuyến lịch sử.
+- Giữ phạm vi phân công riêng của Trip theo kết luận ưu tiên cần chốt Y22. Re-optimize do đổi bãi đưa về DRAFT để duyệt lại theo 3.3.
+
+### Y10. 3.7 — Sinh chuyến, lịch dự kiến và reopen
+
+- Hệ thống sinh trước theo lịch hiện hành; nhà xe có quyền sinh thủ công. Điều kiện là plan ACTIVE và hiệu lực, ngày trong hợp đồng/sau activation, lịch dịch vụ hợp lệ, nguồn lực đủ và tuyến phù hợp vị trí đang áp dụng.
+- Một Route–ngày tối đa một Trip. Generate lặp không tạo trùng, không tự phục hồi CANCELLED. Mỗi Trip có snapshot tuyến/giờ/phân công và roster riêng.
+- Lịch dự kiến VIRTUAL có nhãn phân biệt với Trip thật. Không Ready, Start, điểm danh hoặc báo nghỉ trên virtual ID. GET lịch không tạo Trip.
+- firstServiceDate là ngày phục vụ thực tế đầu tiên đủ điều kiện sau activation, xét calendar và hợp đồng. Không hứa có chuyến cùng ngày approve.
+- SYSTEM_ADMIN có thể reopen CANCELLED trước scheduledStartAt nếu plan ACTIVE, trường/ngày còn phục vụ, nguồn lực hợp lệ và không trùng. Bắt buộc lý do; lưu lần hủy/lần mở lại; có thể chỉ định nguồn lực thay thế theo contract được chốt.
+- Reset Ready/dấu vận hành và roster theo trạng thái hợp lệ cần chốt cho từng loại hủy. Giữ báo nghỉ cá nhân còn hiệu lực, không đặt trẻ đã có nghỉ thành có mặt. Không cho “reopen” che một chuyến đã chạy/nhận trẻ trước đó mà chưa xử lý.
+- Gửi thông báo sau mở lại. Reopen cùng một Trip giữ uniqueness và lịch sử. Thời điểm/field audit cụ thể chưa tự duyệt ở tài liệu này.
+
+### Y11. 3.8 — Phân công từng chuyến
+
+- Nhà xe đổi xe/tài xế; trường đổi phụ xe đúng trường. Xem dữ liệu hiện tại, ứng viên và xác nhận thay trong Trip SCHEDULED chưa frozen.
+- Trạng thái/phân công đổi sau khi mở form thì báo xung đột, không ghi đè im lặng. Kiểm nguồn lực theo roster thực tế và ngày của Trip.
+- Thay một ca không sửa Route default. Thay thường lệ không xử lý ngầm đơn nghỉ hoặc sự cố đang chờ.
+- Trip trước còn IN_PROGRESS giữ bận xe/người dù quá giờ dự kiến, chặn bắt đầu Trip tiếp theo. Hai Start cùng tài nguyên chỉ một được phép bắt đầu.
+- Cảnh báo LATE_RUNNING_TRIP_RISK trước giờ chuyến kế tiếp để admin đổi nguồn lực. Buffer cụ thể chờ chốt.
+- Frozen chỉ đổi theo workflow điều phối được duyệt; bàn giao trẻ/xe giữa đường là phần cần contract riêng, không hứa sửa assignment là đã hoàn tất bàn giao.
+
+### Y12. 3.9 — Vận hành chiều đến trường
+
+1. Phụ xe được gán Ready. Tài xế Start sau Ready và các điều kiện nguồn lực, hợp đồng, ngày, roster và blocker đã đạt. Chiều đi có thể Start khi roster còn UNMARKED.
+2. LIVE giữ mốc Ready từ 15 phút trước giờ chạy, Start từ 5 phút trước giờ chạy và rào cản thời gian hiện hành. TEST bỏ mốc thời gian theo cấu hình đã có, vẫn tuân role và trạng thái nghiệp vụ.
+3. Dọc đường phụ xe điểm danh thủ công hoặc QR. UNMARKED là chưa có kết quả, PRESENT là đã lên xe, ABSENT là không đi chuyến đó và cần lý do.
+4. Trẻ không có ở điểm đón, phụ xe gọi Parent và đánh giá thực tế trước khi ghi vắng. Khoảng chờ 2–3 phút là hướng dẫn liên hệ, không có timer tự quyết vắng.
+5. Trước đến trường có thể sửa/hoàn tác theo D39-02. ABSENT → PRESENT khi thực sự đón trẻ dùng Boarding; sửa nhầm cần thông báo đính chính đúng bản chất. Yêu cầu reason/cách phân biệt thao tác sửa được chốt ở contract.
+6. Khi không còn UNMARKED, tài xế xác nhận đến trường. Sau đó không hoàn tác UNMARKED hoặc quét QR đón mới. Correction có lý do/audit trước Complete và không phát Boarding mới.
+7. Phụ xe ghi xuống xe cho từng trẻ PRESENT, giữ dấu người/thời điểm theo contract. Driver Complete khi đã đến trường và mọi PRESENT đã xuống.
+8. GPS gần trường hoặc một thao tác Complete không tự tạo alighting. Chốt hành chính theo Y21 là đường xử lý ngoại lệ riêng.
+
+### Y13. 3.10 — Vận hành chiều về
+
+1. Phụ xe Ready, nhận và điểm danh trẻ tại trường khi SCHEDULED. Trẻ Parent tự đón không dùng chuyến về được ghi nhận vắng có lý do.
+2. Start chỉ khi không còn UNMARKED, ABSENT có lý do, có ít nhất một PRESENT, đủ nguồn lực và không có blocker.
+3. Nếu tất cả vắng, nút Start và API cùng bị chặn. Phụ xe xác nhận hủy do toàn vắng; admin có quyền dự phòng. Lưu lý do, thông báo đúng sự kiện, xe về bãi bằng quy trình nội bộ.
+4. Xe trả tại từng điểm, phụ xe xác nhận alighting khi thực sự xuống. Sau Start không hoàn tác UNMARKED, không đổi trẻ đang trên xe thành vắng để cho phép kết thúc.
+5. Không có người nhận thì giữ trẻ dưới giám sát trên xe, liên hệ Parent/trường/nhà xe, báo NO_GUARDIAN_AT_STOP gắn đúng trẻ, không ghi đã xuống. Trường/nhà xe điều phối điểm bàn giao thực tế; authority và cách ghi kết quả còn chốt Y22.
+6. Driver Complete sau hành trình về bãi và tất cả PRESENT đã xuống. Dữ liệu hiển thị phải phân biệt thực tế đã xuống với admin chốt trạng thái.
+
+### Y14. 3.11 — Theo dõi, điều hướng và lịch sử
+
+- Driver/phụ xe xem lịch ngày/tuần, Trip được gán, tuyến/điểm/giờ, xe/người và roster trong quyền. Home ưu tiên Trip IN_PROGRESS kể cả quá giờ hoặc qua ngày.
+- Parent xem hồ sơ/lịch con, tình trạng đón/trả, xe/người và vị trí xe liên quan. Trong IN_PROGRESS được theo dõi toàn chuyến, kể cả trước con lên và sau con xuống.
+- Parent chỉ nhận dữ liệu điểm con mình và trường, vị trí xe. Không trả điểm nhà khác qua stop list, dữ liệu tuyến hoặc thông tin phụ. Có nhiều con thì tính quyền theo các link hợp lệ.
+- GPS có thời điểm cập nhật, lịch sử vị trí thực và phân biệt dữ liệu cũ/thiếu. Không có dữ liệu thì không vẽ vị trí xe giả. Mất mạng không làm tự hoàn tất Trip.
+- Bật/tắt/tiếp tục điều hướng không đổi trạng thái vận hành. Chuyển điểm trên bản đồ không thay thế Boarding, Arrival hoặc Alighting.
+- Lịch sử giữ snapshot thực từng chuyến, người phân công/thay thế, điểm danh, nghỉ, sự cố và audit. Trường inactive/contract hết hạn vẫn giữ quyền đọc hợp lệ. Thời gian dự kiến/ETA là ước lượng, không chứng minh trẻ đã được bàn giao.
+
+### Y15. 3.12 — Báo nghỉ học sinh
+
+- Chỉ Parent có link hợp lệ chọn một con, một ngày/chiều và một Trip thật. Báo nghỉ có hiệu lực sau OTP, không chờ trường duyệt nghỉ. Mỗi chiều độc lập.
+- OTP gửi tới guardianPhone từ hồ sơ trường, gắn đúng người/con/chuyến/nội dung. Xin OTP và confirm cùng kiểm cutoff, roster, quyền và hiệu lực trường.
+- Sau Start/Ready thì báo muộn qua liên hệ ngoài app theo D312-02. Không báo để biến PRESENT/đã xuống thành ABSENT.
+- Confirm ghi notice và trạng thái vắng đúng Trip, lưu dữ liệu trước tác động để rút khi còn hợp lệ. Link Parent khác cùng con có thể xem, chỉ người tạo được rút.
+- Rút không OTP, trước cutoff và khi chuyến còn cho phép, chỉ hoàn tác dữ liệu do notice tạo và còn hiện hành. Không ghi đè điểm danh mới của phụ xe.
+- Trùng báo nghỉ, request dùng OTP cho Trip khác, Trip VIRTUAL hoặc chuyến đã hủy đều không tạo notice mới. Hủy notice không mở lại Trip.
+
+### Y16. 3.13 — Báo nghỉ nhân sự
+
+- Driver/phụ xe báo nghỉ một ca thực được gán, xác nhận OTP qua contact tài khoản theo mode/kênh hiện hành. Có cả hai contact thì fan-out cùng challenge theo thiết kế đã chốt.
+- Báo nghỉ có hiệu lực ngay, đưa vào chờ thay người. Không cho Start khi còn thiếu nhân sự; người phụ xe báo nghỉ không được Ready.
+- Nhà xe xử lý Driver, trường xử lý phụ xe theo thẩm quyền. Chọn người active, đúng role/trường, không trùng thời gian, không nghỉ/vắng ở ca liên quan, kiểm lại khi xác nhận.
+- Cập nhật assignment, notice REPLACED và thông báo trong cùng kết quả nghiệp vụ. Người thay nhận phân công qua inbox/push, không có bước bắt buộc bấm nhận việc.
+- Chỉ người tạo được rút pending trước cutoff. Đã REPLACED không tự rút, kể cả assignment sau đó quay về người cũ. Muốn đổi lại do admin điều phối có kiểm tra.
+- Nghỉ dài ngày đi qua đổi mặc định và đồng bộ Trip theo 3.6. Không tạo module lịch nghỉ dài kỳ riêng.
+
+### Y17. 3.14 — Yêu cầu sửa thông tin hoặc địa chỉ
+
+1. Parent chọn con/link, nhập đề xuất, xác thực OTP để tạo PENDING. Có lịch sử trạng thái, người tạo/người xử lý/lý do. Parent có thể hủy yêu cầu đang PENDING trong phạm vi đã chốt.
+2. SCHOOL_ADMIN xử lý thông tin cơ bản và địa chỉ của trẻ chưa có tuyến DRAFT/ACTIVE. Địa chỉ trẻ đã có tuyến do SYSTEM_ADMIN đánh giá ảnh hưởng.
+3. DIRECT_UPDATE áp dụng trường hợp đủ điều kiện cập nhật trực tiếp. REOPTIMIZED cập nhật địa chỉ/tọa độ và lộ trình khả thi. REMOVED_FROM_ROUTES cập nhật theo kết quả rút trẻ khỏi tuyến và chờ phân lại. REJECTED giữ dữ liệu nguồn và thông báo lý do.
+4. REOPTIMIZED phải preview khả thi, TTL 10 phút, token đúng request/trẻ/tọa độ/tuyến và fingerprint bắt buộc khớp dữ liệu nguồn hiện hành. Hai người xử lý chỉ một quyết định cuối được ghi.
+5. Khi duyệt, cập nhật Student, RouteStop, geometry/thời gian/quãng đường và Trip đủ phạm vi cùng giao dịch. Thời điểm ghi là ngay khi duyệt; ngày dịch vụ bao gồm hôm nay hay từ ngày mai còn cần chốt.
+6. REMOVED loại khỏi tuyến và roster Trip chưa frozen bằng dấu loại, giữ lịch sử, hủy chuyến rỗng và thông báo. Trip frozen dùng dữ liệu cũ.
+7. Solver/map lỗi hoặc preview không khả thi không được ghi một phần hồ sơ/lộ trình thành phê duyệt thành công. Giữ alias field cũ khi có thể.
+
+### Y18. 3.15 — Chèn học sinh và ngừng dùng dịch vụ
+
+- Học sinh AVAILABLE chưa có đủ dịch vụ được xét chèn vào cặp tuyến phù hợp. Preview kiểm hai chiều, sức chứa, giờ, khoảng cách và dữ liệu hiện hành.
+- Confirm thêm RouteStop, sắp thứ tự, cập nhật tuyến và ngay lập tức đồng bộ roster/snapshot/giờ của hai chiều chưa frozen trong phạm vi ngày đã chốt. Không chèn vào chuyến đã nhận trẻ hoặc đổi nguồn lực ngoài thao tác.
+- Disable do ngừng dịch vụ là thao tác của trường, không xóa hồ sơ. Loại điểm tuyến và đánh lại stopOrder, đánh dấu excluded trên Trip chưa frozen. Trip rỗng bị hủy có lý do/thông báo.
+- Quyết định chi tiết 04/11 còn yêu cầu hủy đơn nghỉ/yêu cầu cập nhật đang chờ của học sinh khi disable. Cách phân loại RECORDED/pending và bảo toàn dữ liệu trên Trip frozen phải chốt cùng ma trận trạng thái.
+- Active lại trở về nhóm chưa phân tuyến, không khôi phục ngầm tuyến hoặc Trip cũ. Parent/link và lịch sử vẫn được giữ theo phạm vi quyền.
+
+### Y19. 3.16 — Hủy và thay thế phương án
+
+- Hủy thủ công có preview tác động, lý do và fingerprint bắt buộc. Khi xác nhận kiểm lại chính tập chuyến và trạng thái ảnh hưởng, không chỉ tổng số.
+- Hủy plan và Trip SCHEDULED chưa frozen. Trip frozen tiếp tục vận hành để trả trẻ, giữ nguyên dữ liệu và bận nguồn lực tới khi Trip cuối kết thúc. Hủy thủ công không tự biến các chuyến này thành chờ chốt hành chính.
+- Notice/sự cố liên quan được xử lý theo trạng thái thích hợp, không để tác vụ yêu cầu xử lý một Trip đã hủy như vẫn có thể chạy. Giữ lịch sử, thông báo người bị ảnh hưởng.
+- Một trường có nhiều ACTIVE cho các nhóm trẻ tách biệt; không phục vụ trùng một trẻ trong các plan đồng thời cùng phạm vi dịch vụ.
+- Plan mới thay plan cũ cùng nhóm thì chuyển tiếp từ ngày mai, kết thúc plan cũ và thay Trip chưa chạy/chưa frozen, không ghi đè snapshot chuyến frozen. Tên trạng thái SUPERSEDED/CANCELLED và workflow tạo plan thay thế chờ contract.
+
+### Y20. 3.17 — Sự cố, cảnh báo và điều phối
+
+| Loại | Hành vi đích |
+|---|---|
+| ATTENDANT_MISSING | Driver báo phụ xe được gán chưa đến trước xuất phát. Admin có thẩm quyền trường xử lý người cũ đến hoặc gán phụ xe phù hợp; chặn Start khi thiếu. |
+| DRIVER_MISSING | Phụ xe báo tài xế chưa đến. Nhà xe xử lý có mặt hoặc thay người; kiểm nguồn lực tại commit. |
+| OFF_ROUTE | Tự phát hiện cách tuyến >50 m liên tục >=15 giây. Lưu vị trí/bằng chứng; phụ xe xác nhận theo phạm vi. |
+| LATE_STOP | Dự báo trễ điểm tiếp theo >3 phút liên tục >=15 giây. Lưu bằng chứng và thông báo đúng đối tượng. |
+| NO_GUARDIAN_AT_STOP | Phụ xe báo trẻ thuộc roster chiều về còn trên xe. Thông báo Parent liên quan/trường/nhà xe và giữ giám sát tới bàn giao. |
+| TRAFFIC_DELAY | Driver/phụ xe báo tắc đường/thời tiết; thông báo trễ tới Parent các điểm tiếp theo và người điều phối liên quan. |
+| GPS_SIGNAL_LOST | Hệ thống phát hiện Trip IN_PROGRESS mất cập nhật định vị >3 phút. Thể hiện độ cũ và cảnh báo, không tạo tọa độ thực giả. |
+| LATE_RUNNING_TRIP_RISK | Cảnh báo nguy cơ chuyến sau chậm vì nguồn lực còn chạy chuyến trước. Admin bố trí nguồn lực khác sau kiểm khả dụng. Buffer chờ chốt. |
+
+- Mọi sự cố có Trip, actor hoặc nguồn phát hiện, thời điểm, loại, bằng chứng/vị trí và kết quả xử lý. Quyết định D317-02 yêu cầu context latitude/longitude/addressText; trường hợp mất GPS hoặc geocode lỗi cần fallback được chốt.
+- Tạo/xem/xử lý đúng role và trường. Thay người kiểm lại hiện thời, không force-assign người bận/nghỉ.
+- Giữ policy một sự cố mỗi loại/Trip trong đợt này; nếu muốn tái diễn/episode phải chốt riêng. Hoàn tất chuyến có thể đóng cảnh báo chưa xác nhận với kết quả CLOSED_WITHOUT_CONFIRMATION, không đếm thành đã xác nhận đúng hoặc đã xử lý xong.
+- Trạng thái kết thúc từng loại mới, quyền kết thúc, thông báo và điều phối đổi xe/giám sát khi frozen phải được chốt. Không tự mở workflow cứu hộ, y tế hoặc chuyển trẻ giữa xe từ việc có màn hình báo sự cố.
+
+### Y21. 3.18 và kết thúc ngoại lệ — Tổng quan, thông báo, chốt hành chính
+
+- Dashboard có sáu nhóm INCIDENT, LEAVE, REQUEST, PLAN, ADMIN_FINALIZATION và REOPTIMIZATION theo thẩm quyền. Count và đường dẫn dẫn tới đúng tập đối tượng còn phải xử lý.
+- Inbox/push gồm phân công, Ready/Start/đón/xuống/hoàn thành, thay đổi lịch/dịch vụ, báo nghỉ/thay người, kết quả request/plan, sự cố, hủy/reopen và việc chốt hành chính theo từng luồng.
+- Notification đã đọc, máy chủ gửi chấp nhận và nghiệp vụ hoàn tất là các mốc độc lập. Read-all chỉ đổi readAt. Giữ inbox khi push lỗi, retry không nhân đôi cùng sự kiện. Mở thông báo cũ kiểm lại quyền và tình trạng đích.
+- Khi sự kiện ngừng trường, hết hạn, đổi địa điểm hoặc ngày nghỉ có hiệu lực, xử lý đúng nhóm Trip thuộc sự kiện. Không đánh đồng hủy plan thủ công với ma trận dưới.
+
+| Trip tại mốc hiệu lực lifecycle | Kết quả |
+|---|---|
+| Chưa Ready, chưa điểm danh | Hủy nếu thuộc phạm vi mất hiệu lực. |
+| Chỉ Ready, toàn UNMARKED, chưa có dấu điểm danh | Cho hủy theo lifecycle, giữ dấu Ready/lịch sử. |
+| Đã có điểm danh, kể cả toàn ABSENT | Giữ trạng thái và đưa vào chờ SYSTEM_ADMIN chốt. |
+| IN_PROGRESS hoặc còn trẻ đã nhận | Giữ trạng thái, khóa thao tác thường và giữ nguồn lực tới chốt. |
+| COMPLETED/CANCELLED lịch sử | Giữ nguyên. |
+
+- SYSTEM_ADMIN xem danh sách ngoại lệ, xác minh thực tế rồi chọn COMPLETED/CANCELLED, kèm lý do, trạng thái kỳ vọng và audit người/thời điểm/trước–sau.
+- Chốt hành chính không ghi thêm Boarding/alighting/actualEndTime để giả một hành trình đầy đủ. Đọc detail/thống kê phân biệt hoàn thành thường và hoàn thành hành chính, không suy COMPLETED là đã xác minh bàn giao trẻ.
+- Sau chốt, giải phóng bận thực tế theo trạng thái đã xác minh; không hồi sinh plan hoặc hợp đồng cũ.
+
+### Y22. Hồ sơ câu hỏi trước triển khai — xem kết quả chốt tại Z1
+
+| ID | Chi tiết cần PO chốt và tác động |
+|---|---|
+| Q01 | G-01 nói Trip ngày mai, D314/D315 nói đồng bộ ngay. Ghi ngay đã rõ; cần xác định phạm vi Trip hôm nay cho đổi địa chỉ/chèn trẻ và cách hiển thị hồ sơ so với điểm đón đang hiệu lực. |
+| Q02 | Đổi default có ghi đè Trip đã điều phối riêng chưa frozen không; cách nhận biết ưu tiên và trả tác động. Đề xuất trước là giữ override, chưa có xác nhận mới. |
+| Q03 | Inactive cần bàn giao nhưng G-02 cấm thay thường sau Ready/điểm danh. Chốt từ chối inactive đến khi đủ điều kiện hay cho workflow điều phối đặc biệt, quyền và bằng chứng bàn giao. |
+| Q04 | Dời bãi hủy Trip ngay lúc hẹn hay tới ngày, hủy hẹn xử lý cờ needsReoptimization và Trip đã hủy ra sao, thời điểm được reoptimize theo bãi mới để không làm lệch chuyến trước ngày chuyển. |
+| Q05 | maxOperatingRadiusKm đã được duyệt là cấu hình và Haversine. Cần giá trị mặc định (50 km đang là số trong code/báo cáo), ngưỡng min/max, ai cho ngoại lệ và cách audit, xử lý thiếu province/geocode không thành công. |
+| Q06 | Reopen các Trip đã Ready/đã có dấu nhận trẻ trước khi hủy, reset Ready/mốc vận hành ra sao, lịch sử nhiều lần hủy/mở và hiệu lực đơn nghỉ. Không dùng reset UNMARKED để xóa bằng chứng đã nhận trẻ. |
+| Q07 | Ngoài hậu arrival đã chốt correction trước Complete, cần xác định thao tác trước arrival nào là đón thật/đính chính, reason, audit và điều kiện đổi PRESENT khi đã alighted. |
+| Q08 | Hủy chiều về toàn vắng yêu cầu Ready/đủ điểm danh thế nào, API/lý do/trạng thái kỳ vọng, giới hạn admin dự phòng. Trẻ không người nhận đưa về trường hay bãi do ai quyết định, ai nhận và ghi kết quả ở đâu. |
+| Q09 | Trạng thái/cuộc đời và quyền đóng từng loại sự cố mới; buffer LATE_RUNNING_TRIP_RISK; GPS cũ/không có GPS/addressText lookup lỗi thì lưu bằng chứng và hiển thị thế nào. |
+| Q10 | Thay plan cùng nhóm: tạo DRAFT thay thế khi trẻ còn thuộc plan cũ thế nào, cách đánh dấu plan bị thay, xác nhận chuyển tiếp, roster thay đổi một phần và nguồn lực cho ngày chuyển. Không tự thêm SUPERSEDED. |
+| Q11 | Disable trẻ: trạng thái đơn nghỉ nào được hủy, request nào được hủy, bảo toàn tác động của các notice thuộc Trip frozen, xử lý trường hợp đơn khác đang được duyệt đồng thời. |
+| Q12 | Mốc áp dụng fingerprint bắt buộc, hành vi client cũ thiếu field, mã lỗi và field response cần thêm; contract/audit/schema cụ thể cho thao tác mới. Trước thay DB trình riêng. |
+| Q13 | firstServiceDate khi không có ngày đủ điều kiện, khi calendar thay đổi, trả tại response nào; phân biệt ngày đủ điều kiện với Trip đã thật sự sinh. Tên metadata đã chốt, vị trí/nullable cần rõ. |
+| Q14 | Nghiệp vụ sức chứa seatCount tính cho học sinh hay gồm nhân sự nếu tài liệu hiện hành chưa đủ rõ; không tự thêm rule trừ ghế hoặc nghĩa vụ kiểm định/giấy phép mới. |
+
+Các điểm trên làm rõ hành vi còn bỏ ngỏ hoặc mâu thuẫn. Các quyết định đầy đủ đã chốt như email bắt buộc, không thu hồi session khi admin cấp lại, quyền duyệt plan của trường, ưu tiên nghỉ nhà xe và chốt hành chính không cần xin chốt lại.
+
+### Y23. Phạm vi giới hạn và điều kiện coi là hoàn tất
+
+- Trong đợt này giữ mô hình một nhà xe/một bãi, một trường mỗi chuyến, liên kết Parent theo xác minh trường. Không bổ sung thu/hoàn phí, chuyển trường/năm học hoàn chỉnh, nhiều bãi, kỳ nghỉ dài hạn riêng, OTP/QR người nhận trẻ, chứng nhận an toàn điểm đón, giới hạn ngồi xe từng trẻ, full offline hoặc workflow y tế/cứu hộ/chuyển xe giữa đường chưa được duyệt.
+- Mỗi luồng phải có actor/scope, điều kiện trước thao tác, kết quả/ảnh hưởng tới dữ liệu, trường hợp bị từ chối, lịch sử và thông báo. Tài liệu quyết định, Swagger, API và ví dụ FE cùng hợp đồng và cùng phiên bản.
+- FE nhận status đã lưu/effective status, action flags và lý do nhất quán, phân biệt lịch dự kiến, đã hẹn/đã áp dụng, đã gửi/đã đọc/đã xử lý và hoàn thành vận hành/hành chính.
+- Sẵn sàng bàn giao sau khi nghiệm thu quyền, mốc ngày, frozen, các giao dịch đồng thời, retry, case thất bại và payload FE cũ trên dữ liệu/phạm vi được cấp. Kiểm kiểu/unit tests là một phần bằng chứng, không thay thế các case này.
+- Tổng hợp lần này chỉ thay tài liệu. Không kiểm DB/provider hoặc vận hành thực, không chạy script test, không sửa env hoặc viết code ứng dụng.
+
+
+## Z. Kết quả triển khai độc lập và quyết định PO — 06/11/2026
+
+Mốc này cập nhật source, không thay thế nghiệm thu. Những ghi chú ONLY_DOCS/chưa được phép code ở các mốc cũ là lịch sử; PO đã duyệt triển khai P0–P6 và các contract dưới đây. Chưa apply migration mới, không chạy script test, chưa chứng minh toàn bộ 3.1–3.18 hoàn tất runtime.
+
+### Z1. Chốt bổ sung trong hội thoại
+
+| Câu hỏi | Quyết định và phạm vi |
+|---|---|
+| Q01 | Địa chỉ/chèn trẻ ghi nguồn ngay, chỉ Trip từ ngày mai; default nguồn lực từ hôm nay. |
+| Q02 | Giữ override từng Trip; chỉ lan truyền đúng field đang kế thừa. Thêm Trip.operationAudit nullable để ghi override/correction/reopen. |
+| Q03 | Từ chối inactive khi có Ready/điểm danh/đang chạy; xử lý chuyến trước. |
+| Q04 | Đặt lịch bãi chưa hủy/đánh dấu; tới ngày hủy unfrozen từ mốc và đánh dấu reopt; hủy hẹn trước ngày giữ chuyến, reopt theo bãi hiện hành. |
+| Q05 | Bán kính mặc định50, >0 tới500km, Haversine; chưa force override. Geocode lỗi giữ province null, chỉ so khi đủ dữ liệu. |
+| Q06 | Reopen giữ contract master: reason + nguồn lực tùy chọn; chỉ trước giờ, chưa nhận trẻ/chạy, reset chuẩn bị, giữ notice học sinh còn hiệu lực/audit. |
+| Q07 | API correction PRESENT/ABSENT + reason + expectedStatus, phụ xe đang gán sau arrival trước Complete; không sửa trẻ đã alighted. |
+| Q08 | API cancel-all-absent + reason, phụ xe được gán/scoped admin, chiều về SCHEDULED đã Ready/toàn roster ABSENT có lý do. Chuyển xe/cứu hộ không mở rộng. |
+| Q09 | close + reason/expectedStatus cho ba loại mới, sys/scoped school admin; GPS>3phút LAST_KNOWN/capturedAt hoặc UNKNOWN; nguy cơ trễ buffer15phút, không autoassign. |
+| Q10 | PO chọn làm phần độc lập trước; workflow thay plan cùng nhóm chờ chốt riêng, không thêm replacesPlanId/replace API. |
+| Q11 | Giữ policy đã chốt khi disable: frozen/lịch sử bảo toàn, các tác động hủy notice/request theo source và khóa chung. Không tự mở thêm quyền xóa dấu vận hành. |
+| Q12 | Fingerprint bắt buộc ngay API cancel và REOPTIMIZED; thiếu400/cũ-sai409. Duyệt Trip.operationAudit và Student.parentLinkAudit JSON nullable, chỉ tạo DDL chưa apply. |
+| Q13 | firstServiceDate nullable YYYY-MM-DD ở detail/approve/readiness, không có ngày hợp lệ trả null; không đồng nghĩa đã sinh Trip. |
+| Q14 | Giữ cách tính seatCount cho roster hiện tại; không thêm rule trừ ghế nhân sự. Quy chuẩn sức chứa khác chưa được chốt, không tự áp. |
+| Bổ sung 3.1 | Tạo nhân sự bắt buộc email và SĐT; không backfill tài khoản cũ. |
+| Bổ sung 3.17 | Sự cố thủ công thiếu GPS vẫn nhận LAST_KNOWN/UNKNOWN để giữ Mobile cũ; gửi tọa độ phải đủ cặp hợp lệ. |
+| Bổ sung bãi | Phải cấu hình PARKING_LOT trước lập lịch, bỏ tọa độ mặc định khác nhau; cấu hình lần đầu áp ngay, dời bãi đã có theo lịch. |
+
+### Z2. Checklist source hiện tại
+
+[x] nghĩa đã có code; **không nghĩa đã nghiệm thu runtime**.
+
+- [x] 3.1: bắt buộc SĐT và email khi tạo nhân sự; giữ luồng email/console và không thu hồi phiên khi cấp lại mật khẩu.
+- [x] P0: dùng cùng advisory transaction lock trước row lock cho writer vận hành/lifecycle/nguồn lực; OTP nghiệp vụ tiêu thụ cùng transaction.
+- [x] 3.3/3.5: bãi cấu hình bắt buộc; dời bãi đến ngày mới tác động; bán kính cấu hình/kiểm preview-confirm; province geocode nullable.
+- [x] 3.4: thu hồi Parent link theo SCHOOL_ADMIN đúng trường, lý do và audit.
+- [x] 3.6/3.8: đồng bộ đúng field, giữ override; kiểm khả dụng/active/sức chứa/đơn trường/đơn nghỉ/sự cố dưới khóa.
+- [x] 3.7: reopen có audit và firstServiceDate nullable; generation/virtual calendar chặn plan cần reopt/ngày sau lịch dời.
+- [x] 3.9/3.10: correction hậu arrival, hủy chiều về toàn vắng, Start/action state cùng điều kiện không PRESENT.
+- [x] 3.11: Parent bỏ điểm trẻ khác/bãi và polyline toàn tuyến.
+- [x] 3.12/3.13: Parent chặn báo nghỉ sau Ready, withdrawal không ghi đè điểm danh mới, giữ REPLACED không rút và không thay bằng chính người vắng.
+- [x] 3.14/3.15: snapshot trước sửa, sync Trip từ ngày mai không đụng assignment, token/fingerprint/constraints dùng cùng preview.
+- [x] 3.16 phần độc lập: fingerprint bắt buộc, hủy unfrozen, giữ frozen/hold và đóng việc chờ đúng Trip bị hủy.
+- [x] 3.17: GPS silence, late-running risk, vị trí fallback và close ba loại mới/notification scope.
+- [x] 3.18: thêm hai task dashboard với query lọc tương ứng.
+- [x] DTO/Swagger/FE guide cập nhật, typecheck/build/schema validation và kiểm HTTP Swagger an toàn.
+- [x] Apply migration 20261106000000_operation_and_parent_link_audit — PO duyệt sau triển khai, đã apply DB local 06/11. Tại mốc audit có 18 migrations đồng bộ, hai cột JSONB nullable đã xác nhận.
+- [ ] UAT quyền/ngày/frozen/race/cron/retry/provider/FE trên dữ liệu được cấp; không chạy test scripts theo chỉ thị PO.
+- [ ] Workflow thay plan cùng nhóm/giữ chỗ/chuyển roster — chờ chốt riêng.
+
+### Z3. Bàn giao
+
+Contract tích hợp hiện tại: [FE_INTEGRATION_GUIDE](../FE_INTEGRATION_GUIDE.md). Bằng chứng và giới hạn: [LATEST](LATEST.md). Source thay đổi không đồng nghĩa DB đã có hai cột audit. Lịch sử override bằng đúng ID mặc định mà không có audit và snapshot cũ đã bị ghi đè không thể tự phục hồi từ source.
+
+
+### Z4. Cập nhật migration sau phê duyệt PO — 06/11/2026
+
+Đã apply migration audit vào local roadtoschool/public localhost:5432;18 migrations đồng bộ. Metadata hai cột đúng JSONB nullable. Các ghi chú pending ở mốc Z ban đầu là lịch sử; từ mốc này DB local đã sẵn cột cho source mới. Chưa chạy test scripts/nghiệp vụ/cron/provider hoặc nghiệm thu FE. Không tự apply môi trường khác.
+
+
+### Z5. Sửa lỗi runtime được PO báo — 06/11/2026
+
+Đã sửa SELECT advisory lock trả void bằng integer result, dùng helper chung cho calendar và sửa khóa push token cùng lỗi. Giữ nguyên quy tắc nghiệp vụ/khóa, không migrate thêm. Typecheck/build/lint đạt; không chạy script test/DB probe/cron để ghi dữ liệu, chưa nghiệm thu runtime.
+
+
+### Z6. Yêu cầu bộ lọc địa giới — PO chốt phạm vi 06/11/2026
+
+**Yêu cầu đã ghi nhận, chưa triển khai field/schema/API mới.**
+
+- Thêm khả năng người dùng lọc tỉnh/thành và phường/xã cho danh sách trường, học sinh, gồm danh sách chọn học sinh lúc lập phương án.
+- Bộ lọc chỉ áp khi người dùng gửi lựa chọn; không tự chọn tỉnh/phường theo trường, bãi hoặc địa chỉ học sinh. Không gửi bộ lọc thì trả phạm vi dữ liệu đúng quyền như trước.
+- Tách eligibility hiện có khỏi view filter: hệ thống chỉ tự xác định đủ/không đủ điều kiện dựa AVAILABLE, tọa độ, chưa thuộc plan còn hiệu lực, bán kính phục vụ và quy tắc tỉnh đã duyệt khi đủ dữ liệu. Không tự bổ sung điều kiện cùng phường, không dùng filter để thay kiểm eligibility khi optimize/confirm.
+- Đổi/bỏ filter không tự xóa roster, sửa route/Trip, thay điều kiện hoặc tự chọn lại studentIds đã gửi. Những học sinh không hiện trong view đang lọc không mặc nhiên là không đủ điều kiện.
+- Không sửa addressText hoặc dữ liệu Trip snapshot lịch sử chỉ để chuẩn hóa địa giới. Thiếu địa giới vẫn hiện khi không lọc, không giả ID từ chuỗi địa chỉ.
+
+**Contract/schema đã được PO duyệt trong phản hồi sau Z6:** giữ province tên tỉnh cũ; thêm nullable provinceId String (ID VietMap), wardId String (ID VietMap), ward String (tên phường/xã) vào School và Student, không bảng mới. ID provider không mặc định là mã hành chính Nhà nước. Query provinceId/wardId optional; hai query kết hợp AND; không có query không lọc địa giới. Field response thêm tương ứng, đồng bộ Swagger; payload tạo/sửa cũ không yêu cầu nhập thêm.
+
+**Nguồn dropdown đã được PO duyệt trong phản hồi sau Z6:** đề xuất địa giới đã có trong dữ liệu đúng scope tài khoản; chưa tự backfill hoặc gọi provider hàng loạt. Nếu cần danh mục toàn quốc, chốt nguồn dữ liệu riêng. Không lọc một trang tại FE rồi coi là kết quả toàn bộ; filter/count phải cùng phạm vi ở API.
+
+**Các bước sau khi duyệt:** bổ sung helper trích boundaries v4 mới; DDL nullable (apply DB phải được phép riêng); cập nhật các writer tạo/đổi tọa độ đúng lịch hiệu lực; filter list và preparation theo lựa chọn tường minh; giữ đủ kiểm preview/confirm; cập nhật response/Swagger/FE guide; typecheck/build, không test scripts. Chưa sửa source/schema/env/DB trong mốc này.
+
+
+### Z7. Triển khai bộ lọc địa giới sau duyệt — 06/11/2026
+
+- [x] provinceId/wardId/ward nullable trên School và Student; DDL20261106010000_school_student_geography, client generate. Giữ province/addressText và payload cũ.
+- [x] Query optional cho list trường/học sinh/preparation, AND khi có cả hai, bỏ query không lọc địa giới. Student list lọc/count cùng where; School list lọc theo địa chỉ hiệu lực trước count/pagination.
+- [x] Preparation classify eligibility trước rồi lọc view theo query tường minh, không đổi tiêu chí/selection/optimize/confirm. Hai mảng đủ/không đủ đều có metadata địa giới; không tự áp tỉnh/phường của trường/bãi.
+- [x] PO duyệt hai GET mới schools/location-options và schools/:schoolId/students/location-options; scope sys hoặc sys/scoped school tương ứng, provinceId optional chỉ lọc wards; response provinces/wards theo field đã duyệt, đọc DB không gọi provider.
+- [x] Writer tạo/đổi địa chỉ lưu địa giới mới từ VietMap, scheduledSchool đổi đúng ngày, lookup lỗi null. Không tự backfill, không sửa snapshot lịch sử.
+- [x] Typecheck/build/Prisma validate/generate đạt; lint19files exit0 có8warning cũ; Swagger UI/JSON200, kiểm optional queries/2endpoints/5response schema. Không init DB/scheduler để kiểm docs.
+- [x] Apply DDL địa giới vào DB local — PO duyệt sau implementation, đã apply06/11;19migrations up to date,6cột TEXT nullable đã xác nhận.
+- [ ] UAT runtime/provider/permission/count/filter trên dữ liệu được cấp; không script test.
+
+FE contract: docs/FE_INTEGRATION_GUIDE.md mục11. Phê duyệt migrate audit trước đây không tự mở rộng sang migration địa giới. Dữ liệu cũ thiếu metadata không match filter ID, vẫn hiện khi không lọc; dropdown có thể rỗng. Không thêm danh mục toàn quốc hoặc tự chuẩn hóa/backfill địa chỉ lịch sử.
+
+
+### Z8. Migration địa giới local — 06/11/2026
+
+PO đã duyệt migrate. Đã apply20261106010000_school_student_geography vào roadtoschool/public localhost:5432,19migrations đồng bộ. SELECT metadata xác nhận6cột TEXT nullable; không backfill/seed/reset/provider/test scripts. Typecheck đạt; runtime/FE chưa nghiệm thu, dữ liệu cũ chưa có ID thì dropdown có thể rỗng.
+
+
+### Z9. Rà soát lại API/docs/plan sau migrations — 06/11/2026
+
+**NEEDS_FIX, không đóng toàn bộ master plan hoặc nghiệm thu FE.** Typecheck/build/schema đạt,19migrations up to date; các kết quả này không chứng minh đúng nghiệp vụ. Bộ lọc địa giới khớp source contract trong phạm vi review; thiếu metadata dữ liệu cũ/dropdown rỗng là giới hạn đã duyệt.
+
+Mở lại các hạng mục theo LATEST F01–F10: membership học sinh khi API trực tiếp tạo plan; stale preview Student/Vehicle; generation dùng Route/default/roster trước khóa; reopen snapshot/ngày activation; SCHEDULE hủy nhầm MAKEUP; handover chỉ có Route chưa có Trip; Parent virtual thiếu gate lịch bãi; sửa timing Ready-only;5Swagger response thiếu schema; tài liệu migration/checklist còn mâu thuẫn.6P1 và4P2 là phân loại review, chưa chạy mutation tái hiện và chưa sửa code trong lượt này.
+
+- [ ] F01–F06: bản vá các sai lệch chính, giữ quyết định nghiệp vụ PO.
+- [ ] F07–F10: gate/frozen/Swagger và trạng thái docs đồng bộ.
+- [ ] Nghiệm thu dữ liệu được cấp sau sửa, không tự chạy script test.
+
+Các checkbox source tạiZ2/Z7 không được diễn giải thành những luồng trên đã nghiệm thu. Workflow replace cùng nhóm vẫn tách chốt riêng theo PO, không tính thành bug thiếu triển khai. Báo cáo chi tiết: docs/ai-review/LATEST.md; không tự sửa API/DB/FE trong lượt review.
+
+
+## AA. Kế hoạch bản vá F01–F10 — 06/11/2026
+
+Trạng thái **PLAN_DRAFT / CHỜ PO DUYỆT TRIỂN KHAI**, chưa sửa application code. Báo cáo phát hiện được archive riêng trước khi đổi LATEST sang báo cáo lập kế hoạch. Mục này tiếp nối cùng master plan, không tạo plan rời. Các đề xuất dưới đây không tự đổi quyết định PO.
+
+### AA1. Mục tiêu và ranh giới
+
+- API thực thi đúng quyết định nghiệp vụ kể cả khi client gọi trực tiếp, dùng preview cũ hoặc dữ liệu thay đổi trước lúc lấy khóa.
+- Giữ URL/body/response cũ; không thêm field request bắt buộc. F09 chỉ mô tả response thực trong Swagger. Field nào phát sinh còn phân vân phải hỏi PO trước.
+- Dự kiến không thêm bảng/cột/index/package/env hoặc migration; DB local vẫn19migrations. Audit dùng Trip.operationAudit đã có nếu PO chọn rebuild ởAA5.
+- Chỉ sửa API và docs liên quan; không Web/Mobile, không workflow replace plan cùng nhóm, không tự sửa/hủy dữ liệu hiện có để chữa lỗi lịch sử.
+- Giữ bộ lọc provinceId/wardId do người dùng chọn; không dùng filter địa giới để thay eligibility và không tự đặt tỉnh/phường mặc định.
+- Không script test/seed/backfill/provider/DB hoặc API mutation để thử. Static verification và HTTPdocs được phép; UAT cần PO/FE và dữ liệu được cấp.
+
+### AA2. Nhóm1 — F01: membership học sinh ở mọi cửa vào
+
+1. Tách kiểm eligibility/membership hiệu lực dùng chung preparation, optimize-preview, confirm và readiness/approve khi cần kiểm xuyên plan. Chỉ DRAFT/ACTIVE còn hiệu lực mới giữ membership; không khóa học sinh do plan đã hết hiệu lực nhưng cron chưa cập nhật.
+2. Tại optimize-preview kiểm toàn bộ studentIds gửi lên: đúng trường, AVAILABLE, tọa độ, phạm vi phục vụ và chưa thuộc plan khác còn hiệu lực. Không im lặng bỏ học sinh sai để tạo một nhóm khác ý người dùng. Giữ quyền tối ưu một phần do VRP không xếp được những học sinh đầu vào hợp lệ.
+3. Tại confirm đọc lại dưới lockOperations; kiểm đủ cả ACTIVE và DRAFT membership. excludePlanId chỉ phục vụ nội bộ khi kiểm chính plan đang duyệt/reopt, không thêm cửa vượt kiểm public.
+4. Nếu đã thuộc plan hiệu lực khác:409, không tạo DRAFT/Route/Stop một phần, không tự hủy plan cũ. Trường có ACTIVE vẫn được tạo plan cho nhóm học sinh khác hợp lệ; không chặn toàn trường chỉ vì có ACTIVE.
+5. Giữ invariant hai chiều và studentIds người dùng đã chọn; filter UI thay đổi không làm tự xóa selection.
+
+API: POST routes/optimize-preview, routes/confirm-plan; GET preparation và readiness; POST approve khi tái kiểm điều kiện. Body giữ nguyên. Files: routes.service.ts, resource-availability.service.ts và helper eligibility tối thiểu nếu cần; Swagger mô tả409.
+
+Nghiệm thu: gọi trực tiếp chọn trẻ đã ACTIVE bị từ chối; trẻ thuộc plan hết hiệu lực được xét lại; trẻ hợp lệ khác vẫn tạo được; hai chiều nhất quán; không có bản ghi nửa chừng.
+
+### AA3. Nhóm1 — F02: ràng buộc dữ liệu nguồn preview
+
+1. Phiên preview cache phía BE lưu phiên bản nội bộ của học sinh thực sự thuộc kết quả tuyến và xe sử dụng: ID, các dữ liệu ảnh hưởng vị trí/địa chỉ/trạng thái/sức chứa/active; trường, hợp đồng/lịch liên quan và bãi tiếp tục được kiểm. Không yêu cầu FE thêm fingerprint mới cho confirm-plan.
+2. Ghi nhận phiên bản trước khi gọi tối ưu; kiểm nguồn không đổi khi nhận kết quả trước khi công nhận preview. Không chụp phiên bản mới sau tối ưu rồi gắn nhầm cho kết quả cũ.
+3. Confirm so lại dưới khóa, rồi kiểm nguồn lực active, đủ chỗ từng tuyến, reservation/holds và eligibility. Địa chỉB trong cùng bán kính vẫn làm previewA cũ bị từ chối.
+4. Giữ404 khi previewToken không tồn tại/đã hết hiệu lực như contract cũ; nguồn đổi trả409 và FE preview lại. Kiểm TTL30phút ngay lúc confirm, không chỉ dựa timer cleanup. Preview hủy tuyến về phải cập nhật đúng tập nguồn còn dùng, giữ kết quả hai chiều.
+5. Preview không phát sinh nghiệp vụ. Confirm thành công cùng nhau, sau đó consume cache; chưa mở rộng chính sách idempotent retry confirm ngoài contract hiện có.
+
+Files: PreviewSession/routes.service.ts, resource-availability.service.ts nếu cần helper xe nhận tx. Không field DB mới. Nghiệm thu: đổi tọa độ/địa chỉ/active/sức chứa sau preview bị chặn; nguồn không đổi confirm giữ payload và kết quả cũ.
+
+### AA4. Nhóm2 — F03: dữ liệu sinh chuyến phải mới trong transaction
+
+1. Vòng ngoài chỉ chọn Route ID/ngày cần xem xét; không dùng Route/defaults/stops/roster/snapshot đã tải trước khóa làm dữ liệu ghi.
+2. Mỗi transaction lấy lockOperations trước row locks theo quy tắc hiện có; đối soát/kiểm policy cần thiết, tải lại Route/Plan/School/defaults/stops và calendar hiệu lực cho đúng serviceDate.
+3. Tính lại timing HH:mm, scheduledAt, roster và snapshot từ cùng tập nguồn; kiểm activation ngày kế tiếp, hợp đồng, nghỉ/học bù, lịch bãi, needsReoptimization, nguồn lực active/role/trường/đơn trường/overlap/holds/leave/incidents/sức chứa roster.
+4. Kiểm unique Route–ngày, không tự reopen hay tạo trùng khi đã có CANCELLED. Giữ các field thống kê response totalEligible/createdCount/skippedCount/failedCount/failures và nghĩa được docs mô tả; không đổi shape để sửa concurrency.
+5. Dùng logic chuẩn bị Trip hiện hành chung với reopen nếu phương án rebuild được duyệt. Không gọi VietMap/VRP trong transaction/khóa để dựng lại tuyến; dùng Route đã tối ưu và lịch hợp lệ.
+
+Files: trips.service.ts, helper trip preparation tối thiểu, staff-availability/resource/calendar policies liên quan. Nghiệm thu: thay default/chèn/gỡ trẻ/đổi lịch/inactive hoàn tất trước lúc generator lấy khóa thì Trip dùng nguồn mới hoặc từ chối, không ghi cache cũ; hai generator vẫn không tạo trùng.
+
+### AA5. Nhóm2 — F04: reopen theo dữ liệu hiện hành (CẦN PO CHỐT)
+
+**Phần không thay đổi:** SYSTEM_ADMIN, CANCELLED, trước giờ chạy hợp lệ, chưa xuất phát/nhận trẻ, không xóa bằng chứng; Plan ACTIVE không cần reopt, School/calendar/hợp đồng/bãi/nguồn lực hợp lệ. Bổ sung kiểm serviceDate sau ngày activatedAt theo UTC+7; không mở hôm nay nếu plan vừa duyệt lại hôm nay.
+
+**Vấn đề lựa chọn:** sau reopt, snapshot/roster/giờ Trip cũ có thể khác. Unique Route–ngày khiến từ chối reopen có thể để lại ngày không sinh Trip mới trên chính Route.
+
+- Phương ánA **đề xuất**: dùng POST/body hiện có, dựng lại phần chuẩn bị từ Route/calendar đang hiệu lực. Kiểm giờ chạy mới và mọi điều kiện trước ghi. Đồng bộ snapshot, roster, timing/absolute times; reset Ready theo policy; giữ đơn nghỉ còn hiệu lực cho trẻ còn thuộc roster, không bê ABSENT sang trẻ mới. Lưu preimage snapshot/roster/timing/cancellation/assignment trước–sau trong operationAudit hiện có để không mất lịch sử. Không tạo bảng/cột hoặc đổi Trip ID. Roster cần loại/khôi phục dùng dấu excluded hiện có và audit, không xóa bằng chứng cũ. Trẻ đã nhận/chuyến đã chạy vẫn không được rebuild.
+- Phương ánB: nếu dữ liệu chuẩn bị khác thì409, giữ nguyên CANCELLED. Cần PO chấp nhận hệ quả không thể sinh lại cùng Route–ngày bằng endpoint generate; không tự bịa workflow khác để vượt unique.
+
+Đã gửi câu hỏi PO gồm lựa chọnA/B, audit trước–sau và giữ notice. **Chưa chọn thay PO**. Files: trips.service.ts, shared trip preparation, operationAudit appending, existing attendance/notice helpers. API success giữ message/tripId; lỗi nghiệp vụ409 được mô tả rõ và không thêm body bắt buộc.
+
+Nghiệm thu: reopt theo bãi mới rồi approve/reopen không dùng bãi cũ; ngày activation không bị vượt; thời gian mới không hợp lệ từ chối nguyên tử; notice/roster/audit đúng, không sửa các Trip lịch sử khác.
+
+### AA6. Nhóm3 — F05 và F08: thống nhất lịch, tách sửa timing với chốt lifecycle
+
+F05:
+1. Bỏ quyết định hủy dựa riêng weeklySchedule[weekday]; dùng serviceDay/calendar hiệu lực theo serviceDate.
+2. Giữ thứ tự: điều kiện dịch vụ/plan/hợp đồng, nghỉ nhà xe, MAKEUP được duyệt, nghỉ trường, lịch tuần. MAKEUP Chủ nhật hợp lệ vẫn giữ Trip dù lịch tuần không có Chủ nhật.
+3. Không phục hồi ngầm Trip đã CANCELLED; reopen theoAA5. Reconcile/sinh chuyến/đọc timing cùng nguồn ngày phục vụ.
+
+F08 **CẦN PO xác nhận ngoại lệ giờ**:
+- Đề xuất giữ timing/snapshot cũ cho Trip frozen khi lịch mới chỉ đổi giờ và vẫn có dịch vụ; áp lịch mới cho Trip chưa frozen/Trip sinh sau.
+- Nếu mất ngày phục vụ, giữ ma trận lifecycle đã chốt: chưa điểm danh/Ready-only có thể hủy trong phạm vi; có điểm danh hoặc IN_PROGRESS thì giữ trạng thái/chờ admin. Không thay toàn bộ requiresAdminFinalization bằng isTripFrozen rồi vô tình đổi ma trận này.
+- Dùng isTripFrozen cho quyền sửa dữ liệu chuẩn bị; requiresAdminFinalization cho nhánh chốt hành chính, không dùng thay nhau.
+
+Files: contract-lifecycle.service.ts, trip-schedule-view.ts, school-policy/serviceDay và frozen helper. Nghiệm thu: MAKEUP không hủy nhầm; thay giờ không sửa Ready-only theo phương án được duyệt; mất dịch vụ giữ ma trận; GET không ghi DB.
+
+### AA7. Nhóm4 — F06: bàn giao nguồn lực kiểm cả Route và Trip
+
+1. Dưới khóa tải lại toàn bộ Route/default groups và Trip bị tác động; không chỉ đếm Route rồi kiểm vòng Trips.
+2. Kiểm replacement đúng role/trường/active/xác thực theo policy đang có; reservation/đơn trường/hợp đồng, sức chứa từng nhóm, nhất quán hai chiều, không chiếm cùng nguồn lực cho hai nhóm trái quy tắc, không bị giữ bởi chuyến ngoại lệ.
+3. Kiểm trạng thái sau bàn giao của cả tập thay đổi, tránh kiểm từng Route riêng rồi tạo xung đột giữa chính các nhóm được đổi. Giữ DRAFT giữ chỗ trong kiểm reservation; không tự mở rộng việc chuyển defaults DRAFT nếu policy inactive cũ chỉ tác động ACTIVE.
+4. Với Trip, giữ chặn Ready/marked/running đã duyệt và kiểm availability đúng ngày/giờ/roster. Khi tất cả hợp lệ mới update Route, Trip, inactive và revoke session cùng transaction; lỗi giữ nguyên mọi nguồn lực.
+5. Tái sử dụng validator cho group và Trip, cho truyền tx thực thay vì đọc trạng thái rời giao dịch. Không ghép nhóm xe ngoài ý muốn hoặc tự điều phối bù.
+
+Files: staff-availability.helper.ts, resource-availability.service.ts, drivers/vehicles/schools employee status services; DTO/controller chỉ cập nhật mô tả error nếu cần, body replacement cũ giữ nguyên. Nghiệm thu: có Route nhưng0Trip vẫn chặn replacement bận trường khác; đủ điều kiện bàn giao nguyên tử; không đổi frozen/override không thuộc nguồn lực đang bàn giao.
+
+### AA8. Nhóm5 — F07: lịch dự kiến thống nhất điều kiện sinh chuyến
+
+1. Dùng chung predicate đọc hiệu lực dịch vụ/activation/plan/calendar/needsReoptimization/lịch bãi cho các nhánh virtual có liên quan.
+2. Rà list admin, lịch Driver/Attendant và Parent/child aliases, virtual detail/Home nếu tái sử dụng cùng logic. Nhánh Parent phải chặn ngày sau mốc bãi đang chờ như generator/listTrips; không lọc hoặc xóa Trip persisted lịch sử.
+3. Không thêm field/hardcode trạng thái mới, giữ shape lịch mobile. Ngày trước mốc hợp lệ còn hiện, ngày sau mốc bị chặn không giả thành lịch phục vụ theo bãi cũ.
+
+Files: trips.service.ts và parking/school policy helper nếu cần. Nghiệm thu: cùng Route/ngày có cùng quyết định virtual ở các vai trò, dù cron chưa chạy; đã có Trip vẫn theo lifecycle riêng.
+
+### AA9. Nhóm6 — F09: mô tả đầy đủ5response thành công
+
+- correction200: đúng message + attendance thực tế (nullability/timestamps theo runtime), không dùng DTO có field chưa trả.
+- cancel-all-absent200: message.
+- reopen200: message + tripId.
+- revoke Parent link201: message theo runtime.
+- close incident200: TripIncidentResponseDto tương ứng mapper hiện có.
+
+Tạo DTO response nội bộ tối thiểu nếu thiếu, decorator đúng type/status. Không đổi field đang trả hoặc thêm wrapper data chỉ để dễ ghi Swagger. Kiểm đủ body/path/query/roles/errors; generate OpenAPI kiểm content.application/json.schema và HTTPdocs, không chỉ endpoint tồn tại.
+
+Files: trip-actions DTO/controller, StudentsController, IncidentsController và DTO liên quan. Không thay enum/nullability đã chốt. Nghiệm thu:5schema machine-readable khớp field thực, FE sinh type được;200/201 đúng như cũ.
+
+### AA10. Nhóm7 — F10: đồng bộ tài liệu và tracking
+
+1. FE guide có một đoạn trạng thái hiện hành19migrations;18ở lịch sử audit phải ghi rõ mốc lịch sử. Các bullet chờ chốt cũ dẫn tới quyết định hiện hành, không để người đọc hiểu phone còn optional runtime.
+2. Mỗi F có ba mức riêng: source đã sửa, kiểm kỹ thuật đã đạt, UAT đã nghiệm thu. Chỉ đóng đúng mức có bằng chứng, không đánh dấu runtime từ build/typecheck.
+3. Cập nhật master plan hiện hành/Y/Z/AA theo quyết định PO, giữ log lịch sử có nhãn. Không đổi yêu cầu để hợp thức hóa API lỗi. Đồng bộ tracker, CURRENT_STATE, LATEST13mục và patch thực tế.
+4. Note FE trực tiếp trong chat khi bàn giao: URL/body giữ nguyên;409 mới cho dữ liệu cũ/membership/nguồn lực; preview lại khi cần; reopen theo lựa chọn; Swagger đủ response; migrations vẫn19 nếu không thay schema.
+
+### AA11. Trình tự triển khai và phụ thuộc
+
+| Đợt | Nội dung | Điều kiện |
+|---|---|---|
+|1|F01/F02 membership + phiên bản preview|PO duyệt plan, giữ payload cũ|
+|2|F03 dữ liệu tạo Trip trong khóa + F04 reopen|Chốt lựa chọnAA5 trước phần reopen; dùng cùng preparation để tránh lệch|
+|3|F05/F08 lịch học bù/frozen|Chốt quy tắc Ready-only AA6 trước nhánh timing|
+|4|F06 bàn giao cả Route/Trip|Validator dùng tx và kiểm toàn bộ tập tác động|
+|5|F07 virtual schedules|Dùng cùng policy đã sửa ở đợt2–3|
+|6|F09/F10 Swagger/docs|Đồng bộ theo kết quả thực của từng đợt, chốt báo cáo cuối|
+
+Không phải6lần xin phép nếu PO duyệt toàn bộ plan và hai quyết định; không tự commit/push. Hai phần cần lựa chọn có thể để chờ trong khi triển khai phần độc lập sau khi được lệnh code; không đánh dấu toàn bộ hoàn tất khi còn phần chờ.
+
+### AA12. Ma trận nghiệm thu dự kiến (KHÔNG tự chạy script test)
+
+| Case | Kết quả phải đạt |
+|---|---|
+|API trực tiếp chọn trẻ đã ACTIVE|409, không tạo plan trùng; plan hết hiệu lực không giữ trẻ vô hạn|
+|Trẻ hợp lệ khác khi trường có ACTIVE|Vẫn được tạo theo policy DRAFT hiện có|
+|Địa chỉ/xe đổi trong hoặc sau preview|Không confirm kết quả cũ; nguồn không đổi giữ payload cũ|
+|Membership/default/roster đổi trước lock generator|Trip dùng nguồn mới hoặc bị từ chối, không ghi cache|
+|Hai lượt generate cùng Route–ngày|Chỉ một Trip, giữ cơ chế unique/skipped|
+|Reopt bãi/route rồi reopen|Không dùng snapshot cũ, xử lý đúng lựa chọnAA5|
+|Plan duyệt lại hôm nay|Không reopen/sinh Trip ngày hôm nay|
+|MAKEUP ngoài weeklySchedule + schedule change|Trip hợp lệ không bị hủy nhầm|
+|Ready-only + đổi giờ / mất dịch vụ|Giữ timing hoặc lifecycle đúng quyết địnhAA6|
+|Route ACTIVE chưa có Trip + replacement bận|Bị từ chối, không update một phần|
+|Lịch bãi tương lai trước/sau mốc|Lịch virtual các vai trò nhất quán với gate sinh chuyến|
+|Swagger5action responses|Có schema đúng field/nullability/status runtime|
+|Geo filters bỏ query/AND/scope|Giữ hành vi đã duyệt, không tự chọn địa giới hoặc mất selection|
+
+Static checks sau code: tsc --noEmit, build, lint files đổi, Prisma validate nếu cần; HTTPdocs/OpenAPI qua cách không init scheduler/DB khi không được phép chạy nghiệp vụ. Không cài dependency. Không tự tạo record, provider call hoặc DB mutation để kiểm race/rollback. Trường hợp chưa kiểm phải ghi NOT_VERIFIED/BLOCKED_BY_TEST_DATA_POLICY; PO/FE nghiệm thu dữ liệu được cấp mới đóng UAT.
+
+### AA13. Điều kiện hoàn tất và giới hạn
+
+Đủ code theo quyết định PO; request/response/Swagger/docs cùng contract; static verification đạt; không lỗi mới do thay guard ảnh hưởng lifecycle/frozen/override/notice. Nêu riêng mọi case chưa UAT. Không hứa “khớp100% runtime” khi chỉ reviewsource/typecheck. Không sửa dữ liệu lịch sử bị ảnh hưởng nếu chưa có phạm vi xử lý được duyệt. Plan này **chưa là lệnh triển khai**; chờ PO duyệt và hai quyết địnhAA5/AA6.
+
+
+### AA14. Tiến độ triển khai ngày 07/11/2026
+
+| Hạng mục | Source và tài liệu | Kiểm chứng kỹ thuật | Nghiệm thu nghiệp vụ |
+|---|---|---|---|
+| F01–F03 | Đã sửa membership, phiên bản preview và sinh chuyến trong khóa | Typecheck/build đạt | Chờ dữ liệu |
+| F04 | Đã thêm mốc activation. Cách xử lý snapshot/roster/timing sau reopt chờ PO | Typecheck/build đạt phần đã sửa | Chờ quyết định và dữ liệu |
+| F05–F07 | Đã sửa lịch học bù, bàn giao Route/Trip và gate lịch bãi | Typecheck/build đạt | Chờ dữ liệu |
+| F08 | Chờ xác nhận quy tắc Ready-only khi chỉ đổi giờ | Chưa triển khai | Chờ quyết định |
+| F09–F10 | Đã bổ sung 5 schema Swagger và cập nhật hướng dẫn FE/tracking | HTTP docs 200 và 5 schema xác nhận | Chờ FE nghiệm thu |
+
+Trạng thái DB local đã xác minh ở đợt trước là 19 migrations. Bản vá này chỉ sửa API và tài liệu. Chi tiết kỹ thuật tại LATEST. Hai câu hỏi F04/F08 trong AA5/AA6 vẫn đang chờ.
+
+
+### AA15. PO duyệt và hoàn tất source F04-A/F08-A — 07/11/2026
+
+- F04-A. Reopen dùng chung logic chuẩn bị với generator. Chuyến hợp lệ được dựng lại snapshot, roster và timing, kiểm nguồn lực theo lịch mới và giữ cùng tripId. Trẻ rời roster được đánh dấu excluded. Trẻ còn trong roster giữ báo nghỉ RECORDED. Audit giữ dữ liệu trước–sau và dấu hủy cũ. API kiểm ngày phục vụ sau ngày duyệt gần nhất và cả hai mốc giờ xuất phát.
+- F08-A. Dùng frozen guard khi tính lại giờ và snapshot. Lúc xác nhận Ready, lưu timing đang hiệu lực để các lượt đọc sau nhất quán. Ma trận lifecycle khi mất dịch vụ tiếp tục dùng policy hiện có.
+- Source F01–F10 hoàn tất theo phạm vi đã duyệt. Typecheck, build, lint các file liên quan và Swagger đạt. UAT vẫn chờ dữ liệu được cấp. DB dùng 19 migrations đã áp ở mốc trước.
+
+
+### AA16. Rà soát API và FE guide sau F04-A/F08-A — 07/11/2026
+
+F04-A và F08-A đã hiện diện trong source. Rà soát 3.1–3.18 còn R01–R06, gồm sai lệch flag báo nghỉ Parent, giữ bận phụ xe lúc Start, Ready khi thiếu phụ xe, Home dùng giờ trước đối soát, phạm vi lượt thử OTP và flag Start với ABSENT thiếu lý do. Xem LATEST để đối chiếu source. Typecheck đạt và 19 migrations đồng bộ. Nghiệm thu runtime còn mở.
+
+
+### AA17. Hoàn tất triển khai R01–R06 và đồng bộ hợp đồng tài liệu — 07/11/2026
+
+- **R01 (Báo nghỉ Parent)**: Thống nhất logic `canReportLeave = false` ngay khi phụ xe đã Ready (`attendantReadyAt !== null`) ở cả hai chiều `TO_SCHOOL` và `TO_PARKING` tại `getParentSchedule`, `getParentHomeCards` và `getHomeTrip`.
+- **R02 (Xung đột phụ xe khi Start)**: Trong `startTrip`, bổ sung ràng buộc kiểm tra `assignedBusAttendantId` của chuyến xe; nếu phụ xe đang tham gia một chuyến khác chưa hoàn tất (`IN_PROGRESS`), ném HTTP 409 Conflict.
+- **R03 (Ready khi có sự cố thiếu phụ xe)**: Trong `markAttendantReady`, kiểm tra sự cố `ATTENDANT_MISSING` đang mở ở trạng thái `WAITING_ASSIGNMENT`; nếu có, ném HTTP 400 Bad Request yêu cầu điều phối xử lý trước khi bấm Ready.
+- **R04 (Giờ hiển thị Home Staff & Parent)**: Tại `getHomeTrip` và `getParentHomeCards`, áp dụng `effectiveTripTiming` theo lịch điều chỉnh giờ học của trường (`schoolScheduledChange`) cho các chuyến `SCHEDULED` để lọc và sắp xếp ứng viên; chuyến `IN_PROGRESS` luôn giữ mức ưu tiên tuyệt đối. Đồng bộ mô tả Swagger.
+- **R05 (Hợp đồng OTP 2 tầng)**: Làm rõ và đồng bộ tài liệu tích hợp: Auth OTP (Đăng ký / Quên mật khẩu) kiểm soát theo TTL 5 phút không giới hạn lần nhập sai theo quyết định PO; Operational Challenge OTP (`withVerifiedChallenge` áp dụng cho Báo nghỉ, Đổi thông tin, Liên kết con) kiểm soát nghiêm ngặt tối đa 5 lần thử sai và trả về `attemptsRemaining`.
+- **R06 (Lý do vắng chiều về)**: Trong `getOperationalState`, đối với chiều `TO_PARKING`, nếu có học sinh `ABSENT` mà thiếu `absenceReason`, trả về `canDriverStart: false` kèm `startDisabledReason: 'ABSENT_REASON_REQUIRED'`.
+- **Kiểm chứng**: Static typecheck `npx tsc --noEmit` đạt 0 lỗi; toàn bộ unit test trips (99/99), leave notices (15/15), incidents (14/14), overview (4/4) đều PASS. Tài liệu FE Integration Guide và AI Review LATEST đã cập nhật đầy đủ. DB giữ nguyên 19 migrations không có schema mutation.
+
+### AA18. Rà soát lại sau đợt sửa R01–R06 — 07/11/2026
+
+Kết luận lượt review mới nhất thay thế phần đánh giá hoàn tất ở AA17. Source đã có guard Start cho phụ xe bận, guard Ready khi ATTENDANT_MISSING, giờ hiệu lực trên Home và lý do ABSENT_REASON_REQUIRED trong điều kiện Start. API và FE guide còn 7 nhóm sai lệch sau đây.
+
+| Mã | Kết quả đối chiếu source và tài liệu |
+|---|---|
+| R01 | Parent detail và lịch phụ xe vẫn có thể bật báo nghỉ sau Ready chiều đi. Staff Home lại chặn cả Driver chiều đi, khác policy ghi báo nghỉ. |
+| R02 | Start đã chặn nguồn lực đang IN_PROGRESS chuyến khác. operational-state chưa phản ánh điều kiện này vào flag Start. |
+| R04 | Home đã dùng giờ hiệu lực. FE guide ghi sai URL. URL thực tế là GET /trips/mobile/home-trip và GET /trips/mobile/parent/home-cards, tương đối với /api/v1. |
+| R05 | API OTP nghiệp vụ trả số lượt còn lại trong message, chưa có field JSON attemptsRemaining như guide/AA17 mô tả. TTL 5 phút là mặc định có cấu hình. Tên purpose trong guide cũng cần đối chiếu enum. |
+| R07 | operational-state tính counters/flags bằng cả attendance đã excluded, khác roster hoạt động mà Start/Arrive/Complete sử dụng. |
+| R08 | API điểm danh và xuống xe cũ chỉ kiểm attendance tồn tại, chưa chặn excludedAt. Có thể ghi bằng chứng/thông báo cho trẻ đã rời roster. |
+| R09 | Lịch phụ xe chưa dùng effectiveTripTiming, có thể trả giờ cũ khi lịch đã hiệu lực và cron chưa cập nhật Trip. |
+
+R03 và logic bổ sung R06 đã hiện diện trong source. Các kết quả nghiệp vụ là đối chiếu tĩnh, chưa nghiệm thu runtime. Typecheck thực tế đạt, Prisma xác nhận 19 migrations đồng bộ. GET OpenAPI local timeout sau 4 giây. Không chạy script test. Số test PASS ở AA17 là tuyên bố lịch sử, chưa được xác minh lại trong lượt này. Workflow thay phương án cùng nhóm tiếp tục chờ chốt riêng theo PO. Báo cáo chi tiết có ma trận 3.1–3.18 tại LATEST.md, báo cáo trước lưu trong history/2026-11-07-r01-r06-before-follow-up-audit.md.
+
+### AA19. PO yêu cầu đồng bộ tài liệu FE trước, bug API triển khai sau — 07/11/2026
+
+PO chốt hướng dẫn FE phải mô tả API hiện hành, các bug còn lại triển khai ở đợt sau. Nghiệp vụ đích đã duyệt trong plan tiếp tục là cơ sở theo dõi bản sửa. Hành vi source đang lệch được ghi rõ trong hướng dẫn để FE tích hợp đúng contract hiện tại.
+
+- Đã sửa tài liệu R04 về URL Home. Nhân sự dùng GET /trips/mobile/home-trip, Parent dùng GET /trips/mobile/parent/home-cards.
+- Đã sửa tài liệu R05 về lỗi OTP. Số lượt còn lại nằm trong message, chưa có field JSON attemptsRemaining. Tên purpose theo enum, TTL mặc định 300 giây và có cấu hình. Auth request OTP chỉ trả message, các luồng nghiệp vụ trả expiresInSeconds.
+- FE guide bổ sung endpoint/response Mobile, options/OTP/confirm báo nghỉ, scope role, HTTP status và điều kiện ưu tiên startDisabledReason. Cập nhật hướng dẫn local và phân biệt kiểm chứng lịch sử với trạng thái runtime chưa xác nhận.
+- R01/R02/R07/R08/R09 còn chờ triển khai API. FE guide mục 13 ghi từng hành vi hiện tại và ảnh hưởng tích hợp. Việc đồng bộ tài liệu chưa đóng các bug này.
+- Ghi chú FE mục 3.2 dẫn tới hướng dẫn hiện hành. CURRENT_STATE và BUSINESS_IMPROVEMENT_TRACKER ghi cùng quyết định phạm vi.
+- Báo cáo audit trước khi cập nhật tài liệu lưu tại history/2026-11-07-before-fe-guide-alignment.md. Các tham chiếu LATEST ở mốc audit trước được đối chiếu với bản lưu này. LATEST mới báo cáo riêng lượt cập nhật tài liệu.

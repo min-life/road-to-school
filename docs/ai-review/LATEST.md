@@ -1,109 +1,119 @@
-# AI Review — Master Business Improvement Plan (Sections 3.4 – 3.18 Full Implementation)
+# AI Review — Đồng bộ hướng dẫn FE và bàn giao mã nguồn, 07/11/2026
 
 ## 1. Task Information
-- **Task Name**: Implementation of Master Business Improvement Plan (Sections 3.4 through 3.18).
-- **Date**: 04/11/2026, Asia/Saigon.
-- **Project Scope**: API (`/api`) & Documentation (`/docs`). (Strictly zero changes to `/web` or `/mobile`).
-- **Task Type**: Implementation, Refactor, and Test Verification.
-- **Status**: `COMPLETED`.
+
+- Task Name — Đồng bộ tài liệu FE với source API sau lượt audit 3.1–3.18 và đóng gói mã nguồn theo yêu cầu push của PO.
+- Date — 07/11/2026, Asia/Ho_Chi_Minh.
+- Project Scope — Documentation.
+- Task Type — Implementation tài liệu.
+- Status — COMPLETED đối với phạm vi cập nhật tài liệu. Các bug API còn lại và nghiệm thu runtime tiếp tục được theo dõi riêng.
 
 ## 2. Original Request
-Lệnh `/goal` của Product Owner:
-1. Tiến hành triển khai toàn bộ Master Business Improvement Plan (Mục 3.4 – 3.18).
-2. Tạo 1 file hướng dẫn cho Frontend Dev (`docs/FE_INTEGRATION_GUIDE.md`) để hiểu và dễ gắn API.
-3. Thêm 1 description ngắn gọn ngay trong đoạn chat để FE dev đọc Pull Request có thể nắm được những điểm cần làm với source code BE.
-4. Đảm bảo chỉ chỉnh sửa API và tuân thủ nguyên tắc không làm nở source code hoặc database quá nhiều.
+
+PO yêu cầu bảo đảm tài liệu dành cho FE khớp với API hiện tại. Các bug còn lại triển khai sau.
+
+PO tiếp tục yêu cầu push code với commit ngắn gọn. Phạm vi đóng gói gồm các thay đổi API, Prisma migrations và docs đang chờ trên nhánh hiện tại chuongtv/update-be.
 
 ## 3. Approved Scope
-- **Phê duyệt**: PO phê duyệt toàn diện Đề xuất A từ Mục 3.4 đến 3.18 kèm:
-  - D317-02: Giảm ngưỡng cảnh báo đi lệch (50m, 15s) và đến trễ (3 phút, 15s); bổ sung 3 sự cố (`NO_GUARDIAN_AT_STOP`, `TRAFFIC_DELAY`, `GPS_SIGNAL_LOST`) kèm ghi nhận tọa độ GPS.
-  - D310-01: Chặn xuất bến chuyến về (`TO_PARKING`) khi toàn bộ học sinh đều vắng mặt.
-  - D316-02: Phân tách phương án tuyến độc lập theo nhóm học sinh, không gom chung học sinh khác trường.
-- **Phạm vi code**: Chỉ thay đổi trong thư mục `/api` và `/docs`. Không chạm vào `/web` hay `/mobile`.
-- **Test Data Policy**: Tuyệt đối không sinh dữ liệu giả trong PostgreSQL.
+
+Cập nhật hướng dẫn FE, liên kết ghi chú FE mục 3.2, ghi quyết định mới vào master plan/tracker/CURRENT_STATE và lưu báo cáo. Nội dung mô tả dựa trên controller, DTO, service và hành vi hiện hành của source.
+
+Quyết định mới nhất của PO tách việc đồng bộ tài liệu khỏi việc sửa R01/R02/R07/R08/R09. Nghiệp vụ đích đã duyệt tiếp tục được giữ trong plan cho đợt triển khai sau.
+
+Đích đưa mã nguồn lên là origin/chuongtv/update-be. Dùng commit message `fix(api): align business rules and FE docs`. Báo cáo được lưu trước commit để đi cùng bộ thay đổi. Kết quả commit/push được xác nhận bằng Git và phản hồi trong chat sau thao tác.
 
 ## 4. Analysis & Decisions
-1. **Rule G-02 (Frozen Trip Policy)**:
-   - Một chuyến xe được coi là đóng băng (`isTripFrozen`) ngay khi `actualStartTime !== null` hoặc `attendantReadyAt !== null`.
-   - Mọi thao tác sửa đổi phân công thường lệ (`updateTripAssignment`) trên chuyến đã đóng băng sẽ bị từ chối với mã lỗi `409 Conflict`. Mọi thay thế khẩn cấp phải đi qua luồng Xử lý sự cố (`resolveIncident` với `REPLACED`).
-   - Rút đơn xin nghỉ (`cancelNotice`) bị từ chối nếu giáo viên phụ xe đã sẵn sàng đón (`attendantReadyAt !== null`).
-2. **Rule G-01 & Đồng bộ Chuyến xe Chưa đóng băng (`syncUnfrozenTripsForRoute`)**:
-   - Khi phương án tuyến có sự điều chỉnh (thay xe/tài xế/phụ xe mặc định theo D36-02, chèn học sinh giữa kỳ theo D312-01, hoặc tối ưu lại theo yêu cầu đổi địa chỉ D314-01), các chuyến `SCHEDULED` chưa đóng băng sẽ tự động được cập nhật lại `routeSnapshot` và roster học sinh tương ứng.
-3. **Phát hiện sự cố và định vị GPS**:
-   - Mở rộng DTO `CreateIncidentDto` hỗ trợ `latitude`, `longitude`, `studentId`.
-   - Cập nhật bộ phát hiện tự động `IncidentsDetectorService` theo ngưỡng mới và lưu tọa độ tại thời điểm phát hiện vào trường JSON `context`.
-4. **Sửa các lỗi tồn đọng từ baseline**:
-   - Bug B-01: Chuyến `IN_PROGRESS` không còn bị ẩn trong `getHomeTrip` và `getParentHomeCards` bất kể thời gian dự kiến kết thúc.
-   - Bug B-02: Duyệt yêu cầu đổi địa chỉ kiểu `REOPTIMIZED` bắt buộc `previewToken` và `expectedFingerprint`, đồng thời đồng bộ lại snapshot các chuyến unfrozen.
-   - Bug B-03: `resolveIncident` nhánh `REPLACED` sử dụng `assertStaffAvailableForTrip` để kiểm tra toàn diện điều kiện nhân sự thay thế.
-   - Bug B-04: Thêm học sinh giữa kỳ (`confirmStudentInsertion`) đồng bộ tức thì sang snapshot các chuyến unfrozen.
-   - Bug B-06: Hủy phương án tuyến (`cancelRoutePlan`) chỉ áp dụng với các chuyến chưa đóng băng và kiểm tra `expectedFingerprint`.
+
+Tài liệu FE phải cho biết API thực sự nhận/trả gì và các giới hạn còn tồn tại. Hai sai lệch tài liệu R04/R05 đã được sửa. Năm bug API được đưa vào mục 13 của hướng dẫn để tránh mô tả hành vi dự kiến thành khả năng đã hoàn thành.
+
+| Nội dung | Kết quả cập nhật |
+|---|---|
+| R04 — URL Home | Nhân sự dùng GET /trips/mobile/home-trip. Parent dùng GET /trips/mobile/parent/home-cards. |
+| R05 — OTP | Số lượt còn lại nằm trong message lỗi HTTP 400. Chưa có field JSON attemptsRemaining. Tên purpose đúng enum. TTL mặc định 300 giây và có cấu hình. |
+| Response OTP | Auth request OTP trả message. Các endpoint OTP nghiệp vụ trả expiresInSeconds, kèm challengeId và thông tin kênh theo endpoint. |
+| Response lịch Parent | Ghi đúng studentId, studentName, selectedDate, trips và items. trips/items chứa cùng danh sách. |
+| Đọc Mobile | Bổ sung bảng method/path, quyền và response cho Home, lịch, detail, operational-state và attendance. |
+| Báo nghỉ | Bổ sung options/otp/confirm, query/body/response, canReport/disabledReason và khác biệt role sau Ready. |
+| Vận hành | Làm rõ role của action flags, thứ tự chọn startDisabledReason, status/response correction, cancel-all-absent, reopen và close incident. |
+| Trường | Inactive/schedule/location có effectiveDate mặc định ngày mai. Active lại qua isActive=true là thao tác ngay khi đủ điều kiện. |
+| Bãi | Làm rõ bán kính mặc định lần đầu, giữ giá trị khi bỏ field lúc cập nhật và expectedFingerprint tùy chọn. |
+| Local | Làm rõ dependency theo lockfile, env được cấp, lệnh chạy, port mặc định/cấu hình, base/Swagger/OpenAPI và Bearer token. |
+| Kiểm chứng | Phân biệt các kết quả lịch sử với Swagger/runtime chưa xác nhận. |
+
+Mục 13 của hướng dẫn mô tả các bug API được PO hoãn xử lý như sau.
+
+| Mã | Hiện trạng vẫn tồn tại trong source |
+|---|---|
+| R01 | Flag báo nghỉ khác nhau giữa Home/detail/schedule và khác policy ghi theo role. Màn báo nghỉ dùng options với canReport/disabledReason. |
+| R02 | Flag Start chưa kiểm nguồn lực đang chạy chuyến khác, mutation Start đã kiểm và có thể trả 409. |
+| R07 | Counters/action flags operational-state còn đếm attendance đã excluded. Roster GET attendance đã lọc excluded. |
+| R08 | API điểm danh/xuống xe cũ còn thiếu guard excludedAt. Correction mới đã chặn. |
+| R09 | Lịch phụ xe còn trả giờ đã lưu khi giờ hiệu lực đã đổi và cron chưa đồng bộ. |
+
+Mô tả các giới hạn cho FE không đồng nghĩa đóng bug hoặc hoàn thành nghiệp vụ đích. Báo cáo audit chi tiết trước đó đã được lưu tại `docs/ai-review/history/2026-11-07-before-fe-guide-alignment.md` để tiếp tục triển khai sau.
 
 ## 5. Implementation Details
-### Files Tạo mới:
-1. `api/prisma/migrations/20261104081535_add_province_and_incident_types/migration.sql`: Migration PostgreSQL bổ sung `province` cho `School` và `Student`, thêm 3 enum values vào `TripIncidentType`.
-2. `api/src/trips/utils/staff-availability.helper.ts`: Helper kiểm tra tính khả dụng của nhân sự (trạng thái active, vai trò, đơn nghỉ phép, sự cố chưa giải quyết, chuyến xe chồng lấn).
-3. `api/src/trips/utils/trip-sync.helper.ts`: Helper đồng bộ hóa chuyến xe chưa đóng băng (`syncUnfrozenTripsForRoute`).
-4. `docs/FE_INTEGRATION_GUIDE.md`: Cẩm nang hướng dẫn tích hợp API chi tiết cho lập trình viên Frontend Web & Mobile.
 
-### Files Chỉnh sửa:
-1. `api/prisma/schema.prisma`: Thêm `province` vào `School` và `Student`; mở rộng enum `TripIncidentType`.
-2. `api/src/overview/operations-policy.ts`: Thêm `frozenTripWhere` và `isTripFrozen`.
-3. `api/src/trips/trips.service.ts`: Sửa Bug B-01 trong Home Trip; chặn xe/tài xế chạy đồng thời 2 chuyến; cấm đổi phân công trên chuyến đã đóng băng; chặn xuất bến khi 100% học sinh vắng mặt; kiểm soát quy tắc điểm danh 2 giai đoạn.
-4. `api/src/trips/utils/trip-snapshot-resolver.ts`: Bổ sung `'UNFROZEN_TRIP_SYNC'` vào union `snapshotReason`.
-5. `api/src/leave-notices/leave-notices.service.ts`: Chặn rút đơn nghỉ khi phụ xe đã sẵn sàng; kiểm tra nhân sự thay thế qua `assertStaffAvailableForTrip`.
-6. `api/src/incidents/dto/create-incident.dto.ts`: Bổ sung `latitude`, `longitude`, `studentId` với validation decorators.
-7. `api/src/incidents/incidents.service.ts`: Hỗ trợ 3 sự cố mới có tọa độ; kiểm tra nhân sự thay thế trong `resolveIncident` (Bug B-03).
-8. `api/src/incidents/incidents-detector.service.ts`: Cập nhật ngưỡng phát hiện lệch tuyến (50m, 15s) và trễ giờ (3 phút, 15s) kèm ghi nhận tọa độ GPS.
-9. `api/src/routes/routes.service.ts`: Lọc dữ liệu chuẩn bị theo bán kính 50km và tỉnh thành; lan truyền phân công mặc định xuống các chuyến unfrozen; đồng bộ chèn học sinh tức thì (Bug B-04); hủy phương án chỉ áp dụng với chuyến unfrozen (Bug B-06).
-10. `api/src/routes/resource-availability.service.ts`: Chặn unassign tài xế / phụ xe trên phương án đã ACTIVE.
-11. `api/src/student-requests/student-requests.service.ts`: Duyệt đổi địa chỉ `REOPTIMIZED` yêu cầu `previewToken`, `expectedFingerprint` và đồng bộ chuyến xe unfrozen (Bug B-02).
-12. `docs/BUSINESS_IMPROVEMENT_TRACKER.md`: Cập nhật tiến độ hoàn thành các gói 3.4 – 3.18.
-13. `docs/ai-handoff/CURRENT_STATE.md`: Cập nhật snapshot hiện trạng mã nguồn.
+No application code changes.
+
+Các file cập nhật trực tiếp cho task này gồm
+
+- `docs/FE_INTEGRATION_GUIDE.md` — Contract tích hợp và mục 13 về các giới hạn API hiện tại.
+- `docs/ai-review/school-3.2-fe-pr-notes.md` — Dẫn tới hướng dẫn hiện hành và mục giới hạn.
+- `docs/ai-review/business-improvement-master-plan-3.4-3.18.md` — AA19 ghi quyết định PO và kết quả đồng bộ tài liệu.
+- `docs/BUSINESS_IMPROVEMENT_TRACKER.md` — Cập nhật R04/R05 đã sửa tài liệu và năm bug API còn mở.
+- `docs/ai-handoff/CURRENT_STATE.md` — Cùng trạng thái hiện hành cho người tiếp quản.
+- `docs/ai-review/LATEST.md` — Báo cáo này.
+- `docs/ai-review/LATEST.diff` — Ghi No code changes for this task.
+
+Đã lưu báo cáo và diff trước task vào `history/2026-11-07-before-fe-guide-alignment.md` và `.diff`. Diff cũ chứa thay đổi của mốc implementation trước, không dùng làm diff task tài liệu hiện tại.
 
 ## 6. Database Changes
-- Thêm trường `province String? @db.VarChar(100)` vào bảng `schools` và `students`.
-- Bổ sung 3 giá trị `NO_GUARDIAN_AT_STOP`, `TRAFFIC_DELAY`, `GPS_SIGNAL_LOST` vào enum `TripIncidentType`.
-- Migration `20261104081535_add_province_and_incident_types` đã được áp dụng an toàn trên cơ sở dữ liệu development. Không tạo bảng mới, không làm phình schema.
+
+None. Trạng thái 19 migrations đồng bộ là kết quả đọc ở lượt audit ngay trước task này, chưa chạy lại migrate status trong lượt cập nhật tài liệu. Không phát sinh thay đổi cấu trúc hoặc dữ liệu.
 
 ## 7. API & Swagger Changes
-- `POST /api/incidents`: Nhận thêm `latitude?: number`, `longitude?: number`, `studentId?: string`, hỗ trợ 3 loại sự cố mới.
-- `POST /api/student-requests/:id/approve`: Với quyết định `REOPTIMIZED`, bắt buộc gửi `previewToken` và `expectedFingerprint`.
-- `POST /api/routes/plans/:id/cancel`: Nhận thêm `expectedFingerprint` chống xung đột thao tác đồng thời.
-- `GET /api/routes/plans/:id/cancellation-impact`: Trả về số lượng `scheduledTripsCount` (chỉ đếm các chuyến unfrozen sẽ bị hủy) và `frozenTripsCount` (các chuyến giữ nguyên).
-- Mã lỗi trả về được chuẩn hóa: `409 Conflict` cho chuyến đã đóng băng và xung đột phiên xem trước; `400 Bad Request` cho lý do vắng mặt bắt buộc và rút đơn nghỉ không hợp lệ.
+
+None. Chỉ cập nhật mô tả tài liệu theo controller/DTO/service đang có.
+
+Đã dùng TypeScript AST đọc controllers và so khớp 47 cặp method/path duy nhất được ghi bằng method cụ thể trong FE guide với 165 route hiện có. Không còn cặp đường dẫn chưa khớp. Kiểm tra này chuẩn hóa tên biến path parameter, chưa chứng minh hành vi HTTP hoặc toàn bộ schema response.
+
+Mốc GET OpenAPI local trong lượt audit trước bị timeout sau 4 giây. Task này không khởi động lại server/scheduler để kiểm Swagger. Runtime OpenAPI còn NOT_VERIFIED.
 
 ## 8. UI/UX Changes
-- Không can thiệp mã nguồn UI (`/web` và `/mobile`).
-- Đã xuất bản cẩm nang chi tiết [docs/FE_INTEGRATION_GUIDE.md](../FE_INTEGRATION_GUIDE.md) hướng dẫn toàn bộ giao diện Web Admin và Mobile App cách xử lý các trường hợp lỗi, vô hiệu hóa nút bấm và hiển thị cảnh báo.
+
+None. Tài liệu có lưu ý dành cho FE về refresh trạng thái, chọn studentId từ roster hiện tại và phản hồi lỗi, chưa triển khai UI.
 
 ## 9. Verification & Testing
-- **TypeScript Static Typecheck**:
-  `cd api; npx tsc --noEmit` -> **PASS** (0 errors).
-- **Unit Tests Verification**:
-  `cd api; npx vitest run src/routes/ src/trips/ src/incidents/ src/leave-notices/ src/student-requests/ src/overview/` -> **PASS** (11/11 test files, 193/193 tests passed).
-  - `src/trips/utils/trip-time.util.spec.ts`: 10 passed.
-  - `src/overview/overview.spec.ts`: 4 passed.
-  - `src/routes/vehicle-availability.spec.ts`: 11 passed.
-  - `src/student-requests/student-requests.service.spec.ts`: 16 passed.
-  - `src/leave-notices/leave-notices.service.spec.ts`: 15 passed.
-  - `src/trips/trip-synchronization.spec.ts`: 31 passed.
-  - `src/trips/trips.service.spec.ts`: 17 passed.
-  - `src/routes/approval-assignment.spec.ts`: 10 passed.
-  - `src/routes/routes.service.spec.ts`: 27 passed.
-  - `src/incidents/incidents.service.spec.ts`: 14 passed.
-  - `src/trips/trip-navigation.spec.ts`: 38 passed.
-- **Test Data Policy Compliance**: Tuyệt đối không tạo fake data, không thêm bản ghi thử nghiệm vào DB.
+
+| Kiểm chứng thực hiện trong task | Kết quả |
+|---|---|
+| Đọc controller/DTO/service để đối chiếu field, role, status và response | Đã thực hiện static review. |
+| Phân tích AST so khớp method/path trong FE guide | PASS sau cập nhật, 47 cặp được mô tả đều khớp controller, unmatched rỗng. Chỉ xác minh method/path. |
+| `npx --no-install tsc --noEmit` tại api | PASS, exit 0. |
+| Kiểm tra trước commit/push theo yêu cầu bổ sung | Đã chạy lại typecheck, PASS. git diff --check toàn bộ tracked changes đạt. Remote và HEAD cùng ở 41cf3b0 trước commit. Không phát hiện Git hook thực thi đang được cấu hình. |
+| So hash diff tracked của api/web/mobile đầu và cuối task | PASS, cùng giá trị 48706b5f2e7ee53aff9eb741018703857f2c8281. |
+| `git diff --check` cho tài liệu cập nhật | PASS sau chỉnh sửa. |
+| Unit/integration/E2E script test | NOT_VERIFIED, user yêu cầu chưa chạy script test. |
+| API mutation, provider, cron và FE UAT | NOT_VERIFIED. Các ca cần dữ liệu/mutation chưa được phép mang nhãn BLOCKED_BY_TEST_DATA_POLICY. |
+| Swagger HTTP runtime | NOT_VERIFIED, giới hạn của lượt audit trước vẫn được ghi rõ trong hướng dẫn. |
+
+Việc xác minh tài liệu theo source chưa thay thế nghiệm thu hành vi vận hành thực tế.
 
 ## 10. Issues & Risks
-- None identified. Các thay đổi hoàn toàn tương thích ngược và có cơ chế bảo vệ chuyến xe đang diễn ra.
+
+R01/R02/R07/R08/R09 vẫn còn trong source, đã được PO hoãn triển khai và được mô tả ở FE guide mục 13. FE vẫn có thể gặp khác biệt giữa flags/counters với kết quả API ghi, request điểm danh giữ studentId cũ và giờ trên lịch phụ xe. Việc sửa tài liệu không xử lý các nguyên nhân này.
+
+Workflow thay phương án cùng nhóm vẫn chờ chốt riêng. Các giới hạn snapshot/override legacy và trạng thái UAT tiếp tục được lưu trong hướng dẫn.
 
 ## 11. Reviewer Focus
-- Đảm bảo tính nhất quán của quy tắc đóng băng chuyến xe (`isTripFrozen`) trên tất cả các thao tác (đổi phân công, rút đơn nghỉ, hủy phương án).
-- Xác nhận logic đồng bộ `syncUnfrozenTripsForRoute` đảm bảo dữ liệu chuyến xe luôn cập nhật mà không ảnh hưởng đến các chuyến đã xuất bến.
+
+Kiểm URL và response theo source hiện hành. Xác nhận FE không đọc attemptsRemaining như field API đã có. Đối chiếu parent schedule response và body báo nghỉ với DTO. Khi đọc nghiệp vụ đích trong plan, đối chiếu AA19 và mục 13 FE guide để biết các bug đang hoãn.
 
 ## 12. Suggested Next Step
-- Chuyển giao tài liệu [docs/FE_INTEGRATION_GUIDE.md](../FE_INTEGRATION_GUIDE.md) cho đội ngũ Frontend để tiến hành tích hợp và cập nhật giao diện người dùng.
+
+FE tích hợp theo FE_INTEGRATION_GUIDE hiện hành và ghi nhận các ca gặp giới hạn mục 13 để chuẩn bị đợt sửa API sau.
 
 ## 13. Approval Status
-- `WAITING FOR USER REVIEW / APPROVAL`.
+
+WAITING FOR USER REVIEW / APPROVAL.

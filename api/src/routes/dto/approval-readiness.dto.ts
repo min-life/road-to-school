@@ -30,6 +30,8 @@ export class ApprovalSummaryDto {
 }
 
 export class ApprovalReadinessResponseDto {
+  @ApiProperty({ type: String, nullable: true, description: 'Ngày đầu đủ lịch phục vụ sau activation, null khi chưa kích hoạt' })
+  firstServiceDate?: string | null;
   @ApiProperty({ example: 'plan-uuid-1' })
   routePlanId: string;
 
