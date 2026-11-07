@@ -1,3 +1,5 @@
+import { administrativeLocationForCoordinates } from './location-province.js';
+import { lockOperations } from '../trips/utils/operations-lock.js';
 import {
   BadRequestException,
   ConflictException,
@@ -29,11 +31,13 @@ export class ScheduledChangesService {
   ) {
     if (actor.role !== 'SYSTEM_ADMIN')
       throw new ForbiddenException('Chỉ nhà xe được hẹn thay đổi trường');
+    if (type === 'LOCATION') payload = { ...payload, ...await administrativeLocationForCoordinates(Number(payload.latitude), Number(payload.longitude)) };
     const tomorrow = new Date(`${vietnamToday()}T00:00:00Z`);
     tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
     const effectiveDate = date ?? contractDate(tomorrow);
     return this.prisma.$transaction(
       async (tx) => {
+      await lockOperations(tx);
         await tx.$queryRaw(
           Prisma.sql`SELECT id FROM schools WHERE id = ${schoolId} FOR UPDATE`,
         );
@@ -138,6 +142,7 @@ export class ScheduledChangesService {
     if (actor.role !== 'SYSTEM_ADMIN')
       throw new ForbiddenException('Chỉ nhà xe được hủy lịch thay đổi');
     return this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
       await tx.$queryRaw(
         Prisma.sql`SELECT id FROM schools WHERE id = ${schoolId} FOR UPDATE`,
       );
@@ -174,6 +179,7 @@ export class ScheduledChangesService {
       throw new ForbiddenException('Chỉ nhà xe được kích hoạt trường');
     return this.prisma.$transaction(
       async (tx) => {
+      await lockOperations(tx);
         await tx.$queryRaw(
           Prisma.sql`SELECT id FROM schools WHERE id = ${schoolId} FOR UPDATE`,
         );

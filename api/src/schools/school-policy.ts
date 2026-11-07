@@ -1,3 +1,4 @@
+import { geographyFields } from './geography.js';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { Prisma, Role, User } from '@prisma/client';
 import {
@@ -7,11 +8,12 @@ import {
 } from './school-effective-state.js';
 import { getDayOfWeekKey } from '../trips/utils/trip-time.util.js';
 import { calendarMatches } from './service-calendar.js';
+import { isTripFrozen } from '../overview/operations-policy.js';
 
 export type PolicyDb = Pick<
   Prisma.TransactionClient,
   'school' | 'schoolScheduledChange' | 'serviceCalendarEntry' | 'trip'
->;
+> & Partial<Pick<Prisma.TransactionClient, 'systemSetting'>>;
 export async function effectiveSchool(
   db: PolicyDb,
   id: string,
@@ -34,6 +36,7 @@ export async function effectiveSchool(
     const payload = change.payload as Prisma.JsonObject;
     if (change.type === 'INACTIVE') result.isActive = false;
     if (change.type === 'LOCATION') {
+      Object.assign(result, geographyFields(payload));
       result.addressText = String(payload.addressText);
       result.latitude = Number(payload.latitude);
       result.longitude = Number(payload.longitude);
@@ -123,11 +126,22 @@ export async function tripBlockReason(
     where: { id },
     include: {
       school: true,
-      route: { select: { routePlan: { select: { createdAt: true } } } },
+      route: { select: { routePlan: { select: { createdAt: true, needsReoptimization: true } } } },
       attendances: true,
     },
   });
   if (!trip || ['COMPLETED', 'CANCELLED'].includes(trip.status)) return null;
+  if (!isTripFrozen(trip) && db.systemSetting) {
+    const setting = await db.systemSetting.findUnique({ where: { key: 'PARKING_LOT' } });
+    const value = setting?.value as Prisma.JsonObject | null;
+    const pending = value?.scheduledChange as Prisma.JsonObject | null;
+    const applied = value?.lastAppliedChange as Prisma.JsonObject | null;
+    const date = pending ? String(pending.effectiveDate) : applied ? String(applied.effectiveDate) : null;
+    if ((pending || trip.route?.routePlan?.needsReoptimization) &&
+        (!date || date <= vietnamToday() && date <= contractDate(trip.serviceDate))) {
+      return 'PARKING_REOPTIMIZATION_REQUIRED';
+    }
+  }
   if ((trip.adminFinalization as Prisma.JsonObject | null)?.state === 'PENDING')
     return 'ADMIN_FINALIZATION_PENDING';
   const today = vietnamToday();

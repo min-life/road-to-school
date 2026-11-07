@@ -42,9 +42,10 @@ export class SystemSettingsController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Thông tin bãi xe (hoặc null nếu chưa cấu hình)',
+    description: 'Thông tin bãi xe hiện hành',
     type: ParkingLotResponseDto,
   })
+  @ApiResponse({ status: 409, description: 'Cần cấu hình bãi trung tâm trước khi lập lịch phục vụ' })
   async getParkingLot(): Promise<ParkingLotResponseDto | null> {
     return this.settingsService.getParkingLot();
   }
@@ -83,7 +84,7 @@ export class SystemSettingsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Hủy lịch hẹn dời vị trí bãi đỗ xe trung tâm (Chỉ SYSTEM_ADMIN)',
-    description: 'Hủy bỏ kế hoạch dời bãi đỗ xe đang chờ ngày hiệu lực.',
+    description: 'Chỉ hủy trước ngày hiệu lực, giữ nguyên chuyến và cờ phương án vì đặt lịch chưa hủy hay đánh dấu.',
   })
   @ApiResponse({
     status: 200,
@@ -107,7 +108,7 @@ export class SystemSettingsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Áp dụng vị trí bãi đỗ xe mới khi đến ngày hiệu lực (Chỉ SYSTEM_ADMIN / Cronjob)',
-    description: 'Kiểm tra và kích hoạt chính thức tọa độ bãi xe mới nếu ngày hiệu lực đã đến.',
+    description: 'Đối soát khi đến hạn, hủy các chuyến chưa frozen từ mốc, đánh dấu cần tối ưu lại và áp dụng vị trí mới. Cron đối soát mỗi phút.',
   })
   @ApiResponse({
     status: 200,
@@ -125,7 +126,7 @@ export class SystemSettingsController {
   @ApiOperation({
     summary: 'Cập nhật vị trí bãi đỗ xe trung tâm (Chỉ SYSTEM_ADMIN)',
     description:
-      'Cập nhật địa chỉ chi tiết và tọa độ VietMap của bãi xe trung tâm duy nhất của nhà xe.',
+      'Cấu hình ban đầu áp dụng ngay. Đổi tọa độ bãi đã cấu hình phải từ ngày mai; đặt lịch chưa hủy chuyến. Đến ngày chỉ hủy chuyến chưa frozen và đánh dấu phương án cần tối ưu lại.',
   })
   @ApiResponse({
     status: 200,

@@ -32,10 +32,10 @@ describe('Trip synchronization authorization and operation serialization', () =>
     trip = makeTrip();
     db = {
       $queryRaw: vi.fn().mockResolvedValue([]),
-      trip: { findUnique: vi.fn(async () => trip), findMany: vi.fn().mockResolvedValue([]), update: vi.fn() },
+      trip: { findUnique: vi.fn(async () => trip), findFirst: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]), update: vi.fn() },
       tripAttendance: { findUnique: vi.fn(), findMany: vi.fn(async () => trip.attendances), update: vi.fn() },
       parentStudentLink: { findMany: vi.fn().mockResolvedValue([]), findUnique: vi.fn() },
-      user: { findUnique: vi.fn() }, vehicle: { findUnique: vi.fn() },
+      user: { findUnique: vi.fn() }, vehicle: { findUnique: vi.fn().mockResolvedValue({ id: 'vehicle', isActive: true, seatCount: 50 }) },
       school: { findUnique: vi.fn() },
       $transaction: vi.fn(async (work: any) => work(db)),
     };
@@ -111,7 +111,13 @@ describe('Trip synchronization authorization and operation serialization', () =>
   it.each(['assignment', 'ready', 'start', 'arrival', 'boarding', 'alighting', 'complete'])(
     'awaits the same parameterized Trip row lock before %s reads its preconditions', async operation => {
       let release!: () => void;
-      db.$queryRaw.mockImplementation(() => new Promise<void>(resolve => { release = resolve; }));
+      db.$queryRaw.mockImplementation((query: any) => {
+        const sqlStr = String(query?.strings?.[0] || query?.sql || '');
+        if (sqlStr.includes('pg_advisory_xact_lock')) {
+          return Promise.resolve([]);
+        }
+        return new Promise<void>(resolve => { release = resolve; });
+      });
       // A transition that completed while waiting must be read after acquiring the lock.
       trip.status = TripStatus.COMPLETED;
       const calls: Record<string, () => Promise<any>> = {
@@ -124,13 +130,15 @@ describe('Trip synchronization authorization and operation serialization', () =>
         complete: () => service.completeTrip('trip', user(Role.DRIVER, 'driver')),
       };
       const pending = calls[operation]();
-      const assertion = expect(pending).rejects.toBeInstanceOf(BadRequestException);
+      await new Promise((r) => setImmediate(r));
       expect(db.trip.findUnique).not.toHaveBeenCalled();
-      const query = db.$queryRaw.mock.calls[0][0];
-      expect(query.sql).toBe('SELECT id FROM trips WHERE id = ? FOR UPDATE');
-      expect(query.values).toEqual(['trip']);
+      const query = db.$queryRaw.mock.calls.find((call: any) =>
+        String(call[0]?.sql || '').includes('FROM trips WHERE id = ? FOR UPDATE'),
+      )?.[0];
+      expect(query?.sql).toBe('SELECT id FROM trips WHERE id = ? FOR UPDATE');
+      expect(query?.values).toEqual(['trip']);
       release();
-      await assertion;
+      await expect(pending).rejects.toBeInstanceOf(BadRequestException);
       expect(db.trip.update).not.toHaveBeenCalled();
       expect(db.tripAttendance.update).not.toHaveBeenCalled();
     },

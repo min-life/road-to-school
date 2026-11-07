@@ -1,18 +1,47 @@
+import { parseTripRouteSnapshot } from '../trips/utils/trip-snapshot-resolver.js';
 import { Role, type Prisma } from '@prisma/client';
 import { adminRecipients, writeNotification } from './notification-writer.js';
 import { effectiveMembership } from '../overview/operations-policy.js';
 
 export async function notifyIncident(db: Prisma.TransactionClient, id: string, actorId?: string): Promise<void> {
-  const incident = await db.tripIncident.findUnique({ where: { id }, include: { trip: { select: { schoolId: true, assignedBusAttendantId: true } } } });
+  const incident = await db.tripIncident.findUnique({ where: { id }, include: { trip: { include: {
+    attendances: { where: { excludedAt: null }, include: { student: { include: { parentLinks: true } } } },
+  } } } });
   if (!incident) return;
+  const staffMissing = ['DRIVER_MISSING', 'ATTENDANT_MISSING'].includes(incident.type);
   const pending = incident.status === 'WAITING_ASSIGNMENT';
   const auto = incident.status === 'WAITING_CONFIRMATION';
-  if (!pending && !auto && incident.status !== 'RESOLVED') return;
-  const userIds = pending ? await adminRecipients(db, incident.type === 'DRIVER_MISSING' ? Role.SYSTEM_ADMIN : Role.SCHOOL_ADMIN, incident.type === 'ATTENDANT_MISSING' ? incident.trip.schoolId : undefined)
-    : auto ? [incident.trip.assignedBusAttendantId] : incident.reportedById ? [incident.reportedById] : [];
-  const title = auto ? 'Chuyến có sự cố cần xác nhận' : pending ? incident.type === 'DRIVER_MISSING' ? 'Tài xế chưa đến' : 'Giáo viên chưa đến' : 'Sự cố nhân sự đã được xử lý';
-  await writeNotification(db, { eventKey: `incident:${id}:${incident.status}`, type: 'INCIDENT', title, body: auto ? incident.type === 'OFF_ROUTE' ? 'Lệch tuyến · Mở chuyến để xác nhận.' : 'Đón trả chậm · Mở chuyến để xác nhận.' : 'Mở sự cố để xem thông tin và kết quả xử lý.',
-    targetType: 'INCIDENT', targetId: id, userIds, actorId, push: auto || !pending,
+  const context = incident.context as Prisma.JsonObject | null;
+  const labels: Record<string, string> = {
+    DRIVER_MISSING: 'Tài xế chưa đến', ATTENDANT_MISSING: 'Giáo viên chưa đến',
+    OFF_ROUTE: 'Xe đi lệch tuyến', LATE_STOP: 'Xe đón trả trễ', NO_GUARDIAN_AT_STOP: 'Không có người nhận học sinh',
+    TRAFFIC_DELAY: 'Chuyến xe gặp trở ngại giao thông', GPS_SIGNAL_LOST: 'Xe mất cập nhật vị trí',
+  };
+  let userIds: string[];
+  if (staffMissing) {
+    userIds = pending ? await adminRecipients(db, incident.type === 'DRIVER_MISSING' ? Role.SYSTEM_ADMIN : Role.SCHOOL_ADMIN,
+      incident.type === 'ATTENDANT_MISSING' ? incident.trip.schoolId : undefined) : incident.reportedById ? [incident.reportedById] : [];
+  } else if (auto) userIds = [incident.trip.assignedBusAttendantId];
+  else {
+    userIds = [...await adminRecipients(db, Role.SYSTEM_ADMIN), ...await adminRecipients(db, Role.SCHOOL_ADMIN, incident.trip.schoolId),
+      incident.trip.assignedDriverId, incident.trip.assignedBusAttendantId];
+    if (incident.type === 'TRAFFIC_DELAY' || incident.type === 'NO_GUARDIAN_AT_STOP') {
+      const snapshot = parseTripRouteSnapshot(incident.trip.routeSnapshot);
+      const nav = incident.trip.navigationState as Prisma.JsonObject | null;
+      const targetIndex = snapshot?.stops.findIndex(stop => stop.id === nav?.targetStopId) ?? -1;
+      const upcoming = targetIndex >= 0 ? new Set(snapshot!.stops.slice(targetIndex).map(stop => stop.studentId)) : null;
+      const children = incident.trip.attendances.filter(a => incident.type === 'NO_GUARDIAN_AT_STOP'
+        ? a.studentId === context?.studentId
+        : upcoming ? upcoming.has(a.studentId) && a.status !== 'ABSENT'
+          : incident.trip.direction === 'TO_PARKING' ? a.status === 'PRESENT' && !a.alightedAt : a.status === 'UNMARKED');
+      userIds.push(...children.flatMap(a => a.student.parentLinks.map(link => link.parentId)));
+    }
+  }
+  const terminal = ['CLOSED', 'RESOLVED', 'CONFIRMED'].includes(incident.status);
+  await writeNotification(db, { eventKey: 'incident:' + id + ':' + incident.status, type: 'INCIDENT',
+    title: terminal ? 'Sự cố đã được cập nhật kết quả' : labels[incident.type] ?? 'Có sự cố chuyến xe',
+    body: 'Mở sự cố để xem thông tin và kết quả xử lý.', targetType: 'INCIDENT', targetId: id, userIds, actorId,
+    push: auto || !staffMissing || !pending,
     context: { tripId: incident.tripId, schoolId: incident.trip.schoolId, pendingAction: pending || auto } });
 }
 
@@ -44,10 +73,10 @@ export async function notifyRequest(db: Prisma.TransactionClient, id: string, ac
 }
 
 export async function notifyPlan(db: Prisma.TransactionClient, id: string, actorId?: string): Promise<void> {
-  const plan = await db.routePlan.findUnique({ where: { id }, select: { schoolId: true, status: true, name: true, createdById: true } });
+  const plan = await db.routePlan.findUnique({ where: { id }, select: { schoolId: true, status: true, name: true, createdById: true, updatedAt: true, needsReoptimization: true } });
   if (!plan) return;
   const users = plan.status === 'DRAFT' ? await adminRecipients(db, Role.SCHOOL_ADMIN, plan.schoolId)
     : [...await adminRecipients(db, Role.SYSTEM_ADMIN), ...await adminRecipients(db, Role.SCHOOL_ADMIN, plan.schoolId)];
-  await writeNotification(db, { eventKey: `plan:${id}:${plan.status}`, type: 'PLAN', title: plan.status === 'DRAFT' ? 'Phương án tuyến mới cần duyệt' : plan.status === 'ACTIVE' ? 'Phương án tuyến đã được duyệt' : plan.status === 'EXPIRED' ? 'Phương án tuyến đã hết hạn' : 'Phương án tuyến đã hủy',
+  await writeNotification(db, { eventKey: `plan:${id}:${plan.status}:${plan.updatedAt.toISOString()}`, type: 'PLAN', title: plan.needsReoptimization ? 'Phương án cần tối ưu lại lộ trình' : plan.status === 'DRAFT' ? 'Phương án tuyến mới cần duyệt' : plan.status === 'ACTIVE' ? 'Phương án tuyến đã được duyệt' : plan.status === 'EXPIRED' ? 'Phương án tuyến đã hết hạn' : 'Phương án tuyến đã hủy',
     body: plan.name, targetType: 'PLAN', targetId: id, userIds: users, actorId, context: { schoolId: plan.schoolId } });
 }

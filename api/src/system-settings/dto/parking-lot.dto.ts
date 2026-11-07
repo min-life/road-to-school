@@ -1,7 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsNumber, IsOptional, Min, Max } from 'class-validator';
+import { IsNotEmpty, IsString, IsNumber, IsOptional, IsPositive, Min, Max } from 'class-validator';
 
 export class UpdateParkingLotDto {
+  @ApiProperty({ required: false, default: 50, exclusiveMinimum: true, minimum: 0, maximum: 500, description: 'Bán kính phục vụ Haversine tính bằng km, >0 và <=500; không gửi giữ giá trị hiện hành' })
+  @IsOptional() @IsNumber() @IsPositive() @Max(500)
+  maxOperatingRadiusKm?: number;
   @ApiProperty({
     description: 'Địa chỉ chi tiết bãi đỗ xe trung tâm của nhà xe',
     example: '123 Đường Vận Tải, Phường Linh Trung, TP. Thủ Đức, TP. Hồ Chí Minh',
@@ -73,7 +76,7 @@ export class ParkingLotImpactDto {
   @ApiProperty({ description: 'Số phương án tuyến (DRAFT + ACTIVE) sẽ được đánh dấu cần tối ưu lại', example: 3 })
   plansNeedingReoptimizationCount: number;
 
-  @ApiProperty({ description: 'Số chuyến xe SCHEDULED diễn ra từ ngày hiệu lực trở đi sẽ bị hủy', example: 12 })
+  @ApiProperty({ description: 'Số chuyến SCHEDULED chưa frozen từ ngày hiệu lực sẽ bị hủy khi đến ngày', example: 12 })
   tripsCancelledAfterEffectiveDateCount: number;
 
   @ApiProperty({ description: 'Số chuyến xe SCHEDULED trước ngày hiệu lực được bảo lưu chạy bình thường', example: 8 })
@@ -82,10 +85,10 @@ export class ParkingLotImpactDto {
   @ApiProperty({ description: 'Tổng số phương án tuyến DRAFT toàn hệ thống' })
   totalDraftPlansCount: number;
 
-  @ApiProperty({ description: 'Tổng số phương án tuyến ACTIVE toàn hệ thống sẽ bị hủy' })
+  @ApiProperty({ description: 'Tổng số phương án ACTIVE chịu tác động tối ưu lại, không bị hủy' })
   totalActivePlansCount: number;
 
-  @ApiProperty({ description: 'Tổng số phương án tuyến sẽ bị hủy (DRAFT + ACTIVE)', required: false })
+  @ApiProperty({ description: 'Alias cũ: số phương án cần tối ưu lại, không phải số bị hủy', required: false })
   cancelledPlansCount?: number;
 
   @ApiProperty({ description: 'Tổng số chuyến xe SCHEDULED toàn hệ thống sẽ bị hủy' })
@@ -108,6 +111,8 @@ export class ParkingLotImpactDto {
 }
 
 export class ParkingLotResponseDto {
+  @ApiProperty({ example: 50, description: 'Bán kính phục vụ Haversine tính bằng km' })
+  maxOperatingRadiusKm?: number;
   @ApiProperty({
     description: 'Địa chỉ chi tiết bãi đỗ xe trung tâm',
     example: '123 Đường Vận Tải, Phường Linh Trung, TP. Thủ Đức, TP. Hồ Chí Minh',

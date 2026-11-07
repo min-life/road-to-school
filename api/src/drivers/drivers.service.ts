@@ -1,3 +1,5 @@
+import { assertInactiveHandover } from '../trips/utils/staff-availability.helper.js';
+import { lockOperations } from '../trips/utils/operations-lock.js';
 import { PersonnelCredentialsService } from '../auth/personnel-credentials.service.js';
 import {
   Injectable,
@@ -119,6 +121,10 @@ export class DriversService {
     }
 
     let phone: string | null = null;
+    if (!dto.phone || !dto.phone.trim()) {
+      throw new BadRequestException('Số điện thoại nhân sự là bắt buộc');
+    }
+
     if (dto.phone && dto.phone.trim().length > 0) {
       let cleanPhone = dto.phone.trim().replace(/[\s\-().]/g, '');
       if (cleanPhone.startsWith('+84')) {
@@ -407,6 +413,8 @@ export class DriversService {
 
       // Thực hiện bàn giao nguyên tử và thu hồi session
       const updated = await this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
+      await assertInactiveHandover(tx, 'assignedDriverId', driverId, dto.replacementUserId);
         await tx.route.updateMany({
           where: {
             defaultDriverId: driverId,
@@ -454,6 +462,8 @@ export class DriversService {
 
     // Không có phân công -> Vô hiệu hóa và thu hồi session
     const updated = await this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
+      await assertInactiveHandover(tx, 'assignedDriverId', driverId);
       await tx.session.updateMany({
         where: { userId: driverId, revokedAt: null },
         data: { revokedAt: new Date(), pushToken: null },

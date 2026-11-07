@@ -1,3 +1,76 @@
+# Cập nhật 07/11/2026 — Đồng bộ hướng dẫn FE theo API hiện hành
+
+- PO yêu cầu ưu tiên tài liệu FE khớp API, các bug còn lại triển khai sau. FE_INTEGRATION_GUIDE đã sửa URL Home, response OTP, TTL/purpose và mô tả rõ contract đọc Mobile/báo nghỉ.
+- R04/R05 đã xử lý phần sai lệch trong tài liệu. R01/R02/R07/R08/R09 còn trong API, được ghi riêng ở mục 13 của hướng dẫn để FE biết giới hạn.
+- Mục tiêu nghiệp vụ trong plan tiếp tục giữ để theo dõi bản sửa sau. Hướng dẫn FE mô tả hành vi source hiện hành, chưa đồng nghĩa các bug đã được sửa hoặc nghiệm thu runtime.
+- Xem master plan AA19 và LATEST. Báo cáo review chi tiết trước khi đồng bộ docs được lưu tại history/2026-11-07-before-fe-guide-alignment.md.
+
+# Cập nhật 07/11/2026 — Rà soát lại sau đợt sửa R01–R06
+
+- Kết luận mới nhất là API, plan và FE guide còn 7 nhóm sai lệch. Chi tiết tại `docs/ai-review/LATEST.md` và master plan AA18.
+- R01 còn lệch flag báo nghỉ theo role/endpoint. R02 đã chặn Start khi phụ xe bận nhưng flag operational-state chưa phản ánh nguồn lực đang chạy chuyến khác.
+- R04 đã tính giờ Home nhưng FE guide ghi sai URL. R05 mô tả attemptsRemaining như field JSON trong khi API chỉ trả số lượt còn lại trong message.
+- R07 operational-state đếm cả attendance đã excluded. R08 API điểm danh/xuống xe cũ chưa chặn bản ghi excluded. R09 lịch phụ xe chưa tính giờ hiệu lực khi cron chưa đối soát.
+- Typecheck đạt và Prisma xác nhận 19 migrations đồng bộ. GET OpenAPI local timeout, runtime/UAT còn NOT_VERIFIED. Lượt review này chỉ cập nhật tài liệu, không chạy script test.
+- Các tuyên bố hoàn tất 100% và số unit test ở mục lịch sử bên dưới thuộc báo cáo trước. Chưa dùng chúng để nghiệm thu source hiện tại.
+
+# Cập nhật 07/11/2026 — Hoàn tất điều chỉnh R01–R06 và đồng bộ hướng dẫn FE
+
+- Đã giải quyết 100% các điểm chưa khớp R01–R06 theo audit Codex ngày 07/11/2026:
+  * R01: Đồng bộ logic `canReportLeave = false` ngay khi phụ xe Ready ở cả hai chiều (`TO_SCHOOL` và `TO_PARKING`).
+  * R02: Chặn tài xế xuất phát (HTTP 409 Conflict) khi giáo viên phụ xe đang thực hiện chuyến xe khác (`IN_PROGRESS`).
+  * R03: Chặn phụ xe Ready (HTTP 400 Bad Request) khi chuyến xe có sự cố `ATTENDANT_MISSING` chờ phân công (`WAITING_ASSIGNMENT`).
+  * R04: Đồng bộ giờ hiệu lực `effectiveTripTiming` theo lịch thay đổi của trường cho chuyến `SCHEDULED` trên Staff & Parent Home; giữ ưu tiên tuyệt đối cho `IN_PROGRESS`.
+  * R05: Chuẩn hóa hợp đồng OTP 2 tầng (Auth OTP theo TTL 5 phút; Operational Challenge OTP tối đa 5 lượt thử).
+  * R06: Đồng bộ cờ `canDriverStart = false` và `startDisabledReason: 'ABSENT_REASON_REQUIRED'` khi có học sinh vắng thiếu lý do chiều về.
+- Liên kết chéo F04/F08 tại FE Integration Guide Mục 7 dẫn sang Mục 12 (F04-A / F08-A).
+- Typecheck `npx tsc --noEmit` đạt 0 lỗi; toàn bộ unit test trips (99/99), leave-notices (15/15), incidents (14/14), overview (4/4) đều PASS.
+- DB giữ nguyên 19 migrations, tuân thủ tuyệt đối Test Data Policy (không sinh dữ liệu test giả).
+- Chi tiết báo cáo 13 mục tại [docs/ai-review/LATEST.md](../ai-review/LATEST.md) và [docs/ai-review/LATEST.diff](../ai-review/LATEST.diff).
+
+# Cập nhật 07/11/2026 — Bản vá F01–F10 đã hoàn tất source
+
+- PO chốt F04-A và F08-A. Reopen dựng dữ liệu chuyến theo tuyến/lịch hiện hành và ghi audit. Trip đã Ready giữ giờ khi ngày đó còn dịch vụ.
+- Typecheck, build, lint các file mới sửa và Swagger đạt. Nghiệm thu nghiệp vụ vẫn chờ dữ liệu được cấp.
+- Xem master plan AA15, FE guide mục 12 và LATEST. DB local ở mốc 19 migrations đã xác minh trước đó.
+
+# Cập nhật 06/11/2026 — Đã migrate địa giới local
+
+- PO duyệt migrate, đã apply20261106010000_school_student_geography vào roadtoschool/public localhost:5432.19migrations up to date.
+- SELECT metadata xác nhận province_id/ward_id/ward của schools và students đều TEXT nullable, migration finished/không rollback. Không backfill/seed/reset hoặc gọi provider.
+- API typecheck đạt. Không chạy script test/cron/nghiệp vụ để thử. Dữ liệu cũ chưa có ID vẫn hiện khi bỏ filter, dropdown có thể rỗng.
+- Các ghi chú pending địa giới bên dưới là lịch sử trước phê duyệt này. Xem docs/ai-review/LATEST.md và FE guide mục11; runtime/UAT vẫn chưa nghiệm thu.
+
+# Cập nhật 06/11/2026 — Source bộ lọc địa giới, DDL mới chưa apply
+
+- PO đã duyệt provinceId/wardId/ward nullable trên School/Student và query optional cho school/student/preparation. Chỉ áp filter người dùng chọn; eligibility độc lập, không tự dùng tỉnh/phường của trường/bãi.
+- Hai GET location-options theo scope đã duyệt, đọc dữ liệu có sẵn, không backfill hoặc gọi VietMap khi GET. Tạo/đổi tọa độ dùng địa giới mới Reverse v4; giữ addressText/payload cũ.
+- Migration20261106010000_school_student_geography chỉ tạo DDL, **chưa apply**. Audit migration trước vẫn đã apply18migrations local; source mới cần6cột geography trước runtime.
+- Typecheck/build/Prisma validate/generate đạt; SwaggerHTTP200 kiểm2API mới/optional query/response fields, không init DB/scheduler. Không chạy script test/provider/mutation, không sửa env/FE.
+- Xem master plan Z7, FE guide mục11, LATEST. Chưa UAT runtime; chưa commit/push.
+
+# Cập nhật 06/11/2026 — Sửa advisory lock trả void
+
+- lockOperations trả integer từ table function thay vì trả trực tiếp void; calendar dùng helper, khóa push token sửa tương tự. Giữ nguyên semantics/ID khóa và transaction.
+- Nguyên nhân log cron lặp sau migrate là Prisma không deserialize void, không phải thiếu migration. Typecheck/build/lint3files đạt; không test scripts/DB probe/mutation. Chưa quan sát cron runtime sau reload.
+- Xem docs/ai-review/LATEST.md. Không đổi schema/payload/env.
+
+# Cập nhật 06/11/2026 — Đã apply migration audit local
+
+- Theo phê duyệt mới của PO, đã apply 20261106000000_operation_and_parent_link_audit vào PostgreSQL roadtoschool/public tại localhost:5432.
+- 18 migrations up to date; metadata xác nhận trips.operation_audit và students.parent_link_audit đều JSONB nullable. Không reset/seed/backfill hay sửa dữ liệu nghiệp vụ để thử.
+- Typecheck API đạt. Không chạy test scripts hoặc khởi động scheduler/API nghiệp vụ. Source client đã generate từ bước trước, schema không đổi trong lượt migrate.
+- Các ghi chú migration pending bên dưới là lịch sử trước lần duyệt này. Runtime/FE/UAT vẫn chưa nghiệm thu. Báo cáo: docs/ai-review/LATEST.md.
+
+# Cập nhật 06/11/2026 — Đồng bộ 3.1–3.18, phần độc lập
+
+- Đã cập nhật source API: SĐT+email khi tạo nhân sự, OTP transaction, khóa writer chung, đồng bộ Trip đúng mốc/giữ override, khả dụng nguồn lực, bãi theo ngày/cấu hình bắt buộc, thu hồi Parent link, correction/cancel-all-absent/reopen, GPS/late-risk/close incident, masking Parent và dashboard.
+- Schema thêm hai field JSON nullable Trip.operationAudit, Student.parentLinkAudit; migration 20261106000000_operation_and_parent_link_audit **chỉ tạo DDL, chưa apply**. Prisma client đã generate. Không sửa env, không test scripts/seed/provider/mutation để thử.
+- Typecheck/build/Prisma validate đạt; Swagger UI/OpenAPI kiểm HTTP không init DB/scheduler. Chưa UAT runtime/đồng thời/cron/FE, không tái sử dụng kết quả193 tests lịch sử để xác nhận code mới.
+- Workflow thay plan cùng nhóm học sinh được PO tách chốt riêng; không đánh dấu hoàn tất toàn bộ master plan.
+- Plan chung: docs/ai-review/business-improvement-master-plan-3.4-3.18.md mục Z. Contract FE: docs/FE_INTEGRATION_GUIDE.md. Báo cáo: docs/ai-review/LATEST.md.
+- Các mốc hoàn tất bên dưới là lịch sử, xem trạng thái và giới hạn cập nhật này trước.
+
 # Cập nhật 04/11/2026 — Triển khai hoàn tất Master Business Improvement Plan (Mục 3.4–3.18)
 
 - **Database & Prisma**:

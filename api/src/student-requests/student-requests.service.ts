@@ -1,3 +1,10 @@
+import { closeCancelledTripTasks } from '../trips/utils/close-cancelled-trip-tasks.js';
+import { assertLocationWithinServiceArea } from '../system-settings/parking-policy.js';
+import { administrativeLocationForCoordinates } from '../schools/location-province.js';
+import { captureTripSnapshots } from '../trips/utils/capture-trip-snapshots.js';
+import { frozenTripWhere } from '../overview/operations-policy.js';
+import { vietnamToday } from '../schools/school-effective-state.js';
+import { lockOperations } from '../trips/utils/operations-lock.js';
 import { assertSchoolWritable } from '../schools/school-policy.js';
 import { notifyCancelledTrips } from '../notifications/notification-writer.js';
 import { notifyRequest } from '../notifications/notification-events.js';
@@ -14,6 +21,7 @@ import {
 import {
   Prisma,
   Role,
+  OtpPurpose,
   RequestType,
   RequestStatus,
   StudentStatus,
@@ -84,6 +92,10 @@ export class StudentRequestsService {
         newDistanceMeters: number;
         newDurationSeconds: number;
         newPlannedArrivalTime?: string;
+        routingConstraints: Prisma.InputJsonObject;
+        departureTime: string;
+        arrivalTime: string;
+        stops: Array<{ id: string; plannedArrivalSeconds: number; plannedArrivalTime: string }>;
       }>;
       createdAt: number;
       expectedFingerprint: string;
@@ -95,6 +107,19 @@ export class StudentRequestsService {
     private readonly otpService: OtpService,
     private readonly vietmapVRPService: VietMapVRPService,
   ) {}
+
+  private async addressSourceFingerprint(db: Prisma.TransactionClient, requestId: string): Promise<string> {
+    const source = await db.studentUpdateRequest.findUnique({
+      where: { id: requestId },
+      include: { school: true, student: { include: { routeStops: {
+        orderBy: { id: 'asc' }, include: { route: { include: {
+          routePlan: true, proposedVehicle: true, stops: { orderBy: { stopOrder: 'asc' } },
+        } } },
+      } } } },
+    });
+    const parking = await db.systemSetting.findUnique({ where: { key: 'PARKING_LOT' } });
+    return crypto.createHash('sha256').update(JSON.stringify([source, parking?.value])).digest('hex');
+  }
 
   private parseTimeToSeconds(time: string): number {
     const [h, m] = (time || '07:00').split(':').map(Number);
@@ -316,13 +341,7 @@ export class StudentRequestsService {
     // 2. Tính toán payloadHash mong đợi và xác thực OTP
     const expectedPayloadHash = hashProposedPayload(dto.type, dto.proposedData);
 
-    await this.otpService.verifyAndConsumeStudentUpdateRequestChallenge(
-      dto.challengeId,
-      parentId,
-      studentId,
-      dto.otp,
-      expectedPayloadHash,
-    );
+
 
     // 3. Tạo snapshot beforeData tương ứng với loại yêu cầu
     let beforeData: Record<string, any> = {};
@@ -341,7 +360,22 @@ export class StudentRequestsService {
 
     // 4. Tạo yêu cầu cập nhật trong Database với xử lý concurrency chống trùng lặp PENDING
     try {
-      const createdRequest = await this.prisma.$transaction(async tx => { await assertSchoolWritable(tx, student.schoolId); const created = await tx.studentUpdateRequest.create({
+      const createdRequest = await this.otpService.withVerifiedChallenge({
+        challengeId: dto.challengeId, purpose: OtpPurpose.STUDENT_UPDATE_REQUEST,
+        userId: parentId, studentId, otp: dto.otp, payloadHash: expectedPayloadHash,
+      }, async (tx) => {
+        const currentLink = await tx.parentStudentLink.findUnique({
+          where: { parentId_studentId: { parentId, studentId } }, include: { student: true },
+        });
+        if (!currentLink || currentLink.student.status === StudentStatus.DISABLED) {
+          throw new ConflictException('Liên kết hoặc trạng thái học sinh đã thay đổi');
+        }
+        this.validateProposedData(dto.type, dto.proposedData, currentLink.student);
+        beforeData = dto.type === RequestType.INFORMATION_UPDATE
+          ? { fullName: currentLink.student.fullName, guardianPhone: currentLink.student.guardianPhone }
+          : { addressText: currentLink.student.addressText, latitude: Number(currentLink.student.latitude), longitude: Number(currentLink.student.longitude) };
+
+      await lockOperations(tx); await assertSchoolWritable(tx, student.schoolId); const created = await tx.studentUpdateRequest.create({
         data: {
           studentId,
           parentId,
@@ -475,7 +509,9 @@ export class StudentRequestsService {
    * Phụ huynh hủy yêu cầu cập nhật địa chỉ khi còn ở trạng thái PENDING (không cần OTP).
    */
   async cancelParentRequest(parentId: string, requestId: string): Promise<StudentUpdateRequestDto> {
-    const request = await this.prisma.studentUpdateRequest.findUnique({
+    return this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
+    const request = await tx.studentUpdateRequest.findUnique({
       where: { id: requestId },
       include: {
         student: true,
@@ -492,12 +528,12 @@ export class StudentRequestsService {
       throw new ForbiddenException('Bạn không có quyền hủy yêu cầu này');
     }
 
-    await assertSchoolWritable(this.prisma, request.schoolId);
+    await assertSchoolWritable(tx, request.schoolId);
     if (request.status !== RequestStatus.PENDING) {
       throw new ConflictException('Chỉ có thể hủy yêu cầu đang ở trạng thái chờ duyệt (PENDING)');
     }
 
-    const updated = await this.prisma.studentUpdateRequest.update({
+    const updated = await tx.studentUpdateRequest.update({
       where: { id: requestId },
       data: {
         status: RequestStatus.CANCELLED,
@@ -516,6 +552,7 @@ export class StudentRequestsService {
 
     this.logger.log(`Phụ huynh ${parentId} đã hủy yêu cầu ${requestId}`);
     return this.mapToDto(updated);
+    });
   }
 
   // =========================================================================
@@ -695,7 +732,11 @@ export class StudentRequestsService {
     studentId: string,
     dto: UpdateStudentAddressDto,
   ): Promise<Student> {
-    const student = await this.prisma.student.findUnique({
+    const geography = await administrativeLocationForCoordinates(dto.latitude, dto.longitude);
+    return this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
+      await assertSchoolWritable(tx, schoolId);
+    const student = await tx.student.findUnique({
       where: { id: studentId },
     });
 
@@ -707,7 +748,7 @@ export class StudentRequestsService {
       throw new BadRequestException('Không thể cập nhật địa chỉ khi học sinh đang bị vô hiệu hóa (DISABLED)');
     }
 
-    const activeRouteStop = await this.prisma.routeStop.findFirst({
+    const activeRouteStop = await tx.routeStop.findFirst({
       where: {
         studentId,
         route: {
@@ -724,9 +765,10 @@ export class StudentRequestsService {
       );
     }
 
-    const updated = await this.prisma.student.update({
+    const updated = await tx.student.update({
       where: { id: studentId },
       data: {
+        ...geography,
         addressText: dto.addressText.trim(),
         latitude: dto.latitude,
         longitude: dto.longitude,
@@ -738,6 +780,7 @@ export class StudentRequestsService {
     );
 
     return updated;
+    });
   }
 
   // =========================================================================
@@ -857,7 +900,12 @@ export class StudentRequestsService {
     reviewerSchoolId?: string | null,
     approveDto?: ApproveAddressRequestDto,
   ): Promise<StudentUpdateRequestDto> {
+    const proposedRequest = await this.prisma.studentUpdateRequest.findUnique({ where: { id: requestId } });
+    const proposedLocation = proposedRequest?.type === RequestType.ADDRESS_UPDATE ? proposedRequest.proposedData as Prisma.JsonObject : null;
+    const geography = await administrativeLocationForCoordinates(proposedLocation ? Number(proposedLocation.latitude) : null, proposedLocation ? Number(proposedLocation.longitude) : null);
+    const province = geography.province;
     return this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
       // 1. Tải yêu cầu và thông tin học sinh
       const request = await tx.studentUpdateRequest.findUnique({
         where: { id: requestId },
@@ -963,10 +1011,14 @@ export class StudentRequestsService {
           );
         }
 
+        const sourceFingerprintBefore = await this.addressSourceFingerprint(tx, requestId);
+
+        await captureTripSnapshots(tx, routeStops.map(s => s.routeId));
         // Cập nhật địa chỉ và tọa độ học sinh nguyên tử
         await tx.student.update({
           where: { id: request.studentId },
           data: {
+            ...geography,
             addressText: newAddressText,
             latitude: newLatitude,
             longitude: newLongitude,
@@ -997,6 +1049,8 @@ export class StudentRequestsService {
                 status: TripStatus.SCHEDULED,
                 actualStartTime: null,
                 attendantReadyAt: null,
+                NOT: frozenTripWhere,
+                serviceDate: { gte: new Date(new Date(new Date(vietnamToday()).getTime() + 86400000).toISOString().slice(0, 10)) },
               },
               include: {
                 attendances: true,
@@ -1029,14 +1083,22 @@ export class StudentRequestsService {
                   },
                 });
 
-              await notifyCancelledTrips(tx, [trip.id], 'student-removal:' + request.studentId + ':' + trip.id, reviewerId);
+              await closeCancelledTripTasks(tx, [trip.id]);
+      await notifyCancelledTrips(tx, [trip.id], 'student-removal:' + request.studentId + ':' + trip.id, reviewerId);
             }
+            }
+            for (const routeId of routeIds) {
+              await syncUnfrozenTripsForRoute(tx, routeId, {
+                syncAssignments: false, syncRosterAndSnapshot: true,
+                fromDate: new Date(new Date(vietnamToday()).getTime() + 86400000).toISOString().slice(0, 10),
+              });
             }
           } else {
             // REOPTIMIZED: Cập nhật tọa độ điểm dừng và geometry/metrics đã preview trên các tuyến
             outcome = 'REOPTIMIZED';
+            if (!approveDto?.expectedFingerprint?.trim()) throw new BadRequestException('expectedFingerprint là bắt buộc khi REOPTIMIZED');
             if (!approveDto?.previewToken) {
-              throw new ConflictException(
+              throw new BadRequestException(
                 'Phiên xem trước tối ưu lại lộ trình đã hết hạn hoặc không hợp lệ. Vui lòng preview lại.',
               );
             }
@@ -1047,24 +1109,31 @@ export class StudentRequestsService {
               );
             }
 
-            if (
-              approveDto.expectedFingerprint &&
-              previewSession.expectedFingerprint &&
-              approveDto.expectedFingerprint !== previewSession.expectedFingerprint
-            ) {
-              throw new ConflictException(
-                'Phương án tuyến đã có thay đổi trong lúc xem trước. Vui lòng preview lại.',
-              );
+            await assertLocationWithinServiceArea(tx, request.schoolId, { latitude: newLatitude, longitude: newLongitude, province });
+            const currentFingerprint = sourceFingerprintBefore;
+            if (Date.now() - previewSession.createdAt >= 10 * 60 * 1000 ||
+                previewSession.requestId !== requestId || previewSession.studentId !== request.studentId ||
+                previewSession.newLatitude !== newLatitude || previewSession.newLongitude !== newLongitude ||
+                previewSession.newAddressText !== newAddressText ||
+                approveDto.expectedFingerprint !== previewSession.expectedFingerprint ||
+                currentFingerprint !== previewSession.expectedFingerprint) {
+              throw new ConflictException('Preview hết hạn, sai yêu cầu hoặc dữ liệu nguồn đã thay đổi');
             }
 
             if (Array.isArray(previewSession.routes)) {
               for (const r of previewSession.routes) {
+                for (const stop of r.stops) {
+                  await tx.routeStop.update({ where: { id: stop.id }, data: { plannedArrivalSeconds: stop.plannedArrivalSeconds, plannedArrivalTime: stop.plannedArrivalTime } });
+                }
                 await tx.route.update({
                   where: { id: r.routeId },
                   data: {
                     polylineGeometry: r.newGeometry,
                     totalDistanceMeters: r.newDistanceMeters,
                     estimatedDurationSeconds: r.newDurationSeconds,
+                    routingConstraints: r.routingConstraints,
+                    departureTime: r.departureTime,
+                    arrivalTime: r.arrivalTime,
                   },
                 });
               }
@@ -1087,10 +1156,11 @@ export class StudentRequestsService {
               await syncUnfrozenTripsForRoute(tx, routeId, {
                 syncAssignments: false,
                 syncRosterAndSnapshot: true,
+                fromDate: new Date(new Date(vietnamToday()).getTime() + 86400000).toISOString().slice(0, 10),
               });
             }
 
-            this.addressPreviewSessions.delete(approveDto.previewToken);
+
           }
         }
 
@@ -1139,6 +1209,7 @@ export class StudentRequestsService {
     reviewerSchoolId?: string | null,
   ): Promise<StudentUpdateRequestDto> {
     return this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
       const request = await tx.studentUpdateRequest.findUnique({
         where: { id: requestId },
         include: {
@@ -1224,6 +1295,10 @@ export class StudentRequestsService {
       throw new ConflictException('Yêu cầu không còn ở trạng thái chờ duyệt (PENDING)');
     }
 
+    for (const [token, session] of this.addressPreviewSessions) {
+      if (Date.now() - session.createdAt >= 600000) this.addressPreviewSessions.delete(token);
+    }
+    const sourceFingerprint = await this.addressSourceFingerprint(this.prisma, requestId);
     const proposed = request.proposedData as Record<string, any>;
     const newLat = Number(proposed.latitude);
     const newLng = Number(proposed.longitude);
@@ -1238,6 +1313,8 @@ export class StudentRequestsService {
     ) {
       throw new BadRequestException('Tọa độ địa chỉ đề xuất mới không hợp lệ');
     }
+
+    await assertLocationWithinServiceArea(this.prisma, request.schoolId, { latitude: newLat, longitude: newLng });
 
     // Tìm các tuyến DRAFT hoặc ACTIVE mà học sinh đang tham gia
     const studentStops = await this.prisma.routeStop.findMany({
@@ -1285,6 +1362,10 @@ export class StudentRequestsService {
       newDistanceMeters: number;
       newDurationSeconds: number;
       newPlannedArrivalTime?: string;
+      routingConstraints: Prisma.InputJsonObject;
+      departureTime: string;
+      arrivalTime: string;
+      stops: Array<{ id: string; plannedArrivalSeconds: number; plannedArrivalTime: string }>;
     }> = [];
 
     let allFeasible = true;
@@ -1339,7 +1420,7 @@ export class StudentRequestsService {
 
       const calc = await this.vietmapVRPService.calculateRoute(updatedPoints);
 
-      if (calc.status === 'UNAVAILABLE') {
+      if (calc.status === 'UNAVAILABLE' || calc.legs.length !== route.stops.length - 1) {
         hasUnavailable = true;
         allFeasible = false;
         routeItems.push({
@@ -1397,20 +1478,23 @@ export class StudentRequestsService {
           hasInfeasible = true;
         }
 
-        // Tính giờ dự kiến mới tại điểm dừng của học sinh
-        let newPlannedArrivalTime: string | undefined;
-        const drivingFraction = updatedPoints.length > 1 ? studentStopIndex / (updatedPoints.length - 1) : 0.5;
-
-        if (route.direction === RouteDirection.TO_SCHOOL) {
-          const arrSec = this.parseTimeToSeconds(route.arrivalTime || '07:15');
-          const depSec = arrSec - totalRouteDuration;
-          const stopSec = Math.round(depSec + calc.durationSeconds * drivingFraction + serviceBeforeStudent);
-          newPlannedArrivalTime = this.secondsToTimeString(stopSec);
-        } else {
-          const depSec = this.parseTimeToSeconds(route.departureTime || '16:30');
-          const stopSec = Math.round(depSec + calc.durationSeconds * drivingFraction + serviceBeforeStudent);
-          newPlannedArrivalTime = this.secondsToTimeString(stopSec);
-        }
+        const departureSeconds = route.direction === RouteDirection.TO_SCHOOL
+          ? this.parseTimeToSeconds(route.arrivalTime || '07:15') - totalRouteDuration
+          : this.parseTimeToSeconds(route.departureTime || '16:30');
+        let elapsed = 0;
+        const updatedStopTimes = route.stops.map((stop, index) => {
+          if (index > 0) {
+            elapsed += calc.legs[index - 1].durationSeconds;
+            const previous = route.stops[index - 1];
+            if (previous.studentId) {
+              const override = stopOverrides.find((entry: any) => entry.studentId === previous.studentId && (!entry.direction || entry.direction === route.direction));
+              elapsed += override?.serviceSeconds ?? defaultStopServiceSeconds;
+            }
+          }
+          return { id: stop.id, plannedArrivalSeconds: departureSeconds + elapsed,
+            plannedArrivalTime: this.secondsToTimeString(departureSeconds + elapsed) };
+        });
+        const newPlannedArrivalTime = updatedStopTimes[studentStopIndex]?.plannedArrivalTime;
 
         routeItems.push({
           routeId: route.id,
@@ -1437,6 +1521,10 @@ export class StudentRequestsService {
           newDistanceMeters: calc.distanceMeters,
           newDurationSeconds: totalRouteDuration,
           newPlannedArrivalTime,
+          departureTime: this.secondsToTimeString(departureSeconds),
+          arrivalTime: this.secondsToTimeString(departureSeconds + totalRouteDuration),
+          stops: updatedStopTimes,
+          routingConstraints: { ...routeConstraints, maxRouteDurationMinutes: maxDurationMinutes, defaultStopServiceSeconds, stopServiceOverrides: stopOverrides },
         });
       }
     }
@@ -1448,26 +1536,22 @@ export class StudentRequestsService {
         status: TripStatus.SCHEDULED,
         actualStartTime: null,
         attendantReadyAt: null,
+                NOT: frozenTripWhere,
+                serviceDate: { gte: new Date(new Date(new Date(vietnamToday()).getTime() + 86400000).toISOString().slice(0, 10)) },
       },
     });
 
     const frozenTripsCount = await this.prisma.trip.count({
       where: {
         routeId: { in: routeIds },
-        OR: [
-          { status: TripStatus.IN_PROGRESS },
-          { status: TripStatus.COMPLETED },
-          { actualStartTime: { not: null } },
-          { attendantReadyAt: { not: null } },
-        ],
+        AND: frozenTripWhere,
       },
     });
 
-    const expectedFingerprint = crypto
-      .createHash('sha256')
-      .update(`${request.id}_${newLat}_${newLng}_${routeIds.sort().join(',')}`)
-      .digest('hex')
-      .slice(0, 16);
+    const expectedFingerprint = await this.addressSourceFingerprint(this.prisma, requestId);
+    if (expectedFingerprint !== sourceFingerprint) {
+      throw new ConflictException('Dữ liệu đã thay đổi trong khi tính preview, vui lòng thử lại');
+    }
 
     let previewToken: string | null = null;
     if (allFeasible) {

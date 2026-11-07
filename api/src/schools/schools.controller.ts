@@ -1,3 +1,4 @@
+import { LocationOptionsDto, LocationOptionsQueryDto } from './dto/geography.dto.js';
 import { ScheduledLocationResponseDto } from './dto/lifecycle-response.dto.js';
 import {
   Controller,
@@ -174,11 +175,21 @@ export class SchoolsController {
     return this.schoolsService.create(dto, file);
   }
 
+  @Get('location-options')
+  @ApiOperation({ summary: 'Tỉnh/phường có trong địa chỉ trường hiện hành, chỉ SYSTEM_ADMIN; không gọi VietMap' })
+  @ApiResponse({ status: 200, type: LocationOptionsDto })
+  @ApiResponse({ status: 400, description: 'provinceId không hợp lệ' })
+  @ApiResponse({ status: 401, description: 'Cần đăng nhập' })
+  @ApiResponse({ status: 403, description: 'Chỉ SYSTEM_ADMIN' })
+  locationOptions(@Query() query: LocationOptionsQueryDto): Promise<LocationOptionsDto> {
+    return this.schoolsService.getLocationOptions(query.provinceId);
+  }
+
   @Get()
   @ApiOperation({
     summary: 'Lấy danh sách trường học đối tác',
     description:
-      'Trả về danh sách trường học có phân trang, hỗ trợ tìm kiếm theo tên và lọc theo trạng thái hoạt động. Chỉ SYSTEM_ADMIN được phép truy cập.',
+      'Trả về danh sách trường học có phân trang, hỗ trợ tìm kiếm theo tên, trạng thái và provinceId/wardId tùy chọn (AND), theo địa chỉ đang hiệu lực. Chỉ SYSTEM_ADMIN được phép truy cập.',
   })
   @ApiResponse({
     status: 200,
@@ -416,7 +427,7 @@ export class SchoolsController {
   @ApiOperation({
     summary: 'Tạo tài khoản nhân viên trường học (SCHOOL_ADMIN hoặc BUS_ATTENDANT)',
     description:
-      'Khởi tạo tài khoản nhân viên trực thuộc trường. SYSTEM_ADMIN tạo tài khoản SCHOOL_ADMIN. SCHOOL_ADMIN chỉ được tạo tài khoản Giáo viên (BUS_ATTENDANT) cho trường của mình. Email bắt buộc; mật khẩu chỉ bàn giao qua email hoặc console development. credentialDeliveryStatus: SENT/FAILED/CONSOLE; FAILED vẫn giữ tài khoản.',
+      'Khởi tạo tài khoản nhân viên trực thuộc trường. SYSTEM_ADMIN tạo tài khoản SCHOOL_ADMIN. SCHOOL_ADMIN chỉ được tạo tài khoản Giáo viên (BUS_ATTENDANT) cho trường của mình. Email và số điện thoại bắt buộc; mật khẩu chỉ bàn giao qua email hoặc console development. credentialDeliveryStatus: SENT/FAILED/CONSOLE; FAILED vẫn giữ tài khoản.',
   })
   @ApiParam({
     name: 'id',
@@ -518,7 +529,7 @@ export class SchoolsController {
   @ApiOperation({
     summary: 'Cập nhật trạng thái hoạt động của nhân viên trường học',
     description:
-      'Chuyển trạng thái nhân viên giữa hoạt động (isActive=true) và không hoạt động (isActive=false). Nếu nhân viên còn tuyến ACTIVE hoặc chuyến SCHEDULED, bắt buộc truyền replacementUserId cùng trường để bàn giao nguyên tử. Toàn bộ Session trên Mobile App sẽ bị thu hồi lập tức.',
+      'Chuyển trạng thái nhân viên giữa hoạt động (isActive=true) và không hoạt động (isActive=false). Nếu nhân viên còn tuyến ACTIVE hoặc chuyến SCHEDULED, bắt buộc truyền replacementUserId cùng trường để bàn giao nguyên tử. Từ chối nếu còn chuyến Ready/đã điểm danh/đang chạy. Toàn bộ Session trên Mobile App sẽ bị thu hồi khi ngừng hoạt động thành công.',
   })
   @ApiParam({ name: 'id', format: 'uuid', description: 'ID trường học' })
   @ApiParam({ name: 'employeeId', format: 'uuid', description: 'ID nhân viên' })

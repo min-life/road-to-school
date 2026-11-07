@@ -1,3 +1,4 @@
+import { GeographyQueryDto } from './geography.dto.js';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
@@ -7,7 +8,7 @@ export enum SchoolStatusFilter {
   INACTIVE = 'INACTIVE',
 }
 
-export class ListSchoolsQueryDto {
+export class ListSchoolsQueryDto extends GeographyQueryDto {
   @ApiPropertyOptional({
     description: 'Số thứ tự trang cần lấy (bắt đầu từ 1)',
     default: 1,

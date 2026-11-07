@@ -1,3 +1,4 @@
+import { GeographyQueryDto } from '../schools/dto/geography.dto.js';
 import {
   Controller,
   Get,
@@ -69,7 +70,7 @@ export class RoutesController {
   @ApiOperation({
     summary: 'Dữ liệu chuẩn bị lập tuyến (Chỉ SYSTEM_ADMIN)',
     description:
-      'Lấy danh sách học sinh đủ điều kiện (AVAILABLE, có tọa độ, chưa có tuyến DRAFT), phương tiện khả dụng (sắp xếp theo seatCount giảm dần) và thông tin trường, bãi xe.',
+      'Lấy danh sách học sinh đủ điều kiện (AVAILABLE, có tọa độ, chưa có tuyến DRAFT), phương tiện khả dụng (sắp xếp theo seatCount giảm dần) và thông tin trường, bãi xe. provinceId/wardId chỉ thu hẹp danh sách theo lựa chọn người dùng sau kiểm eligibility; không gửi thì không tự lọc địa giới, không thay tiêu chí hoặc studentIds khi optimize/confirm.',
   })
   @ApiParam({ name: 'schoolId', description: 'ID của trường học đối tác' })
   @ApiResponse({
@@ -77,12 +78,15 @@ export class RoutesController {
     description: 'Dữ liệu chuẩn bị lập tuyến thành công',
     type: RoutePreparationDto,
   })
+  @ApiResponse({ status: 400, description: 'Bộ lọc địa giới không hợp lệ' })
   async getPreparationData(
     @Param('schoolId') schoolId: string,
+    @Query() query: GeographyQueryDto,
   ): Promise<RoutePreparationDto> {
-    return this.routesService.getPreparationData(schoolId);
+    return this.routesService.getPreparationData(schoolId, query);
   }
 
+  @ApiResponse({ status: 409, description: 'Học sinh đã thuộc phương án khác hoặc dữ liệu nguồn đã thay đổi' })
   @Post('optimize-preview')
   @Roles(Role.SYSTEM_ADMIN)
   @HttpCode(HttpStatus.OK)
@@ -122,7 +126,8 @@ export class RoutesController {
     return this.routesService.cancelReturnRoute(dto.previewToken, dto.returnRouteIndex);
   }
 
-  @ApiResponse({ status: 409, description: 'Phương án/hợp đồng không còn hiệu lực hoặc nguồn lực còn chuyến hết hợp đồng chờ quản trị viên chốt' })
+  @ApiResponse({ status: 409, description: 'Dữ liệu xem trước đã đổi, học sinh đã có phương án hoặc nguồn lực không còn phù hợp' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy phiên xem trước còn hiệu lực' })
   @Post('confirm-plan')
   @Roles(Role.SYSTEM_ADMIN)
   @HttpCode(HttpStatus.CREATED)
@@ -206,13 +211,15 @@ export class RoutesController {
   @ApiOperation({
     summary: 'Hủy toàn bộ phương án tuyến RoutePlan (DRAFT hoặc ACTIVE)',
     description:
-      'Hủy toàn bộ RoutePlan và tất cả các tuyến thuộc về nó, giải phóng học sinh và xe đề xuất trong một transaction. Đối với ACTIVE, hủy cascade các chuyến SCHEDULED liên quan.',
+      'Bắt buộc expectedFingerprint từ cancellation-impact. Chỉ hủy Trip chưa frozen; giữ chuyến frozen và giữ nguồn lực đến khi kết thúc. Fingerprint thiếu trả 400, thay đổi trả 409.',
   })
   @ApiParam({ name: 'id', description: 'ID của RoutePlan cần hủy' })
   @ApiResponse({
     status: 200,
     description: 'Hủy toàn bộ RoutePlan thành công',
   })
+  @ApiResponse({ status: 400, description: 'Thiếu expectedFingerprint hoặc payload không hợp lệ' })
+  @ApiResponse({ status: 409, description: 'Fingerprint đã thay đổi; tải lại cancellation-impact' })
   async cancelRoutePlan(
     @Param('id') id: string,
     @Body() dto: CancelRoutePlanDto,
@@ -346,11 +353,13 @@ export class RoutesController {
     description: 'Danh sách giáo viên phụ xe ứng viên',
     type: CandidateBusAttendantsResponseDto,
   })
+  @ApiQuery({ name: 'vehicleId', required: false, description: 'Xe của nhóm đang chỉnh, để giữ phụ xe hiện tại trong danh sách ứng viên' })
   async getCandidateBusAttendants(
     @Param('id') id: string,
     @CurrentUser() currentUser: User,
+    @Query('vehicleId') vehicleId?: string,
   ): Promise<CandidateBusAttendantsResponseDto> {
-    return this.resourceAvailabilityService.getCandidateBusAttendants(id, currentUser.schoolId || undefined);
+    return this.resourceAvailabilityService.getCandidateBusAttendants(id, currentUser.schoolId || undefined, vehicleId);
   }
 
   @ApiResponse({ status: 409, description: 'Phương án/hợp đồng không còn hiệu lực hoặc nguồn lực còn chuyến hết hợp đồng chờ quản trị viên chốt' })

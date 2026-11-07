@@ -1,10 +1,9 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
   IsNotEmpty,
   IsString,
   MinLength,
-  IsOptional,
   IsEmail,
   Matches,
   registerDecorator,
@@ -63,11 +62,11 @@ export class CreateSchoolAdminDto {
   )
   email: string;
 
-  @ApiPropertyOptional({
-    description: 'Số điện thoại liên hệ của nhân sự (tùy chọn)',
+  @ApiProperty({
+    description: 'Số điện thoại liên hệ bắt buộc của nhân sự',
     example: '0912345678',
   })
-  @IsOptional()
+  @IsNotEmpty({ message: 'Số điện thoại nhân sự là bắt buộc' })
   @Matches(/^(0|\+84|84)?[35789]\d{8}$/, {
     message:
       'Số điện thoại không đúng định dạng di động Việt Nam (ví dụ: 0912345678 hoặc +84912345678)',

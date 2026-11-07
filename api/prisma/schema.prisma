@@ -235,6 +235,9 @@ model School {
   latitude          Float
   longitude         Float
   province          String?   @db.VarChar(100)
+  provinceId String? @map("province_id")
+  wardId String? @map("ward_id")
+  ward String?
   imageUrl          String?   @map("image_url")
   imagePublicId     String?   @map("image_public_id")
   contractStartDate DateTime  @map("contract_start_date") @db.Date
@@ -261,6 +264,7 @@ model School {
 
 /// Bảng quản lý hồ sơ học sinh
 model Student {
+  parentLinkAudit Json? @map("parent_link_audit")
   id              String         @id @default(uuid())
   code            String         @unique
   schoolId        String         @map("school_id")
@@ -272,6 +276,9 @@ model Student {
   latitude        Float?
   longitude       Float?
   province        String?        @db.VarChar(100)
+  provinceId String? @map("province_id")
+  wardId String? @map("ward_id")
+  ward String?
   status          StudentStatus  @default(AVAILABLE)
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt       DateTime       @updatedAt @map("updated_at")
@@ -467,6 +474,7 @@ model RouteStop {
 
 /// Bảng quản lý chuyến xe thực tế theo ngày
 model Trip {
+  operationAudit Json? @map("operation_audit")
   id                     String         @id @default(uuid())
   routeId                String         @map("route_id")
   schoolId               String         @map("school_id")

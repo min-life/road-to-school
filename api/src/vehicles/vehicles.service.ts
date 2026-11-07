@@ -1,3 +1,5 @@
+import { assertInactiveHandover } from '../trips/utils/staff-availability.helper.js';
+import { lockOperations } from '../trips/utils/operations-lock.js';
 import {
   Injectable,
   Logger,
@@ -305,6 +307,8 @@ export class VehiclesService {
 
       // Thực hiện bàn giao nguyên tử (Atomic Handover)
       const updated = await this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
+      await assertInactiveHandover(tx, 'assignedVehicleId', vehicleId, dto.replacementVehicleId);
         // Gán xe mới cho các Route thuộc plan ACTIVE
         await tx.route.updateMany({
           where: {
@@ -347,9 +351,10 @@ export class VehiclesService {
     }
 
     // Không có ràng buộc -> Ngừng hoạt động trực tiếp
-    const updated = await this.prisma.vehicle.update({
-      where: { id: vehicleId },
-      data: { isActive: false },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
+      await assertInactiveHandover(tx, 'assignedVehicleId', vehicleId);
+      return tx.vehicle.update({ where: { id: vehicleId }, data: { isActive: false } });
     });
 
     return {
