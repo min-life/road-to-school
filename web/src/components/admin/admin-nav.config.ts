@@ -80,7 +80,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     id: 'calendar',
     label: 'Lịch vận hành',
     href: '/admin/calendar',
-    allowedRoles: ['SYSTEM_ADMIN', 'SCHOOL_ADMIN'],
+    allowedRoles: ['SCHOOL_ADMIN'],
   },
   {
     id: 'settings',

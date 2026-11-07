@@ -1,5 +1,8 @@
 'use client';
 
+import { ResourceStatusDialog } from '@/components/admin/common/resource-status-dialog';
+import type { ResourceTarget } from '@/lib/resource-status';
+import { TableActions } from '@/components/admin/common/table-actions';
 import { toast } from '@/stores/toast-store';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -31,6 +34,7 @@ function TeachersPageContent() {
   const { user } = useAuth();
   const schoolId = user?.schoolId;
 
+  const [statusTarget, setStatusTarget] = useState<ResourceTarget | null>(null);
   const [teachers, setTeachers] = useState<SchoolEmployeeItem[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -271,12 +275,9 @@ function TeachersPageContent() {
                     </td>
 
                     <td className="px-4 py-3 text-right">
-                      <ContextLink
-                        href={`/admin/teachers/${teacher.id}`}
-                        className="text-xs font-medium text-slate-600 hover:text-amber-700 px-2.5 py-1 rounded-lg hover:bg-slate-100 transition-colors"
-                      >
-                        Xem chi tiết
-                      </ContextLink>
+                      <TableActions actions={[{ label: 'Chi tiết', href: `/admin/teachers/${teacher.id}` },
+                        ...(teacher.role === 'BUS_ATTENDANT' ? [{ label: teacher.isActive ? 'Ngừng hoạt động' : 'Kích hoạt', warning: teacher.isActive,
+                          onClick: () => setStatusTarget({ kind: 'employee', schoolId, role: 'BUS_ATTENDANT', id: teacher.id, name: teacher.fullName, isActive: teacher.isActive }) }] : [])]} />
                     </td>
                   </tr>
                 ))
@@ -301,6 +302,7 @@ function TeachersPageContent() {
       </Card>
 
       {/* Add Teacher Modal */}
+      {statusTarget && <ResourceStatusDialog key={statusTarget.id} target={statusTarget} onClose={() => setStatusTarget(null)} onSuccess={() => void fetchTeachers()} />}
       <AddTeacherModal
         isOpen={isAddModalOpen}
         schoolId={schoolId}

@@ -1,33 +1,32 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/auth/auth-provider';
 import { apiClient } from '@/lib/api-client';
 import { displayDate, lifecycleError, type SchoolOperatingSettings } from '@/lib/school-lifecycle';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
-import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
-import { SchoolSelectFilter } from '@/components/admin/common/school-select-filter';
 import { SchoolSchedule } from '@/components/admin/schools/school-schedule';
 import { SchoolOperatingCalendar, type CalendarTab } from '@/components/admin/schools/school-operating-calendar';
-import { ServiceCalendarPanel } from '@/components/admin/schools/service-calendar-panel';
 import type { Role } from '@/lib/types';
 
 export default function OperatingCalendarPage() {
   const { user } = useAuth();
   const query = useSearchParams();
   const router = useRouter();
-  const pathname = usePathname();
-  if (!user || !['SYSTEM_ADMIN', 'SCHOOL_ADMIN'].includes(user.role)) return null;
-  const isSystem = user.role === 'SYSTEM_ADMIN';
-  const schoolId = isSystem ? query.get('schoolId') || undefined : user.schoolId || undefined;
+  const requestedSchoolId = query.get('schoolId');
+  useEffect(() => {
+    if (user?.role === 'SYSTEM_ADMIN') {
+      router.replace(requestedSchoolId ? `/admin/schools/${encodeURIComponent(requestedSchoolId)}?tab=calendar` : '/admin/settings?tab=holidays');
+    }
+  }, [user?.role, requestedSchoolId, router]);
+  if (!user || user.role !== 'SCHOOL_ADMIN') return null;
+  const schoolId = user.schoolId || undefined;
   return <div className="ui-list-page">
     <PageHeader title="Lịch vận hành" />
-    {isSystem && <FilterToolbar><FilterField label="Phạm vi lịch"><SchoolSelectFilter value={schoolId || ''} allLabel="Nhà xe & tất cả trường" onChange={id => { const next = new URLSearchParams(query.toString()); if (id) next.set('schoolId', id); else next.delete('schoolId'); router.replace(`${pathname}?${next}`, { scroll: false }); }} /></FilterField></FilterToolbar>}
-    {schoolId ? <SchoolCalendarContent key={`${user.id}:${user.role}:${schoolId}`} schoolId={schoolId} role={user.role} />
-      : isSystem ? <ServiceCalendarPanel key={`${user.id}:operator`} role={user.role} />
-        : <p role="alert" className="lifecycle-error">Tài khoản chưa có trường liên kết. Vui lòng liên hệ nhà xe.</p>}
+    {schoolId ? <SchoolCalendarContent key={`${user.id}:${schoolId}`} schoolId={schoolId} role={user.role} />
+      : <p role="alert" className="lifecycle-error">Tài khoản chưa có trường liên kết. Vui lòng liên hệ nhà xe.</p>}
   </div>;
 }
 

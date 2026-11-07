@@ -262,7 +262,7 @@ export default function RoutePlansPage() {
                             className="hover:text-blue-600 hover:underline flex items-center gap-2"
                           >
                             <RouteIcon className="w-4 h-4 text-slate-400 shrink-0" />
-                            <span>{plan.name}</span>
+                            <span>{plan.name}{plan.needsReoptimization && <span className="ml-2 inline-block rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800" title={plan.reoptimizationReason || undefined}>Cần tối ưu lại</span>}</span>
                           </ContextLink>
                         </td>
 

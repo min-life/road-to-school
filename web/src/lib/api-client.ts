@@ -1,3 +1,4 @@
+import { resourcePath } from './resource-status';
 import { authStorage } from './auth-storage';
 import {
   ApiErrorResponse,
@@ -709,11 +710,34 @@ class ApiClient {
   async getParkingLotImpact(
     latitude: number,
     longitude: number,
+    effectiveDate?: string,
   ): Promise<ParkingLotImpactResponse> {
     return this.request<ParkingLotImpactResponse>(
-      `/system-settings/parking-lot/impact?latitude=${latitude}&longitude=${longitude}`,
+      `/system-settings/parking-lot/impact?latitude=${latitude}&longitude=${longitude}${effectiveDate ? `&effectiveDate=${encodeURIComponent(effectiveDate)}` : ''}`,
       { method: 'GET' },
     );
+  }
+
+  async cancelScheduledParkingChange(): Promise<{ message: string }> {
+    return this.request('/system-settings/parking-lot/cancel-scheduled-change', { method: 'POST' });
+  }
+
+  async applyScheduledParkingChange(): Promise<{ applied: boolean; effectiveDate?: string }> {
+    return this.request('/system-settings/parking-lot/apply-scheduled-change', { method: 'POST' });
+  }
+
+  async reoptimizeRoutePlan(id: string): Promise<RoutePlanItem> {
+    return this.request(`/routes/route-plans/${id}/re-optimize`, { method: 'POST' });
+  }
+
+  async getResourceImpact(target: import('./resource-status').ResourceTarget): Promise<import('./resource-status').ResourceImpact> {
+    return this.request(`${resourcePath(target)}/deactivation-impact`, { method: 'GET' });
+  }
+
+  async updateResourceStatus(target: import('./resource-status').ResourceTarget, isActive: boolean, replacementId?: string): Promise<unknown> {
+    return this.request(`${resourcePath(target)}/status`, { method: 'PATCH', body: JSON.stringify({
+      isActive, ...(replacementId ? target.kind === 'vehicle' ? { replacementVehicleId: replacementId } : { replacementUserId: replacementId } : {}),
+    }) });
   }
 
   async updateParkingLot(dto: UpdateParkingLotDto): Promise<ParkingLot> {
@@ -731,6 +755,7 @@ class ApiClient {
     page?: number;
     limit?: number;
     search?: string;
+    status?: 'ALL' | 'ACTIVE' | 'INACTIVE';
   }): Promise<VehicleListResponse> {
     const searchParams = new URLSearchParams();
     if (params?.page) searchParams.set('page', String(params.page));
@@ -738,6 +763,7 @@ class ApiClient {
     if (params?.search && params.search.trim()) {
       searchParams.set('search', params.search.trim());
     }
+    if (params?.status) searchParams.set('status', params.status);
     const query = searchParams.toString();
     const endpoint = query ? `/vehicles?${query}` : '/vehicles';
     return this.request<VehicleListResponse>(endpoint, { method: 'GET' });

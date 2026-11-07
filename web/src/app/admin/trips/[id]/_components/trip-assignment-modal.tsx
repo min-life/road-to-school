@@ -3,7 +3,8 @@
 import { toast } from '@/stores/toast-store';
 
 import React, { useState, useEffect } from 'react';
-import { apiClient } from '@/lib/api-client';
+import { tripAssignmentLock } from '@/lib/business-improvements';
+import { apiClient, ApiError } from '@/lib/api-client';
 import { TripDetail, Vehicle, DriverItem, SchoolEmployeeItem, Role } from '@/lib/types';
 import { authStorage } from '@/lib/auth-storage';
 import { AlertIcon, SpinnerIcon, BusIcon } from '@/components/icons';
@@ -15,6 +16,7 @@ interface TripAssignmentModalProps {
   isOpen: boolean;
   trip: TripDetail;
   currentUserRole?: Role | null;
+  lockReason?: string | null;
   onClose: () => void;
   onUpdated: () => void;
 }
@@ -23,6 +25,7 @@ export function TripAssignmentModal({
   isOpen,
   trip,
   currentUserRole,
+  lockReason,
   onClose,
   onUpdated,
 }: TripAssignmentModalProps) {
@@ -31,7 +34,7 @@ export function TripAssignmentModal({
   const isSchoolAdmin = role === 'SCHOOL_ADMIN';
 
   const [baseline, setBaseline] = useState(trip);
-  const stale = trip.status !== 'SCHEDULED' || [trip.vehicleId, trip.driverId, trip.busAttendantId].join() !==
+  const stale = !!lockReason || trip.status !== 'SCHEDULED' || [trip.vehicleId, trip.driverId, trip.busAttendantId].join() !==
     [baseline.vehicleId, baseline.driverId, baseline.busAttendantId].join();
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -45,7 +48,7 @@ export function TripAssignmentModal({
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const displayError = stale ? 'Chuyến xe hoặc phân công đã thay đổi. Vui lòng mở lại form.' : error;
+  const displayError = lockReason || (stale ? 'Chuyến xe hoặc phân công đã thay đổi. Vui lòng mở lại form.' : error);
 
   useEffect(() => {
     let current = true;
@@ -62,8 +65,8 @@ export function TripAssignmentModal({
           setLoadingOptions(true);
           if (isSystemAdmin) {
             const [vRes, dRes] = await Promise.all([
-              apiClient.listVehicles({ limit: 100 }),
-              apiClient.getDrivers({ limit: 100 }),
+              apiClient.listVehicles({ limit: 100, status: 'ACTIVE' }),
+              apiClient.getDrivers({ limit: 100, status: 'ACTIVE' }),
             ]);
             if (!current) return;
             setVehicles(vRes.items || []);
@@ -72,6 +75,7 @@ export function TripAssignmentModal({
             const aRes = await apiClient.getSchoolEmployees(trip.schoolId, {
               limit: 50,
               role: 'BUS_ATTENDANT',
+              status: 'ACTIVE',
             });
             if (!current) return;
             setAttendants(aRes.items || []);
@@ -93,6 +97,7 @@ export function TripAssignmentModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (submitting || loadingOptions) return;
     if (stale) { onUpdated(); return; }
     const payload: import('@/lib/types').UpdateTripAssignmentRequest = {
       expectedVehicleId: baseline.vehicleId,
@@ -122,11 +127,17 @@ export function TripAssignmentModal({
     try {
       setSubmitting(true);
       setError(null);
+      const [latest, roster] = await Promise.all([apiClient.getTripDetail(trip.id), apiClient.getTripAttendance(trip.id)]);
+      const locked = tripAssignmentLock(latest, roster);
+      if (locked) { onUpdated(); throw new Error(locked); }
       await apiClient.updateTripAssignment(trip.id, payload);
       toast.success('Đã cập nhật phân công chuyến xe.');
       onUpdated();
       onClose();
     } catch (err: unknown) {
+      if (err instanceof ApiError && err.statusCode === 409) {
+        toast.warning(err.message); onClose();
+      }
       setError(err instanceof Error ? err.message : 'Không thể cập nhật phân công chuyến xe');
       onUpdated();
     } finally {

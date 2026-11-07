@@ -1,4 +1,5 @@
 'use client';
+import { RoutePlanReoptimization } from '@/components/admin/routes/route-plan-reoptimization';
 import { effectivePlanStatus, lifecycleReason } from '@/lib/school-lifecycle';
 import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
 
@@ -28,7 +29,7 @@ export function SavedRoutePlanWorkspace(props: SavedRoutePlanWorkspaceProps) {
     : <SchoolRoutePlanWorkspace {...props} />;
 }
 
-/** Incoming School Admin UI and its authorization/data flow remain unchanged. */
+/** School-scoped workspace; lifecycle notices reuse the shared read-only presentation. */
 function SchoolRoutePlanWorkspace({ planId, role, schoolId }: SavedRoutePlanWorkspaceProps) {
   const isSchoolAdmin = role === 'SCHOOL_ADMIN';
   const allowed = role === 'SYSTEM_ADMIN' || isSchoolAdmin;
@@ -135,6 +136,7 @@ function SchoolRoutePlanWorkspace({ planId, role, schoolId }: SavedRoutePlanWork
         Hủy phương án
       </Button>}
     </header>
+    <RoutePlanReoptimization plan={plan} systemAdmin={false} onUpdated={() => { setRoute(null); setRevision(value => value + 1); }} />
     {plan.effectiveStatusReason && <p className="saved-plan-notice" role="status">{lifecycleReason(plan.effectiveStatusReason)}. Phương án chỉ còn để tra cứu.</p>}
     {effectivePlanStatus(plan) === 'CANCELLED' && <p className="saved-plan-notice">Phương án đã hủy{plan.cancellationReason ? `: ${plan.cancellationReason}` : '.'}</p>}
     {effectivePlanStatus(plan) === 'EXPIRED' && <p className="saved-plan-notice">Phương án hết hạn hợp đồng. Thông tin được giữ để tra cứu.</p>}

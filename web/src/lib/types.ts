@@ -211,6 +211,7 @@ export interface SchoolEmployeeDetail {
 // ==========================================
 
 export interface Vehicle {
+  isActive: boolean;
   id: string;
   brand: string;
   seatCount: number; // Số ghế khả dụng cho học sinh
@@ -235,6 +236,7 @@ export interface CreateVehicleDto {
 }
 
 export interface ParkingLot {
+  scheduledChange?: { newAddressText: string; newLatitude: number; newLongitude: number; effectiveDate: string; reason?: string; scheduledAt: string; scheduledById?: string } | null;
   addressText: string;
   latitude: number;
   longitude: number;
@@ -246,6 +248,7 @@ export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 export type UserRole = Role;
 
 export interface UpdateParkingLotDto {
+  effectiveDate?: string;
   addressText: string;
   latitude: number;
   longitude: number;
@@ -254,6 +257,10 @@ export interface UpdateParkingLotDto {
 }
 
 export interface ParkingLotImpactResponse {
+  effectiveDate?: string;
+  plansNeedingReoptimizationCount: number;
+  tripsCancelledAfterEffectiveDateCount: number;
+  tripsPreservedBeforeEffectiveDateCount: number;
   currentAddressText?: string;
   currentLatitude?: number;
   currentLongitude?: number;
@@ -288,9 +295,9 @@ export interface RoutePlanCancellationImpactResponse {
   status: RoutePlanStatus;
   scheduledTripsCount: number;
   inProgressTripsCount: number;
-  pendingStaffLeaveNoticesCount: number;
+  completedTripsCount: number;
   routesCount: number;
-  fingerprint: string;
+  expectedFingerprint: string;
 }
 
 export interface EmptyRoutePlanInfo {
@@ -783,6 +790,8 @@ export interface CandidateBusAttendantsResponse {
 }
 
 export interface RoutePlanItem {
+  needsReoptimization?: boolean;
+  reoptimizationReason?: string | null;
   id: string;
   schoolId: string;
   schoolName?: string;
@@ -1054,6 +1063,10 @@ export interface TripAttendanceRoster {
 }
 
 export interface TripDetail {
+  actualStartTime?: string | null;
+  actualEndTime?: string | null;
+  attendantReadyAt?: string | null;
+  isAttendantReady?: boolean;
   adminFinalization?: import('./school-lifecycle').TripAdminFinalization | null;
   id: string;
   routeId: string;
@@ -1118,7 +1131,10 @@ export type TripIncidentType =
   | 'ATTENDANT_MISSING'
   | 'DRIVER_MISSING'
   | 'OFF_ROUTE'
-  | 'LATE_STOP';
+  | 'LATE_STOP'
+  | 'NO_GUARDIAN_AT_STOP'
+  | 'TRAFFIC_DELAY'
+  | 'GPS_SIGNAL_LOST';
 
 export type TripIncidentStatus =
   | 'WAITING_ASSIGNMENT'

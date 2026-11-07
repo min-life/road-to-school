@@ -21,6 +21,8 @@ MapLibre / Radix Toast. Alias `@/*` trỏ tới `src/*`. Không có monorepo hay
 | HTTP, refresh/error mapping, DTO frontend | `src/lib/api-client.ts`, `src/lib/types.ts` |
 | Đi tới/đi về theo ngữ cảnh | `src/components/admin/common/context-navigation.tsx`, `src/lib/back-navigation.ts` |
 | Toast dùng chung | `src/components/shared/toast-provider.tsx`, `src/stores/toast-store.ts` |
+| Ngừng/kích hoạt xe, tài xế, nhân viên | `src/components/admin/common/resource-status-dialog.tsx`, `src/lib/resource-status.ts` (đường dẫn scope + impact), `api-client.ts` (payload theo loại) |
+| Ngày Việt Nam và điều kiện đổi phân công chuyến | `src/lib/business-improvements.ts`; kiểm chứng độc lập trong `.test.ts` cạnh helper |
 
 **Auth hiện tại:** AuthProvider dùng apiClient/authStorage; source hiện lưu token/user qua
 localStorage. Đây là mô tả implementation, không phải đề xuất thay auth trong task UI.
@@ -49,7 +51,7 @@ kiểm tra import trước khi tạo file style mới. Entry dưới `src/app/ad
 | Tạo trường | `src/app/admin/schools/_components/add-school-modal.tsx` | CSS cạnh modal; builder, picker và helper dùng chung trong `C/schools/` |
 | Chi tiết/sửa trường | `src/app/admin/schools/[id]/page.tsx`, `_components/edit-school-modal.tsx`, `create-school-admin-modal.tsx` cạnh page | `C/schools/school-status-dialog.tsx`; lịch nhóm theo giờ trong `school-schedule.tsx` |
 | Lịch và bản đồ trường | `C/schools/school-schedule.tsx/.css`, `schools/[id]/_components/school-detail.css` | Lịch tuần/tháng kết hợp weeklySchedule, hợp đồng, ngày nghỉ/học bù và thay đổi đã hẹn; map chỉ đọc, mặc định thu gọn |
-| Lịch vận hành hai vai trò | `src/app/admin/calendar/page.tsx` | School Admin đọc trường mình qua GET schools/:id/settings; System Admin chọn lịch nhà xe hoặc trường; dùng chung `C/schools/school-operating-calendar.tsx` với chi tiết trường |
+| Lịch vận hành trường / lịch nghỉ nhà xe | `src/app/admin/calendar/page.tsx`, `src/app/admin/settings/page.tsx?tab=holidays` | School Admin giữ lịch trường. System Admin quản lý lịch nghỉ nhà xe trong Cài đặt; menu không có Lịch vận hành. URL calendar cũ chuyển tới Cài đặt hoặc lịch trong chi tiết trường khi có schoolId. ServiceCalendarPanel operatorOnly chỉ hiển thị lịch nhà xe; lịch trường giữ tại chi tiết trường. |
 | Các tab của trường | `src/app/admin/schools/[id]/_components/school-employees-tab.tsx`, `school-routes-tab.tsx`, `school-trips-tab.tsx` | `C/students/student-table.tsx` dùng chung; school page chọn tab qua URL |
 | Học sinh trong trường | `src/app/admin/schools/[id]/students/[studentId]/page.tsx` | Kiểm tra caller trước khi nhầm với detail dành cho trường |
 | Học sinh School Admin | `src/app/admin/students/page.tsx`, `[id]/page.tsx`, `_components/add-student-modal.tsx` | Filters/table/routing section/insert modal dùng chung trong `C/students/` |
@@ -59,10 +61,10 @@ kiểm tra import trước khi tạo file style mới. Entry dưới `src/app/ad
 | Phương án/tuyến | `src/app/admin/routes/page.tsx`, `create/page.tsx`, `plans/[id]/page.tsx`, `[id]/page.tsx` | Xem §3; không nhầm route detail với plan detail |
 | Chuyến `/admin/trips` | `src/app/admin/trips/page.tsx`, `[id]/page.tsx`, `C/trips/trips-table.tsx` | Manual generate modal dùng chung trong `C/trips/`; assignment tại `src/app/admin/trips/[id]/_components/trip-assignment-modal.tsx` |
 | Báo nghỉ | `src/app/admin/leave-notices/page.tsx`, `_components/replacement-modal.tsx`, `cancel-trip-modal.tsx` cạnh page | Role/capability API và trạng thái trip; không tự thêm luồng duyệt báo nghỉ |
-| Sự cố | `src/app/admin/incidents/page.tsx`, `_components/resolve-incident-modal.tsx` cạnh page | Detail đang trong page; không hiển thị raw JSON kỹ thuật thay thông tin nghiệp vụ |
+| Sự cố | `src/app/admin/incidents/page.tsx`, `_components/resolve-incident-modal.tsx` cạnh page | Detail và xử lý/hủy dùng LifecycleDialog với className opt-in `incident-dialog`; style riêng tại `_components/incident-modals.css`, không đổi style dialog khác. `_components/incident-location.tsx` hiển thị vị trí ba loại sự cố mới. RouteMap hỗ trợ marker INCIDENT riêng, không gắn nhãn học sinh cho sự cố |
 | Yêu cầu | `src/app/admin/requests/page.tsx`, `C/requests/request-detail-modal.tsx` | Modal dùng lại tại chi tiết học sinh; giữ loại yêu cầu, quyền và callback hiện có |
 | Thông báo | `src/app/admin/notifications/page.tsx`, `C/notifications/notification-provider.tsx`, `notification-bell.tsx`, `notification-list.tsx` | `src/lib/notifications.ts`, `refresh-loop.ts` |
-| Cài đặt | `src/app/admin/settings/page.tsx` | Không tự thêm cấu hình chưa có API |
+| Cài đặt | `src/app/admin/settings/page.tsx` | Ngày hiệu lực dời bãi, impact và áp dụng/hủy lịch qua API hiện có; xem `business-improvements-usage.md` |
 
 ## 3. Tuyến và hai vai trò
 
@@ -141,3 +143,12 @@ Chỉ chạy test không ghi DB; test pass không thay browser verification.
 Khi rename/move/đổi caller: sửa đúng hàng ở đây. Khi đổi style chung: sửa design.
 Không ghi số lượng PASS hay trạng thái deploy cố định vào chỉ mục. Các file lớn/legacy là
 hiện trạng, không phải yêu cầu tự refactor toàn bộ trong task style.
+
+## 5. Tích hợp quản lý tài nguyên và điều kiện vận hành
+
+- Hướng dẫn thao tác theo vai trò: [business-improvements-usage.md](business-improvements-usage.md).
+- `ResourceStatusDialog`: dùng ở bảng/chi tiết xe, tài xế và nhân viên trường/giáo viên. Lấy impact trước, chặn chuyến IN_PROGRESS, tìm ứng viên theo role/school với phân trang; server quyết định khả dụng và bàn giao cuối cùng. Không giữ bản sao dữ liệu trong Zustand.
+- `RoutePlanReoptimization` trong `components/admin/routes/`: notice chung cho cả hai workspace; chỉ System Admin gọi re-optimize. Không tối ưu khi còn scheduledChange chưa áp dụng; không tự duyệt hay sinh chuyến.
+- Cài đặt hỗ trợ deep link `/admin/settings?tab=parking`; scheduledChange khác bãi hiện hành. API apply chỉ được gọi từ thao tác xác nhận khi đến ngày hiệu lực.
+- `TripAssignmentModal` kiểm tra lại GET detail/roster trước PATCH; page giữ điều kiện role/policy cũ và bổ sung ready/start/attendance. Thiếu dữ liệu không mặc định là cho phép sửa.
+- Hủy phương án dùng `expectedFingerprint` của cancellation-impact; không tự tính frozenTripsCount khi API không trả. Preview yêu cầu đổi địa chỉ bị vô hiệu sau lỗi duyệt để kiểm tra lại.

@@ -156,6 +156,7 @@ export function RequestDetailModal({
       onActionSuccess();
       onClose();
     } catch (err: any) {
+      setRoutingPreview(null);
       setError(err?.message || 'Không thể phê duyệt yêu cầu. Vui lòng thử lại.');
       setIsConfirmingApprove(false);
       // Refresh to get updated status/isStale
@@ -593,7 +594,7 @@ export function RequestDetailModal({
                             ))}
 
                             <div className="text-[11px] text-slate-500 pt-1">
-                              {routingPreview.affectedScheduledTripsCount} chuyến đã lên lịch sẽ cập nhật • {routingPreview.preservedTripsCount} chuyến đang chạy giữ nguyên dữ liệu cũ.
+                              {routingPreview.affectedScheduledTripsCount} chuyến đã lên lịch sẽ cập nhật • {routingPreview.preservedTripsCount} chuyến đã đóng băng giữ nguyên dữ liệu cũ.
                             </div>
                           </div>
                         )}

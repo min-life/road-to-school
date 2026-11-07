@@ -1,4 +1,6 @@
 'use client';
+import { ResourceStatusDialog } from '@/components/admin/common/resource-status-dialog';
+import type { ResourceTarget } from '@/lib/resource-status';
 import { TableActions } from '@/components/admin/common/table-actions';
 
 import { toast } from '@/stores/toast-store';
@@ -28,6 +30,7 @@ import { Table } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 
 function DriversPageContent() {
+  const [statusTarget, setStatusTarget] = useState<ResourceTarget | null>(null);
   const [drivers, setDrivers] = useState<DriverItem[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -258,7 +261,7 @@ function DriversPageContent() {
                     </td>
 
                     <td className="px-4 py-3 text-right">
-                      <TableActions actions={[{ label: 'Chi tiết', href: `/admin/drivers/${driver.id}` }]} />
+                      <TableActions actions={[{ label: 'Chi tiết', href: `/admin/drivers/${driver.id}` }, { label: driver.isActive ? 'Ngừng hoạt động' : 'Kích hoạt', warning: driver.isActive, onClick: () => setStatusTarget({ kind: 'driver', id: driver.id, name: driver.fullName, isActive: driver.isActive }) }]} />
                     </td>
                   </tr>
                 ))
@@ -283,6 +286,7 @@ function DriversPageContent() {
       </Card>
 
       {/* Add Driver Modal */}
+      {statusTarget && <ResourceStatusDialog key={statusTarget.id} target={statusTarget} onClose={() => setStatusTarget(null)} onSuccess={() => void fetchDrivers()} />}
       <AddDriverModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}

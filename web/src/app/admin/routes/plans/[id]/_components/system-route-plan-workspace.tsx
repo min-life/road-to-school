@@ -1,4 +1,5 @@
 ﻿'use client';
+import { RoutePlanReoptimization } from '@/components/admin/routes/route-plan-reoptimization';
 import { effectivePlanStatus, lifecycleReason } from '@/lib/school-lifecycle';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -152,6 +153,7 @@ export function SystemRoutePlanWorkspace({ planId, role }: { planId: string; rol
       </div>
       </div>
     </header>
+    <RoutePlanReoptimization plan={plan} systemAdmin={true} onUpdated={() => { setRoute(null); setRevision(value => value + 1); }} />
     {plan.effectiveStatusReason && <p className="saved-plan-notice" role="status">{lifecycleReason(plan.effectiveStatusReason)}. Phương án chỉ còn để tra cứu.</p>}
     {effectivePlanStatus(plan) === 'CANCELLED' && <p className="saved-plan-notice">Phương án đã hủy{plan.cancellationReason ? `: ${plan.cancellationReason}` : '.'}</p>}
     {effectivePlanStatus(plan) === 'EXPIRED' && <p className="saved-plan-notice">Phương án hết hạn hợp đồng. Thông tin được giữ để tra cứu.</p>}

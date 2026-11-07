@@ -6,6 +6,8 @@ import { effectivePlanStatus, lifecycleError, lifecycleReason, type TripAdminFin
 import React, { useState, useEffect, useMemo, useRef, useId, use } from 'react';
 import { apiClient, ApiError } from '@/lib/api-client';
 import { TripDetail } from '@/lib/types';
+import { Copy } from 'lucide-react';
+import { toast } from '@/stores/toast-store';
 import { useAuth } from '@/components/auth/auth-provider';
 import { useVisibleRefresh } from '@/hooks/use-visible-refresh';
 import type { RefreshContext } from '@/lib/refresh-loop';
@@ -16,6 +18,7 @@ import {
   BusIcon,
 } from '@/components/icons';
 import { RouteMap, MapPoint } from '@/components/admin/routes/route-map';
+import { tripAssignmentLock } from '@/lib/business-improvements';
 import { TripAssignmentModal } from './_components/trip-assignment-modal';
 import { TripAttendancePanel, TripAttendanceSummary } from './_components/trip-attendance';
 import { TripStopsPanel } from './_components/trip-stops-panel';
@@ -121,13 +124,15 @@ function TripDetailContent({ tripId }: { tripId: string }) {
   const loadTripDetail = useVisibleRefresh(identity, fetchTripDetail, 5000);
   const attendance = useTripAttendance(tripId, identity, Boolean(user && ['SYSTEM_ADMIN', 'SCHOOL_ADMIN'].includes(user.role)));
 
+  const assignmentLock = trip ? tripAssignmentLock(trip, attendance.data) : null;
   const canEditAssignment = useMemo(() => {
     if (!currentUserRole || !trip) return false;
+    if (assignmentLock || attendance.error) return false;
     if (trip.status !== 'SCHEDULED' || !policy || policy.tripId !== trip.id || policy.blocked) return false;
     if (currentUserRole === 'SYSTEM_ADMIN') return true;
     if (currentUserRole === 'SCHOOL_ADMIN' && currentUserSchoolId === trip.schoolId) return true;
     return false;
-  }, [currentUserRole, currentUserSchoolId, trip, policy]);
+  }, [currentUserRole, currentUserSchoolId, trip, policy, assignmentLock, attendance.error]);
 
   // Locations for Map
   const parkingLocation = useMemo(() => {
@@ -212,6 +217,14 @@ function TripDetailContent({ tripId }: { tripId: string }) {
     );
   }
 
+  const isCancelled = trip.status === 'CANCELLED';
+  const actualTime = (value: string) => new Date(value).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false });
+  const focusStudent = (studentId: string) => {
+    const stop = trip.stops?.find(stop => stop.studentId === studentId);
+    if (stop && Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude)) {
+      setFocusPoint({ latitude: stop.latitude, longitude: stop.longitude, zoom: 16 });
+    }
+  };
   const isToSchool = trip.direction === 'TO_SCHOOL';
 
   return (
@@ -219,14 +232,15 @@ function TripDetailContent({ tripId }: { tripId: string }) {
       {/* Breadcrumb & Navigation */}
       <div className="flex items-center justify-between">
         <BackLink fallback="/admin/trips" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors" />
-        <span className="text-xs text-slate-400">
-          Mã chuyến: <code className="text-slate-600 font-mono text-[11px]">{trip.id.slice(0, 8)}...</code>
-        </span>
+        <Button type="button" variant="ghost" size="sm" className="trip-detail-copy" title={trip.id} aria-label="Sao chép mã chuyến" onClick={async () => {
+          try { await navigator.clipboard.writeText(trip.id); toast.success('Đã sao chép mã chuyến'); }
+          catch { toast.error('Không thể sao chép mã chuyến'); }
+        }}><code>{trip.id.slice(0, 8)}</code><Copy className="w-3.5 h-3.5" aria-hidden="true" /></Button>
       </div>
 
       {/* Header Card */}
       <Card className="trip-detail-header">
-        <PageHeader className="space-y-1.5">
+        <PageHeader className="trip-detail-header-content">
           <div className="flex flex-wrap items-center gap-2.5">
             <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
               <BusIcon className="w-6 h-6 text-slate-700" />
@@ -243,11 +257,11 @@ function TripDetailContent({ tripId }: { tripId: string }) {
               </Badge>
             )}
 
-            <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+            <Badge className="trip-detail-status" data-status={trip.status}>
               {getTripStatusLabel(trip.status)}
             </Badge>
-            {(policy?.tripId === trip.id && (policy.blocked || policy.audit)) && <details className="trip-detail-policy-note" data-finalized={policy.audit?.state === 'FINALIZED'}>
-              <summary><AlertIcon className="w-4 h-4" aria-hidden="true" /><span>{policy.audit?.state === 'FINALIZED' ? 'Đã kết thúc hành chính' : 'Cần kiểm tra điều kiện vận hành'}</span></summary>
+            {(policy?.tripId === trip.id && (policy.audit?.state === 'PENDING' || (!['COMPLETED', 'CANCELLED'].includes(trip.status) && policy.blocked))) && <details className="trip-detail-policy-note" data-finalized={policy.audit?.state === 'FINALIZED'}>
+              <summary><AlertIcon className="w-4 h-4" aria-hidden="true" /><span>{policy.audit?.state === 'FINALIZED' ? 'Lịch sử xử lý hành chính' : 'Cần kiểm tra điều kiện vận hành'}</span></summary>
               <div className="trip-detail-policy-content">
                 <p className="text-sm">{policy.error || policy.audit?.reason || lifecycleReason(policy.audit?.trigger) || 'Chuyến không còn đủ điều kiện đổi phân công.'}</p>
                 {policy.audit?.finalizedAt && <p className="text-xs text-slate-500">Ghi nhận: {new Date(policy.audit.finalizedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}. Việc kết thúc hành chính không xác nhận học sinh đã xuống xe.</p>}
@@ -257,16 +271,34 @@ function TripDetailContent({ tripId }: { tripId: string }) {
             </details>}
           </div>
 
-          <p className="text-xs text-slate-500">
-            Ngày dịch vụ: <strong className="text-slate-800 font-semibold">{formatServiceDateLong(trip.serviceDate)}</strong>
-            {' • '}
-            Trường: <strong className="text-slate-700 font-semibold">{trip.schoolName}</strong>
-            {' • '}
-            Phương án: <span className="text-slate-600">{trip.routePlanName}</span>
+          <p className="trip-detail-service-line">
+            <span title={formatServiceDateLong(trip.serviceDate)}>{formatServiceDateLong(trip.serviceDate)}</span>
+            <span>Dự kiến <strong>{trip.scheduledStartTime} – {trip.scheduledEndTime}</strong></span>
+            <span>Xe <strong>{trip.vehiclePlate || 'Chưa gán'}</strong></span>
+            <span title={trip.driverName}>Tài xế: <strong>{trip.driverName || 'Chưa gán'}</strong></span>
+            <span title={trip.busAttendantName}>Giáo viên: <strong>{trip.busAttendantName || 'Chưa gán'}</strong></span>
           </p>
+          <details className="trip-detail-expanded">
+            <summary>Chi tiết <span aria-hidden="true">⌄</span></summary>
+            <dl className="trip-detail-metadata">
+              <div><dt>Trường học</dt><dd>{trip.schoolName}</dd></div>
+              <div><dt>Phương án tuyến</dt><dd><ContextLink href={`/admin/routes/plans/${trip.routePlanId}`}>{trip.routePlanName}</ContextLink></dd></div>
+              <div><dt>Lịch dự kiến</dt><dd>{trip.scheduledStartTime} – {trip.scheduledEndTime}</dd><small>{trip.actualStartTime || trip.actualEndTime ? `Thực tế: ${trip.actualStartTime ? actualTime(trip.actualStartTime) : 'Chưa bắt đầu'} – ${trip.actualEndTime ? actualTime(trip.actualEndTime) : 'Chưa kết thúc'}` : `Khởi hành từ ${isToSchool ? 'bãi xe' : 'trường học'}`}</small></div>
+              <div><dt>Phương tiện</dt><dd>{trip.vehiclePlate || 'Chưa gán xe'}</dd><small>{trip.vehicleSeats ? `${trip.vehicleSeats} chỗ` : 'Chưa cập nhật sức chứa'}{trip.vehicleBrand ? ` · ${trip.vehicleBrand}` : ''}</small></div>
+              <div><dt>Tài xế</dt><dd>{trip.driverName || 'Chưa gán tài xế'}</dd><small>{trip.driverPhone || 'Chưa cập nhật số điện thoại'}</small></div>
+              <div><dt>Giáo viên phụ xe</dt><dd>{trip.busAttendantName || 'Chưa gán giáo viên'}</dd><small>{trip.busAttendantPhone || 'Chưa cập nhật số điện thoại'}</small></div>
+            </dl>
+            {isCancelled && trip.cancellationReason && <p className="trip-detail-cancellation"><strong>Lý do hủy:</strong> {trip.cancellationReason}</p>}
+            {policy?.tripId === trip.id && policy.audit?.state === 'FINALIZED' && <div className="trip-detail-policy-content">
+              <strong className="text-xs">Lịch sử xử lý hành chính</strong>
+              <p className="text-sm">{policy.audit.reason || lifecycleReason(policy.audit.trigger)}</p>
+              {policy.audit.finalizedAt && <p className="text-xs text-slate-500">Ghi nhận: {new Date(policy.audit.finalizedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}. Việc kết thúc hành chính không xác nhận học sinh đã xuống xe.</p>}
+            </div>}
+          </details>
         </PageHeader>
 
-        {/* Action: Edit Assignment */}
+        {trip.status === 'SCHEDULED' && (assignmentLock || attendance.error) && <p className="text-sm text-amber-800" role="status">{attendance.error ? 'Chưa thể kiểm tra phân công: không tải được điểm danh.' : assignmentLock}</p>}
+      {/* Action: Edit Assignment */}
         {canEditAssignment && (
           <Button
             onClick={() => setIsEditModalOpen(true)}
@@ -277,14 +309,7 @@ function TripDetailContent({ tripId }: { tripId: string }) {
         )}
       </Card>
 
-      <dl className="trip-detail-metadata">
-        <div><dt>Lịch dự kiến</dt><dd>{trip.scheduledStartTime} – {trip.scheduledEndTime}</dd><small>Khởi hành từ {isToSchool ? 'bãi xe' : 'trường học'}</small></div>
-        <div><dt>Phương tiện</dt><dd>{trip.vehiclePlate || 'Chưa gán xe'}</dd><small>{trip.vehicleSeats ? `${trip.vehicleSeats} chỗ` : 'Chưa cập nhật sức chứa'}{trip.vehicleBrand ? ` · ${trip.vehicleBrand}` : ''}</small></div>
-        <div><dt>Tài xế</dt><dd>{trip.driverName || 'Chưa gán tài xế'}</dd><small>{trip.driverPhone || 'Chưa cập nhật số điện thoại'}</small></div>
-        <div><dt>Giáo viên phụ xe</dt><dd>{trip.busAttendantName || 'Chưa gán giáo viên'}</dd><small>{trip.busAttendantPhone || 'Chưa cập nhật số điện thoại'}</small></div>
-      </dl>
-
-      <TripAttendanceSummary data={attendance.data} />
+      <TripAttendanceSummary data={attendance.data} cancelled={isCancelled} />
 
       {/* Main Content: Map & Stops Timeline */}
       <div className="trip-detail-layout">
@@ -342,10 +367,10 @@ function TripDetailContent({ tripId }: { tripId: string }) {
                 setPanelTab(next);
                 document.getElementById(`${tabId}-${next}-tab`)?.focus();
               }}
-            >{tab === 'attendance' ? `Điểm danh${attendance.data ? ` (${attendance.data.totalStudents})` : ''}` : `Điểm dừng (${trip.stops?.length || 0})`}</Button>)}
+            >{tab === 'attendance' ? `Học sinh${attendance.data ? ` (${attendance.data.totalStudents})` : ''}` : `Điểm dừng (${trip.stops?.length || 0})`}</Button>)}
           </div>
           <div role="tabpanel" id={`${tabId}-attendance-panel`} aria-labelledby={`${tabId}-attendance-tab`} hidden={panelTab !== 'attendance'}>
-            <TripAttendancePanel data={attendance.data} error={attendance.error} updatedAt={attendance.updatedAt} onRefresh={attendance.refresh} isRefreshing={attendance.isRefreshing} />
+            <TripAttendancePanel data={attendance.data} error={attendance.error} updatedAt={attendance.updatedAt} onRefresh={attendance.refresh} isRefreshing={attendance.isRefreshing} cancelled={isCancelled} onFocusStudent={focusStudent} />
           </div>
           <div role="tabpanel" id={`${tabId}-stops-panel`} aria-labelledby={`${tabId}-stops-tab`} hidden={panelTab !== 'stops'}>
             <TripStopsPanel stops={trip.stops ?? []} schoolName={trip.schoolName} onFocus={setFocusPoint} />
@@ -357,10 +382,12 @@ function TripDetailContent({ tripId }: { tripId: string }) {
       <TripAssignmentModal
         isOpen={isEditModalOpen}
         trip={trip}
+        lockReason={assignmentLock || (attendance.error ? 'Không thể kiểm tra điểm danh.' : null)}
         currentUserRole={currentUserRole}
         onClose={() => setIsEditModalOpen(false)}
         onUpdated={() => {
           loadTripDetail();
+          attendance.refresh();
         }}
       />
     </div>

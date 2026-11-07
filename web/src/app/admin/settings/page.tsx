@@ -1,11 +1,15 @@
 'use client';
 
+import { ServiceCalendarPanel } from '@/components/admin/schools/service-calendar-panel';
+import { LifecycleDialog } from '@/components/admin/common/lifecycle-dialog';
+import { vietnamDateKey } from '@/lib/business-improvements';
+import { useRouteQuery } from '@/hooks/use-route-query';
 import { toast } from '@/stores/toast-store';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { authStorage } from '@/lib/auth-storage';
-import { apiClient, ApiError } from '@/lib/api-client';
+import { apiClient } from '@/lib/api-client';
 import { ParkingLot, ParkingLotImpactResponse } from '@/lib/types';
 import { vietmapService, VietmapSuggestion } from '@/lib/vietmap';
 import {
@@ -26,11 +30,14 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ContextLink } from '@/components/admin/common/context-navigation';
 
-type SettingsTab = 'ACCOUNT' | 'PARKING_LOT';
+type SettingsTab = 'ACCOUNT' | 'PARKING_LOT' | 'HOLIDAYS';
 
 export default function AdminSettingsPage() {
   const { user, logout, setUser } = useAuth();
   const [activeTab, setActiveTab] = useState<SettingsTab>('ACCOUNT');
+  useRouteQuery(String(user?.id), query => {
+    setActiveTab(user?.role === 'SYSTEM_ADMIN' ? query.get('tab') === 'holidays' ? 'HOLIDAYS' : query.get('tab') === 'parking' ? 'PARKING_LOT' : 'ACCOUNT' : 'ACCOUNT');
+  });
 
   // Logout dialog
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
@@ -70,6 +77,10 @@ export default function AdminSettingsPage() {
   const parkingSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Parking relocation impact modal state
+  const [parkingEffectiveDate, setParkingEffectiveDate] = useState(() => vietnamDateKey(1));
+  const [scheduledAction, setScheduledAction] = useState<'apply' | 'cancel' | null>(null);
+  const [scheduledBusy, setScheduledBusy] = useState(false);
+  const [scheduledError, setScheduledError] = useState('');
   const [parkingImpact, setParkingImpact] = useState<ParkingLotImpactResponse | null>(null);
   const [isParkingImpactModalOpen, setIsParkingImpactModalOpen] = useState(false);
   const [parkingRelocateReason, setParkingRelocateReason] = useState('');
@@ -89,7 +100,7 @@ export default function AdminSettingsPage() {
         setParkingLng(data.longitude || 106.700806);
       }
     } catch (err: any) {
-      console.warn('Không thể tải cấu hình bãi đỗ xe:', err?.message);
+      setParkingErrorMsg(err?.message || 'Không thể tải cấu hình bãi xe. Vui lòng làm mới trang.');
     } finally {
       setIsLoadingParkingLot(false);
     }
@@ -255,6 +266,7 @@ export default function AdminSettingsPage() {
     e.preventDefault();
 
     setParkingErrorMsg(null);
+    if (isSavingParkingLot || isSearchingParking || !parkingLot || parkingLot.scheduledChange) return;
 
     if (!parkingAddress.trim()) {
       setParkingErrorMsg('Địa chỉ bãi xe không được để trống');
@@ -286,26 +298,7 @@ export default function AdminSettingsPage() {
         return;
       }
 
-      // 2. Tọa độ có thay đổi -> Lấy tác động từ hệ thống
-      const impact = await apiClient.getParkingLotImpact(parkingLat, parkingLng);
-      const totalAffectedPlans =
-        (impact.cancelledPlansCount ??
-          ((impact.totalDraftPlansCount || 0) + (impact.totalActivePlansCount || 0))) || 0;
-
-      // Yêu cầu: "nếu chưa có bất kì phương án nào ở draft, active thì tiến hành đổi, còn nếu có thì hủy mọi phương án đó"
-      if (totalAffectedPlans === 0) {
-        // Chưa có phương án DRAFT hay ACTIVE nào trên toàn hệ thống -> Tiến hành đổi ngay lập tức
-        const updated = await apiClient.updateParkingLot({
-          addressText: parkingAddress.trim(),
-          latitude: parkingLat,
-          longitude: parkingLng,
-        });
-        setParkingLot(updated);
-        toast.success('Cập nhật vị trí bãi đỗ xe trung tâm thành công (hệ thống chưa có phương án nào bị ảnh hưởng)');
-        return;
-      }
-
-      // Có phương án DRAFT hoặc ACTIVE -> Mở modal cảnh báo & hủy phương án
+      const impact = await apiClient.getParkingLotImpact(parkingLat, parkingLng, parkingEffectiveDate);
       setParkingImpact(impact);
       setParkingRelocateReason('Bãi xe trung tâm thay đổi vị trí');
       setParkingRelocateReasonError(null);
@@ -322,35 +315,46 @@ export default function AdminSettingsPage() {
       setParkingRelocateReasonError('Vui lòng nhập lý do thay đổi vị trí bãi xe (bắt buộc)');
       return;
     }
-    if (parkingLat === null || parkingLng === null || !parkingImpact) return;
+    if (isConfirmingRelocation || parkingLat === null || parkingLng === null || !parkingImpact) return;
 
     setIsConfirmingRelocation(true);
     setParkingRelocateReasonError(null);
     try {
-      const fingerprint = parkingImpact.fingerprint || parkingImpact.expectedFingerprint;
-      const cancelledPlans =
-        parkingImpact.cancelledPlansCount ??
-        ((parkingImpact.totalDraftPlansCount || 0) + (parkingImpact.totalActivePlansCount || 0));
-      const cancelledTrips =
-        parkingImpact.cancelledTripsCount ?? (parkingImpact.totalScheduledTripsCount || 0);
-
+      const fingerprint = parkingImpact.expectedFingerprint || parkingImpact.fingerprint;
       const updated = await apiClient.updateParkingLot({
         addressText: parkingAddress.trim(),
         latitude: parkingLat,
         longitude: parkingLng,
         reason: parkingRelocateReason.trim(),
         expectedFingerprint: fingerprint,
+        effectiveDate: parkingEffectiveDate,
       });
       setParkingLot(updated);
       setIsParkingImpactModalOpen(false);
-      toast.success(
-        `Cập nhật vị trí bãi xe thành công! Đã cascade hủy ${cancelledPlans} phương án tuyến toàn hệ thống và ${cancelledTrips} chuyến xe lập lịch.`,
-      );
+      await fetchParkingLot();
+      toast.success('Đã hẹn dời bãi xe. Các phương án liên quan cần tối ưu lại.');
     } catch (err: any) {
-      setParkingRelocateReasonError(err?.message || 'Xác nhận thay đổi thất bại');
+      setIsParkingImpactModalOpen(false);
+      setParkingImpact(null);
+      setParkingErrorMsg(err?.message || 'Dữ liệu đã thay đổi. Vui lòng xem tác động lại.');
     } finally {
       setIsConfirmingRelocation(false);
     }
+  };
+
+  const handleScheduledAction = async () => {
+    if (!scheduledAction || scheduledBusy) return;
+    setScheduledBusy(true); setScheduledError('');
+    try {
+      if (scheduledAction === 'apply') {
+        const result = await apiClient.applyScheduledParkingChange();
+        if (!result.applied) throw new Error('Chưa đến ngày hiệu lực hoặc lịch thay đổi không còn tồn tại.');
+      } else await apiClient.cancelScheduledParkingChange();
+      await fetchParkingLot();
+      toast.success(scheduledAction === 'apply' ? 'Đã áp dụng vị trí bãi mới.' : 'Đã hủy lịch dời bãi.');
+      setScheduledAction(null);
+    } catch (cause) { setScheduledError(cause instanceof Error ? cause.message : 'Không thể cập nhật lịch dời bãi.'); }
+    finally { setScheduledBusy(false); }
   };
 
   const handleConfirmLogout = async () => {
@@ -379,7 +383,7 @@ export default function AdminSettingsPage() {
         {/* Tabs switcher nếu là SYSTEM_ADMIN */}
         {(user.role === 'SYSTEM_ADMIN' || user.role === 'SCHOOL_ADMIN') && (
           <div className="inline-flex flex-wrap p-1 rounded-xl bg-slate-100 border border-slate-200/80 self-start sm:self-auto">
-            <ContextLink href="/admin/calendar" className="ui-button" data-variant="outline" data-size="sm">Lịch vận hành</ContextLink>
+            {user.role === 'SCHOOL_ADMIN' && <ContextLink href="/admin/calendar" className="ui-button" data-variant="outline" data-size="sm">Lịch vận hành</ContextLink>}
             <Button
               type="button"
               onClick={() => setActiveTab('ACCOUNT')}
@@ -402,6 +406,10 @@ export default function AdminSettingsPage() {
             >
               Vị trí bãi xe
             </Button>}
+            {user.role === 'SYSTEM_ADMIN' && <Button type="button" onClick={() => setActiveTab('HOLIDAYS')}
+              className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${activeTab === 'HOLIDAYS' ? 'bg-white text-foreground shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}>
+              Lịch nghỉ nhà xe
+            </Button>}
           </div>
         )}
       </PageHeader>
@@ -409,6 +417,8 @@ export default function AdminSettingsPage() {
       {/* ============================================================= */}
       {/* TAB 1: CÀI ĐẶT TÀI KHOẢN (Cho cả SYSTEM_ADMIN & SCHOOL_ADMIN)  */}
       {/* ============================================================= */}
+      {activeTab === 'HOLIDAYS' && user.role === 'SYSTEM_ADMIN' && <ServiceCalendarPanel key={`operator:${user.id}`} role={user.role} operatorOnly />}
+
       {activeTab === 'ACCOUNT' && (
         <div className="space-y-6">
           {/* Card 1: Thông tin & Đổi Avatar */}
@@ -648,7 +658,20 @@ export default function AdminSettingsPage() {
             </div>
           )}
 
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
+            <p className="font-semibold">Bãi đang áp dụng</p><p>{parkingLot?.addressText || 'Đang tải…'}</p>
+          </div>
+          {parkingLot?.scheduledChange && <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
+            <p className="font-semibold">Thay đổi đã hẹn · {parkingLot.scheduledChange.effectiveDate.split('-').reverse().join('/')}</p>
+            <p>{parkingLot.scheduledChange.newAddressText}</p>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => { setScheduledError(''); setScheduledAction('cancel'); }}>Hủy lịch thay đổi</Button>
+              {parkingLot.scheduledChange.effectiveDate <= vietnamDateKey() && <Button variant="primary" onClick={() => { setScheduledError(''); setScheduledAction('apply'); }}>Áp dụng vị trí mới</Button>}
+              <Button variant="outline" onClick={() => void fetchParkingLot()}>Làm mới</Button>
+            </div>
+          </div>}
           <form onSubmit={handleSaveParkingLot} className="space-y-5">
+            <fieldset disabled={!parkingLot || !!parkingLot.scheduledChange || isSavingParkingLot || isLoadingParkingLot} className="space-y-5">
             {/* Địa chỉ bãi xe với Autocomplete */}
             <div className="relative">
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -713,6 +736,9 @@ export default function AdminSettingsPage() {
               </div>
             </div>
 
+            <div className="max-w-xs space-y-1.5"><label htmlFor="parking-effective-date" className="block text-sm font-semibold">Ngày hiệu lực dời bãi</label>
+              <Input id="parking-effective-date" type="date" min={vietnamDateKey(1)} required value={parkingEffectiveDate} onChange={event => { setParkingEffectiveDate(event.target.value); setParkingImpact(null); }} />
+            </div>
             {/* Nút Lưu cấu hình */}
             <div className="flex items-center justify-between pt-2">
               <span className="text-xs text-slate-500">
@@ -723,102 +749,37 @@ export default function AdminSettingsPage() {
 
               <Button variant="primary" size="default"
                 type="submit"
-                disabled={isSavingParkingLot}
+                disabled={isSavingParkingLot || isSearchingParking}
                 className="px-6 py-2.5 rounded-xl bg-primary hover:bg-amber-400 text-sm font-bold text-foreground transition-colors cursor-pointer flex items-center gap-2 shadow-xs"
               >
                 {isSavingParkingLot && <SpinnerIcon className="w-4 h-4 animate-spin" />}
-                <span>Lưu vị trí bãi xe</span>
+                <span>Xem tác động / Lưu địa chỉ</span>
               </Button>
             </div>
+            </fieldset>
           </form>
         </Card>
       )}
 
-      {/* Modal xác nhận đổi vị trí bãi đỗ xe trung tâm (Toàn hệ thống) */}
-      {isParkingImpactModalOpen && parkingImpact && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
-          <Card className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg p-6 space-y-5">
-            <div className="flex items-start gap-3">
-              <div className="p-3 bg-rose-50 text-rose-600 rounded-xl shrink-0">
-                <AlertIcon className="w-6 h-6" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-lg font-bold text-slate-900">
-                  Xác nhận đổi vị trí bãi đỗ xe trung tâm
-                </h3>
-                <p className="text-sm text-slate-500">
-                  Hành động này có tác động trên toàn hệ thống và không thể hoàn tác.
-                </p>
-              </div>
-            </div>
-
-            {/* Thống kê tác động */}
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2 text-sm text-slate-700">
-              <div className="flex items-center justify-between">
-                <span>Phương án chưa duyệt hoặc đang hoạt động bị hủy toàn hệ thống:</span>
-                <span className="font-bold text-rose-600">
-                  {parkingImpact.cancelledPlansCount ??
-                    ((parkingImpact.totalDraftPlansCount || 0) + (parkingImpact.totalActivePlansCount || 0))}{' '}
-                  phương án
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Chuyến xe đã lên lịch liên quan bị hủy:</span>
-                <span className="font-bold text-rose-600">
-                  {parkingImpact.cancelledTripsCount ?? (parkingImpact.totalScheduledTripsCount || 0)} chuyến
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Chuyến xe đang chạy giữ nguyên:</span>
-                <span className="font-bold text-emerald-600">
-                  {parkingImpact.inProgressTripsPreservedCount ?? (parkingImpact.totalInProgressTripsCount || 0)} chuyến
-                </span>
-              </div>
-            </div>
-
-            {/* Nhập lý do bắt buộc */}
-            <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-slate-700">
-                Lý do thay đổi vị trí <span className="text-rose-500">*</span>
-              </label>
-              <Textarea
-                value={parkingRelocateReason}
-                onChange={(e) => {
-                  setParkingRelocateReason(e.target.value);
-                  setParkingRelocateReasonError(null);
-                }}
-                rows={3}
-                placeholder="Nhập lý do thay đổi tọa độ bãi xe trung tâm..."
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
-              />
-              {parkingRelocateReasonError && (
-                <p className="text-xs text-rose-600 font-medium">{parkingRelocateReasonError}</p>
-              )}
-            </div>
-
-            {/* Hành động */}
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <Button
-                type="button"
-                disabled={isConfirmingRelocation}
-                onClick={() => setIsParkingImpactModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                Hủy bỏ
-              </Button>
-              <Button
-                type="button"
-                disabled={isConfirmingRelocation}
-                onClick={handleConfirmParkingRelocation}
-                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-sm font-bold text-white transition-colors cursor-pointer flex items-center gap-2 shadow-xs"
-              >
-                {isConfirmingRelocation && <SpinnerIcon className="w-4 h-4 animate-spin" />}
-                <span>Xác nhận & Hủy phương án</span>
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
+      <LifecycleDialog open={isParkingImpactModalOpen && !!parkingImpact} title="Xác nhận hẹn dời bãi" busy={isConfirmingRelocation} onClose={() => setIsParkingImpactModalOpen(false)}
+        footer={<><Button variant="outline" disabled={isConfirmingRelocation} onClick={() => setIsParkingImpactModalOpen(false)}>Quay lại</Button><Button variant="primary" disabled={isConfirmingRelocation || !parkingRelocateReason.trim()} onClick={handleConfirmParkingRelocation}>{isConfirmingRelocation ? 'Đang lưu…' : 'Xác nhận'}</Button></>}>
+        {parkingImpact && <div className="space-y-4 text-sm">
+          <p className="font-semibold">{parkingAddress}</p><p>Ngày hiệu lực: {parkingEffectiveDate.split('-').reverse().join('/')}</p>
+          <dl className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex justify-between gap-4"><dt>Phương án cần tối ưu lại</dt><dd className="font-bold">{parkingImpact.plansNeedingReoptimizationCount}</dd></div>
+            <div className="flex justify-between gap-4"><dt>Chuyến đã lên lịch bị hủy từ ngày hiệu lực</dt><dd className="font-bold text-rose-600">{parkingImpact.tripsCancelledAfterEffectiveDateCount}</dd></div>
+            <div className="flex justify-between gap-4"><dt>Chuyến trước ngày hiệu lực giữ nguyên</dt><dd className="font-bold">{parkingImpact.tripsPreservedBeforeEffectiveDateCount}</dd></div>
+          </dl>
+          <label htmlFor="parking-reason" className="block font-semibold">Lý do thay đổi *</label>
+          <Textarea id="parking-reason" rows={3} value={parkingRelocateReason} onChange={event => setParkingRelocateReason(event.target.value)} />
+          {parkingRelocateReasonError && <p role="alert" className="text-rose-600">{parkingRelocateReasonError}</p>}
+        </div>}
+      </LifecycleDialog>
+      <LifecycleDialog open={!!scheduledAction} title={scheduledAction === 'apply' ? 'Áp dụng vị trí bãi mới?' : 'Hủy lịch dời bãi?'} busy={scheduledBusy} onClose={() => setScheduledAction(null)}
+        footer={<><Button variant="outline" disabled={scheduledBusy} onClick={() => setScheduledAction(null)}>Quay lại</Button><Button variant={scheduledAction === 'cancel' ? 'danger' : 'primary'} disabled={scheduledBusy} onClick={handleScheduledAction}>Xác nhận</Button></>}>
+        <p className="text-sm">{scheduledAction === 'apply' ? 'Vị trí mới sẽ được dùng khi tối ưu lại phương án. Thao tác này không tự sinh lại chuyến.' : 'Hủy lịch thay đổi không tự khôi phục các chuyến đã hủy.'}</p>
+        {scheduledError && <p role="alert" className="mt-3 text-sm text-rose-600">{scheduledError}</p>}
+      </LifecycleDialog>
 
       {/* Logout Confirmation Dialog */}
       <LogoutDialog

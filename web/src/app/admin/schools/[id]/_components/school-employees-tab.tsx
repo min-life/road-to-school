@@ -1,5 +1,9 @@
 'use client';
 
+import { ResourceStatusDialog } from '@/components/admin/common/resource-status-dialog';
+import type { ResourceTarget } from '@/lib/resource-status';
+import { useAuth } from '@/components/auth/auth-provider';
+import { TableActions } from '@/components/admin/common/table-actions';
 import { toast } from '@/stores/toast-store';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -33,6 +37,9 @@ export function SchoolEmployeesTab({
   schoolName,
   isSchoolActive,
 }: SchoolEmployeesTabProps) {
+  const { user } = useAuth();
+  const canManage = user?.role === 'SYSTEM_ADMIN' || (user?.role === 'SCHOOL_ADMIN' && user.schoolId === schoolId);
+  const [statusTarget, setStatusTarget] = useState<ResourceTarget | null>(null);
   const [employees, setEmployees] = useState<SchoolEmployeeItem[]>([]);
   const [meta, setMeta] = useState<PaginationMeta>({
     page: 1,
@@ -217,21 +224,21 @@ export function SchoolEmployeesTab({
       {/* Employees Table */}
       <Card className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-2xs">
         <div className="overflow-x-auto">
-          <Table className="w-full text-left border-collapse" minWidth={1000}>
-            <colgroup><col /><col style={{ width: 240 }} /><col style={{ width: 160 }} /><col style={{ width: 180 }} /><col style={{ width: 180 }} /></colgroup>
+          <Table className="w-full text-left border-collapse" minWidth={1150}>
+            <colgroup><col /><col style={{ width: 240 }} /><col style={{ width: 160 }} /><col style={{ width: 180 }} /><col style={{ width: 180 }} /><col style={{ width: 190 }} /></colgroup>
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 <th className="py-3 px-4">Họ và tên</th>
                 <th className="py-3 px-4">Email</th>
                 <th className="py-3 px-4">Số điện thoại</th>
                 <th className="py-3 px-4">Vai trò</th>
-                <th className="py-3 px-4">Trạng thái</th>
+                <th className="py-3 px-4">Trạng thái</th><th className="text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-slate-400">
+                  <td colSpan={6} className="py-12 text-center text-slate-400">
                     <div className="inline-flex items-center gap-2">
                       <SpinnerIcon className="w-4 h-4 animate-spin text-amber-500" />
                       <span>Đang tải danh sách nhân viên...</span>
@@ -240,7 +247,7 @@ export function SchoolEmployeesTab({
                 </tr>
               ) : employees.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-slate-400">
+                  <td colSpan={6} className="py-12 text-center text-slate-400">
                     <UsersIcon className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                     <p className="font-medium text-slate-600">
                       Chưa có nhân viên nào phù hợp
@@ -285,6 +292,7 @@ export function SchoolEmployeesTab({
                         {emp.isActive ? 'Đang hoạt động' : 'Ngừng hoạt động'}
                       </Badge>
                     </td>
+                    <td>{canManage && (emp.role === 'SCHOOL_ADMIN' || emp.role === 'BUS_ATTENDANT') && <TableActions actions={[{ label: emp.isActive ? 'Ngừng hoạt động' : 'Kích hoạt', warning: emp.isActive, onClick: () => setStatusTarget({ kind: 'employee', id: emp.id, name: emp.fullName, isActive: emp.isActive, schoolId, role: emp.role as 'SCHOOL_ADMIN' | 'BUS_ATTENDANT' }) }]} />}</td>
                   </tr>
                 ))
               )}
@@ -308,6 +316,7 @@ export function SchoolEmployeesTab({
       </Card>
 
       {/* Modal tạo School Admin */}
+      {statusTarget && <ResourceStatusDialog key={statusTarget.id} target={statusTarget} onClose={() => setStatusTarget(null)} onSuccess={() => void fetchEmployees()} />}
       <CreateSchoolAdminModal
         isOpen={isCreateModalOpen}
         schoolId={schoolId}
