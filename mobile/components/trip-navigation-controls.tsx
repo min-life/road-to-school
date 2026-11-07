@@ -10,7 +10,6 @@ interface Props {
   hasLocalPosition?: boolean;
   showPlanned?: boolean; selectPlan?: (planned: boolean) => void;
   change: (source?: LocationSource) => Promise<void>;
-  joystick: (bearing: number, speed: number) => void;
   retry?: () => Promise<void>;
   canRetry?: boolean;
   speedKmh?: number;
@@ -20,7 +19,8 @@ interface Props {
 export function TripNavigationControls(p: Props) {
   const button = (title: string, source: LocationSource) => <Pressable key={source}
     accessibilityRole="button" onPress={() => { void p.change(source); }}
-    style={[styles.button, p.mode === source && styles.selected]}><Text style={styles.text}>{title}</Text></Pressable>;
+    style={[styles.button, p.testMode && styles.modeButton, p.mode === source && styles.selected]}>
+    <Text style={[styles.text, p.testMode && styles.modeText]}>{title}</Text></Pressable>;
   return <View style={styles.card}>
     {!!p.historyLabel && <Text style={styles.text}>{p.historyLabel}{p.hasGaps ? ' · Có đoạn chưa ghi nhận' : ''}</Text>}
     {p.selectPlan && <View style={styles.row}>
@@ -47,15 +47,14 @@ export function TripNavigationControls(p: Props) {
       {!!p.guidance.streetName && <Text style={styles.small}>{p.guidance.streetName}</Text>}</>}
     {p.mode && !p.guidance && !p.message && <Text style={styles.small}>Đang cập nhật chỉ dẫn</Text>}
     {!!p.targetName && <Text numberOfLines={1} style={styles.small}>Điểm tiếp theo: {p.targetName}</Text>}
-    {p.canPublish && <View style={styles.row}>
+    {(p.canPublish || (p.testMode && !!p.mode)) && <View style={[styles.row, p.testMode && styles.modeRow]}>
+      {p.canPublish && <>
       {!p.testMode && button('Điều hướng', 'LIVE')}
       {p.testMode && <>{button('Tự động di chuyển', 'TEST_AUTO')}{button('Lái thủ công', 'TEST_JOYSTICK')}</>}
       {!p.testMode && !!p.mode && <Pressable accessibilityRole="button" onPress={() => { void p.change(); }} style={styles.button}>
         <Text style={styles.text}>Dừng</Text></Pressable>}
-    </View>}
+      </>}
     {p.testMode && !!p.mode && (
-      <View style={styles.speedRow}>
-        <Text style={styles.small}>Tốc độ mô phỏng:</Text>
         <View style={styles.speedStepper}>
           <Pressable
             accessibilityRole="button"
@@ -75,16 +74,7 @@ export function TripNavigationControls(p: Props) {
             <Text style={styles.speedBtnText}>+</Text>
           </Pressable>
         </View>
-      </View>
     )}
-    {p.mode === 'TEST_JOYSTICK' && <View style={styles.row}>
-      {[[0, '↑'], [270, '←'], [180, '↓'], [90, '→']].map(([bearing, label]) => <Pressable key={bearing}
-        accessibilityLabel={`Lái ${label}`} hitSlop={8}
-        onPressIn={() => p.joystick(Number(bearing), 8)}
-        onPressOut={() => p.joystick(Number(bearing), 0)}
-        onResponderTerminate={() => p.joystick(Number(bearing), 0)}
-        style={styles.direction}>
-        <Text style={styles.guidance}>{label}</Text></Pressable>)}
     </View>}
   </View>;
 }
@@ -95,13 +85,15 @@ const styles = StyleSheet.create({
   button: { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1, padding: 9, borderRadius: 10 },
   retryBtn: { backgroundColor: colors.primary, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8 },
   retryText: { color: colors.foreground, fontSize: 12, fontWeight: '700' },
-  selected: { backgroundColor: colors.primary }, direction: { backgroundColor: colors.primary, paddingHorizontal: 18, paddingVertical: 5, borderRadius: 8 },
+  selected: { backgroundColor: colors.primary },
   text: { color: colors.foreground, fontSize: 12, fontWeight: '600' },
   small: { color: colors.mutedText, fontSize: 11 }, guidance: { color: colors.foreground, fontSize: 16, fontWeight: '700' },
-  speedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 2 },
-  speedStepper: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.background, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 8, borderColor: colors.border, borderWidth: 1 },
+  modeRow: { flexWrap: 'nowrap', alignItems: 'center', gap: 4 },
+  modeButton: { flex: 1, minWidth: 0, paddingHorizontal: 4, alignItems: 'center' },
+  modeText: { fontSize: 11, textAlign: 'center' },
+  speedStepper: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.background, paddingHorizontal: 4, paddingVertical: 3, borderRadius: 8, borderColor: colors.border, borderWidth: 1 },
   speedBtn: { width: 26, height: 26, borderRadius: 6, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   speedBtnDisabled: { opacity: 0.4 },
   speedBtnText: { fontSize: 16, fontWeight: '700', color: colors.foreground, lineHeight: 18 },
-  speedValueText: { fontSize: 12, fontWeight: '700', color: colors.foreground, minWidth: 54, textAlign: 'center' },
+  speedValueText: { fontSize: 11, fontWeight: '700', color: colors.foreground, minWidth: 48, textAlign: 'center' },
 });

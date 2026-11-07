@@ -8,6 +8,7 @@ export default function AuthLayout() {
         animation: 'slide_from_right',
       }}
     >
+      <Stack.Screen name="onboarding" options={{ animation: 'none', gestureEnabled: false }} />
       <Stack.Screen name="login" />
       <Stack.Screen name="register" />
       <Stack.Screen name="verify-otp" />

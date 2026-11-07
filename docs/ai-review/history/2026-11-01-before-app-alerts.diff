@@ -1,0 +1,172 @@
+--- a/mobile/components/parent/home-scroll-view.tsx
++++ b/mobile/components/parent/home-scroll-view.tsx
+@@ -1,10 +1,12 @@
+-import { cloneElement, type ReactNode, useRef, useState } from 'react';
+-import { Animated, Pressable, ScrollViewProps, StyleSheet, Text, View } from 'react-native';
++import { cloneElement, type ReactNode, useState } from 'react';
++import { Pressable, ScrollView, ScrollViewProps, StyleSheet, Text, View } from 'react-native';
+ import { useSafeAreaInsets } from 'react-native-safe-area-context';
+ import Ionicons from '@expo/vector-icons/Ionicons';
+ import { colors } from '@/constants/theme';
+ import { NotificationBell } from '@/components/notification-bell';
+ import { UserAvatar } from '@/components/user-avatar';
++
++const COLLAPSE_THRESHOLD = 8;
+ 
+ type Props = ScrollViewProps & {
+   fullName?: string;
+@@ -19,7 +21,6 @@
+ export function ParentHomeScrollView({ fullName, avatarUrl, onOpenLeave, onChangeStop,
+   notification, refreshControl, style, contentContainerStyle, onScroll, onLayout, children, ...props }: Props) {
+   const insets = useSafeAreaInsets();
+-  const offset = useRef(new Animated.Value(0)).current;
+   const [rowHeight, setRowHeight] = useState(48);
+   const [labelHeight, setLabelHeight] = useState(22);
+   const [viewport, setViewport] = useState(0);
+@@ -27,76 +28,71 @@
+   const collapsedHeight = insets.top + rowHeight + 24;
+   const cardHeight = 12 + 48 + 8 + labelHeight + 12;
+   const expandedHeight = collapsedHeight + 16 + cardHeight + 16;
+-  const distance = expandedHeight - collapsedHeight;
+-  const interpolate = (from: number, to: number) => offset.interpolate({
+-    inputRange: [0, distance], outputRange: [from, to], extrapolate: 'clamp',
+-  });
+-  const fade = offset.interpolate({ inputRange: [0, distance * 0.55, distance], outputRange: [1, 0, 0], extrapolate: 'clamp' });
++  const headerHeight = compact ? collapsedHeight : expandedHeight;
+   const actions = [
+     { label: 'Báo nghỉ', icon: 'calendar-outline' as const, onPress: onOpenLeave },
+     { label: 'Đổi điểm', icon: 'location-outline' as const, onPress: onChangeStop },
+   ];
+ 
+   return <View style={[style, styles.screen]} onLayout={event => setViewport(event.nativeEvent.layout.height)}>
+-    <Animated.ScrollView {...props} style={styles.scroll}
++    <ScrollView {...props} style={styles.scroll}
+       refreshControl={refreshControl ? cloneElement(refreshControl, { progressViewOffset: expandedHeight }) : undefined}
+       contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false}
+       scrollEventThrottle={16}
+-      contentContainerStyle={[contentContainerStyle, { paddingTop: expandedHeight + 8,
+-        // Short/empty pages still have enough scroll travel to reach the compact header.
+-        minHeight: viewport + distance }]}
++      contentContainerStyle={[contentContainerStyle, { paddingTop: headerHeight + 8,
++        // A short/empty page needs only enough travel to cross the snap threshold.
++        minHeight: viewport + COLLAPSE_THRESHOLD + 1 }]}
+       onLayout={onLayout}
+-      onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: offset } } }], {
+-        useNativeDriver: false,
+-        listener: event => {
+-          const y = (event as { nativeEvent: { contentOffset: { y: number } } }).nativeEvent.contentOffset.y;
+-          setCompact(previous => previous === (y >= distance * 0.55) ? previous : y >= distance * 0.55);
+-          onScroll?.(event as Parameters<NonNullable<ScrollViewProps['onScroll']>>[0]);
+-        },
+-      })}>
++      onScroll={event => {
++        const y = event.nativeEvent.contentOffset.y;
++        // Commit the whole header at once; never drag the utility background across the avatar.
++        // Reopen only at the top so small movements around the collapse threshold cannot flicker.
++        setCompact(previous => previous ? y > 0 : y > COLLAPSE_THRESHOLD);
++        onScroll?.(event);
++      }}>
+       {children}
+-    </Animated.ScrollView>
++    </ScrollView>
+ 
+-    <Animated.View style={[styles.header, { height: interpolate(expandedHeight, collapsedHeight),
++    <View style={[styles.header, { height: headerHeight,
+       paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right }]}>
+       <View style={styles.frame}>
+         <View style={styles.row} onLayout={event => setRowHeight(event.nativeEvent.layout.height)}>
+-          <Animated.View style={[styles.avatar, { transform: [{ scale: interpolate(1, 0.8) }] }]}>
++          <View style={[styles.avatar, { transform: [{ scale: compact ? 0.8 : 1 }] }]}>
+             <UserAvatar avatarUrl={avatarUrl} fullName={fullName} size={48} />
+-          </Animated.View>
+-          <Animated.View pointerEvents="none" accessibilityElementsHidden={compact}
++          </View>
++          <View pointerEvents="none" accessibilityElementsHidden={compact}
+             importantForAccessibility={compact ? 'no-hide-descendants' : 'auto'} aria-hidden={compact}
+-            style={[styles.greeting, { opacity: fade }]}>
++            style={[styles.greeting, { opacity: compact ? 0 : 1 }]}>
+             <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>Xin chào{fullName ? `, ${fullName}` : ''}</Text>
+             <Text numberOfLines={1} style={styles.subtitle}>Đồng hành cùng con mỗi ngày</Text>
+-          </Animated.View>
++          </View>
+           {notification ?? <NotificationBell />}
+         </View>
+-        <Animated.View style={[styles.actions, {
+-          top: interpolate(rowHeight + 30, 14 + (rowHeight - 48) / 2),
+-          left: interpolate(16, 76), right: interpolate(16, 76),
+-          height: interpolate(cardHeight, 48),
+-          paddingTop: interpolate(12, 0),
+-          backgroundColor: offset.interpolate({ inputRange: [0, distance], outputRange: [colors.surface, colors.background], extrapolate: 'clamp' }),
+-          shadowOpacity: interpolate(0.07, 0), elevation: interpolate(3, 0),
++        <View style={[styles.actions, {
++          top: compact ? 14 + (rowHeight - 48) / 2 : rowHeight + 30,
++          left: compact ? 76 : 16, right: compact ? 76 : 16,
++          height: compact ? 48 : cardHeight,
++          paddingTop: compact ? 0 : 12,
++          backgroundColor: compact ? colors.background : colors.surface,
++          shadowOpacity: compact ? 0 : 0.07, elevation: compact ? 0 : 3,
+         }]}>
+           {actions.map(action => <View key={action.label} style={styles.actionSlot}>
+             <Pressable accessibilityRole="button" accessibilityLabel={action.label} onPress={action.onPress}
+               style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
+               <Ionicons name={action.icon} size={22} color={colors.navigationActive} accessible={false} />
+             </Pressable>
+-            <Animated.View pointerEvents="none" aria-hidden accessibilityElementsHidden
+-              importantForAccessibility="no-hide-descendants" style={{ opacity: fade }}>
++            <View pointerEvents="none" aria-hidden accessibilityElementsHidden
++              importantForAccessibility="no-hide-descendants" style={{ opacity: compact ? 0 : 1 }}>
+               <Text style={styles.label} numberOfLines={2}
+                 onLayout={event => {
+                   const measuredHeight = event.nativeEvent.layout.height;
+                   setLabelHeight(height => Math.max(height, measuredHeight));
+                 }}>{action.label}</Text>
+-            </Animated.View>
++            </View>
+           </View>)}
+-        </Animated.View>
++        </View>
+       </View>
+-    </Animated.View>
++    </View>
+   </View>;
+ }
+ 
+--- a/docs/architecture/mobile-parent-home-ui.md
++++ b/docs/architecture/mobile-parent-home-ui.md
+@@ -1,6 +1,23 @@
+ # Trang chủ phụ huynh — chuyển phong cách V1 sang V2
+ 
+ 28/10/2026. Đã implement local; chưa commit/push. Chỉ trình bày PARENT, không đổi API/nghiệp vụ hoặc Trang chủ nhân sự. [Header/tab Phase 2](mobile-navigation-phase2.md) được giữ.
++
++## Hiện hành01/11/2026 — tiện ích thu gọn ngay khi kéo nhẹ
++
++[ParentHomeScrollView](../../mobile/components/parent/home-scroll-view.tsx) chuyển sang **hai bố cục cố định** theo yêu cầu PO, thay cơ chế nội suy từng pixel trong mục Header/tiện ích lịch sử bên dưới. Không đổi vị trí cuối, nội dung hoặc callbacks Báo nghỉ/Đổi điểm/Thông báo.
++
++| Thao tác | Kết quả |
++| --- | --- |
++| Đầu trang hoặc kéo xuống để refresh | Header mở: avatar48, lời chào, chuông; thẻ tiện ích trắng có icon và nhãn bên dưới |
++| Kéo lên quá8đơn vị cuộn | Thu gọn ngay trong một lần cập nhật: avatar scale0.8, ẩn lời chào/nhãn, hai nút lên cùng hàng avatar/chuông; bỏ nền trắng và shadow của thẻ |
++| Đang thu gọn và kéo lùi nhẹ, vẫn y>0 | Giữ thu gọn, tránh nhấp nháy quanh ngưỡng8 |
++| Quay về y<=0 | Mở lại toàn bộ header và tiện ích |
++
++Không còn Animated.Value/interpolation theo offset, không trạng thái nền thẻ đi từ từ qua avatar. Không ép scrollTo hoặc chặn cuộn nội dung. Header và paddingTop nội dung dùng cùng headerHeight của trạng thái để không còn khoảng trống chiều cao expanded khi compact. Trang ngắn/empty có minHeight viewport+9, vừa đủ vượt ngưỡng, không cần cuộn hết chiều cao thẻ tiện ích như trước. Threshold8 là dead zone cho thao tác cuộn, không khoảng bù bàn phím/chiều cao thiết bị.
++
++Giữ safe-area top/left/right, frame max560, row/label onLayout theo font, controls48 và props/notification slot. Greeting ẩn khỏi accessibility khi compact, các nút giữ label và một instance. Chuyển trạng thái tức thì cho mọi thiết bị, không animation kéo dài nên không phát sinh chuyển động khi bật reduced motion. RefreshControl giữ handler/props, progressViewOffset dùng expandedHeight ở đầu trang; onScroll/onLayout và các ScrollViewProps khác tiếp tục chuyển tiếp. Không ảnh hưởng API/cards/nhánh Home nhân sự.
++
++Kiểm chứng: tsc và Expo export all PASS. Chromium IAB preview component thực với presentation notification/icon-font adapter, không auth/API/records giả:390×844 scroll y4/8 vẫn expanded, y11 compact, quay y8 vẫn compact, y0 mở lại; nút từ top120 chuyển thẳng44, bounding boxes nền tiện ích/avatar không giao nhau ở các điểm quan sát. Callback Báo nghỉ/Đổi điểm mỗi nút nhận2lần (expanded+compact), chuông nhận1lần. Trang ngắn320×568 scroll range9 vẫn thu gọn/mở lại, không tràn ngang;1440×900 cũng đạt. Inset30 trong preview chỉ là kiểm tra geometry, không notch native UAT. NOT_VERIFIED: thao tác kéo tay trên Expo Go iPhone/Android, Safari/Chrome mobile, native pull-to-refresh, Dynamic Type và tích hợp có phiên đăng nhập. Không tạo test records. Chưa commit/push.
+ 
+ ## Hiện hành01/11/2026 — đúng luồng đi/về
+ 
+--- a/docs/architecture/mobile-ui-implementation-status.md
++++ b/docs/architecture/mobile-ui-implementation-status.md
+@@ -1,6 +1,10 @@
+ # Hiện trạng giao diện Mobile — Onboarding, xác thực và điều hướng
+ 
+ Ngày cập nhật: **29/10/2026 (Asia/Saigon)**. Commit `db02de6` là mốc Phase1 trên nhánh `dongnnp/mobile/refactor-ui`; các cập nhật local được ghi riêng bên dưới. Tài liệu này ghi nhận phần đã triển khai trong đợt chuyển phong cách V1 sang V2; không phải phê duyệt toàn bộ kế hoạch chuyển giao diện hoặc chứng nhận nghiệm thu thiết bị.
++
++## Trang chủ — tiện ích thu gọn khi kéo nhẹ (01/11/2026, local)
++
++Header tiện ích Báo nghỉ/Đổi điểm có hai bố cục cố định thay nội suy theo từng pixel: kéo y>8 thu gọn ngay, chỉ mở lại khi y<=0, không còn nền card chạy qua avatar. Content padding đổi cùng header, trang ngắn chỉ cần9đơn vị cuộn; safe-area/layout/controls/callbacks/refresh giữ nguyên, không scrollTo cưỡng bức hoặc animation. [Cơ chế và kiểm chứng](mobile-parent-home-ui.md#hiện-hành01112026--tiện-ích-thu-gọn-ngay-khi-kéo-nhẹ). Tsc/export all và Chromium preview390/320/desktop PASS; native iPhone/Android và pull-to-refresh chưa xác minh. Chưa commit/push.
+ 
+ ## Trang chủ — thanh hành trình đúng luồng đi/về (01/11/2026, local)
+ 

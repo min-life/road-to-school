@@ -1,0 +1,127 @@
+diff --git "a/C:\\Users\\phuon\\AppData\\Local\\Temp\\tracking-empty-before.txt" b/mobile/app/(tabs)/tracking.tsx
+index 8a20eb9..0134ff6 100644
+--- "a/C:\\Users\\phuon\\AppData\\Local\\Temp\\tracking-empty-before.txt"
++++ b/mobile/app/(tabs)/tracking.tsx
+@@ -21,0 +22 @@ import { StudentCard } from '@/components/StudentCard';
++import { TrackingEmptyState } from '@/components/parent/tracking-empty-state';
+@@ -104,0 +106 @@ export default function ParentTrackingScreen() {
++          style={[styles.listContainer, styles.emptyViewport]}
+@@ -114,15 +116 @@ export default function ParentTrackingScreen() {
+-          <View style={styles.emptyIconCircle}>
+-            <Ionicons name="people-outline" size={44} color="#D97706" />
+-          </View>
+-          <Text style={styles.emptyTitle}>Chưa có học sinh nào</Text>
+-          <Text style={styles.emptySubtitle}>
+-            Nhấn vào nút bên dưới để liên kết với học sinh bằng mã định danh hoặc quét mã QR.
+-          </Text>
+-          <TouchableOpacity
+-            style={styles.emptyButton}
+-            onPress={handleAddPress}
+-            activeOpacity={0.8}
+-          >
+-            <Ionicons name="add" size={20} color={colors.foreground} />
+-            <Text style={styles.emptyButtonText}>Liên kết học sinh</Text>
+-          </TouchableOpacity>
++          <TrackingEmptyState onLink={handleAddPress} />
+@@ -213,2 +201,2 @@ const styles = StyleSheet.create({
+-    flex: 1,
+-    justifyContent: 'center',
++    flexGrow: 1,
++    justifyContent: 'flex-start',
+@@ -216,42 +204,2 @@ const styles = StyleSheet.create({
+-    padding: 32,
+-  },
+-  emptyIconCircle: {
+-    width: 80,
+-    height: 80,
+-    borderRadius: 40,
+-    backgroundColor: '#FEF3C7',
+-    justifyContent: 'center',
+-    alignItems: 'center',
+-    marginBottom: 16,
+-  },
+-  emptyTitle: {
+-    fontSize: 18,
+-    fontWeight: '800',
+-    color: colors.foreground,
+-    marginBottom: 8,
+-  },
+-  emptySubtitle: {
+-    fontSize: 13,
+-    color: colors.mutedText,
+-    textAlign: 'center',
+-    lineHeight: 18,
+-    marginBottom: 20,
+-  },
+-  emptyButton: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    gap: 6,
+-    backgroundColor: colors.primary,
+-    paddingHorizontal: 20,
+-    paddingVertical: 12,
+-    borderRadius: 14,
+-    shadowColor: '#000',
+-    shadowOffset: { width: 0, height: 2 },
+-    shadowOpacity: 0.1,
+-    shadowRadius: 4,
+-    elevation: 2,
+-  },
+-  emptyButtonText: {
+-    fontSize: 14,
+-    fontWeight: '700',
+-    color: colors.foreground,
++    padding: 16,
++    paddingBottom: 16,
+@@ -258,0 +207,2 @@ const styles = StyleSheet.create({
++  // Keep both V2 link controls reachable without the floating + covering the card.
++  emptyViewport: { marginBottom: 90 },
+diff --git a/mobile/components/parent/tracking-empty-state.tsx b/mobile/components/parent/tracking-empty-state.tsx
+new file mode 100644
+index 0000000..ec6b200
+--- /dev/null
++++ b/mobile/components/parent/tracking-empty-state.tsx
+@@ -0,0 +1,39 @@
++import { Image, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
++import Ionicons from '@expo/vector-icons/Ionicons';
++import { colors } from '@/constants/theme';
++
++/** V1 artwork/layout with V2's existing link action and copy. No data ownership. */
++export function TrackingEmptyState({ onLink }: { onLink: () => void }) {
++  const { width } = useWindowDimensions();
++  const artWidth = Math.max(0, Math.min(240, width - 96));
++  return <View style={styles.card}>
++    {/* Same whitespace framing as V1; the original image is unchanged. */}
++    <View pointerEvents="none" accessible={false}
++      style={[styles.art, { width: artWidth, height: artWidth * 124 / 240 }]}>
++      <Image source={require('../../assets/images/parent/parent-add-student.png')}
++        resizeMode="contain" accessible={false}
++        style={{ width: artWidth, height: artWidth, position: 'absolute', top: -artWidth * 64 / 240 }} />
++    </View>
++    <Text accessibilityRole="header" style={styles.title}>Chưa có học sinh nào</Text>
++    <Text style={styles.description}>
++      Nhấn vào nút bên dưới để liên kết với học sinh bằng mã định danh hoặc quét mã QR.
++    </Text>
++    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Liên kết học sinh"
++      style={styles.button} onPress={onLink} activeOpacity={0.8}>
++      <Ionicons name="add" size={20} color={colors.foreground} accessible={false} />
++      <Text style={styles.buttonText}>Liên kết học sinh</Text>
++    </TouchableOpacity>
++  </View>;
++}
++
++const styles = StyleSheet.create({
++  card: { width: '100%', maxWidth: 560, alignSelf: 'center', padding: 16, backgroundColor: colors.surface,
++    borderWidth: 1, borderColor: '#EAE7DE', borderRadius: 20, alignItems: 'center' },
++  art: { alignSelf: 'center', overflow: 'hidden', marginBottom: 8 },
++  title: { color: colors.foreground, fontSize: 20, lineHeight: 27, fontWeight: '700', textAlign: 'center', marginTop: 3 },
++  description: { color: colors.mutedText, fontSize: 12, lineHeight: 18, textAlign: 'center',
++    maxWidth: 300, marginTop: 6, marginBottom: 20 },
++  button: { minHeight: 48, alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
++    gap: 6, borderRadius: 24, paddingVertical: 12, paddingHorizontal: 16, backgroundColor: colors.primary },
++  buttonText: { flexShrink: 1, color: colors.foreground, fontSize: 13, lineHeight: 20, fontWeight: '700', textAlign: 'center' },
++});
+diff --git a/mobile/assets/images/parent/parent-add-student.png b/mobile/assets/images/parent/parent-add-student.png
+new file mode 100644
+index 0000000..873998f
+Binary files /dev/null and b/mobile/assets/images/parent/parent-add-student.png differ

@@ -1,0 +1,281 @@
+--- /dev/null
++++ b/mobile/components/navigation/floating-add-button.tsx
+@@ -0,0 +1,28 @@
++import { StyleSheet, TouchableOpacity } from 'react-native';
++import Ionicons from '@expo/vector-icons/Ionicons';
++import { colors } from '@/constants/theme';
++
++/** Clearance for the 58px button, bottom gap and space to reach the last list item. */
++export const FLOATING_ADD_CONTENT_INSET = 90;
++
++/** Shared presentation from the Tracking screen; callers own navigation and safe-area offsets. */
++export function FloatingAddButton({ label, onPress, disabled = false, bottom = 16, right = 20 }: {
++  label: string;
++  onPress: () => void;
++  disabled?: boolean;
++  bottom?: number;
++  right?: number;
++}) {
++  return <TouchableOpacity accessibilityRole="button" accessibilityLabel={label}
++    accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} activeOpacity={0.85}
++    style={[styles.button, { bottom, right }, disabled && styles.disabled]}>
++    <Ionicons name="add" size={32} color={colors.foreground} accessible={false} />
++  </TouchableOpacity>;
++}
++
++const styles = StyleSheet.create({
++  button: { position: 'absolute', width: 58, height: 58, borderRadius: 29, backgroundColor: colors.primary,
++    justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
++    shadowOpacity: 0.25, shadowRadius: 8, elevation: 6 },
++  disabled: { opacity: 0.5 },
++});
+--- a/mobile/app/(tabs)/tracking.tsx
++++ b/mobile/app/(tabs)/tracking.tsx
+@@ -20,6 +20,7 @@
+ } from '@/services/api-client';
+ import { StudentCard } from '@/components/StudentCard';
+ import { TrackingEmptyState } from '@/components/parent/tracking-empty-state';
++import { FloatingAddButton, FLOATING_ADD_CONTENT_INSET } from '@/components/navigation/floating-add-button';
+ 
+ export default function ParentTrackingScreen() {
+   const router = useRouter();
+@@ -118,7 +119,7 @@
+       ) : (
+         <ScrollView
+           style={styles.listContainer}
+-          contentContainerStyle={[styles.listContent, { paddingBottom: 90 }]}
++          contentContainerStyle={[styles.listContent, { paddingBottom: FLOATING_ADD_CONTENT_INSET }]}
+           refreshControl={
+             <RefreshControl
+               refreshing={isRefreshing}
+@@ -139,14 +140,7 @@
+       )}
+ 
+       {/* Floating Action Button (+) */}
+-      <TouchableOpacity
+-        style={[styles.fab, { bottom: 16 }]}
+-        onPress={handleAddPress}
+-        activeOpacity={0.85}
+-        accessibilityLabel="Thêm liên kết học sinh"
+-      >
+-        <Ionicons name="add" size={32} color={colors.foreground} />
+-      </TouchableOpacity>
++      <FloatingAddButton label="Thêm liên kết học sinh" onPress={handleAddPress} />
+     </View>
+   );
+ }
+@@ -205,20 +199,5 @@
+     paddingBottom: 16,
+   },
+   // Keep both V2 link controls reachable without the floating + covering the card.
+-  emptyViewport: { marginBottom: 90 },
+-  fab: {
+-    position: 'absolute',
+-    right: 20,
+-    width: 58,
+-    height: 58,
+-    borderRadius: 29,
+-    backgroundColor: colors.primary,
+-    justifyContent: 'center',
+-    alignItems: 'center',
+-    shadowColor: '#000',
+-    shadowOffset: { width: 0, height: 4 },
+-    shadowOpacity: 0.25,
+-    shadowRadius: 8,
+-    elevation: 6,
+-  },
++  emptyViewport: { marginBottom: FLOATING_ADD_CONTENT_INSET },
+ });
+--- a/mobile/app/leave-notices/index.tsx
++++ b/mobile/app/leave-notices/index.tsx
+@@ -1,4 +1,5 @@
+-import { AppHeader, HeaderAction } from '@/components/navigation/app-header';
++import { AppHeader } from '@/components/navigation/app-header';
++import { FloatingAddButton, FLOATING_ADD_CONTENT_INSET } from '@/components/navigation/floating-add-button';
+ import React, { useState, useEffect, useCallback } from 'react';
+ import {
+   StyleSheet,
+@@ -177,12 +178,7 @@
+   return (
+     <View style={styles.container}>
+       {/* Header */}
+-      <AppHeader title="Báo nghỉ" onBack={() => router.back()} actions={<HeaderAction icon="add" label="Tạo báo nghỉ" onPress={() =>
+-            router.push({
+-              pathname: '/leave-notices/create',
+-              params: selectedStudentId ? { studentId: selectedStudentId } : {},
+-            } as any)
+-          } />} />
++      <AppHeader title="Báo nghỉ" onBack={() => router.back()} />
+ 
+       {/* Status Filter Row */}
+       <View style={styles.statusFilterRow}>
+@@ -206,7 +202,7 @@
+ 
+       {/* Main List */}
+       <ScrollView
+-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
++        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + FLOATING_ADD_CONTENT_INSET }]}
+         refreshControl={
+           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+         }
+@@ -225,18 +221,6 @@
+             <Text style={styles.emptySubtitle}>
+               Bạn chưa gửi đơn báo nghỉ nào hoặc không có đơn phù hợp với bộ lọc hiện tại.
+             </Text>
+-            <TouchableOpacity
+-              style={styles.createNowBtn}
+-              onPress={() =>
+-                router.push({
+-                  pathname: '/leave-notices/create',
+-                  params: selectedStudentId ? { studentId: selectedStudentId } : {},
+-                } as any)
+-              }
+-            >
+-              <Ionicons name="add-circle-outline" size={18} color="#1E293B" />
+-              <Text style={styles.createNowBtnText}>Tạo báo nghỉ mới</Text>
+-            </TouchableOpacity>
+           </View>
+         ) : (
+           notices.map((notice) => {
+@@ -308,6 +292,11 @@
+           })
+         )}
+       </ScrollView>
++      <FloatingAddButton label="Tạo báo nghỉ" bottom={insets.bottom + 16} right={insets.right + 20}
++        onPress={() => router.push({
++          pathname: '/leave-notices/create',
++          params: selectedStudentId ? { studentId: selectedStudentId } : {},
++        } as any)} />
+     </View>
+   );
+ }
+@@ -413,20 +402,6 @@
+     maxWidth: 260,
+     lineHeight: 18,
+     marginBottom: 8,
+-  },
+-  createNowBtn: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    gap: 6,
+-    backgroundColor: '#FFCB56',
+-    paddingHorizontal: 18,
+-    paddingVertical: 10,
+-    borderRadius: 12,
+-  },
+-  createNowBtnText: {
+-    fontSize: 13,
+-    fontWeight: '700',
+-    color: '#1E293B',
+   },
+   card: {
+     backgroundColor: '#FFFFFF',
+--- a/mobile/components/parent/RequestListView.tsx
++++ b/mobile/components/parent/RequestListView.tsx
+@@ -15,7 +15,8 @@
+ import { useSafeAreaInsets } from 'react-native-safe-area-context';
+ import Ionicons from '@expo/vector-icons/Ionicons';
+ import { colors } from '@/constants/theme';
+-import { AppHeader, HeaderAction } from '@/components/navigation/app-header';
++import { AppHeader } from '@/components/navigation/app-header';
++import { FloatingAddButton, FLOATING_ADD_CONTENT_INSET } from '@/components/navigation/floating-add-button';
+ import { requestHistoryStyles as historyStyles } from '@/constants/request-history-styles';
+ import { listLinkedStudentRequests } from '@/services/parent-request-history';
+ import {
+@@ -276,16 +277,16 @@
+       <Text style={[styles.emptyTitle, isHistoryAppearance && historyStyles.emptyTitle]}>Chưa có yêu cầu nào</Text>
+       <Text style={[styles.emptySubtitle, isHistoryAppearance && historyStyles.emptySubtitle,
+         isHistoryAppearance && { minHeight: historyStyles.emptySubtitle.lineHeight * 2 * fontScale }]}>{emptyMessage}</Text>
+-      <TouchableOpacity
++      {!isHistoryAppearance && <TouchableOpacity
+         accessibilityRole="button"
+         accessibilityLabel={createButtonLabel}
+-        style={[styles.createFirstButton, isHistoryAppearance && student?.status === 'DISABLED' && historyStyles.disabled]}
++        style={styles.createFirstButton}
+         onPress={handleCreateRequest}
+         disabled={student?.status === 'DISABLED'}
+       >
+         <Ionicons name="add-circle-outline" size={18} color="#1E293B" />
+         <Text style={styles.createFirstButtonText}>{createButtonLabel}</Text>
+-      </TouchableOpacity>
++      </TouchableOpacity>}
+     </View>
+   );
+ 
+@@ -293,9 +294,7 @@
+     <View style={styles.container}>
+       {/* Header */}
+       {isHistoryAppearance ? (
+-        <AppHeader title={title} subtitle={student?.fullName} onBack={() => router.back()}
+-          actions={<HeaderAction icon="add" label={createButtonLabel}
+-            onPress={handleCreateRequest} disabled={student?.status === 'DISABLED'} />} />
++        <AppHeader title={title} subtitle={student?.fullName} onBack={() => router.back()} />
+       ) : (
+       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+@@ -367,7 +366,7 @@
+       {/* Main Content / Vertical List */}
+       {isLoading || error || requests.length === 0 ? (
+         isHistoryAppearance ? (
+-          <ScrollView contentContainerStyle={[historyStyles.content, { paddingBottom: insets.bottom + 24 }]}
++          <ScrollView contentContainerStyle={[historyStyles.content, { paddingBottom: insets.bottom + FLOATING_ADD_CONTENT_INSET }]}
+             refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => fetchRequests(1, true)} tintColor={colors.primary} />}>
+             {stateContent}
+           </ScrollView>
+@@ -379,7 +378,7 @@
+           renderItem={renderRequestItem}
+           contentContainerStyle={[
+             styles.listContent,
+-            { paddingBottom: insets.bottom + 24 },
++            { paddingBottom: insets.bottom + (isHistoryAppearance ? FLOATING_ADD_CONTENT_INSET : 24) },
+           ]}
+           refreshControl={
+             <RefreshControl
+@@ -423,6 +422,8 @@
+           }
+         />
+       )}
++      {isHistoryAppearance && <FloatingAddButton label={createButtonLabel} onPress={handleCreateRequest}
++        disabled={student?.status === 'DISABLED'} bottom={insets.bottom + 16} right={insets.right + 20} />}
+     </View>
+   );
+ }
+--- a/docs/architecture/mobile-parent-stop-requests.md
++++ b/docs/architecture/mobile-parent-stop-requests.md
+@@ -3,6 +3,14 @@
+ 30/10/2026, Mobile V2, local chưa commit/push. Chỉ thay luồng frontend theo chỉ thị PO; Báo nghỉ, backend, API contract, OTP, phê duyệt và hủy yêu cầu giữ nguyên. Form địa chỉ được dùng chung và bổ sung chọn học sinh trong cùng trang theo cập nhật mới nhất bên dưới.
+ 
+ ## Luồng và bố cục
++
++### Hiện hành01/11/2026 — tạo bằng nút + nổi
++
++Trang lịch sử `/parent/change-stop` dùng [FloatingAddButton](../../mobile/components/navigation/floating-add-button.tsx) màu vàng,58×58/bo29, icon add32 và shadow giống hệt Theo dõi. Đây là điểm tạo duy nhất của trang này: bỏ dấu+ ở header và bỏ CTA chữ Tạo yêu cầu đổi điểm trong trạng thái rỗng. Callback `handleCreateRequest` không đổi; vẫn mở `/parent/change-stop/create`, giữ disabled guard/fixed student params khi áp dụng. Nút có accessibilityLabel Tạo yêu cầu đổi điểm dù không hiển thị chữ.
++
++Báo nghỉ `/leave-notices` cũng dùng cùng nút nổi, bỏ dấu+ header và Tạo báo nghỉ mới trong empty. Giữ route `/leave-notices/create` và selectedStudentId nếu có. Theo dõi chuyển sang shared component nhưng giữ handleAddPress/bottom16/right20 và toàn bộ chức năng liên kết cũ.
++
++Hai trang không có tab bar đặt FAB ở `bottom=insets.bottom+16`, `right=insets.right+20`; content/list/footer chừa `insets.bottom+90` để không bị che. Nút luôn hiện ở loading/error/empty/list. RequestListView chỉ bật FAB và bỏ CTA khi `appearance=leave-history`; các lịch sử riêng từng con/default (thông tin/địa chỉ) giữ header/CTA như trước. Chỉ đổi presentation, không API hoặc data hooks. Các đoạn về CTA/header30/10 dưới đây là lịch sử đã được thay thế về vị trí nút tạo.
+ 
+ ```text
+ Trang chủ → Đổi điểm → Đổi điểm đón/trả (lịch sử)
+@@ -35,7 +43,7 @@
+ 
+ Nội dung/điểm chọn con trong các mục trước được thay bởi cập nhật này. Bộ gộp lịch sử, appearance và các callback lịch sử không đổi trong task form này.
+ 
+-## Style đồng bộ Báo nghỉ — 30/10/2026
++## Style đồng bộ Báo nghỉ — 30/10/2026 (lịch sử vị trí CTA)
+ 
+ Route Đổi điểm bật `appearance="leave-history"` trong RequestListView. Các route yêu cầu riêng từ Hồ sơ học sinh giữ appearance mặc định. Đây là biến thể trình bày, không thêm loader, filter/status nghiệp vụ hoặc callback điều hướng.
+ 
+--- a/docs/architecture/mobile-ui-implementation-status.md
++++ b/docs/architecture/mobile-ui-implementation-status.md
+@@ -1,6 +1,10 @@
+ # Hiện trạng giao diện Mobile — Onboarding, xác thực và điều hướng
+ 
+ Ngày cập nhật: **29/10/2026 (Asia/Saigon)**. Commit `db02de6` là mốc Phase1 trên nhánh `dongnnp/mobile/refactor-ui`; các cập nhật local được ghi riêng bên dưới. Tài liệu này ghi nhận phần đã triển khai trong đợt chuyển phong cách V1 sang V2; không phải phê duyệt toàn bộ kế hoạch chuyển giao diện hoặc chứng nhận nghiệm thu thiết bị.
++
++## Báo nghỉ/Đổi điểm — nút + nổi giống Theo dõi (01/11/2026, local)
++
++FloatingAddButton chung: tròn vàng58, icon+32, bo29/shadow như Theo dõi. Báo nghỉ và lịch sử Đổi điểm dùng nút góc dưới bên phải thay dấu+ header và CTA chữ trong empty; giữ handler/routes/selectedStudentId/disabled guard. Safe-area bottom/right và list clearance90, loading/error/empty/list đều có nút. Theo dõi chỉ tái sử dụng component, giữ hành vi liên kết cũ. Các RequestListView mặc định riêng từng con không đổi. [Scope/component/offset/source](mobile-parent-stop-requests.md#hiện-hành01112026--tạo-bằng-nút--nổi). Chưa commit/push; native acceptance chưa xác minh.
+ 
+ ## OTP Báo nghỉ/Đổi điểm — thẻ tóm tắt (01/11/2026, local)
+ 

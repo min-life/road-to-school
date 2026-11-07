@@ -1,0 +1,160 @@
+{
+  "purpose": "Before owner-authorized reset to before attendant readiness for demo",
+  "capturedAt": "2026-11-03T09:20:40.085Z",
+  "before": {
+    "id": "629290b4-dab7-438e-b10b-f02c50029bc2",
+    "routeId": "014ec019-53b6-4c43-a5af-4ad070695c96",
+    "schoolId": "65e6a9bf-2616-4af2-80eb-232d4e99712c",
+    "serviceDate": "2026-11-03T00:00:00.000Z",
+    "direction": "TO_PARKING",
+    "status": "SCHEDULED",
+    "scheduledStartAt": "2026-11-03T10:00:00.000Z",
+    "scheduledEndAt": "2026-11-03T10:23:00.000Z",
+    "scheduledStartTime": "17:00",
+    "scheduledEndTime": "17:23",
+    "actualStartTime": null,
+    "actualEndTime": null,
+    "attendantReadyAt": "2026-11-03T06:49:24.460Z",
+    "arrivedAtSchoolAt": null,
+    "assignedVehicleId": "42cbe7d0-4a5e-4f9a-92d0-ab3941d9c7b4",
+    "assignedDriverId": "c0e34c0e-a1a6-4cec-8fd0-8c9d280acf32",
+    "assignedBusAttendantId": "b7e45546-61cc-44fa-b969-1a2eaa62bfe8",
+    "cancellationReason": null,
+    "cancelledAt": null,
+    "cancelledById": null,
+    "navigationState": null,
+    "routeSnapshot": {
+      "stops": [
+        {
+          "id": "c6bc6d5f-c1bb-4796-8f6b-5a0ef6b52106",
+          "latitude": 10.8126342,
+          "stopType": "SCHOOL_DEPARTURE",
+          "longitude": 106.7061854,
+          "stopOrder": 1,
+          "studentId": null,
+          "addressText": "Trường Tiểu Học Chu Văn An Đường Số 3, Phường Bình Thạnh, Thành phố Hồ Chí Minh",
+          "studentName": null,
+          "plannedArrivalTime": "17:00",
+          "plannedArrivalSeconds": 61200
+        },
+        {
+          "id": "e9ce6af9-3c51-43bd-a2d8-821e1d1e3777",
+          "latitude": 10.816994,
+          "stopType": "DROPOFF",
+          "longitude": 106.707087,
+          "stopOrder": 2,
+          "studentId": "b94f36f7-e61e-4149-b1cb-40b5f816a0f4",
+          "addressText": "202/8 Nguyễn Xí Phường Bình Thạnh,Thành phố Hồ Chí Minh",
+          "studentName": "Cái Quan Thiết Vi Sơn",
+          "plannedArrivalTime": "17:02",
+          "plannedArrivalSeconds": 61354
+        },
+        {
+          "id": "e8a217db-e0cf-4fea-babb-585a05386172",
+          "latitude": 10.8145642,
+          "stopType": "DROPOFF",
+          "longitude": 106.7069046,
+          "stopOrder": 3,
+          "studentId": "63622fcf-9849-4278-a978-0b9e370c7e50",
+          "addressText": "201 Đường Nguyễn Xí, Phường Bình Thạnh, Thành phố Hồ Chí Minh",
+          "studentName": "Nguyễn Văn A",
+          "plannedArrivalTime": "17:04",
+          "plannedArrivalSeconds": 61468
+        },
+        {
+          "id": "e9571466-8918-4243-967b-c6ddca433cc9",
+          "latitude": 10.866123,
+          "stopType": "PARKING_END",
+          "longitude": 106.802345,
+          "stopOrder": 4,
+          "studentId": null,
+          "addressText": "Bãi xe trung tâm RoadToSchool (Bến xe Suối Tiên, TP. Thủ Đức)",
+          "studentName": null,
+          "plannedArrivalTime": "17:23",
+          "plannedArrivalSeconds": 62594
+        }
+      ],
+      "routeId": "014ec019-53b6-4c43-a5af-4ad070695c96",
+      "version": 1,
+      "schoolId": "65e6a9bf-2616-4af2-80eb-232d4e99712c",
+      "direction": "TO_PARKING",
+      "routeName": "Tuyến Về 01 (51B-289-2.34)",
+      "capturedAt": "2026-10-28T13:03:13.423Z",
+      "schoolName": "Trường Tiểu Học Mỹ Đông",
+      "arrivalTime": "17:23",
+      "schoolCoords": {
+        "latitude": 10.8126342,
+        "longitude": 106.7061854,
+        "addressText": "Trường Tiểu Học Chu Văn An Đường Số 3, Phường Bình Thạnh, Thành phố Hồ Chí Minh"
+      },
+      "departureTime": "17:00",
+      "parkingCoords": {
+        "latitude": 10.776889,
+        "longitude": 106.700806,
+        "addressText": "Bãi đỗ xe trung tâm TP. Hồ Chí Minh"
+      },
+      "snapshotReason": "GENERATION",
+      "polylineGeometry": "mw~`Am`hjSHqBBgADeADw@yAIYAOEIKYuA]cBo@}CsBfBUTeB~AuClCsCfCMe@?ICKoAcBGCG?KBkBbBAJXt@?@HNlAvAb@a@tAmArCgCpAzAb@n@A\\@]c@o@qA{A`A_ArAmAdB_BTUrBgBfDfAZFd@DnBAdECnEM~@CpAAdBE`BA|AGt@Ev@C`AC\\AvAGlAEbB@~DDtBFvADN?XgH@aA?OFQHAlABX@nBPDNPNTBTGJIFO?KCQ?oA?mCAi@GeBCUJwAj@wClA_FT_Af@wAtCkH~DaIbB}CZqATeBDi@?uBe@_GkCsVeD}ZY_CSmAm@kE{BeQoGyl@E]QcCCoBDgDAo@GWs@wBi@wBc@oCs@yDe@oBU}@}@mCcAeCSa@eB}C]i@eBwBgAoAqAmAqAeAmDcCuCyAy@_@kAc@}@YwCw@cB]}AWmN{AkN{AaFk@yEo@wDi@{Ee@cJiAyBa@w@QeCs@uAYy@WiAe@eLwFSKeDyA_[sN_Ae@iLoF}EcCsCoAuKiFaKwEgSoJgFcCiB_AmAq@{A{@uHoDeAk@oBmAwAgAaCsBwByB}@gAo@cAm@_A_CyDaAiBkHkNiIkPyIgQkAcCc@}@qC_GmCiFmN{XeDsG_@}@eCaFe@{@{CeG_BaDgAwB{@gBi@gAqAkCUg@sCaG",
+      "routingConstraints": null,
+      "totalDistanceMeters": 17379,
+      "estimatedDurationSeconds": 1394
+    },
+    "createdAt": "2026-10-28T13:03:13.426Z",
+    "updatedAt": "2026-11-03T06:49:24.461Z",
+    "attendances": [
+      {
+        "id": "af0380e4-ae7b-4045-b476-57ed759d7c30",
+        "tripId": "629290b4-dab7-438e-b10b-f02c50029bc2",
+        "studentId": "63622fcf-9849-4278-a978-0b9e370c7e50",
+        "status": "UNMARKED",
+        "absenceReason": null,
+        "markedById": null,
+        "markedAt": null,
+        "alightedAt": null,
+        "excludedAt": null,
+        "exclusionReason": null,
+        "createdAt": "2026-10-28T13:03:13.426Z",
+        "updatedAt": "2026-10-28T13:03:13.426Z"
+      },
+      {
+        "id": "48408243-91fb-4fb1-8627-5e6c01beca4d",
+        "tripId": "629290b4-dab7-438e-b10b-f02c50029bc2",
+        "studentId": "b94f36f7-e61e-4149-b1cb-40b5f816a0f4",
+        "status": "UNMARKED",
+        "absenceReason": null,
+        "markedById": null,
+        "markedAt": null,
+        "alightedAt": null,
+        "excludedAt": null,
+        "exclusionReason": null,
+        "createdAt": "2026-10-28T13:03:13.426Z",
+        "updatedAt": "2026-10-28T13:03:13.426Z"
+      }
+    ],
+    "incidents": [
+      {
+        "id": "682305af-45ff-4fc8-941e-4417ec16aef2",
+        "tripId": "629290b4-dab7-438e-b10b-f02c50029bc2",
+        "type": "DRIVER_MISSING",
+        "status": "RESOLVED",
+        "reportedById": "b7e45546-61cc-44fa-b969-1a2eaa62bfe8",
+        "description": null,
+        "context": {
+          "reportedAt": "2026-11-03T02:48:53.410Z",
+          "expectedAssigneeId": "c0e34c0e-a1a6-4cec-8fd0-8c9d280acf32",
+          "expectedAssigneeName": "Thằng Tài Văn Xế"
+        },
+        "dedupeKey": "manual:629290b4-dab7-438e-b10b-f02c50029bc2:DRIVER_MISSING:b7e45546-61cc-44fa-b969-1a2eaa62bfe8",
+        "processedById": null,
+        "processedAt": "2026-11-03T09:18:25.356Z",
+        "resolution": {
+          "action": "ARRIVED",
+          "reason": "Điều chỉnh trực tiếp trên database theo yêu cầu chủ dự án trong chat Codex: xử lý sự cố tài xế chưa đến, giữ nguyên tài xế đã phân công."
+        },
+        "createdAt": "2026-11-03T02:48:53.415Z",
+        "updatedAt": "2026-11-03T09:18:25.358Z"
+      }
+    ],
+    "leaveNotices": []
+  }
+}

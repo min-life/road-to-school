@@ -1,3 +1,8 @@
+import { locationForCoordinates } from '../schools/location-province.js';
+import { Cron } from '@nestjs/schedule';
+import { lockOperations } from '../trips/utils/operations-lock.js';
+import { adminRecipients, writeNotification } from '../notifications/notification-writer.js';
+import { tripBlockReason } from '../schools/school-policy.js';
 import { notifyIncident } from '../notifications/notification-events.js';
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -33,6 +38,49 @@ export class IncidentsDetectorService {
   private readonly logger = new Logger(IncidentsDetectorService.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  @Cron('*/30 * * * * *', { timeZone: 'Asia/Ho_Chi_Minh' })
+  async detectSilentAndLateTrips(): Promise<void> {
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await lockOperations(tx);
+        const now = new Date();
+        const running = await tx.trip.findMany({ where: { status: TripStatus.IN_PROGRESS },
+          include: { locationPoints: { orderBy: { sequence: 'desc' }, take: 1 } } });
+        for (const trip of running) {
+          if (await tripBlockReason(tx, trip.id)) continue;
+          const point = trip.locationPoints[0];
+          const lastAt = point?.recordedAt ?? trip.actualStartTime ?? trip.createdAt;
+          if (now.getTime() - lastAt.getTime() <= 180000) continue;
+          const dedupeKey = 'gps-silent:' + trip.id;
+          const existing = await tx.tripIncident.findFirst({ where: { tripId: trip.id, type: TripIncidentType.GPS_SIGNAL_LOST } });
+          if (existing) continue;
+          const incident = await tx.tripIncident.create({ data: {
+            tripId: trip.id, type: TripIncidentType.GPS_SIGNAL_LOST, status: TripIncidentStatus.WAITING_ASSIGNMENT,
+            dedupeKey, context: { latitude: point?.latitude ?? null, longitude: point?.longitude ?? null,
+              addressText: null, locationSource: point ? 'LAST_KNOWN' : 'UNKNOWN',
+              capturedAt: point?.recordedAt.toISOString() ?? null, detectedAt: now.toISOString() },
+          } });
+          await notifyIncident(tx, incident.id);
+        }
+        const upcoming = await tx.trip.findMany({ where: {
+          status: TripStatus.SCHEDULED, scheduledStartAt: { lte: new Date(now.getTime() + 15 * 60000) },
+          scheduledEndAt: { gte: now },
+        } });
+        for (const trip of upcoming) {
+          const blockers = running.filter(other => other.id !== trip.id &&
+            (other.assignedVehicleId === trip.assignedVehicleId || other.assignedDriverId === trip.assignedDriverId));
+          if (!blockers.length || await tripBlockReason(tx, trip.id)) continue;
+          await writeNotification(tx, { eventKey: 'late-running-risk:' + trip.id, type: 'LATE_RUNNING_TRIP_RISK',
+            title: 'Chuyến sắp chạy có nguy cơ trễ', body: 'Xe hoặc tài xế còn thực hiện chuyến trước. Cần kiểm tra phân công.',
+            targetType: 'TRIP', targetId: trip.id,
+            userIds: [...await adminRecipients(tx, 'SYSTEM_ADMIN'), ...await adminRecipients(tx, 'SCHOOL_ADMIN', trip.schoolId)],
+            context: { tripId: trip.id, schoolId: trip.schoolId, bufferMinutes: 15, blockingTripIds: blockers.map(b => b.id) },
+          });
+        }
+      }, { timeout: 30000 });
+    } catch { this.logger.warn('Đối soát cảnh báo GPS/chuyến kế tiếp chưa hoàn tất; sẽ thử lại'); }
+  }
 
   /**
    * Perpendicular distance from point P to line segment AB in meters.
@@ -196,7 +244,7 @@ export class IncidentsDetectorService {
         take: 12,
       });
 
-      if (recentPoints.length < 4) {
+      if (recentPoints.length < 2) {
         return;
       }
 
@@ -222,7 +270,7 @@ export class IncidentsDetectorService {
   }
 
   /**
-   * OFF_ROUTE: deviation > 100m for >= 30 seconds with continuous samples (gap <= 15s).
+   * OFF_ROUTE: deviation > 50m for >= 15 seconds with continuous samples (gap <= 15s).
    */
   async evaluateOffRoute(
     trip: { id: string },
@@ -238,7 +286,7 @@ export class IncidentsDetectorService {
 
     // Check longest contiguous suffix ending at the last point where distance >= 50m and gap <= 15s
     let streakStartIndex = sampleDistances.length - 1;
-    if (sampleDistances[streakStartIndex].distanceMeters < 50) {
+    if (sampleDistances[streakStartIndex].distanceMeters <= 50) {
       return;
     }
 
@@ -246,7 +294,7 @@ export class IncidentsDetectorService {
       const curr = sampleDistances[i];
       const prev = sampleDistances[i - 1];
       const gapMs = curr.recordedAt.getTime() - prev.recordedAt.getTime();
-      if (prev.distanceMeters >= 50 && gapMs <= 15000 && gapMs >= 0) {
+      if (prev.distanceMeters > 50 && gapMs <= 15000 && gapMs >= 0) {
         streakStartIndex = i - 1;
       } else {
         break;
@@ -258,10 +306,14 @@ export class IncidentsDetectorService {
     const lastSample = streakSamples[streakSamples.length - 1];
     const durationMs = lastSample.recordedAt.getTime() - firstSample.recordedAt.getTime();
 
-    if (streakSamples.length >= 4 && durationMs >= 15000) {
+    if (streakSamples.length >= 2 && durationMs >= 15000) {
       const dedupeKey = `${trip.id}:${TripIncidentType.OFF_ROUTE}`;
       try {
-        await this.prisma.$transaction(async tx => { const created = await tx.tripIncident.create({
+        const location = await locationForCoordinates(lastSample.latitude, lastSample.longitude);
+        await this.prisma.$transaction(async tx => { await lockOperations(tx);
+      const current = await tx.trip.findUnique({ where: { id: trip.id } });
+      if (current?.status !== TripStatus.IN_PROGRESS || await tripBlockReason(tx, trip.id)) return;
+      const created = await tx.tripIncident.create({
           data: {
             tripId: trip.id,
             type: TripIncidentType.OFF_ROUTE,
@@ -276,6 +328,7 @@ export class IncidentsDetectorService {
               detectedAt: lastSample.recordedAt.toISOString(),
               latitude: lastSample.latitude,
               longitude: lastSample.longitude,
+              addressText: location.addressText, locationSource: 'RECORDED', capturedAt: lastSample.recordedAt.toISOString(),
             },
           },
         }); await notifyIncident(tx, created.id); return created; });
@@ -379,10 +432,13 @@ export class IncidentsDetectorService {
     const lastSample = streakSamples[streakSamples.length - 1];
     const durationMs = lastSample.recordedAt.getTime() - firstSample.recordedAt.getTime();
 
-    if (streakSamples.length >= 4 && durationMs >= 15000) {
+    if (streakSamples.length >= 2 && durationMs >= 15000) {
       const dedupeKey = `${trip.id}:${TripIncidentType.LATE_STOP}`;
       try {
-        await this.prisma.$transaction(async tx => { const created = await tx.tripIncident.create({
+        await this.prisma.$transaction(async tx => { await lockOperations(tx);
+      const current = await tx.trip.findUnique({ where: { id: trip.id } });
+      if (current?.status !== TripStatus.IN_PROGRESS || await tripBlockReason(tx, trip.id)) return;
+      const created = await tx.tripIncident.create({
           data: {
             tripId: trip.id,
             type: TripIncidentType.LATE_STOP,

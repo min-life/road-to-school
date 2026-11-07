@@ -1,0 +1,95 @@
+--- a/mobile/app/leave-notices/create.tsx
++++ b/mobile/app/leave-notices/create.tsx
+@@ -23 +22,0 @@
+-  MaskedContactChannel,
+@@ -67 +65,0 @@
+-  const [maskedChannels, setMaskedChannels] = useState<MaskedContactChannel[]>([]);
+@@ -109 +106,0 @@
+-        setMaskedChannels(res.maskedChannels || []);
+@@ -127 +123,0 @@
+-        setMaskedChannels([]);
+@@ -458,33 +453,0 @@
+-        {/* Step 6: Confirmation Summary Card */}
+-        {currentTrip && (
+-          <View style={styles.summaryCard}>
+-            <Text style={styles.summaryTitle}>Xác nhận thông tin</Text>
+-            <View style={styles.summaryRow}>
+-              <Text style={styles.summaryLabel}>Đối tượng:</Text>
+-              <Text style={styles.summaryValue}>{subjectName || 'Bạn'}</Text>
+-            </View>
+-            <View style={styles.summaryRow}>
+-              <Text style={styles.summaryLabel}>Chuyến:</Text>
+-              <Text style={styles.summaryValue}>{currentTrip.routeName}</Text>
+-            </View>
+-            <View style={styles.summaryRow}>
+-              <Text style={styles.summaryLabel}>Ngày & Chiều:</Text>
+-              <Text style={styles.summaryValue}>
+-                {formatDateDisplay(selectedDate)} · {selectedDirection === 'TO_SCHOOL' ? 'Chiều đi' : 'Chiều về'}
+-              </Text>
+-            </View>
+-
+-            {maskedChannels.length > 0 && (
+-              <View style={styles.otpNoticeBox}>
+-                <Ionicons name="shield-checkmark-outline" size={16} color="#D97706" />
+-                <Text style={styles.otpNoticeText}>
+-                  OTP sẽ được gửi tới:{' '}
+-                  {maskedChannels
+-                    .map((c) => `${c.destination}${c.isConsole ? ' (SMS console)' : ''}`)
+-                    .join(' & ')}
+-                </Text>
+-              </View>
+-            )}
+-          </View>
+-        )}
+-
+@@ -888,43 +850,0 @@
+-  summaryCard: {
+-    backgroundColor: '#FFFFFF',
+-    borderRadius: 14,
+-    padding: 14,
+-    borderWidth: 1,
+-    borderColor: '#E2E8F0',
+-    gap: 8,
+-  },
+-  summaryTitle: {
+-    fontSize: 13,
+-    fontWeight: '700',
+-    color: '#1E293B',
+-    marginBottom: 4,
+-  },
+-  summaryRow: {
+-    flexDirection: 'row',
+-    justifyContent: 'space-between',
+-    alignItems: 'center',
+-  },
+-  summaryLabel: {
+-    fontSize: 12,
+-    color: '#64748B',
+-  },
+-  summaryValue: {
+-    fontSize: 12,
+-    fontWeight: '600',
+-    color: '#1E293B',
+-  },
+-  otpNoticeBox: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    gap: 6,
+-    marginTop: 6,
+-    paddingTop: 8,
+-    borderTopWidth: 1,
+-    borderTopColor: '#F1F5F9',
+-  },
+-  otpNoticeText: {
+-    fontSize: 11,
+-    color: '#D97706',
+-    flex: 1,
+-    fontWeight: '500',
+-  },
+--- a/docs/architecture/mobile-ui-implementation-status.md
++++ b/docs/architecture/mobile-ui-implementation-status.md
+@@ -3,0 +4,4 @@
++
++## Tạo báo nghỉ — bỏ thẻ Xác nhận thông tin (31/10/2026, local)
++
++[leave-notices/create.tsx](../../mobile/app/leave-notices/create.tsx) bỏ toàn bộ thẻ **Xác nhận thông tin** và dòng kênh OTP nằm trong thẻ đó. Xóa các style/state trình bày chỉ dùng cho thẻ. Giữ học sinh, ngày, chiều, chọn chuyến, lý do, lỗi và nút **Gửi mã xác thực OTP**; request OTP, validation, params và màn xác thực không đổi. Nút gửi nằm sau phần lý do/lỗi, không để khoảng trống của thẻ cũ. Kiểm chứng/giới hạn ở [AI Review](../ai-review/LATEST.md). Chưa commit/push.

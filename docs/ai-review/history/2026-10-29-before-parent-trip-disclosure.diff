@@ -1,0 +1,16 @@
+diff --git a/mobile/components/parent/home-scroll-view.tsx b/mobile/components/parent/home-scroll-view.tsx
+--- a/mobile/components/parent/home-scroll-view.tsx
++++ b/mobile/components/parent/home-scroll-view.tsx
+@@ -14 +13,0 @@ type Props = ScrollViewProps & {
+-  onRefreshAction?: () => void;
+@@ -20 +19 @@ type Props = ScrollViewProps & {
+-export function ParentHomeScrollView({ fullName, avatarUrl, onOpenLeave, onChangeStop, onRefreshAction,
++export function ParentHomeScrollView({ fullName, avatarUrl, onOpenLeave, onChangeStop,
+@@ -39 +37,0 @@ export function ParentHomeScrollView({ fullName, avatarUrl, onOpenLeave, onChang
+-    { label: 'Làm mới', icon: 'refresh-outline' as const, onPress: onRefreshAction },
+diff --git a/mobile/app/(tabs)/index.tsx b/mobile/app/(tabs)/index.tsx
+--- a/mobile/app/(tabs)/index.tsx
++++ b/mobile/app/(tabs)/index.tsx
+@@ -123 +123 @@ export default function HomeScreen() {
+-        onChangeStop: () => router.push('/parent/change-stop'), onRefreshAction: onRefresh } : {})}
++        onChangeStop: () => router.push('/parent/change-stop') } : {})}

@@ -1,9 +1,8 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
   IsNotEmpty,
   IsString,
-  IsOptional,
   IsEmail,
   Matches,
 } from 'class-validator';
@@ -27,12 +26,12 @@ export class CreateDriverDto {
   @IsEmail({}, { message: 'Địa chỉ email tài xế không đúng định dạng' })
   email: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     description:
-      'Số điện thoại liên hệ của tài xế (tùy chọn)',
+      'Số điện thoại liên hệ bắt buộc của tài xế',
     example: '0987654321',
   })
-  @IsOptional()
+  @IsNotEmpty({ message: 'Số điện thoại tài xế là bắt buộc' })
   @Matches(/^(0|\+84)[0-9]{9,10}$/, {
     message: 'Số điện thoại tài xế không đúng định dạng (VD: 0987654321)',
   })

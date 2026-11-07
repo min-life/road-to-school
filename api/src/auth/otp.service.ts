@@ -1,6 +1,7 @@
 import { Injectable, Inject, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { DeliveryChannel, OtpPurpose, OtpChallenge } from '@prisma/client';
+import { DeliveryChannel, OtpPurpose, OtpChallenge, Prisma } from '@prisma/client';
+import { lockOperations } from '../trips/utils/operations-lock.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import * as crypto from 'node:crypto';
 import { EmailDeliveryService } from './email-delivery.service.js';
@@ -24,6 +25,71 @@ export class OtpService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
   ) {}
+
+  async withVerifiedChallenge<T>(
+    input: {
+      challengeId: string;
+      purpose: OtpPurpose;
+      otp: string;
+      userId: string;
+      studentId?: string;
+      payloadHash?: string;
+    },
+    work: (tx: Prisma.TransactionClient, challenge: OtpChallenge) => Promise<T>,
+  ): Promise<T> {
+    const result = await this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
+      await tx.$queryRaw(
+        Prisma.sql`SELECT id FROM otp_challenges WHERE id = ${input.challengeId} FOR UPDATE`,
+      );
+      const challenge = await tx.otpChallenge.findUnique({
+        where: { id: input.challengeId },
+      });
+      if (
+        !challenge ||
+        challenge.purpose !== input.purpose ||
+        challenge.userId !== input.userId ||
+        (input.studentId !== undefined &&
+          challenge.studentId !== input.studentId) ||
+        (input.payloadHash !== undefined &&
+          challenge.payloadHash !== input.payloadHash)
+      ) {
+        throw new BadRequestException(
+          'Mã OTP không khớp người dùng hoặc nội dung yêu cầu',
+        );
+      }
+      const now = new Date();
+      if (
+        challenge.consumedAt ||
+        challenge.expiresAt <= now ||
+        challenge.attempts >= 5
+      ) {
+        throw new BadRequestException(
+          'Mã OTP đã dùng, hết hạn hoặc vượt quá 5 lần thử',
+        );
+      }
+      if (this.hashOtp(input.otp.trim()) !== challenge.otpHash) {
+        await tx.otpChallenge.update({
+          where: { id: challenge.id },
+          data: { attempts: { increment: 1 } },
+        });
+        // Return the error so the attempt is committed before it reaches the HTTP layer.
+        return { valid: false as const, remaining: 4 - challenge.attempts };
+      }
+      const value = await work(tx, challenge);
+      await tx.otpChallenge.update({
+        where: { id: challenge.id },
+        data: { consumedAt: now },
+      });
+      return { valid: true as const, value };
+    });
+    if (!result.valid) {
+      throw new BadRequestException(
+        `Mã OTP không chính xác. Còn ${result.remaining} lần thử.`,
+      );
+    }
+    return result.value;
+  }
 
   /**
    * Độ dài mã OTP lấy từ biến môi trường (mặc định 6 chữ số)
@@ -293,61 +359,9 @@ export class OtpService {
    * Xác thực và tiêu thụ (consume) thử thách OTP liên kết Phụ huynh - Học sinh.
    * Thực thi trong transaction atomic để chống race condition và replay attack.
    */
-  async verifyAndConsumeParentStudentChallenge(
-    challengeId: string,
-    parentId: string,
-    plainOtp: string,
-  ): Promise<OtpChallenge> {
-    return this.prisma.$transaction(async (tx) => {
-      const challenge = await tx.otpChallenge.findUnique({
-        where: { id: challengeId },
-      });
-
-      if (!challenge || challenge.purpose !== OtpPurpose.PARENT_STUDENT_LINKING) {
-        throw new BadRequestException('Mã thử thách OTP không tồn tại hoặc không hợp lệ');
-      }
-
-      if (challenge.userId !== parentId) {
-        throw new BadRequestException('Bạn không có quyền sử dụng mã thử thách OTP này');
-      }
-
-      if (challenge.consumedAt !== null) {
-        throw new BadRequestException('Mã xác thực đã được sử dụng trước đó');
-      }
-
-      const now = new Date();
-      if (now >= challenge.expiresAt) {
-        throw new BadRequestException('Mã xác thực đã hết hạn. Vui lòng yêu cầu mã mới');
-      }
-
-      if (challenge.attempts >= 5) {
-        throw new BadRequestException(
-          'Bạn đã vượt quá số lần thử OTP cho phép (tối đa 5 lần). Vui lòng yêu cầu mã mới.',
-        );
-      }
-
-      const inputHash = this.hashOtp(plainOtp.trim());
-      if (inputHash !== challenge.otpHash) {
-        await tx.otpChallenge.update({
-          where: { id: challengeId },
-          data: { attempts: { increment: 1 } },
-        });
-        const remaining = 5 - (challenge.attempts + 1);
-        throw new BadRequestException(
-          remaining > 0
-            ? `Mã xác thực không chính xác. Bạn còn ${remaining} lần thử.`
-            : 'Mã xác thực không chính xác. Bạn đã hết số lần thử cho mã này.',
-        );
-      }
-
-      // Đánh dấu đã tiêu thụ OTP thành công
-      const consumedChallenge = await tx.otpChallenge.update({
-        where: { id: challengeId },
-        data: { consumedAt: now },
-      });
-
-      return consumedChallenge;
-    });
+  async verifyAndConsumeParentStudentChallenge(challengeId: string, parentId: string, plainOtp: string): Promise<OtpChallenge> {
+    return this.withVerifiedChallenge({ challengeId, userId: parentId, otp: plainOtp,
+      purpose: OtpPurpose.PARENT_STUDENT_LINKING }, async (_tx, challenge) => ({ ...challenge, consumedAt: new Date() }));
   }
 
   /**
@@ -465,74 +479,11 @@ export class OtpService {
    * Xác thực và tiêu thụ (consume) thử thách OTP yêu cầu cập nhật thông tin học sinh.
    * Ràng buộc kiểm tra khớp chính xác payloadHash đã cấp trước khi cho phép tiêu thụ OTP.
    */
-  async verifyAndConsumeStudentUpdateRequestChallenge(
-    challengeId: string,
-    parentId: string,
-    studentId: string,
-    plainOtp: string,
-    expectedPayloadHash: string,
-  ): Promise<OtpChallenge> {
-    return this.prisma.$transaction(async (tx) => {
-      const challenge = await tx.otpChallenge.findUnique({
-        where: { id: challengeId },
-      });
-
-      if (!challenge || challenge.purpose !== OtpPurpose.STUDENT_UPDATE_REQUEST) {
-        throw new BadRequestException('Mã thử thách OTP không tồn tại hoặc không hợp lệ');
-      }
-
-      if (challenge.userId !== parentId) {
-        throw new BadRequestException('Bạn không có quyền sử dụng mã thử thách OTP này');
-      }
-
-      if (challenge.studentId !== studentId) {
-        throw new BadRequestException('Mã xác thực không thuộc về học sinh này');
-      }
-
-      if (challenge.consumedAt !== null) {
-        throw new BadRequestException('Mã xác thực đã được sử dụng trước đó');
-      }
-
-      const now = new Date();
-      if (now >= challenge.expiresAt) {
-        throw new BadRequestException('Mã xác thực đã hết hạn. Vui lòng yêu cầu mã mới');
-      }
-
-      if (challenge.attempts >= 5) {
-        throw new BadRequestException(
-          'Bạn đã vượt quá số lần thử OTP cho phép (tối đa 5 lần). Vui lòng yêu cầu mã mới.',
-        );
-      }
-
-      // Kiểm tra ràng buộc payloadHash khớp chính xác
-      if (challenge.payloadHash && challenge.payloadHash !== expectedPayloadHash) {
-        throw new BadRequestException(
-          'Dữ liệu đề xuất không khớp với mã OTP đã cấp. Vui lòng gửi lại yêu cầu OTP mới.',
-        );
-      }
-
-      const inputHash = this.hashOtp(plainOtp.trim());
-      if (inputHash !== challenge.otpHash) {
-        await tx.otpChallenge.update({
-          where: { id: challengeId },
-          data: { attempts: { increment: 1 } },
-        });
-        const remaining = 5 - (challenge.attempts + 1);
-        throw new BadRequestException(
-          remaining > 0
-            ? `Mã xác thực không chính xác. Bạn còn ${remaining} lần thử.`
-            : 'Mã xác thực không chính xác. Bạn đã hết số lần thử cho mã này.',
-        );
-      }
-
-      // Đánh dấu đã tiêu thụ OTP thành công
-      const consumedChallenge = await tx.otpChallenge.update({
-        where: { id: challengeId },
-        data: { consumedAt: now },
-      });
-
-      return consumedChallenge;
-    });
+  async verifyAndConsumeStudentUpdateRequestChallenge(challengeId: string, parentId: string, studentId: string,
+    plainOtp: string, expectedPayloadHash: string): Promise<OtpChallenge> {
+    return this.withVerifiedChallenge({ challengeId, userId: parentId, studentId, otp: plainOtp,
+      payloadHash: expectedPayloadHash, purpose: OtpPurpose.STUDENT_UPDATE_REQUEST },
+      async (_tx, challenge) => ({ ...challenge, consumedAt: new Date() }));
   }
 
   maskIdentifier(destination: string, channel: DeliveryChannel): string {
@@ -621,62 +572,4 @@ export class OtpService {
     };
   }
 
-  async verifyAndConsumeLeaveNoticeChallenge(
-    tx: any,
-    challengeId: string,
-    plainOtp: string,
-    expectedPayloadHash: string,
-  ): Promise<OtpChallenge> {
-    const challenge = await tx.otpChallenge.findUnique({
-      where: { id: challengeId },
-    });
-
-    if (!challenge || challenge.purpose !== OtpPurpose.LEAVE_NOTICE) {
-      throw new BadRequestException('Mã xác thực không tồn tại hoặc không hợp lệ');
-    }
-
-    if (challenge.consumedAt !== null) {
-      throw new BadRequestException('Mã xác thực đã được sử dụng trước đó');
-    }
-
-    const now = new Date();
-    if (now >= challenge.expiresAt) {
-      throw new BadRequestException('Mã xác thực đã hết hạn. Vui lòng yêu cầu mã mới');
-    }
-
-    if (challenge.attempts >= 5) {
-      throw new BadRequestException(
-        'Bạn đã vượt quá số lần thử OTP cho phép (tối đa 5 lần). Vui lòng yêu cầu mã mới.',
-      );
-    }
-
-    if (challenge.payloadHash && challenge.payloadHash !== expectedPayloadHash) {
-      throw new BadRequestException(
-        'Dữ liệu báo nghỉ không khớp với mã OTP đã cấp. Vui lòng gửi lại yêu cầu OTP mới.',
-      );
-    }
-
-    const inputHash = this.hashOtp(plainOtp.trim());
-    if (inputHash !== challenge.otpHash) {
-      await tx.otpChallenge.update({
-        where: { id: challengeId },
-        data: { attempts: { increment: 1 } },
-      });
-      const remaining = 5 - (challenge.attempts + 1);
-      throw new BadRequestException(
-        remaining > 0
-          ? `Mã xác thực không chính xác. Bạn còn ${remaining} lần thử.`
-          : 'Mã xác thực không chính xác. Bạn đã hết số lần thử cho mã này.',
-      );
-    }
-
-    const consumedChallenge = await tx.otpChallenge.update({
-      where: { id: challengeId },
-      data: { consumedAt: now },
-    });
-
-    return consumedChallenge;
-  }
 }
-
-

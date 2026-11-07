@@ -1,0 +1,379 @@
+--- a/mobile/app/leave-notices/create.tsx
++++ b/mobile/app/leave-notices/create.tsx
+@@ -8 +7,0 @@
+-  ScrollView,
+@@ -28,2 +27 @@
+-import { UserAvatar } from '@/components/user-avatar';
+-import { LeaveStudentCard } from '@/components/parent/leave-student-card';
++import { LinkedStudentPicker } from '@/components/parent/linked-student-picker';
+@@ -50 +48,3 @@
+-  const [studentModalVisible, setStudentModalVisible] = useState(false);
++  const [studentsLoading, setStudentsLoading] = useState(isParent);
++  const [studentsError, setStudentsError] = useState<string | null>(null);
++  const [studentsAttempt, setStudentsAttempt] = useState(0);
+@@ -83,0 +84 @@
++    let current = true;
+@@ -84,0 +86,2 @@
++      setStudentsLoading(true);
++      setStudentsError(null);
+@@ -87,0 +91 @@
++          if (!current) return;
+@@ -93 +97,6 @@
+-        .catch(() => setStudents([]));
++        .catch((failure: unknown) => {
++          if (!current) return;
++          setStudents([]);
++          setStudentsError(failure instanceof Error ? failure.message : 'Không thể tải học sinh.');
++        })
++        .finally(() => { if (current) setStudentsLoading(false); });
+@@ -95 +104,2 @@
+-  }, [isParent, selectedStudentId]);
++    return () => { current = false; };
++  }, [isParent, selectedStudentId, studentsAttempt]);
+@@ -145 +154,0 @@
+-  const selectedStudent = students.find((s) => s.id === selectedStudentId);
+@@ -254,5 +263,5 @@
+-          <View style={styles.section}>
+-            <Text style={styles.sectionLabel}>Học sinh</Text>
+-            <LeaveStudentCard student={selectedStudent} fixed={isFixedStudent}
+-              onPress={() => setStudentModalVisible(true)} />
+-          </View>
++          <LinkedStudentPicker students={students} selectedId={selectedStudentId} fixed={isFixedStudent}
++            loading={studentsLoading} error={studentsError} canSelectStudent={() => true}
++            onSelect={id => { setSelectedStudentId(id); setSelectedTripId(''); }}
++            onRetry={() => setStudentsAttempt(value => value + 1)}
++            onLink={() => router.push('/parent/link-student')} />
+@@ -469,51 +477,0 @@
+-      {/* Student Selection Modal */}
+-      <Modal
+-        visible={studentModalVisible}
+-        transparent
+-        animationType="fade"
+-        onRequestClose={() => setStudentModalVisible(false)}
+-      >
+-        <TouchableOpacity
+-          style={styles.modalOverlay}
+-          activeOpacity={1}
+-          onPress={() => setStudentModalVisible(false)}
+-        >
+-          <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
+-            <View style={styles.modalHeader}>
+-              <Text style={styles.modalTitle}>Chọn học sinh</Text>
+-              <TouchableOpacity onPress={() => setStudentModalVisible(false)}>
+-                <Ionicons name="close" size={22} color="#64748B" />
+-              </TouchableOpacity>
+-            </View>
+-
+-            <ScrollView style={{ maxHeight: 320 }}>
+-              {students.map((stu) => {
+-                const isSelected = stu.id === selectedStudentId;
+-                return (
+-                  <TouchableOpacity
+-                    key={stu.id}
+-                    style={[styles.modalItem, isSelected && styles.modalItemSelected]}
+-                    onPress={() => {
+-                      setSelectedStudentId(stu.id);
+-                      setSelectedTripId('');
+-                      setStudentModalVisible(false);
+-                    }}
+-                  >
+-                    <UserAvatar avatarUrl={stu.avatarUrl} fullName={stu.fullName || 'Học sinh'} size={40} />
+-                    <View style={{ flex: 1, minWidth: 0 }}>
+-                      <Text style={[styles.modalItemTitle, isSelected && styles.modalItemTitleActive]}>
+-                        {stu.fullName}
+-                      </Text>
+-                      <Text style={styles.modalItemSub}>
+-                        Mã: {stu.code} · {stu.schoolName}
+-                      </Text>
+-                    </View>
+-                    {isSelected && <Ionicons name="checkmark-circle" size={20} color="#D97706" />}
+-                  </TouchableOpacity>
+-                );
+-              })}
+-            </ScrollView>
+-          </View>
+-        </TouchableOpacity>
+-      </Modal>
+-
+@@ -847,59 +804,0 @@
+-  modalContent: {
+-    width: '100%',
+-    maxWidth: 360,
+-    backgroundColor: '#FFFFFF',
+-    borderRadius: 20,
+-    padding: 20,
+-    shadowColor: '#000',
+-    shadowOffset: { width: 0, height: 4 },
+-    shadowOpacity: 0.15,
+-    shadowRadius: 12,
+-    elevation: 5,
+-  },
+-  modalHeader: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    justifyContent: 'space-between',
+-    marginBottom: 16,
+-    borderBottomWidth: 1,
+-    borderBottomColor: '#F1F5F9',
+-    paddingBottom: 12,
+-  },
+-  modalTitle: {
+-    fontSize: 16,
+-    fontWeight: '700',
+-    color: '#1E293B',
+-  },
+-  modalItem: {
+-    flexDirection: 'row',
+-    alignItems: 'center',
+-    gap: 12,
+-    paddingVertical: 12,
+-    paddingHorizontal: 12,
+-    borderRadius: 14,
+-    borderWidth: 1,
+-    borderColor: colors.border,
+-    backgroundColor: colors.surface,
+-    marginBottom: 8,
+-  },
+-  modalItemSelected: {
+-    backgroundColor: colors.navigationHighlight,
+-    borderColor: colors.primary,
+-  },
+-  modalItemTitle: {
+-    fontSize: 15,
+-    lineHeight: 21,
+-    fontWeight: '700',
+-    color: '#1E293B',
+-  },
+-  modalItemTitleActive: {
+-    fontWeight: '700',
+-    color: '#92400E',
+-  },
+-  modalItemSub: {
+-    fontSize: 11,
+-    color: '#64748B',
+-    marginTop: 1,
+-    lineHeight: 16,
+-  },
+-
+--- a/mobile/components/parent/linked-student-picker.tsx
++++ b/mobile/components/parent/linked-student-picker.tsx
+@@ -7,0 +8 @@
++import { UserAvatar } from '@/components/user-avatar';
+@@ -14,0 +16,2 @@
++  fixed?: boolean;
++  canSelectStudent?: (student: ParentLinkedStudentItem) => boolean;
+@@ -20 +23 @@
+-/** Presentation only: same dropdown and modal pattern as Create Leave Notice. */
++/** Shared identity/dropdown/modal; each form retains its own selection policy and data. */
+@@ -22 +25 @@
+-  onSelect, onRetry, onLink }: LinkedStudentPickerProps) {
++  fixed = false, canSelectStudent, onSelect, onRetry, onLink }: LinkedStudentPickerProps) {
+@@ -27,0 +31,13 @@
++  const identity = <>
++    {selected ? <UserAvatar avatarUrl={selected.avatarUrl} fullName={selected.fullName || 'Học sinh'} size={40} />
++      : <Ionicons name="person-circle-outline" size={20} color={colors.navigationActive} />}
++    <View style={styles.copy}>
++      <Text style={styles.value}>{selected?.fullName || (fixed ? 'Học sinh' : 'Chọn học sinh')}</Text>
++      {!!selected && <Text style={styles.itemMeta}>{[selected.code && `Mã: ${selected.code}`, selected.schoolName].filter(Boolean).join(' · ')}</Text>}
++    </View>
++    {fixed ? <View style={styles.fixedBadge}>
++      <Ionicons name="lock-closed-outline" size={11} color={colors.mutedText} accessible={false} />
++      <Text style={styles.fixedText}>Cố định</Text>
++    </View> : loading ? <ActivityIndicator color={colors.navigationActive} />
++      : <Ionicons name="chevron-down" size={18} color={colors.mutedText} />}
++  </>;
+@@ -31 +47,3 @@
+-    <Pressable accessibilityRole="button" accessibilityLabel={selected ? `Học sinh: ${selected.fullName}` : 'Chọn học sinh'}
++    {fixed ? <View style={styles.dropdown} accessibilityState={{ busy: loading }}>{identity}</View> : (
++    <Pressable accessibilityRole="button" accessibilityLabel={selected
++      ? [selected.fullName, selected.schoolName, selected.code && `Mã: ${selected.code}`].filter(Boolean).join(', ') : 'Chọn học sinh'}
+@@ -34,4 +52,2 @@
+-      <Ionicons name="person-circle-outline" size={20} color={colors.navigationActive} />
+-      <Text style={styles.value}>{selected?.fullName || 'Chọn học sinh'}</Text>
+-      {loading ? <ActivityIndicator color={colors.navigationActive} /> : <Ionicons name="chevron-down" size={18} color={colors.mutedText} />}
+-    </Pressable>
++      {identity}
++    </Pressable>)}
+@@ -41 +57 @@
+-    </View> : !loading && students.length === 0 ? <View style={styles.message}>
++    </View> : !fixed && !loading && students.length === 0 ? <View style={styles.message}>
+@@ -46 +62 @@
+-    <Modal visible={visible && !disabled} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
++    <Modal visible={visible && !disabled && !fixed} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
+@@ -60 +76 @@
+-              const unavailable = student.status !== 'AVAILABLE';
++              const unavailable = canSelectStudent ? !canSelectStudent(student) : student.status !== 'AVAILABLE';
+@@ -67 +83 @@
+-                <Ionicons name="person-circle-outline" size={22} color={active ? colors.navigationActive : colors.mutedText} />
++                <UserAvatar avatarUrl={student.avatarUrl} fullName={student.fullName || 'Học sinh'} size={40} />
+@@ -88 +104,4 @@
+-  value: { flex: 1, fontSize: 14, fontWeight: '600', color: colors.foreground },
++  value: { fontSize: 14, lineHeight: 20, fontWeight: '600', color: colors.foreground },
++  fixedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 3,
++    borderRadius: 6, backgroundColor: '#F1F5F9', flexShrink: 0 },
++  fixedText: { color: colors.mutedText, fontSize: 11, fontWeight: '600' },
+@@ -103 +122 @@
+-  itemMeta: { fontSize: 11, color: colors.mutedText, marginTop: 1 },
++  itemMeta: { fontSize: 11, lineHeight: 16, color: colors.mutedText, marginTop: 1 },
+--- a/mobile/components/parent/leave-student-card.tsx
++++ /dev/null
+@@ -1,65 +0,0 @@
+-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+-import Ionicons from '@expo/vector-icons/Ionicons';
+-import { UserAvatar } from '@/components/user-avatar';
+-import { colors } from '@/constants/theme';
+-import type { ParentLinkedStudentItem } from '@/services/api-client';
+-
+-type Props = {
+-  student?: Pick<ParentLinkedStudentItem, 'fullName' | 'avatarUrl' | 'schoolName' | 'code'>;
+-  fixed: boolean;
+-  onPress: () => void;
+-};
+-
+-/** A linked child's identity; selection and fixed-student behavior stay with the screen. */
+-export function LeaveStudentCard({ student, fixed, onPress }: Props) {
+-  const name = student?.fullName || (fixed ? 'Học sinh' : 'Chọn học sinh');
+-  const identity = <>
+-    <View style={styles.avatarFrame}>
+-      <UserAvatar avatarUrl={student?.avatarUrl} fullName={student?.fullName || 'Học sinh'} size={48} />
+-    </View>
+-    <View style={styles.identity}>
+-      <Text style={styles.name}>{name}</Text>
+-      {!!student?.schoolName && <Text style={styles.school}>{student.schoolName}</Text>}
+-      {(student?.code || fixed) && <View style={styles.details}>
+-        {!!student?.code && <View style={styles.codeRow}>
+-          <Ionicons name="id-card-outline" size={13} color={colors.mutedText} accessible={false} />
+-          <Text style={styles.code}>Mã: {student.code}</Text>
+-        </View>}
+-        {fixed && <View style={styles.fixedBadge}>
+-          <Ionicons name="lock-closed-outline" size={11} color={colors.mutedText} accessible={false} />
+-          <Text style={styles.fixedText}>Cố định</Text>
+-        </View>}
+-      </View>}
+-    </View>
+-    {!fixed && <View style={styles.chevron}>
+-      <Ionicons name="chevron-down" size={18} color={colors.navigationActive} accessible={false} />
+-    </View>}
+-  </>;
+-
+-  return fixed ? <View style={styles.card}>{identity}</View> : (
+-    <TouchableOpacity style={styles.card} activeOpacity={0.8} onPress={onPress}
+-      accessibilityRole="button" accessibilityLabel={[name, student?.schoolName, student?.code && `Mã: ${student.code}`].filter(Boolean).join(', ')}
+-      accessibilityHint="Mở danh sách chọn học sinh">
+-      {identity}
+-    </TouchableOpacity>
+-  );
+-}
+-
+-const styles = StyleSheet.create({
+-  card: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, backgroundColor: colors.surface,
+-    borderWidth: 1, borderColor: colors.border, borderRadius: 20, shadowColor: colors.navigationShadow,
+-    shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
+-  avatarFrame: { padding: 2, borderRadius: 27, borderWidth: 1, borderColor: colors.navigationHighlight,
+-    backgroundColor: colors.background, flexShrink: 0 },
+-  identity: { flex: 1, minWidth: 0, gap: 4 },
+-  name: { fontSize: 16, lineHeight: 22, fontWeight: '700', color: colors.foreground },
+-  school: { fontSize: 12, lineHeight: 18, color: colors.mutedText },
+-  details: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 2 },
+-  codeRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1, minWidth: 0 },
+-  code: { fontSize: 11, lineHeight: 16, color: colors.mutedText, flexShrink: 1 },
+-  fixedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F1F5F9',
+-    borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3 },
+-  fixedText: { fontSize: 11, fontWeight: '600', color: colors.mutedText },
+-  chevron: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.navigationHighlight,
+-    alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+-});
+--- a/mobile/components/parent/create-address-request-view.tsx
++++ b/mobile/components/parent/create-address-request-view.tsx
+@@ -234,11 +234,5 @@
+-          {!isFixed ? (
+-            <LinkedStudentPicker students={students} selectedId={studentId} loading={studentsLoading}
+-              error={studentsError} disabled={isSubmitting} onSelect={handleSelectStudent}
+-              onRetry={retryStudents} onLink={() => router.push('/parent/link-student')} />
+-          ) : (
+-            <View style={styles.card}>
+-              <Text style={styles.cardTitle}>Học sinh</Text>
+-              <Text style={styles.currentAddressText}>{student?.fullName || (studentLoading ? 'Đang tải thông tin học sinh...' : 'Không thể tải học sinh')}</Text>
+-            </View>
+-          )}
+-          {studentLoading ? <View style={styles.studentState}>
++          <LinkedStudentPicker students={isFixed && student ? [student] : students} selectedId={studentId} fixed={isFixed}
++            loading={isFixed ? studentLoading : studentsLoading} error={isFixed ? studentError : studentsError}
++            disabled={isSubmitting} onSelect={handleSelectStudent}
++            onRetry={isFixed ? retryStudent : retryStudents} onLink={() => router.push('/parent/link-student')} />
++          {!isFixed && studentLoading ? <View style={styles.studentState}>
+@@ -246 +240 @@
+-          </View> : studentError ? <View style={styles.studentState}>
++          </View> : !isFixed && studentError ? <View style={styles.studentState}>
+--- a/docs/architecture/mobile-leave-student-card.md
++++ b/docs/architecture/mobile-leave-student-card.md
+@@ -1 +1 @@
+-# Tạo báo nghỉ — card học sinh có avatar
++# Tạo báo nghỉ — chọn học sinh đồng bộ Đổi điểm
+@@ -3 +3 @@
+-31/10/2026, Mobile V2, local chưa commit/push.
++Cập nhật31/10/2026, local chưa commit/push. Yêu cầu mới thay card riêng bằng cùng dropdown/modal đang dùng ở Tạo yêu cầu đổi điểm; giữ avatar và toàn bộ thông tin của task trước.
+@@ -5 +5 @@
+-## Bố cục và thông tin
++## Component dùng chung và bố cục
+@@ -7 +7 @@
+-Thẻ Học sinh trong [Tạo báo nghỉ](../../mobile/app/leave-notices/create.tsx) dùng [LeaveStudentCard](../../mobile/components/parent/leave-student-card.tsx):
++Cả [Tạo báo nghỉ](../../mobile/app/leave-notices/create.tsx) và [Form đổi điểm](../../mobile/components/parent/create-address-request-view.tsx) dùng [LinkedStudentPicker](../../mobile/components/parent/linked-student-picker.tsx), không còn hai implementation chọn con riêng. Component LeaveStudentCard cũ đã bỏ vì không còn consumer.
+@@ -10,3 +10,3 @@
+-[Avatar] Tên học sinh                     [v] (khi được đổi con)
+-         Tên trường
+-         Mã học sinh · [Cố định] (khi vào từ hồ sơ con)
++HỌC SINH
++[Avatar40] Tên học sinh                  [v / Cố định]
++           Mã học sinh · Trường
+@@ -15,4 +15,4 @@
+-- Nền trắng, border theo theme, bo20, padding16, shadow nhẹ và màu chữ như Parent Home/các card hiện có.
+-- Avatar48px có viền nền kem mảnh, identity dùng flex/minWidth0, tên16/22, trường12/18 và mã11/16; text xuống dòng tự nhiên, không numberOfLines/ellipsis. Badge Cố định nằm trong hàng metadata có wrap, không ép tên/trường vào một cột quá hẹp.
+-- Trước đây thẻ chính chỉ hiện tên; nay hiện thêm trường/mã đã có từ linked-student payload, không lấy thông tin bằng API mới. Cố định vẫn là view không mở popup; thẻ chọn vẫn nhấn toàn bộ để mở popup như trước.
+-- Popup giữ tên/mã/trường/checkmark và callback chọn hiện có, thay icon person bằng avatar40px riêng từng con. Các row có border/bo14, selected viền vàng/nền kem, đủ khoảng cách để đọc; không đổi danh sách, điều kiện chọn hoặc cách reset chuyến sau chọn.
++- Cùng nền trắng, border theme, bo12, padding14×12, khoảng cách8 và typography của dropdown Đổi điểm; tên14/20, metadata11/16, không shadow/card bo20 riêng như lần trước.
++- Avatar40 của con đã chọn lấy đúng Student.avatarUrl qua UserAvatar; popup cũng dùng avatar40 riêng từng con, giữ tên/mã/trường/checkmark. Thiếu hoặc lỗi ảnh dùng chữ đầu tên theo helper chung, không lấy avatar phụ huynh/ảnh con đầu hoặc tạo hình giả.
++- Text metadata và tên tự wrap, không numberOfLines/ellipsis. Chưa chọn giữ nhãn Chọn học sinh; mode fixed giữ Học sinh khi chưa tải và badge Cố định, không mở popup.
++- Popup cùng màu, row/selection/close/scroll/safe-area và hành vi dismiss keyboard của Shared Picker; không có TextInput hoặc autoFocus mới. Avatar và trường/mã vẫn hiện đủ sau đồng bộ.
+@@ -20 +20 @@
+-## Component và avatar
++## Props và quyền chọn
+@@ -22 +22 @@
+-`LeaveStudentCard` nhận `student?: Pick<ParentLinkedStudentItem, 'fullName' | 'avatarUrl' | 'schoolName' | 'code'>`, `fixed: boolean`, `onPress: () => void`. Component thuần trình bày, không API/auth/state nghiệp vụ. Thiếu dữ liệu ban đầu giữ nhãn **Học sinh** hoặc **Chọn học sinh** theo mode như trước.
++LinkedStudentPicker giữ các props students/selectedId/loading/error/disabled/onSelect/onRetry/onLink, bổ sung:
+@@ -24 +24,2 @@
+-Dùng [UserAvatar](../../mobile/components/user-avatar.tsx) cho cả thẻ chính và row popup. Nguồn `getLinkedStudents → Student.avatarUrl`, không lấy avatar phụ huynh, ảnh con đầu tiên hoặc logo làm ảnh mẫu. Thiếu ảnh hoặc tải ảnh lỗi dùng chữ đầu tên theo component chung; URL đổi reset trạng thái lỗi. Fallback Học sinh khi chưa có tên, không tạo ảnh giả. UserAvatar giữ nguyên source, cùng component với Home, cùng nguồn dữ liệu học sinh ở Theo dõi/hồ sơ/bản đồ.
++- `fixed?: boolean`, mặc định false: readonly dropdown có Cố định; không mở modal hoặc cho đổi con. Hai form dùng cùng mode khi vào từ hồ sơ con.
++- `canSelectStudent?: (student: ParentLinkedStudentItem) => boolean`: caller quyết định khả năng chọn. Mặc định theo AVAILABLE như Đổi điểm trước đây. Báo nghỉ truyền predicate cho toàn bộ linked list để giữ chính sách chọn vốn có của màn này; backend/GET options vẫn quyết định điều kiện báo nghỉ, không mở rộng quyền API. Không dùng chính sách Đổi điểm áp ngầm sang Báo nghỉ.
+@@ -26 +27,8 @@
+-School/code chỉ render khi payload có giá trị; không tự tạo trường hoặc mã thay thế. Role PARENT/isFixedStudent, loading options, ngày/chiều/chuyến/lý do, modal calendar, luồng OTP/cooldown và API hiện có giữ nguyên. Calendar dropdown và style màn khác không đổi. Không thêm package/asset hoặc sửa backend.
++Dropdown và modal sở hữu state visible tại component; data/API/selection nghiệp vụ vẫn ở từng form. Báo nghỉ chọn con vẫn setSelectedStudentId và xóa selectedTripId; Shared Picker đóng popup. isParent/isFixedStudent và cơ chế tự chọn con đầu của Báo nghỉ giữ như source trước. Đổi điểm vẫn không tự chọn con và chỉ AVAILABLE.
++
++## Tích hợp và trạng thái
++
++- Báo nghỉ giữ GET linked students và dependency chọn con hiện có; bổ sung loading/error/retry và active guard cho response sau unmount/scope change. Lỗi không bị coi là danh sách rỗng; retry chỉ gọi lại GET. Không có con có Liên kết học sinh/empty component như Shared Picker.
++- Form Đổi điểm global/fixed đều dùng Shared Picker; fixed nhận trực tiếp profile detail hiện có, không GET mới. Error/loading detail được hiện một lần thay vì lặp dưới thẻ.
++- Giữ calendar modal và overlay riêng của Báo nghỉ; chỉ xóa modal/styles chọn con riêng hết dùng. Không đổi chuyến/ngày/chiều/lý do/OTP/cooldown, reset địa chỉ/guards của Đổi điểm hoặc API contracts.
++- Không backend, schema, packages hoặc assets mới. Thay đổi của card bo20/LeaveStudentCard trong review cũ là lịch sử đã được thay thế.
+@@ -30,4 +38 @@
+-- Typecheck và Expo export iOS/Android/Web/server đạt; source/AST đối chiếu controllers/API calls/modal selection giữ nguyên.
+-- Preview React Native Web SSR dùng component/row JSX/style/UserAvatar thật và trường hiển thị từ SELECT read-only các con đã liên kết trong local. Không mock API hoặc tạo Student records. Kiểm tra320/390/1440px không tràn ngang, tên/trường/mã đầy đủ và fixed badge giữ; các mode được trình bày cùng nhau chỉ để đối chiếu component, không phải ảnh chụp toàn bộ form đang hoạt động.
+-- Local hiện có2con được đọc, cả2chưa có avatar_url; preview chỉ xác minh fallback và layout. Dữ liệu mang tiền tố UI TEST là dữ liệu đã có do PO chuẩn bị trước, không được agent tạo trong task này. Không upload ảnh hay sửa DB để ép test.
+-- NOT_VERIFIED ảnh hồ sơ thật/ảnh lỗi trên thiết bị, flow có xác thực, popup native/VoiceOver/Dynamic Type trên iPhone/Android. Không coi SSR là kiểm thử callback navigation hoặc gửi OTP.
++Source/AST phải giữ các controllers/options/OTP/cooldown và API call arguments; typecheck/Expo export phải đạt. Preview chỉ dùng component/style/UserAvatar thật và trường hồ sơ từ SELECT read-only local, không mock API hoặc tạo Student/Trip records. Mode mutable/fixed và row popup được trình bày cùng nhau chỉ để so sánh, không phải integrated form đang hoạt động.
+@@ -35 +40 @@
+-Kết quả và phạm vi đầy đủ: [AI Review](../ai-review/LATEST.md).
++Native iPhone/Android popup, callback selection/focus, keyboard/VoiceOver/Dynamic Type và ảnh thật chưa được nghiệm thu bởi SSR/typecheck. Kết quả thực tế và giới hạn tại [AI Review](../ai-review/LATEST.md).
+--- a/docs/architecture/mobile-parent-stop-requests.md
++++ b/docs/architecture/mobile-parent-stop-requests.md
+@@ -27 +27 @@
+-- [LinkedStudentPicker](../../mobile/components/parent/linked-student-picker.tsx) là presentation nhận danh sách/thông tin chọn/loading/error/callback. Dropdown trên cùng dùng cùng icon, màu, bo12, padding14×12 và label uppercase như Tạo báo nghỉ. Modal có tên, mã, trường, dấu chọn, đóng/backdrop/Android Back; danh sách cuộn theo viewport/safe area, học sinh DISABLED bị vô hiệu hóa. Không có TextInput trong modal, không tự focus. Mở modal đóng bàn phím bằng Keyboard.dismiss; chưa nghiệm thu thiết bị.
++- [LinkedStudentPicker](../../mobile/components/parent/linked-student-picker.tsx) nay dùng chung trực tiếp với Tạo báo nghỉ, nhận danh sách/thông tin chọn/loading/error/callback. Dropdown bo12, padding14×12, label uppercase; avatar40, tên và metadata mã/trường wrap đầy đủ. Modal cùng avatar/mã/trường/checkmark, đóng/backdrop/Android Back, cuộn theo viewport/safe area. `fixed` hiện Cố định và không mở popup, dùng cho cả hai điểm vào từ hồ sơ. `canSelectStudent?` là policy của caller; Đổi điểm không truyền nên giữ AVAILABLE, không đổi guard. Không có TextInput trong modal, không tự focus. Mở modal đóng bàn phím bằng Keyboard.dismiss; chưa nghiệm thu thiết bị.
+@@ -32 +32 @@
+-- [Route có studentId](<../../mobile/app/parent/create-request/address/[studentId].tsx>) là wrapper của cùng view, truyền fixedStudentId và key; giữ con được chọn từ hồ sơ, không mở chọn con khác. ID thiếu/sai/quyền lỗi không thành chế độ tổng hợp. Route cũ [select-student.tsx](../../mobile/app/parent/change-stop/select-student.tsx) redirect tới form mới để giữ deep link, không còn màn chọn con riêng.
++- [Route có studentId](<../../mobile/app/parent/create-request/address/[studentId].tsx>) là wrapper của cùng view, truyền fixedStudentId và key; thẻ dùng chính LinkedStudentPicker mode fixed, nhận profile detail thực để giữ avatar/mã/trường/Cố định, không mở chọn con khác. ID thiếu/sai/quyền lỗi không thành chế độ tổng hợp. Route cũ [select-student.tsx](../../mobile/app/parent/change-stop/select-student.tsx) redirect tới form mới để giữ deep link, không còn màn chọn con riêng.
+--- a/docs/architecture/mobile-ui-implementation-status.md
++++ b/docs/architecture/mobile-ui-implementation-status.md
+@@ -7 +7 @@
+-Thẻ Học sinh dùng LeaveStudentCard: avatar48, tên/trường/mã theo bố cục card Parent, giữ Cố định hoặc mũi tên chọn con; tên/trường dài xuống dòng đầy đủ. Popup có avatar40 riêng mỗi con và giữ đủ tên/mã/trường/checkmark. Dùng Student.avatarUrl qua UserAvatar chung, thiếu/lỗi ảnh dùng chữ đầu tên; không ảnh phụ huynh hoặc dữ liệu mẫu. Logic chọn con/chuyến và OTP/countdown giữ nguyên. [Component/source/verification](mobile-leave-student-card.md). Chưa commit/push; native/photo UAT chưa xác minh.
++Yêu cầu mới nhất: phần chọn Học sinh dùng chung **LinkedStudentPicker** với Tạo yêu cầu đổi điểm (dropdown bo12, label Học sinh, popup cùng style). Giữ avatar40, tên/mã/trường, Cố định/chevron và checkmark; metadata wrap đầy đủ. Loại component card riêng LeaveStudentCard đã được thay thế, không giữ hai bộ UI. Dùng Student.avatarUrl qua UserAvatar, thiếu/lỗi ảnh dùng chữ đầu tên. Chính sách chọn của từng form/API, OTP/countdown giữ nguyên; thêm loading/error/retry cho GET danh sách trong Báo nghỉ. [Component/source/verification](mobile-leave-student-card.md). Chưa commit/push; native/photo UAT chưa xác minh.

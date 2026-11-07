@@ -1,5 +1,7 @@
 # Mục 3.2 — Ghi chú cho FE / nội dung PR
 
+Đối chiếu bản tích hợp cập nhật 07/11/2026 tại [FE Integration Guide](../FE_INTEGRATION_GUIDE.md). Mục 13 của hướng dẫn ghi các giới hạn API còn tồn tại, gồm flags vận hành và giờ trên lịch phụ xe. Các giới hạn đó áp dụng khi đọc ghi chú 3.2 này.
+
 Trạng thái cập nhật 03/11/2026: API đã triển khai trong source; migration đã apply vào DB local roadtoschool/public (localhost:5432), chưa nghiệm thu nghiệp vụ trên DB. Không chạy script test. Không thay Web/Mobile.
 
 ## API cũ thay đổi hành vi

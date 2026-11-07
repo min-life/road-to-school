@@ -1,3 +1,4 @@
+import { lockOperations } from '../trips/utils/operations-lock.js';
 import { effectiveSchool } from './school-policy.js';
 import {
   BadRequestException,
@@ -35,7 +36,7 @@ export class ServiceCalendarService {
   }
   private async lock(tx: Prisma.TransactionClient) {
     // Shared transaction lock prevents holiday insertion racing makeup approval.
-    await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(3202032)`);
+    await lockOperations(tx);
   }
   async list(actor: User, schoolId?: string) {
     if (schoolId) this.access(actor, schoolId);
@@ -132,6 +133,7 @@ export class ServiceCalendarService {
       throw new BadRequestException('Ngày nghỉ không nhận giờ học');
     return this.prisma
       .$transaction(async (tx) => {
+      await lockOperations(tx);
         await this.lock(tx);
         if (
           schoolId &&
@@ -224,6 +226,7 @@ export class ServiceCalendarService {
       throw new BadRequestException('Cần lý do từ chối');
     return this.prisma
       .$transaction(async (tx) => {
+      await lockOperations(tx);
         await this.lock(tx);
         const entry = await tx.serviceCalendarEntry.findUnique({
           where: { id },
@@ -258,6 +261,7 @@ export class ServiceCalendarService {
   async cancel(id: string, actor: User) {
     return this.prisma
       .$transaction(async (tx) => {
+      await lockOperations(tx);
         await this.lock(tx);
         const entry = await tx.serviceCalendarEntry.findUnique({
           where: { id },

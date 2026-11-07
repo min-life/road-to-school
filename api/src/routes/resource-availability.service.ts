@@ -1,5 +1,8 @@
+import { effectiveMembershipPlans } from './effective-plan-membership.js';
+import { pendingParkingChange } from '../system-settings/parking-policy.js';
+import { firstServiceDate } from '../schools/first-service-date.js';
 import { planInvalidation } from '../schools/school-policy.js';
-import { assertResourcesNotAwaitingAdmin, pendingResourceTrips } from '../schools/contract-resource-policy.js';
+import { assertResourcesNotAwaitingAdmin, heldResourceTrips } from '../schools/contract-resource-policy.js';
 import { isContractExpired } from '../schools/school-effective-state.js';
 import {
   Injectable,
@@ -220,6 +223,8 @@ export class ResourceAvailabilityService {
       throw new NotFoundException('Phương tiện thay thế không tồn tại');
     }
 
+    if (!newVehicle.isActive) throw new ConflictException('Xe đã ngừng hoạt động');
+
     // Các tuyến đang dùng xe cũ trong phương án
     const routesInGroup = plan.routes.filter(
       (r) => r.proposedVehicleId === currentVehicleId,
@@ -316,6 +321,10 @@ export class ResourceAvailabilityService {
       throw new BadRequestException(
         'Không tìm thấy nhóm tuyến nào sử dụng phương tiện này trong phương án',
       );
+    }
+
+    if (plan.routes.some(r => r.defaultDriverId === driverId && r.proposedVehicleId !== vehicleId)) {
+      throw new BadRequestException('Tài xế đã được gán cho nhóm tuyến khác trong phương án');
     }
 
     // Kiểm tra quy tắc Đơn trường (Single-School Driver Rule) trong thời hạn hợp đồng chồng lấn
@@ -418,6 +427,9 @@ export class ResourceAvailabilityService {
       );
     }
 
+    if (plan.routes.some(r => r.defaultBusAttendantId === busAttendantId && r.proposedVehicleId !== vehicleId)) {
+      throw new BadRequestException('Phụ xe đã được gán cho nhóm tuyến khác trong phương án');
+    }
     return { plan, routesInGroup, attendant };
   }
 
@@ -445,10 +457,15 @@ export class ResourceAvailabilityService {
     }
 
     const blockers: ApprovalBlockerDto[] = [];
+    const studentIds = [...new Set(plan.routes.flatMap(route => route.stops.flatMap(stop => stop.studentId ? [stop.studentId] : [])))];
+    if ((await effectiveMembershipPlans(this.prisma, plan.schoolId, studentIds, plan.id)).length) {
+      blockers.push({ code: 'STUDENT_ALREADY_ASSIGNED', message: 'Học sinh đã thuộc phương án khác còn hiệu lực' });
+    }
     const invalidation = await planInvalidation(this.prisma, plan.schoolId, plan.createdAt);
     if (invalidation) {
       blockers.push({ code: invalidation, message: 'Phương án không còn hiệu lực do hết hợp đồng hoặc thay đổi trường đã đến hạn' });
     }
+    if (plan.needsReoptimization || await pendingParkingChange(this.prisma)) blockers.push({ code: 'NEEDS_REOPTIMIZATION', message: 'Cần tối ưu lại lộ trình trước khi duyệt' });
     const totalRoutes = plan.routes.length;
     let routesWithVehicle = 0;
     let routesWithDriver = 0;
@@ -504,6 +521,7 @@ export class ResourceAvailabilityService {
       // Xe
       if (r.proposedVehicleId && r.proposedVehicle) {
         routesWithVehicle++;
+        if (!r.proposedVehicle.isActive) blockers.push({ code: 'INACTIVE_VEHICLE', routeId: r.id, message: 'Xe đã ngừng hoạt động' });
         if (r.proposedVehicle.seatCount < studentCount) {
           blockers.push({
             code: 'INSUFFICIENT_VEHICLE_CAPACITY',
@@ -604,7 +622,18 @@ export class ResourceAvailabilityService {
       }
     }
 
+    for (const [vehicleId, group] of vehicleGroups) {
+      try {
+        await this.validateVehicleForGroup(planId, vehicleId, vehicleId);
+        if (group[0].defaultDriverId) await this.validateDriverForGroup(planId, vehicleId, group[0].defaultDriverId);
+        if (group[0].defaultBusAttendantId) await this.validateBusAttendantForGroup(planId, vehicleId, group[0].defaultBusAttendantId, plan.schoolId);
+      } catch (error) {
+        blockers.push({ code: 'RESOURCE_UNAVAILABLE', message: error instanceof Error ? error.message : 'Nguồn lực không còn phù hợp' });
+      }
+    }
+
     return {
+      firstServiceDate: await firstServiceDate(this.prisma, plan),
       routePlanId: plan.id,
       status: plan.status,
       isReadyForApproval: blockers.length === 0,
@@ -672,7 +701,7 @@ export class ResourceAvailabilityService {
       plan.id,
     );
 
-    const heldTrips = await pendingResourceTrips(this.prisma);
+    const heldTrips = await heldResourceTrips(this.prisma);
     const heldVehicles = new Set(heldTrips.map(t => t.assignedVehicleId));
     const allVehicles = await this.prisma.vehicle.findMany({
       orderBy: { seatCount: 'desc' },
@@ -773,18 +802,23 @@ export class ResourceAvailabilityService {
       }
     }
 
-    const heldTrips = await pendingResourceTrips(this.prisma);
+    const heldTrips = await heldResourceTrips(this.prisma);
     const heldDrivers = new Set(heldTrips.map(t => t.assignedDriverId));
     const allDrivers = await this.prisma.user.findMany({
       where: { role: Role.DRIVER },
       orderBy: { fullName: 'asc' },
     });
 
+    const used = await this.prisma.route.findMany({ where: { routePlanId: planId,
+      ...(vehicleId ? { proposedVehicleId: { not: vehicleId } } : {}), defaultDriverId: { not: null } },
+      select: { defaultDriverId: true } });
     const candidates = allDrivers.map((d) => {
       let isEligible = true;
       let reason = 'Khả dụng';
 
-      if (heldDrivers.has(d.id)) {
+      if (used.some(r => r.defaultDriverId === d.id)) {
+        isEligible = false; reason = 'Đã được gán cho nhóm tuyến khác trong phương án';
+      } else if (heldDrivers.has(d.id)) {
         isEligible = false;
         reason = 'Còn chuyến hết hợp đồng đang chờ quản trị viên chốt';
       } else if (!d.isActive) {
@@ -813,6 +847,7 @@ export class ResourceAvailabilityService {
   async getCandidateBusAttendants(
     planId: string,
     currentUserSchoolId?: string,
+    vehicleId?: string,
   ): Promise<CandidateBusAttendantsResponseDto> {
     const plan = await this.prisma.routePlan.findUnique({
       where: { id: planId },
@@ -840,13 +875,17 @@ export class ResourceAvailabilityService {
       orderBy: { fullName: 'asc' },
     });
 
-    const heldTrips = await pendingResourceTrips(this.prisma);
+    const heldTrips = await heldResourceTrips(this.prisma);
     const heldAttendants = new Set(heldTrips.map(t => t.assignedBusAttendantId));
+    const used = await this.prisma.route.findMany({ where: { routePlanId: planId, ...(vehicleId ? { proposedVehicleId: { not: vehicleId } } : {}), defaultBusAttendantId: { not: null } },
+      select: { defaultBusAttendantId: true } });
     const candidates = schoolAttendants.map((a) => {
       let isEligible = true;
       let reason = `Khả dụng (Biên chế trường ${plan.school.name})`;
 
-      if (heldAttendants.has(a.id)) {
+      if (used.some(r => r.defaultBusAttendantId === a.id)) {
+        isEligible = false; reason = 'Đã được gán trong phương án; giữ phân công hiện tại hoặc chọn người chưa dùng';
+      } else if (heldAttendants.has(a.id)) {
         isEligible = false;
         reason = 'Còn chuyến hết hợp đồng đang chờ quản trị viên chốt';
       } else if (!a.isActive) {

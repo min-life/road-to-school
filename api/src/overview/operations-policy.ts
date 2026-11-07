@@ -66,6 +66,7 @@ export const frozenTripWhere: Prisma.TripWhereInput = {
     { actualStartTime: { not: null } },
     { attendantReadyAt: { not: null } },
     { attendances: { some: { status: { in: [AttendanceStatus.PRESENT, AttendanceStatus.ABSENT] } } } },
+    { attendances: { some: { OR: [{ markedAt: { not: null } }, { alightedAt: { not: null } }] } } },
   ],
 };
 
@@ -73,7 +74,7 @@ export function isTripFrozen(trip: {
   status: TripStatus;
   actualStartTime?: Date | null;
   attendantReadyAt?: Date | null;
-  attendances?: Array<{ status: AttendanceStatus }> | null;
+  attendances?: Array<{ status: AttendanceStatus; markedAt?: Date | null; alightedAt?: Date | null }> | null;
 }): boolean {
   if (trip.status === TripStatus.IN_PROGRESS || trip.status === TripStatus.COMPLETED) {
     return true;
@@ -81,7 +82,7 @@ export function isTripFrozen(trip: {
   if (trip.actualStartTime != null || trip.attendantReadyAt != null) {
     return true;
   }
-  if (trip.attendances && trip.attendances.some((a) => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.ABSENT)) {
+  if (trip.attendances && trip.attendances.some((a) => a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.ABSENT || a.markedAt != null || a.alightedAt != null)) {
     return true;
   }
   return false;

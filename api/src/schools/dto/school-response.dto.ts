@@ -1,3 +1,4 @@
+import { GeographyFieldsDto } from './geography.dto.js';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class PaginationMetaDto {
@@ -14,7 +15,9 @@ export class PaginationMetaDto {
   totalPages: number;
 }
 
-export class SchoolListItemDto {
+export class SchoolListItemDto extends GeographyFieldsDto {
+  @ApiProperty({ required: false, nullable: true, type: String })
+  province?: string | null;
   @ApiProperty({ description: 'ID định danh duy nhất của trường học', example: 'c1f8a847-75c1-4b36-a3d5-22e3914a8721' })
   id: string;
 
@@ -57,7 +60,9 @@ export class SchoolListResponseDto {
   meta: PaginationMetaDto;
 }
 
-export class SchoolDetailResponseDto {
+export class SchoolDetailResponseDto extends GeographyFieldsDto {
+  @ApiProperty({ required: false, nullable: true, type: String })
+  province?: string | null;
   @ApiProperty({ description: 'ID định danh duy nhất của trường học', example: 'c1f8a847-75c1-4b36-a3d5-22e3914a8721' })
   id: string;
 

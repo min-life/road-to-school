@@ -1,3 +1,8 @@
+import { AppAlert as Alert } from '@/services/app-alert';
+import { OtpHero } from '@/components/auth/otp-hero';
+import { otpStyles } from '@/constants/otp-styles';
+import { AppHeader } from '@/components/navigation/app-header';
+import { KeyboardScrollView } from '@/components/keyboard-scroll-view';
 import React, { useState } from 'react';
 import {
   StyleSheet,
@@ -6,10 +11,7 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
+  } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -18,6 +20,8 @@ import {
   mobileApiClient,
   RequestType,
 } from '@/services/api-client';
+import { OtpRequestSummary } from '@/components/auth/otp-request-summary';
+import { readSummaryObject, summaryCoordinates, summaryText } from '@/utils/otp-summary';
 
 export default function VerifyOtpRequestScreen() {
   const router = useRouter();
@@ -28,9 +32,12 @@ export default function VerifyOtpRequestScreen() {
     challengeId: string;
     maskedPhone: string;
     proposedDataJson: string;
+    studentName?: string;
   }>();
 
   const { studentId, type, challengeId, maskedPhone, proposedDataJson } = params;
+  const addressSummary = React.useMemo(() => type === 'ADDRESS_UPDATE'
+    ? readSummaryObject(proposedDataJson) : null, [type, proposedDataJson]);
 
   const [otp, setOtp] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
@@ -95,30 +102,28 @@ export default function VerifyOtpRequestScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
+    <View
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Xác thực OTP</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <AppHeader title="Xác thực OTP" onBack={() => router.back()} />
 
-      <View style={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
+      <KeyboardScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
         {/* OTP Shield Icon */}
-        <View style={styles.iconCircle}>
-          <Ionicons name="shield-checkmark" size={36} color="#D97706" />
-        </View>
+        <OtpHero />
 
         <Text style={styles.title}>Nhập mã xác thực</Text>
         <Text style={styles.subtitle}>
           Mã xác thực 6 chữ số đã được gửi đến số điện thoại người giám hộ{' '}
           <Text style={styles.phoneHighlight}>{maskedPhone || 'của bạn'}</Text>.
         </Text>
+
+        {type === 'ADDRESS_UPDATE' && <OtpRequestSummary title="Thông tin đổi điểm đón/trả"
+          subjectLabel="Học sinh" subjectName={params.studentName}
+          rows={[
+            { label: 'Địa chỉ mới', value: summaryText(addressSummary?.addressText), stacked: true },
+            { label: 'Tọa độ đã chọn', value: summaryCoordinates(addressSummary?.latitude, addressSummary?.longitude), stacked: true },
+          ]} />}
 
         {/* Error banner */}
         {errorMessage && (
@@ -131,6 +136,7 @@ export default function VerifyOtpRequestScreen() {
         {/* OTP Input */}
         <View style={styles.otpInputContainer}>
           <TextInput
+            accessibilityLabel="Nhập mã OTP"
             style={styles.otpInput}
             value={otp}
             onChangeText={(val) => {
@@ -162,8 +168,8 @@ export default function VerifyOtpRequestScreen() {
             <Text style={styles.verifyButtonText}>Xác nhận & Gửi yêu cầu</Text>
           )}
         </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardScrollView>
+    </View>
   );
 }
 
@@ -172,123 +178,41 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.foreground,
-  },
   content: {
-    flex: 1,
-    padding: 24,
-    alignItems: 'center',
-  },
-  iconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#FEF3C7',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 16,
+    ...otpStyles.content,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#1E293B',
-    marginBottom: 8,
+    ...otpStyles.heading,
   },
   subtitle: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 18,
-    marginBottom: 20,
-    paddingHorizontal: 16,
+    ...otpStyles.description,
   },
   phoneHighlight: {
     fontWeight: '700',
     color: '#1E293B',
   },
   errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    borderRadius: 10,
-    padding: 10,
-    gap: 8,
-    width: '100%',
-    marginBottom: 16,
+    ...otpStyles.error,
   },
   errorText: {
-    flex: 1,
-    fontSize: 12,
-    color: '#B91C1C',
+    ...otpStyles.errorText,
   },
   otpInputContainer: {
-    width: '100%',
-    alignItems: 'center',
-    marginBottom: 16,
+    ...otpStyles.inputWrap,
   },
   otpInput: {
-    width: 220,
-    height: 56,
-    borderWidth: 2,
-    borderColor: '#CBD5E1',
-    borderRadius: 14,
-    fontSize: 28,
-    fontWeight: '800',
-    textAlign: 'center',
-    letterSpacing: 10,
-    color: '#1E293B',
-    backgroundColor: '#FFFFFF',
+    ...otpStyles.codeInput,
   },
   hintText: {
-    fontSize: 11,
-    color: '#94A3B8',
-    textAlign: 'center',
-    lineHeight: 16,
-    marginBottom: 24,
-    paddingHorizontal: 16,
+    ...otpStyles.hint,
   },
   verifyButton: {
-    width: '100%',
-    backgroundColor: colors.primary,
-    height: 48,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    ...otpStyles.button,
   },
   verifyButtonDisabled: {
     opacity: 0.4,
   },
   verifyButtonText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1E293B',
+    ...otpStyles.buttonText,
   },
 });

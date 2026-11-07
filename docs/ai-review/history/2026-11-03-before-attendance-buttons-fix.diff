@@ -1,0 +1,133 @@
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -2184,16 +2184,16 @@
+               <Text style={styles.modalMessage}>{confirmModal.message}</Text>
+               <View style={styles.modalBtnRow}>
+                 <TouchableOpacity
++                  style={styles.modalConfirmBtn}
++                  onPress={confirmModal.onConfirm}
++                >
++                  <Text style={styles.modalConfirmBtnText}>{confirmModal.confirmText}</Text>
++                </TouchableOpacity>
++                <TouchableOpacity
+                   style={styles.modalCancelBtn}
+                   onPress={() => setConfirmModal(null)}
+                 >
+                   <Text style={styles.modalCancelBtnText}>Hủy bỏ</Text>
+-                </TouchableOpacity>
+-                <TouchableOpacity
+-                  style={styles.modalConfirmBtn}
+-                  onPress={confirmModal.onConfirm}
+-                >
+-                  <Text style={styles.modalConfirmBtnText}>{confirmModal.confirmText}</Text>
+                 </TouchableOpacity>
+               </View>
+             </View>
+@@ -2224,6 +2224,12 @@
+               />
+               <View style={styles.modalBtnRow}>
+                 <TouchableOpacity
++                  style={styles.modalConfirmBtn}
++                  onPress={handleSubmitAbsence}
++                >
++                  <Text style={styles.modalConfirmBtnText}>Xác nhận vắng</Text>
++                </TouchableOpacity>
++                <TouchableOpacity
+                   style={styles.modalCancelBtn}
+                   onPress={() => {
+                     setAbsenceModalStudent(null);
+@@ -2231,12 +2237,6 @@
+                   }}
+                 >
+                   <Text style={styles.modalCancelBtnText}>Hủy</Text>
+-                </TouchableOpacity>
+-                <TouchableOpacity
+-                  style={styles.modalConfirmBtn}
+-                  onPress={handleSubmitAbsence}
+-                >
+-                  <Text style={styles.modalConfirmBtnText}>Xác nhận vắng</Text>
+                 </TouchableOpacity>
+               </View>
+             </View>
+@@ -2409,18 +2409,6 @@
+
+             <View style={styles.modalBtnRow}>
+               <TouchableOpacity
+-                style={styles.modalCancelBtn}
+-                onPress={() => {
+-                  Keyboard.dismiss();
+-                  setReportModalVisible(false);
+-                  setIncidentNote('');
+-                }}
+-                disabled={reportingIncident}
+-              >
+-                <Text style={styles.modalCancelBtnText}>Hủy bỏ</Text>
+-              </TouchableOpacity>
+-
+-              <TouchableOpacity
+                 style={styles.modalConfirmBtn}
+                 onPress={() => {
+                   Keyboard.dismiss();
+@@ -2433,6 +2421,18 @@
+                 ) : (
+                   <Text style={styles.modalConfirmBtnText}>Gửi báo cáo</Text>
+                 )}
++              </TouchableOpacity>
++
++              <TouchableOpacity
++                style={styles.modalCancelBtn}
++                onPress={() => {
++                  Keyboard.dismiss();
++                  setReportModalVisible(false);
++                  setIncidentNote('');
++                }}
++                disabled={reportingIncident}
++              >
++                <Text style={styles.modalCancelBtnText}>Hủy bỏ</Text>
+               </TouchableOpacity>
+             </View>
+           </View>
+@@ -2508,21 +2508,6 @@
+
+             <View style={styles.modalBtnRow}>
+               <TouchableOpacity
+-                style={styles.modalLaterBtn}
+-                onPress={() => {
+-                  Keyboard.dismiss();
+-                  if (activeConfirmIncident) {
+-                    setDismissedPendingIncidentIds((prev) => new Set(prev).add(activeConfirmIncident.id));
+-                  }
+-                  setActiveConfirmIncident(null);
+-                  setConfirmReason('');
+-                }}
+-                disabled={confirmingIncident}
+-              >
+-                <Text style={styles.modalLaterBtnText}>Để sau</Text>
+-              </TouchableOpacity>
+-
+-              <TouchableOpacity
+                 style={[
+                   styles.modalConfirmBtn,
+                   (!confirmReason.trim() || confirmReason.trim().length < 3) && styles.btnDisabled,
+@@ -2539,6 +2524,21 @@
+                   <Text style={styles.modalConfirmBtnText}>Xác nhận & Gửi</Text>
+                 )}
+               </TouchableOpacity>
++
++              <TouchableOpacity
++                style={styles.modalLaterBtn}
++                onPress={() => {
++                  Keyboard.dismiss();
++                  if (activeConfirmIncident) {
++                    setDismissedPendingIncidentIds((prev) => new Set(prev).add(activeConfirmIncident.id));
++                  }
++                  setActiveConfirmIncident(null);
++                  setConfirmReason('');
++                }}
++                disabled={confirmingIncident}
++              >
++                <Text style={styles.modalLaterBtnText}>Để sau</Text>
++              </TouchableOpacity>
+             </View>
+           </View>
+         </KeyboardScrollView>

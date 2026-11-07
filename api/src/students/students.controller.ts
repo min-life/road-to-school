@@ -1,3 +1,5 @@
+import { LocationOptionsDto, LocationOptionsQueryDto } from '../schools/dto/geography.dto.js';
+import { TripActionMessageDto, TripReasonDto } from '../trips/dto/trip-actions.dto.js';
 import {
   Controller,
   Get,
@@ -39,6 +41,10 @@ import {
   StudentDisableImpactDto,
 } from './dto/index.js';
 
+@ApiResponse({ status: 400, description: 'Payload thiếu hoặc không hợp lệ' })
+@ApiResponse({ status: 401, description: 'Cần đăng nhập' })
+@ApiResponse({ status: 403, description: 'Không có quyền thực hiện hoặc không đúng phạm vi trường' })
+@ApiResponse({ status: 404, description: 'Không tìm thấy dữ liệu' })
 @ApiTags('Students')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(AuthGuard, RolesGuard)
@@ -46,12 +52,38 @@ import {
 export class StudentsController {
   constructor(private readonly studentsService: StudentsService) {}
 
+  @Post(':studentId/parent-links/:parentId/revoke')
+  @Roles(Role.SCHOOL_ADMIN)
+  @ApiOperation({ summary: 'Thu hồi một liên kết phụ huynh sai sau xác minh, lưu lý do và audit' })
+  @ApiParam({ name: 'schoolId' }) @ApiParam({ name: 'studentId' }) @ApiParam({ name: 'parentId' })
+  @ApiResponse({ status: 201, type: TripActionMessageDto, description: 'Đã thu hồi, giữ lịch sử và các liên kết khác' })
+  @ApiResponse({ status: 400, description: 'Lý do không hợp lệ' })
+  @ApiResponse({ status: 401, description: 'Phiên không hợp lệ' })
+  @ApiResponse({ status: 403, description: 'Không phải quản trị viên của trường' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy học sinh hoặc liên kết' })
+  @ApiResponse({ status: 409, description: 'Trường không cho phép thay đổi dịch vụ' })
+  revokeLink(@Param('schoolId') schoolId: string, @Param('studentId') studentId: string,
+    @Param('parentId') parentId: string, @Body() dto: TripReasonDto, @CurrentUser() actor: User) {
+    return this.studentsService.revokeParentLink(schoolId, studentId, parentId, dto.reason, actor);
+  }
+
+  @Get('location-options')
+  @Roles(Role.SYSTEM_ADMIN, Role.SCHOOL_ADMIN)
+  @ApiOperation({ summary: 'Tỉnh/phường có trong địa chỉ học sinh đúng trường; dùng chung cho danh sách và lập phương án, không gọi VietMap' })
+  @ApiParam({ name: 'schoolId', format: 'uuid' })
+  @ApiResponse({ status: 200, type: LocationOptionsDto })
+  @ApiResponse({ status: 400, description: 'schoolId/provinceId không hợp lệ' })
+  locationOptions(@Param('schoolId', ParseUUIDPipe) schoolId: string,
+    @Query() query: LocationOptionsQueryDto, @CurrentUser() user: User): Promise<LocationOptionsDto> {
+    return this.studentsService.getLocationOptions(schoolId, user, query.provinceId);
+  }
+
   @Get()
   @Roles(Role.SYSTEM_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({
     summary: 'Lấy danh sách học sinh của trường học',
     description:
-      'Trả về danh sách học sinh trực thuộc trường học. Hỗ trợ tìm kiếm theo họ tên/mã học sinh, 2 bộ lọc độc lập (status và hasAddress) và phân trang Server-side. SYSTEM_ADMIN có quyền xem tất cả trường học; SCHOOL_ADMIN chỉ được xem trường của mình.',
+      'Trả về danh sách học sinh trực thuộc trường học. Hỗ trợ tìm kiếm theo họ tên/mã học sinh, status/hasAddress/routingStatus và provinceId/wardId tùy chọn (kết hợp AND) và phân trang Server-side. SYSTEM_ADMIN có quyền xem tất cả trường học; SCHOOL_ADMIN chỉ được xem trường của mình.',
   })
   @ApiParam({
     name: 'schoolId',

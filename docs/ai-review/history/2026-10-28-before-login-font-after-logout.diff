@@ -1,0 +1,113 @@
+diff --git a/mobile/components/parent/home-scroll-view.tsx b/mobile/components/parent/home-scroll-view.tsx
+index 2e0f576..41f0012 100644
+--- a/mobile/components/parent/home-scroll-view.tsx
++++ b/mobile/components/parent/home-scroll-view.tsx
+@@ -1,2 +1,2 @@
+-import { cloneElement, type ReactNode, useEffect, useRef, useState } from 'react';
+-import { Animated, Image, Pressable, ScrollViewProps, StyleSheet, Text, View } from 'react-native';
++import { cloneElement, type ReactNode, useRef, useState } from 'react';
++import { Animated, Pressable, ScrollViewProps, StyleSheet, Text, View } from 'react-native';
+@@ -6,0 +7 @@ import { NotificationBell } from '@/components/notification-bell';
++import { UserAvatar } from '@/components/user-avatar';
+@@ -27,2 +27,0 @@ export function ParentHomeScrollView({ fullName, avatarUrl, onOpenLeave, onChang
+-  const [imageFailed, setImageFailed] = useState(false);
+-  useEffect(() => setImageFailed(false), [avatarUrl]);
+@@ -68,3 +67 @@ export function ParentHomeScrollView({ fullName, avatarUrl, onOpenLeave, onChang
+-            {avatarUrl && !imageFailed
+-              ? <Image source={{ uri: avatarUrl }} style={styles.image} onError={() => setImageFailed(true)} accessible={false} />
+-              : <Ionicons name="person-outline" size={24} color={colors.foreground} accessible={false} />}
++            <UserAvatar avatarUrl={avatarUrl} fullName={fullName} size={48} />
+@@ -115,2 +112 @@ const styles = StyleSheet.create({
+-  avatar: { width: 48, height: 48, borderRadius: 24, overflow: 'hidden', backgroundColor: '#DCE9F8', alignItems: 'center', justifyContent: 'center' },
+-  image: { width: '100%', height: '100%' },
++  avatar: { width: 48, height: 48, borderRadius: 24, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+diff --git a/mobile/app/(tabs)/settings.tsx b/mobile/app/(tabs)/settings.tsx
+index b21f49c..077af82 100644
+--- a/mobile/app/(tabs)/settings.tsx
++++ b/mobile/app/(tabs)/settings.tsx
+@@ -11 +10,0 @@ import {
+-  Image,
+@@ -21,0 +21 @@ import { useAuth } from '@/context/auth-context';
++import { UserAvatar } from '@/components/user-avatar';
+@@ -331,0 +332,2 @@ export default function SettingsScreen() {
++            accessibilityRole="button"
++            accessibilityLabel="Đổi ảnh đại diện"
+@@ -336,14 +338,2 @@ export default function SettingsScreen() {
+-            {user.avatarUrl ? (
+-              <Image
+-                key={user.avatarUrl}
+-                source={{ uri: user.avatarUrl }}
+-                style={styles.avatarImage}
+-                onLoad={() => console.log('[AVATAR_DIAG] [8. AVATAR_RENDERED]', { platform: Platform.OS, hasAvatarUrl: Boolean(user.avatarUrl) })}
+-              />
+-            ) : (
+-              <View style={styles.avatarCircle}>
+-                <Text style={styles.avatarText}>
+-                  {(user.fullName || 'U').charAt(0).toUpperCase()}
+-                </Text>
+-              </View>
+-            )}
++            <UserAvatar avatarUrl={user.avatarUrl} fullName={user.fullName} size={72}
++              onLoad={() => console.log('[AVATAR_DIAG] [8. AVATAR_RENDERED]', { platform: Platform.OS, hasAvatarUrl: Boolean(user.avatarUrl) })} />
+@@ -664,18 +653,0 @@ const styles = StyleSheet.create({
+-  avatarCircle: {
+-    width: 72,
+-    height: 72,
+-    borderRadius: 36,
+-    backgroundColor: colors.primary,
+-    alignItems: 'center',
+-    justifyContent: 'center',
+-  },
+-  avatarImage: {
+-    width: 72,
+-    height: 72,
+-    borderRadius: 36,
+-  },
+-  avatarText: {
+-    fontSize: 28,
+-    fontWeight: '800',
+-    color: colors.foreground,
+-  },
+diff --git a/mobile/components/user-avatar.tsx b/mobile/components/user-avatar.tsx
+new file mode 100644
+index 0000000..55c36bf
+--- /dev/null
++++ b/mobile/components/user-avatar.tsx
+@@ -0,0 +1,37 @@
++import { useState } from 'react';
++import { Image, StyleSheet, Text, View } from 'react-native';
++import { colors } from '@/constants/theme';
++
++type UserAvatarProps = {
++  avatarUrl?: string | null;
++  fullName?: string | null;
++  size?: number;
++  onLoad?: () => void;
++};
++
++/** Both screens use AuthContext's avatar URL; changing it resets image failure state. */
++export function UserAvatar(props: UserAvatarProps) {
++  return <AvatarContent key={props.avatarUrl ?? ''} {...props} />;
++}
++
++function AvatarContent({ avatarUrl, fullName, size = 72, onLoad }: UserAvatarProps) {
++  const [imageFailed, setImageFailed] = useState(false);
++  return (
++    <View style={[styles.circle, { width: size, height: size, borderRadius: size / 2 }]}>
++      {avatarUrl && !imageFailed ? (
++        <Image source={{ uri: avatarUrl }} style={styles.image} resizeMode="cover"
++          onLoad={onLoad} onError={() => setImageFailed(true)} accessible={false} />
++      ) : (
++        <Text accessible={false} style={[styles.initial, { fontSize: size * 28 / 72 }]}>
++          {(fullName || 'U').charAt(0).toUpperCase()}
++        </Text>
++      )}
++    </View>
++  );
++}
++
++const styles = StyleSheet.create({
++  circle: { overflow: 'hidden', backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
++  image: { width: '100%', height: '100%' },
++  initial: { fontWeight: '800', color: colors.foreground },
++});

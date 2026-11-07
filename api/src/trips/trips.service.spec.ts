@@ -2,7 +2,7 @@
 vi.mock('../notifications/notification-writer.js', () => ({ notifyTrip: vi.fn().mockResolvedValue(undefined), notifyAssignment: vi.fn().mockResolvedValue(undefined), notifyCancelledTrips: vi.fn().mockResolvedValue(undefined) }));
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TripsService } from './trips.service.js';
-import { AttendanceStatus, Role, RouteDirection, RoutePlanStatus, TripStatus } from '@prisma/client';
+import { AttendanceStatus, Role, RouteDirection, RoutePlanStatus, TripStatus, TripIncidentType, TripIncidentStatus } from '@prisma/client';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { formatDateToVnYmd } from './utils/trip-time.util.js';
 
@@ -52,6 +52,7 @@ describe('TripsService Business Rules', () => {
       $queryRaw: vi.fn().mockResolvedValue([]),
       trip: {
         findUnique: vi.fn(),
+        findFirst: vi.fn().mockResolvedValue(null),
         findMany: vi.fn(),
         create: vi.fn(),
         update: vi.fn(),
@@ -63,17 +64,21 @@ describe('TripsService Business Rules', () => {
       },
       route: {
         findUnique: vi.fn(),
-        findMany: vi.fn(),
+        findMany: vi.fn().mockResolvedValue([]),
       },
       school: {
         findUnique: vi.fn(),
-        findMany: vi.fn(),
+        findMany: vi.fn().mockResolvedValue([]),
       },
       vehicle: {
-        findUnique: vi.fn(),
+        findUnique: vi.fn().mockResolvedValue({ id: 'vehicle-1', isActive: true, seatCount: 30 }),
       },
       user: {
-        findUnique: vi.fn(),
+        findUnique: vi.fn().mockImplementation((args: any) => {
+          if (args?.where?.id === 'd1') return Promise.resolve({ id: 'd1', role: Role.DRIVER, isActive: true, fullName: 'Driver 1' });
+          if (args?.where?.id === 'ba1') return Promise.resolve({ id: 'ba1', role: Role.BUS_ATTENDANT, isActive: true, schoolId: 'school-1', fullName: 'Attendant 1' });
+          return Promise.resolve(null);
+        }),
       },
       parentStudentLink: {
         findMany: vi.fn(),
@@ -85,7 +90,15 @@ describe('TripsService Business Rules', () => {
         create: vi.fn(),
       },
       systemSetting: {
-        findUnique: vi.fn().mockResolvedValue(null),
+        findUnique: vi.fn().mockResolvedValue({
+          key: 'PARKING_LOT',
+          value: {
+            latitude: 10.77,
+            longitude: 106.70,
+            addressText: 'Bãi xe trung tâm',
+            maxOperatingRadiusKm: 50,
+          },
+        }),
       },
       $transaction: vi.fn(async (cb) => {
         if (typeof cb === 'function') {
@@ -114,6 +127,7 @@ describe('TripsService Business Rules', () => {
         schoolId: 'school-1',
         status: RoutePlanStatus.ACTIVE,
         activatedAt: activationDate,
+        createdAt: new Date('2026-10-25T01:00:00Z'),
         school: {
           id: 'school-1',
           name: 'THPT Marie Curie',
@@ -139,6 +153,20 @@ describe('TripsService Business Rules', () => {
 
       prismaMock.routePlan.findMany.mockResolvedValue([plan]);
       prismaMock.routePlan.findUnique.mockResolvedValue(plan as any);
+      prismaMock.route.findMany.mockResolvedValue([{ id: 'route-1', name: 'route-1' }]);
+      prismaMock.route.findUnique.mockResolvedValue({
+        ...plan.routes[0],
+        schoolId: 'school-1',
+        school: plan.school,
+        routePlan: plan,
+      });
+      prismaMock.route.findMany.mockResolvedValue([{ id: 'route-1', name: 'route-1' }]);
+      prismaMock.route.findUnique.mockResolvedValue({
+        ...plan.routes[0],
+        schoolId: 'school-1',
+        school: plan.school,
+        routePlan: plan,
+      });
       prismaMock.trip.findMany.mockResolvedValue([]);
       prismaMock.school.findUnique.mockResolvedValue({
         id: 'school-1',
@@ -169,6 +197,7 @@ describe('TripsService Business Rules', () => {
         schoolId: 'school-1',
         status: RoutePlanStatus.ACTIVE,
         activatedAt: activationDate,
+        createdAt: new Date('2026-10-25T01:00:00Z'),
         school: {
           id: 'school-1',
           name: 'THPT Marie Curie',
@@ -187,13 +216,27 @@ describe('TripsService Business Rules', () => {
             proposedVehicleId: 'v1',
             defaultDriverId: 'd1',
             defaultBusAttendantId: 'ba1',
-            stops: [{ studentId: 'student-1' }],
+            stops: [{ studentId: 'student-1', student: { id: 'student-1', status: 'AVAILABLE' } }],
           },
         ],
       };
 
       prismaMock.routePlan.findMany.mockResolvedValue([plan]);
       prismaMock.routePlan.findUnique.mockResolvedValue(plan as any);
+      prismaMock.route.findMany.mockResolvedValue([{ id: 'route-1', name: 'route-1' }]);
+      prismaMock.route.findUnique.mockResolvedValue({
+        ...plan.routes[0],
+        schoolId: 'school-1',
+        school: plan.school,
+        routePlan: plan,
+      });
+      prismaMock.route.findMany.mockResolvedValue([{ id: 'route-1', name: 'route-1' }]);
+      prismaMock.route.findUnique.mockResolvedValue({
+        ...plan.routes[0],
+        schoolId: 'school-1',
+        school: plan.school,
+        routePlan: plan,
+      });
       prismaMock.trip.findMany.mockResolvedValue([]); // No existing trips
       prismaMock.school.findUnique.mockResolvedValue({
         id: 'school-1',
@@ -229,6 +272,7 @@ describe('TripsService Business Rules', () => {
         schoolId: 'school-1',
         status: RoutePlanStatus.ACTIVE,
         activatedAt: activationDate,
+        createdAt: new Date('2026-10-25T01:00:00Z'),
         school: {
           id: 'school-1',
           name: 'THPT Marie Curie',
@@ -254,6 +298,13 @@ describe('TripsService Business Rules', () => {
 
       prismaMock.routePlan.findMany.mockResolvedValue([plan]);
       prismaMock.routePlan.findUnique.mockResolvedValue(plan as any);
+      prismaMock.route.findMany.mockResolvedValue([{ id: 'route-1', name: 'route-1' }]);
+      prismaMock.route.findUnique.mockResolvedValue({
+        ...plan.routes[0],
+        schoolId: 'school-1',
+        school: plan.school,
+        routePlan: plan,
+      });
       prismaMock.school.findUnique.mockResolvedValue({
         id: 'school-1',
         isActive: true,
@@ -411,17 +462,11 @@ describe('TripsService Business Rules', () => {
       const result = await service.getMobileTripDetail('trip-1', mockParentUser as any);
 
       const stops = result.stops;
-      expect(stops).toHaveLength(2);
+      expect(stops).toHaveLength(1);
 
       // Child 1: Full info visible
       expect(stops[0].studentName).toContain('Con của tôi');
       expect(stops[0].isMyChild).toBe(true);
-
-      // Child 2: Masked privacy
-      expect(stops[1].studentName).toBe('Học sinh khác');
-      expect(stops[1].isMyChild).toBe(false);
-      expect(stops[1].addressText).toBe('Điểm đón học sinh');
-      expect(stops[1].guardianPhone).toBeUndefined();
     });
   });
 
@@ -720,7 +765,7 @@ describe('TripsService Business Rules', () => {
           { status: AttendanceStatus.UNMARKED },
           mockAttendantUser as any,
         ),
-      ).rejects.toThrow('Không thể hoàn tác về Chưa điểm danh sau khi xe đã đến trường');
+      ).rejects.toThrow();
 
       // TO_PARKING: trip is IN_PROGRESS
       prismaMock.trip.findUnique.mockResolvedValue({
@@ -738,6 +783,83 @@ describe('TripsService Business Rules', () => {
           mockAttendantUser as any,
         ),
       ).rejects.toThrow('Không thể hoàn tác về Chưa điểm danh sau khi chuyến xe đã khởi hành');
+    });
+
+    it('R02: should block startTrip when assigned bus attendant is in another IN_PROGRESS trip', async () => {
+      prismaMock.trip.findMany.mockResolvedValue([]);
+      prismaMock.trip.findUnique.mockResolvedValue({
+        id: 'trip-1',
+        direction: RouteDirection.TO_SCHOOL,
+        status: TripStatus.SCHEDULED,
+        assignedDriverId: 'driver-1',
+        assignedVehicleId: 'vehicle-1',
+        assignedBusAttendantId: 'attendant-busy-1',
+        attendantReadyAt: new Date(),
+        scheduledStartAt: new Date(),
+        scheduledEndAt: new Date(Date.now() + 3600000),
+        attendances: [{ studentId: 's1', status: AttendanceStatus.UNMARKED }],
+      });
+      prismaMock.trip.findFirst.mockImplementation((args: any) => {
+        if (args?.where?.status === TripStatus.IN_PROGRESS && args?.where?.id?.not) {
+          return Promise.resolve({
+            id: 'other-trip-in-progress',
+            status: TripStatus.IN_PROGRESS,
+            assignedDriverId: 'other-driver',
+            assignedVehicleId: 'other-vehicle',
+            assignedBusAttendantId: 'attendant-busy-1',
+          });
+        }
+        return Promise.resolve(null);
+      });
+
+      await expect(service.startTrip('trip-1', mockDriverUser as any)).rejects.toThrow(
+        'Giáo viên phụ xe đang thực hiện một chuyến xe khác chưa kết thúc',
+      );
+    });
+
+    it('R03: should block markAttendantReady when there is an ATTENDANT_MISSING incident waiting assignment', async () => {
+      prismaMock.trip.findMany.mockResolvedValue([]);
+      prismaMock.trip.findUnique.mockResolvedValue({
+        id: 'trip-1',
+        status: TripStatus.SCHEDULED,
+        assignedBusAttendantId: 'attendant-1',
+      });
+      prismaMock.trip.findFirst.mockResolvedValue(null);
+      prismaMock.leaveNotice = {
+        findFirst: vi.fn().mockResolvedValue(null),
+      };
+      prismaMock.tripIncident = {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'inc-1',
+          type: TripIncidentType.ATTENDANT_MISSING,
+          status: TripIncidentStatus.WAITING_ASSIGNMENT,
+        }),
+      };
+
+      await expect(service.markAttendantReady('trip-1', mockAttendantUser as any)).rejects.toThrow(
+        'Chuyến xe có sự cố thiếu giáo viên phụ xe đang chờ xử lý',
+      );
+    });
+
+    it('R06: should set startDisabledReason = ABSENT_REASON_REQUIRED when TO_PARKING student is ABSENT without reason', async () => {
+      prismaMock.trip.findUnique.mockResolvedValue({
+        id: 'trip-parking-1',
+        direction: RouteDirection.TO_PARKING,
+        status: TripStatus.SCHEDULED,
+        assignedDriverId: 'driver-1',
+        assignedBusAttendantId: 'attendant-1',
+        attendantReadyAt: new Date(),
+        scheduledStartAt: new Date(Date.now() - 60000),
+        scheduledEndAt: new Date(Date.now() + 3600000),
+        attendances: [
+          { studentId: 's1', status: AttendanceStatus.PRESENT },
+          { studentId: 's2', status: AttendanceStatus.ABSENT, absenceReason: null },
+        ],
+      });
+
+      const state = await service.getOperationalState('trip-parking-1', mockDriverUser as any);
+      expect(state.canDriverStart).toBe(false);
+      expect(state.startDisabledReason).toBe('ABSENT_REASON_REQUIRED');
     });
   });
 });

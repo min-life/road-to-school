@@ -1,3 +1,6 @@
+import { geographyFields } from './geography.js';
+import { closeCancelledTripTasks } from '../trips/utils/close-cancelled-trip-tasks.js';
+import { lockOperations } from '../trips/utils/operations-lock.js';
 import { effectiveTripTiming } from './trip-schedule-view.js';
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
@@ -17,10 +20,10 @@ import {
 } from './school-effective-state.js';
 import {
   assertTripPolicy,
+  serviceDay,
   tripBlockReason,
   tripPolicyEffectiveDate,
 } from './school-policy.js';
-import { getDayOfWeekKey } from '../trips/utils/trip-time.util.js';
 
 @Injectable()
 export class ContractLifecycleService {
@@ -111,6 +114,7 @@ export class ContractLifecycleService {
         school = await tx.school.update({
           where: { id: school.id },
           data: {
+            ...geographyFields(payload),
             addressText: String(payload.addressText),
             latitude: Number(payload.latitude),
             longitude: Number(payload.longitude),
@@ -210,9 +214,7 @@ export class ContractLifecycleService {
           contractDate(trip.serviceDate) >= contractDate(c.effectiveDate),
       );
       if (!applicable || requiresAdminFinalization(trip)) continue;
-      const day = (
-        school.weeklySchedule as Record<string, { start: string; end: string }>
-      )[getDayOfWeekKey(contractDate(trip.serviceDate))];
+      const day = await serviceDay(tx, school.id, contractDate(trip.serviceDate));
       if (!day) {
         await tx.trip.update({
           where: { id: trip.id },
@@ -241,6 +243,7 @@ export class ContractLifecycleService {
         where: { tripId: { in: cancelledIds }, status: 'PENDING_REPLACEMENT' },
         data: { status: 'TRIP_CANCELLED', processedAt: new Date() },
       });
+      await closeCancelledTripTasks(tx, cancelledIds);
       await notifyCancelledTrips(
         tx,
         cancelledIds,
@@ -256,6 +259,7 @@ export class ContractLifecycleService {
     for (const ref of schools) {
       const counts = await this.prisma.$transaction(
         async (tx) => {
+      await lockOperations(tx);
           await tx.$queryRaw(
             Prisma.sql`SELECT id FROM schools WHERE id = ${ref.id} FOR UPDATE`,
           );

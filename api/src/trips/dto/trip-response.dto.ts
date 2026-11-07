@@ -152,6 +152,8 @@ export class TripListResponseDto {
 }
 
 export class TripDetailResponseDto extends TripItemResponseDto {
+  @ApiPropertyOptional({ nullable: true, type: [Object], description: 'Audit đính chính, hủy toàn vắng và mở lại chuyến' })
+  operationAudit?: unknown;
   @ApiPropertyOptional({ nullable: true, type: Object, description: 'Audit chốt hành chính; PENDING/FINALIZED, trigger/effectiveDate/detectedAt, lý do/người/thời điểm chốt. Không chứng minh học sinh đã xuống xe.' })
   adminFinalization?: Record<string, unknown> | null;
 
