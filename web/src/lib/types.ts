@@ -45,7 +45,7 @@ export interface PaginationMeta {
   totalPages: number;
 }
 
-export interface SchoolListItem {
+export interface SchoolListItem extends GeographyFields {
   id: string;
   name: string;
   addressText: string;
@@ -113,6 +113,7 @@ export interface SchoolEmployeeListResponse {
 }
 
 export interface CreateSchoolAdminResponse {
+  credentialDeliveryStatus?: 'SENT' | 'FAILED' | 'CONSOLE';
   id: string;
   fullName: string;
   email: string | null;
@@ -127,7 +128,7 @@ export interface CreateSchoolAdminResponse {
 
 export type StudentStatus = 'AVAILABLE' | 'DISABLED';
 
-export interface StudentListItem {
+export interface StudentListItem extends GeographyFields {
   id: string;
   code: string;
   fullName: string;
@@ -143,7 +144,8 @@ export interface StudentListResponse {
   meta: PaginationMeta;
 }
 
-export interface StudentDetail {
+export interface StudentDetail extends GeographyFields {
+  parentLinkAudit?: unknown;
   id: string;
   code: string;
   schoolId: string;
@@ -236,6 +238,7 @@ export interface CreateVehicleDto {
 }
 
 export interface ParkingLot {
+  maxOperatingRadiusKm?: number;
   scheduledChange?: { newAddressText: string; newLatitude: number; newLongitude: number; effectiveDate: string; reason?: string; scheduledAt: string; scheduledById?: string } | null;
   addressText: string;
   latitude: number;
@@ -248,6 +251,7 @@ export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 export type UserRole = Role;
 
 export interface UpdateParkingLotDto {
+  maxOperatingRadiusKm?: number;
   effectiveDate?: string;
   addressText: string;
   latitude: number;
@@ -533,7 +537,7 @@ export type RouteStopType =
   | 'DROPOFF'
   | 'PARKING_END';
 
-export interface EligibleStudentItem {
+export interface EligibleStudentItem extends GeographyFields {
   id: string;
   code: string;
   fullName: string;
@@ -544,7 +548,7 @@ export interface EligibleStudentItem {
   longitude: number;
 }
 
-export interface IneligibleStudentItem {
+export interface IneligibleStudentItem extends GeographyFields {
   id: string;
   code: string;
   fullName: string;
@@ -790,6 +794,7 @@ export interface CandidateBusAttendantsResponse {
 }
 
 export interface RoutePlanItem {
+  firstServiceDate?: string | null;
   needsReoptimization?: boolean;
   reoptimizationReason?: string | null;
   id: string;
@@ -892,6 +897,7 @@ export interface ApprovalSummary {
 }
 
 export interface ApprovalReadinessResponse {
+  firstServiceDate?: string | null;
   isReadyForApproval: boolean;
   routePlanId: string;
   status: RoutePlanStatus;
@@ -1063,6 +1069,7 @@ export interface TripAttendanceRoster {
 }
 
 export interface TripDetail {
+  operationAudit?: unknown;
   actualStartTime?: string | null;
   actualEndTime?: string | null;
   attendantReadyAt?: string | null;
@@ -1190,3 +1197,17 @@ export interface IncidentCandidatesResponse {
   total: number;
 }
 
+
+// Optional geography metadata from the effective address; IDs are VietMap strings.
+export interface GeographyFields {
+  province?: string | null;
+  provinceId?: string | null;
+  wardId?: string | null;
+  ward?: string | null;
+}
+export interface GeographyQuery { provinceId?: string; wardId?: string }
+export interface LocationOptions {
+  provinces: { id: string; name: string }[];
+  wards: { id: string; name: string; provinceId: string }[];
+}
+export interface ReopenTripRequest { reason: string; vehicleId?: string; driverId?: string; busAttendantId?: string }

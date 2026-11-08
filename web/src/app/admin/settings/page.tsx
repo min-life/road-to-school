@@ -9,7 +9,7 @@ import { toast } from '@/stores/toast-store';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { authStorage } from '@/lib/auth-storage';
-import { apiClient } from '@/lib/api-client';
+import { ApiError, apiClient } from '@/lib/api-client';
 import { ParkingLot, ParkingLotImpactResponse } from '@/lib/types';
 import { vietmapService, VietmapSuggestion } from '@/lib/vietmap';
 import {
@@ -66,8 +66,10 @@ export default function AdminSettingsPage() {
   const [parkingLot, setParkingLot] = useState<ParkingLot | null>(null);
   const [isLoadingParkingLot, setIsLoadingParkingLot] = useState(false);
   const [parkingAddress, setParkingAddress] = useState('');
-  const [parkingLat, setParkingLat] = useState<number | null>(10.776889);
-  const [parkingLng, setParkingLng] = useState<number | null>(106.700806);
+  const [parkingLat, setParkingLat] = useState<number | null>(null);
+  const [parkingLng, setParkingLng] = useState<number | null>(null);
+  const [parkingUnconfigured, setParkingUnconfigured] = useState(false);
+  const [parkingRadius, setParkingRadius] = useState('50');
   const [parkingSuggestions, setParkingSuggestions] = useState<VietmapSuggestion[]>([]);
   const [isSearchingParking, setIsSearchingParking] = useState(false);
   const [showParkingSuggestions, setShowParkingSuggestions] = useState(false);
@@ -92,15 +94,24 @@ export default function AdminSettingsPage() {
     if (user?.role !== 'SYSTEM_ADMIN') return;
     try {
       setIsLoadingParkingLot(true);
+      setParkingErrorMsg(null);
       const data = await apiClient.getParkingLot();
+      setParkingUnconfigured(false);
       if (data) {
         setParkingLot(data);
         setParkingAddress(data.addressText || '');
-        setParkingLat(data.latitude || 10.776889);
-        setParkingLng(data.longitude || 106.700806);
+        setParkingLat(data.latitude);
+        setParkingLng(data.longitude);
+        setParkingRadius(String(data.maxOperatingRadiusKm ?? 50));
       }
     } catch (err: any) {
-      setParkingErrorMsg(err?.message || 'Không thể tải cấu hình bãi xe. Vui lòng làm mới trang.');
+      if (err instanceof ApiError && err.statusCode === 409 && err.message === 'Cần cấu hình bãi trung tâm trước khi lập lịch phục vụ') {
+        setParkingUnconfigured(true); setParkingLot(null);
+        setParkingLat(null); setParkingLng(null); setParkingAddress('');
+      } else {
+        setParkingUnconfigured(false);
+        setParkingErrorMsg(err?.message || 'Không thể tải cấu hình bãi xe. Vui lòng làm mới trang.');
+      }
     } finally {
       setIsLoadingParkingLot(false);
     }
@@ -266,7 +277,7 @@ export default function AdminSettingsPage() {
     e.preventDefault();
 
     setParkingErrorMsg(null);
-    if (isSavingParkingLot || isSearchingParking || !parkingLot || parkingLot.scheduledChange) return;
+    if (isSavingParkingLot || isSearchingParking || (!parkingLot && !parkingUnconfigured) || parkingLot?.scheduledChange) return;
 
     if (!parkingAddress.trim()) {
       setParkingErrorMsg('Địa chỉ bãi xe không được để trống');
@@ -278,8 +289,17 @@ export default function AdminSettingsPage() {
       return;
     }
 
+    const radius = Number(parkingRadius);
+    if (!Number.isFinite(radius) || radius <= 0 || radius > 500) {
+      setParkingErrorMsg('Bán kính phục vụ phải lớn hơn 0 và không quá 500 km.'); return;
+    }
     setIsSavingParkingLot(true);
     try {
+      if (parkingUnconfigured) {
+        const updated = await apiClient.updateParkingLot({ addressText: parkingAddress.trim(), latitude: parkingLat, longitude: parkingLng, maxOperatingRadiusKm: radius });
+        setParkingLot(updated); setParkingUnconfigured(false);
+        toast.success('Đã cấu hình bãi xe trung tâm.'); return;
+      }
       // 1. Kiểm tra xem tọa độ có thay đổi so với hiện tại không
       const coordsChanged =
         !parkingLot ||
@@ -289,6 +309,7 @@ export default function AdminSettingsPage() {
       if (!coordsChanged) {
         // Chỉ sửa nhãn địa chỉ, tọa độ giữ nguyên -> Cập nhật trực tiếp
         const updated = await apiClient.updateParkingLot({
+          maxOperatingRadiusKm: radius,
           addressText: parkingAddress.trim(),
           latitude: parkingLat,
           longitude: parkingLng,
@@ -317,6 +338,8 @@ export default function AdminSettingsPage() {
     }
     if (isConfirmingRelocation || parkingLat === null || parkingLng === null || !parkingImpact) return;
 
+    const radius = Number(parkingRadius);
+    if (!Number.isFinite(radius) || radius <= 0 || radius > 500) { setParkingRelocateReasonError('Bán kính phải lớn hơn 0 và không quá 500 km.'); return; }
     setIsConfirmingRelocation(true);
     setParkingRelocateReasonError(null);
     try {
@@ -326,13 +349,14 @@ export default function AdminSettingsPage() {
         latitude: parkingLat,
         longitude: parkingLng,
         reason: parkingRelocateReason.trim(),
+        maxOperatingRadiusKm: radius,
         expectedFingerprint: fingerprint,
         effectiveDate: parkingEffectiveDate,
       });
       setParkingLot(updated);
       setIsParkingImpactModalOpen(false);
       await fetchParkingLot();
-      toast.success('Đã hẹn dời bãi xe. Các phương án liên quan cần tối ưu lại.');
+      toast.success('Đã hẹn dời bãi xe. Tác động được áp dụng khi đến ngày hiệu lực.');
     } catch (err: any) {
       setIsParkingImpactModalOpen(false);
       setParkingImpact(null);
@@ -658,8 +682,8 @@ export default function AdminSettingsPage() {
             </div>
           )}
 
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
-            <p className="font-semibold">Bãi đang áp dụng</p><p>{parkingLot?.addressText || 'Đang tải…'}</p>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm" hidden={!parkingLot}>
+            <p className="font-semibold">Bãi đang áp dụng</p><p>{parkingLot?.addressText}</p>
           </div>
           {parkingLot?.scheduledChange && <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
             <p className="font-semibold">Thay đổi đã hẹn · {parkingLot.scheduledChange.effectiveDate.split('-').reverse().join('/')}</p>
@@ -671,7 +695,11 @@ export default function AdminSettingsPage() {
             </div>
           </div>}
           <form onSubmit={handleSaveParkingLot} className="space-y-5">
-            <fieldset disabled={!parkingLot || !!parkingLot.scheduledChange || isSavingParkingLot || isLoadingParkingLot} className="space-y-5">
+            <fieldset disabled={(!parkingLot && !parkingUnconfigured) || !!parkingLot?.scheduledChange || isSavingParkingLot || isLoadingParkingLot} className="space-y-5">
+            {parkingUnconfigured && <p role="status" className="lifecycle-notice">Chưa cấu hình bãi trung tâm. Chọn địa chỉ và vị trí để bắt đầu.</p>}
+            <div className="max-w-xs space-y-1.5"><label htmlFor="parking-radius" className="block text-sm font-semibold">Bán kính phục vụ (km)</label>
+              <Input className="w-full border bg-white px-3 py-2" id="parking-radius" type="number" min="0" max="500" step="any" required value={parkingRadius} onChange={event => { setParkingRadius(event.target.value); setParkingImpact(null); }} />
+            </div>
             {/* Địa chỉ bãi xe với Autocomplete */}
             <div className="relative">
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -736,9 +764,9 @@ export default function AdminSettingsPage() {
               </div>
             </div>
 
-            <div className="max-w-xs space-y-1.5"><label htmlFor="parking-effective-date" className="block text-sm font-semibold">Ngày hiệu lực dời bãi</label>
+            {!parkingUnconfigured && <div className="max-w-xs space-y-1.5"><label htmlFor="parking-effective-date" className="block text-sm font-semibold">Ngày hiệu lực dời bãi</label>
               <Input id="parking-effective-date" type="date" min={vietnamDateKey(1)} required value={parkingEffectiveDate} onChange={event => { setParkingEffectiveDate(event.target.value); setParkingImpact(null); }} />
-            </div>
+            </div>}
             {/* Nút Lưu cấu hình */}
             <div className="flex items-center justify-between pt-2">
               <span className="text-xs text-slate-500">
@@ -753,7 +781,7 @@ export default function AdminSettingsPage() {
                 className="px-6 py-2.5 rounded-xl bg-primary hover:bg-amber-400 text-sm font-bold text-foreground transition-colors cursor-pointer flex items-center gap-2 shadow-xs"
               >
                 {isSavingParkingLot && <SpinnerIcon className="w-4 h-4 animate-spin" />}
-                <span>Xem tác động / Lưu địa chỉ</span>
+                <span>{parkingUnconfigured ? 'Lưu cấu hình bãi' : 'Xem tác động / Lưu cấu hình'}</span>
               </Button>
             </div>
             </fieldset>
@@ -777,7 +805,7 @@ export default function AdminSettingsPage() {
       </LifecycleDialog>
       <LifecycleDialog open={!!scheduledAction} title={scheduledAction === 'apply' ? 'Áp dụng vị trí bãi mới?' : 'Hủy lịch dời bãi?'} busy={scheduledBusy} onClose={() => setScheduledAction(null)}
         footer={<><Button variant="outline" disabled={scheduledBusy} onClick={() => setScheduledAction(null)}>Quay lại</Button><Button variant={scheduledAction === 'cancel' ? 'danger' : 'primary'} disabled={scheduledBusy} onClick={handleScheduledAction}>Xác nhận</Button></>}>
-        <p className="text-sm">{scheduledAction === 'apply' ? 'Vị trí mới sẽ được dùng khi tối ưu lại phương án. Thao tác này không tự sinh lại chuyến.' : 'Hủy lịch thay đổi không tự khôi phục các chuyến đã hủy.'}</p>
+        <p className="text-sm">{scheduledAction === 'apply' ? 'Vị trí mới sẽ được dùng khi tối ưu lại phương án. Thao tác này không tự sinh lại chuyến.' : 'Hủy lịch dời bãi trước hạn; các chuyến hiện tại được giữ nguyên.'}</p>
         {scheduledError && <p role="alert" className="mt-3 text-sm text-rose-600">{scheduledError}</p>}
       </LifecycleDialog>
 

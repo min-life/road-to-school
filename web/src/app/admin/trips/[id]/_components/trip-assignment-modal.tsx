@@ -1,11 +1,12 @@
 'use client';
+import { ReopenResourceSelect } from './reopen-resource-select';
 
 import { toast } from '@/stores/toast-store';
 
 import React, { useState, useEffect } from 'react';
 import { tripAssignmentLock } from '@/lib/business-improvements';
 import { apiClient, ApiError } from '@/lib/api-client';
-import { TripDetail, Vehicle, DriverItem, SchoolEmployeeItem, Role } from '@/lib/types';
+import { TripDetail, Vehicle, DriverItem, Role } from '@/lib/types';
 import { authStorage } from '@/lib/auth-storage';
 import { AlertIcon, SpinnerIcon, BusIcon } from '@/components/icons';
 import { Card } from '@/components/ui/card';
@@ -39,7 +40,6 @@ export function TripAssignmentModal({
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [drivers, setDrivers] = useState<DriverItem[]>([]);
-  const [attendants, setAttendants] = useState<SchoolEmployeeItem[]>([]);
 
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>(trip.vehicleId || '');
   const [selectedDriverId, setSelectedDriverId] = useState<string>(trip.driverId || '');
@@ -71,14 +71,6 @@ export function TripAssignmentModal({
             if (!current) return;
             setVehicles(vRes.items || []);
             setDrivers(dRes.items || []);
-          } else if (isSchoolAdmin) {
-            const aRes = await apiClient.getSchoolEmployees(trip.schoolId, {
-              limit: 50,
-              role: 'BUS_ATTENDANT',
-              status: 'ACTIVE',
-            });
-            if (!current) return;
-            setAttendants(aRes.items || []);
           }
         } catch (err: unknown) {
           if (current) setError(err instanceof Error ? err.message : 'Không thể tải danh sách tài nguyên');
@@ -245,18 +237,9 @@ export function TripAssignmentModal({
                 Giáo viên phụ xe (Trường sở tại):
               </label>
               {isSchoolAdmin ? (
-                <Select
-                  value={selectedAttendantId}
-                  onChange={(e) => setSelectedAttendantId(e.target.value)}
-                  required
-                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  {attendants.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.fullName} {a.phone ? `(${a.phone})` : ''}
-                    </option>
-                  ))}
-                </Select>
+                <ReopenResourceSelect key={baseline.id + ':' + isOpen} kind="attendant" schoolId={trip.schoolId} allowKeep={false}
+                  initialSelection={baseline.busAttendantId ? { id: baseline.busAttendantId, label: baseline.busAttendantName || 'Phụ xe hiện tại' } : undefined}
+                  onChange={setSelectedAttendantId} />
               ) : (
                 <div className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-700 flex items-center justify-between">
                   <span>

@@ -1,4 +1,6 @@
 'use client';
+import { GeographyFilter } from '@/components/admin/common/geography-filter';
+import type { GeographyQuery } from '@/lib/types';
 import type { UpdateSchoolStatusResponse } from '@/lib/types';
 import { displayDate } from '@/lib/school-lifecycle';
 import { TableActions } from '@/components/admin/common/table-actions';
@@ -47,6 +49,8 @@ export default function AdminSchoolsPage() {
     totalPages: 1,
   });
 
+  const [geography, setGeography] = useState<GeographyQuery>({});
+  const requestRevision = useRef(0);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ACTIVE' | 'INACTIVE' | ''>('');
   const [page, setPage] = useState(1);
@@ -64,29 +68,33 @@ export default function AdminSchoolsPage() {
 
   const fetchSchools = useCallback(
     async (targetPage = page, targetLimit = limit, targetSearch = search, targetStatus = statusFilter) => {
+      const requestId = ++requestRevision.current;
       try {
         setIsLoading(true);
         setErrorMessage(null);
 
         const response = await apiClient.getSchools({
+          ...geography,
           page: targetPage,
           limit: targetLimit,
           search: targetSearch || undefined,
           status: targetStatus || undefined,
         });
 
+        if (requestId !== requestRevision.current) return;
         setSchools(response.items);
         setMeta(response.meta);
       } catch (err: any) {
+        if (requestId !== requestRevision.current) return;
         setErrorMessage(
           err?.message ||
             'Không thể tải danh sách trường học. Vui lòng kiểm tra lại kết nối.',
         );
       } finally {
-        setIsLoading(false);
+        if (requestId === requestRevision.current) setIsLoading(false);
       }
     },
-    [page, limit, search, statusFilter],
+    [page, limit, search, statusFilter, geography],
   );
 
   useEffect(() => {
@@ -141,8 +149,9 @@ export default function AdminSchoolsPage() {
 
       {/* 6.2 Search & Filter Toolbar */}
       <FilterToolbar
-        hasActiveFilters={Boolean(search || statusFilter)}
+        hasActiveFilters={Boolean(search || statusFilter || geography.provinceId || geography.wardId)}
         onReset={() => {
+          setGeography({});
           handleSearchChange('');
           handleStatusFilterChange('');
         }}
@@ -168,6 +177,7 @@ export default function AdminSchoolsPage() {
             <option value="INACTIVE">Ngừng hoạt động</option>
           </Select>
         </FilterField>
+        <GeographyFilter value={geography} onChange={value => { setGeography(value); setPage(1); }} />
       </FilterToolbar>
 
       {/* Error State */}
@@ -190,8 +200,8 @@ export default function AdminSchoolsPage() {
       {/* 6.3 School Table */}
       <Card className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-2xs">
         <div className="overflow-x-auto">
-          <Table className="w-full text-left border-collapse" minWidth={1100}>
-            <colgroup><col /><col style={{ width: 280 }} /><col style={{ width: 240 }} /><col style={{ width: 180 }} /><col style={{ width: 160 }} /></colgroup>
+          <Table className="w-full text-left border-collapse" minWidth={1240}>
+            <colgroup><col style={{ width: 300 }} /><col style={{ width: 260 }} /><col style={{ width: 240 }} /><col style={{ width: 180 }} /><col style={{ width: 260 }} /></colgroup>
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 <th className="py-3.5 px-4">Tên trường</th>

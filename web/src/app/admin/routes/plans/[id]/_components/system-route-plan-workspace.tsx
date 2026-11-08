@@ -1,4 +1,5 @@
 ﻿'use client';
+import { RoutePlanCancellationReason } from './route-plan-cancellation-reason';
 import { RoutePlanReoptimization } from '@/components/admin/routes/route-plan-reoptimization';
 import { effectivePlanStatus, lifecycleReason } from '@/lib/school-lifecycle';
 
@@ -133,10 +134,11 @@ export function SystemRoutePlanWorkspace({ planId, role }: { planId: string; rol
   return <div ref={pageRef} className="route-planning-page saved-plan-page system-route-plan-workspace">
     <BackLink fallback="/admin/routes" />
     <header className="saved-plan-heading">
-      <div className="saved-plan-heading-title"><h1>{plan.name}</h1><p>{plan.schoolName} · {routes.length} tuyến · {plan.totalStudents} học sinh</p></div>
+      <div className="saved-plan-heading-title"><h1>{plan.name}</h1><p>{plan.schoolName} · {routes.length} tuyến · {plan.totalStudents} học sinh{plan.firstServiceDate ? ' · Ngày phục vụ đầu tiên: ' + plan.firstServiceDate.split('-').reverse().join('/') : ''}</p></div>
       <div className="saved-plan-heading-actions">
       <div className="saved-plan-heading-statuses">
       <span className="saved-plan-status" data-status={effectivePlanStatus(plan)}>{getRoutePlanStatusLabel(effectivePlanStatus(plan))}</span>
+      {effectivePlanStatus(plan) === 'CANCELLED' && <RoutePlanCancellationReason reason={plan.cancellationReason} />}
       {editable && routes.length > 0 && <span className="saved-plan-assignment-progress" data-pending={actionableSystemPendingGroupCount > 0} role="status" aria-atomic="true">
         {actionableSystemPendingGroupCount > 0 ? <><AlertIcon className="w-4 h-4" aria-hidden="true" />Còn {actionableSystemPendingGroupCount} nhóm xe chưa đủ</>
           : <><CheckIcon className="w-4 h-4" aria-hidden="true" />Nhà xe đã phân công đủ</>}
@@ -155,7 +157,6 @@ export function SystemRoutePlanWorkspace({ planId, role }: { planId: string; rol
     </header>
     <RoutePlanReoptimization plan={plan} systemAdmin={true} onUpdated={() => { setRoute(null); setRevision(value => value + 1); }} />
     {plan.effectiveStatusReason && <p className="saved-plan-notice" role="status">{lifecycleReason(plan.effectiveStatusReason)}. Phương án chỉ còn để tra cứu.</p>}
-    {effectivePlanStatus(plan) === 'CANCELLED' && <p className="saved-plan-notice">Phương án đã hủy{plan.cancellationReason ? `: ${plan.cancellationReason}` : '.'}</p>}
     {effectivePlanStatus(plan) === 'EXPIRED' && <p className="saved-plan-notice">Phương án hết hạn hợp đồng. Thông tin được giữ để tra cứu.</p>}
     <RoutePlanningWorkspace preview panelLabel={tab === 'assignments' ? `Phân công${actionableSystemPendingGroupCount ? ` (${actionableSystemPendingGroupCount})` : ''}` : 'Tuyến'}
       map={routes.length ? <>
@@ -188,7 +189,8 @@ export function SystemRoutePlanWorkspace({ planId, role }: { planId: string; rol
             </ul></details>}
             <details className="saved-plan-readiness"><summary>Thông tin phương án</summary>
               <p>Tạo lúc: {new Date(plan.createdAt).toLocaleString('vi-VN')}</p>
-              {plan.activatedAt && <p>Duyệt lúc: {new Date(plan.activatedAt).toLocaleString('vi-VN')}{plan.approvedByName ? ` · ${plan.approvedByName}` : ''}</p>}
+              {plan.firstServiceDate && <p>Ngày phục vụ đầu tiên: {plan.firstServiceDate.split('-').reverse().join('/')}</p>}
+                {plan.activatedAt && <p>Duyệt lúc: {new Date(plan.activatedAt).toLocaleString('vi-VN')}{plan.approvedByName ? ` · ${plan.approvedByName}` : ''}</p>}
               {plan.cancelledAt && <p>Hủy lúc: {new Date(plan.cancelledAt).toLocaleString('vi-VN')}</p>}
               <p>Mã phương án: {plan.id}</p>
             </details>

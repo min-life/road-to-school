@@ -31,18 +31,21 @@ export function StatusConfirmModal({
 
   const isDisabling = targetStatus === 'DISABLED';
 
+  const [impactError, setImpactError] = useState('');
+  const [revision, setRevision] = useState(0);
+  const [impactKey, setImpactKey] = useState('');
+  const key = `${schoolId}:${student?.id}:${targetStatus}`;
   useEffect(() => {
+    let current = true;
     if (isOpen && isDisabling && student && schoolId) {
-      setLoadingImpact(true);
-      apiClient
-        .getStudentDisableImpact(schoolId, student.id)
-        .then(setImpact)
-        .catch((err) => console.warn('Could not load disable impact', err))
-        .finally(() => setLoadingImpact(false));
-    } else {
-      setImpact(null);
-    }
-  }, [isOpen, isDisabling, student, schoolId]);
+      setLoadingImpact(true); setImpact(null); setImpactKey(''); setImpactError('');
+      apiClient.getStudentDisableImpact(schoolId, student.id)
+        .then(value => { if (current) { setImpact(value); setImpactKey(key); } })
+        .catch(error => { if (current) setImpactError(error instanceof Error ? error.message : 'Không thể tải tác động.'); })
+        .finally(() => { if (current) setLoadingImpact(false); });
+    } else { setImpact(null); setImpactKey(''); }
+    return () => { current = false; };
+  }, [isOpen, isDisabling, student?.id, schoolId, key, revision]);
 
   if (!isOpen || !student || !targetStatus) return null;
 
@@ -82,6 +85,7 @@ export function StatusConfirmModal({
               )}
             </p>
 
+            {impactError && <div role="alert" className="mt-3 text-sm text-rose-700">{impactError}<Button variant="outline" size="sm" onClick={() => setRevision(v => v + 1)}>Thử lại</Button></div>}
             {/* Thống kê tác động khi vô hiệu hóa */}
             {isDisabling && (
               <div className="mt-3">
@@ -159,7 +163,7 @@ export function StatusConfirmModal({
           <Button
             type="button"
             onClick={onConfirm}
-            disabled={isLoading || loadingImpact}
+            disabled={isLoading || (isDisabling && (loadingImpact || !impact || impactKey !== key || !!impactError))}
             className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white rounded-xl transition-colors cursor-pointer disabled:opacity-50 ${
               isDisabling
                 ? 'bg-amber-600 hover:bg-amber-700'

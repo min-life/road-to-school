@@ -152,7 +152,7 @@ export function ManualGenerateTripsModal({
         {!result ? (
           <form onSubmit={handleSubmit} className="space-y-4">
             <p className="text-xs text-slate-500 leading-relaxed">
-              Sinh chuyến xe theo khoảng ngày cho các phương án tuyến <strong>Đang hoạt động</strong> của trường. Hệ thống chỉ sinh chuyến từ ngày học hợp lệ tiếp theo sau ngày kích hoạt và tự động bỏ qua chuyến đã tồn tại.
+              Tạo chuyến theo lịch học của phương án đang hoạt động. Bỏ qua chuyến đã có.
             </p>
 
             {/* School selector */}
@@ -167,13 +167,14 @@ export function ManualGenerateTripsModal({
                 </div>
               ) : (
                 <SchoolSelectFilter
+                  floating
                   value={schoolId}
                   onChange={(sId, item) => {
                     setSchoolId(sId);
                     setSelectedSchool(item || null);
                   }}
                   allowAll={false}
-                  placeholder="-- Bắt buộc chọn đúng một trường --"
+                  placeholder="Chọn trường học"
                 />
               )}
 
@@ -188,7 +189,7 @@ export function ManualGenerateTripsModal({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-700">
-                  Từ ngày (fromDate) <span className="text-rose-500">*</span>:
+                  Từ ngày <span className="text-rose-500">*</span>:
                 </label>
                 <Input
                   type="date"
@@ -204,7 +205,7 @@ export function ManualGenerateTripsModal({
 
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-700">
-                  Đến ngày (toDate) <span className="text-rose-500">*</span>:
+                  Đến ngày <span className="text-rose-500">*</span>:
                 </label>
                 <Input
                   type="date"
@@ -233,7 +234,7 @@ export function ManualGenerateTripsModal({
                 disabled={submitting}
                 className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
               >
-                Hủy bỏ
+                Hủy
               </Button>
               <Button variant="primary" size="sm"
                 type="submit"
@@ -241,7 +242,7 @@ export function ManualGenerateTripsModal({
                 className="px-4 py-2 rounded-xl text-xs font-bold text-slate-900 bg-primary hover:bg-[#f5c042] transition-colors flex items-center gap-2 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 {submitting && <SpinnerIcon className="w-4 h-4 animate-spin text-slate-900" />}
-                <span>Bắt đầu sinh chuyến</span>
+                <span>Sinh chuyến</span>
               </Button>
             </div>
           </form>

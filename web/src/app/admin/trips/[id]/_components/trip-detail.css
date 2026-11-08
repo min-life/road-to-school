@@ -2,10 +2,10 @@
 .trip-detail-page > :not(.trip-detail-layout) { flex-shrink: 0; }
 .trip-detail-header { position: relative; display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 14px 16px; border: 1px solid var(--brand-border); }
 .trip-detail-header .ui-page-header { flex: 1; min-width: 240px; }
-.trip-detail-header-content { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.trip-detail-header-content { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .trip-detail-header-content > * { min-width: 0; }
 .trip-detail-header-content > .flex { padding-right: 90px; }
-.trip-detail-expanded > summary { position: absolute; right: 16px; top: 14px; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--brand-border); border-radius: 8px; color: var(--brand-heading); font-size: 12px; cursor: pointer; list-style: none; }
+.trip-detail-expanded > summary { position: absolute; right: 0; top: 0; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--brand-border); border-radius: 8px; color: var(--brand-heading); font-size: 12px; cursor: pointer; list-style: none; }
 .trip-detail-expanded > summary::-webkit-details-marker { display: none; }
 .trip-detail-expanded > summary:hover { background: var(--brand-hover); }
 .trip-detail-expanded > summary:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: 2px; }
@@ -125,7 +125,7 @@
 }
 @media (max-width: 640px) {
   .trip-detail-header { padding: 12px; }
-  .trip-detail-expanded > summary { right: 12px; top: 12px; min-height: 40px; }
+  .trip-detail-expanded > summary { right: 0; top: 0; min-height: 40px; }
   .trip-detail-header-content > .flex { padding-right: 0; }
   .trip-detail-header .ui-page-header h1 { width: 100%; padding-right: 82px; }
   .trip-detail-service-line > span { max-width: 100%; }

@@ -1,4 +1,5 @@
 'use client';
+import { canDirectlyUpdateAddress } from '@/lib/school-admin';
 
 import { toast } from '@/stores/toast-store';
 
@@ -60,10 +61,25 @@ export function RequestDetailModal({
   const [defaultStopServiceSeconds, setDefaultStopServiceSeconds] = useState(60);
   const [selectedOutcome, setSelectedOutcome] = useState<'DIRECT_UPDATE' | 'REOPTIMIZED' | 'REMOVED_FROM_ROUTES'>('DIRECT_UPDATE');
 
+  const [membership, setMembership] = useState<{ key: string; allowed: boolean; error?: string } | null>(null);
+  const [membershipRevision, setMembershipRevision] = useState(0);
+  const membershipKey = `${schoolId}:${detail?.id}`;
+  const requiresMembership = role === 'SCHOOL_ADMIN' && detail?.type === 'ADDRESS_UPDATE' && detail.status === 'PENDING';
+  const schoolCanApprove = !requiresMembership || (membership?.key === membershipKey && membership.allowed);
+  useEffect(() => {
+    let current = true;
+    if (!isOpen || !requiresMembership || !detail || !schoolId) return;
+    apiClient.getStudentDisableImpact(schoolId, detail.studentId)
+      .then(impact => { if (current) setMembership({ key: membershipKey, allowed: canDirectlyUpdateAddress(impact) }); })
+      .catch(error => { if (current) setMembership({ key: membershipKey, allowed: false, error: error instanceof Error ? error.message : 'Không thể kiểm tra tuyến.' }); });
+    return () => { current = false; };
+  }, [isOpen, requiresMembership, detail?.studentId, schoolId, membershipKey, membershipRevision]);
+
   // Load detail
   useEffect(() => {
     if (!isOpen || !requestId) {
       setDetail(null);
+      setMembership(null);
       setError(null);
       setIsConfirmingApprove(false);
       setIsConfirmingReject(false);
@@ -135,11 +151,16 @@ export function RequestDetailModal({
   };
 
   const handleApprove = async (outcomeOverride?: 'DIRECT_UPDATE' | 'REOPTIMIZED' | 'REMOVED_FROM_ROUTES') => {
-    if (!detail) return;
+    if (!detail || !schoolCanApprove) return;
     try {
       setIsSubmittingApprove(true);
       setError(null);
       const outcome = outcomeOverride || selectedOutcome;
+      if (role === 'SYSTEM_ADMIN' && outcome === 'REOPTIMIZED' && (!routingPreview?.previewToken || !routingPreview?.expectedFingerprint)) {
+        setError('Vui lòng kiểm tra định tuyến lại trước khi duyệt.');
+        setIsSubmittingApprove(false);
+        return;
+      }
       if (role === 'SYSTEM_ADMIN') {
         await apiClient.approveSystemAdminRequest(detail.id, {
           decision: outcome,
@@ -149,6 +170,10 @@ export function RequestDetailModal({
         });
       toast.success('Đã duyệt yêu cầu.');
       } else if (schoolId) {
+        if (detail.type === 'ADDRESS_UPDATE') {
+          const impact = await apiClient.getStudentDisableImpact(schoolId, detail.studentId);
+          if (!canDirectlyUpdateAddress(impact)) { setMembership({ key: membershipKey, allowed: false }); throw new Error('Chờ nhà xe xử lý lộ trình.'); }
+        }
         await apiClient.approveSchoolRequest(schoolId, detail.id);
       toast.success('Đã duyệt yêu cầu.');
       }
@@ -667,7 +692,7 @@ export function RequestDetailModal({
                   </div>
                   <p className="text-xs text-emerald-800">
                     {selectedOutcome === 'REOPTIMIZED'
-                      ? `Phê duyệt và áp dụng tuyến mới cho học sinh ${detail.studentName}. Các chuyến xe đã lên lịch chưa điểm danh sẽ được cập nhật.`
+                      ? `Phê duyệt và áp dụng tuyến mới cho học sinh ${detail.studentName}. Chuyến chưa vận hành từ ngày mai sẽ được cập nhật; chuyến hôm nay và lịch sử giữ nguyên.`
                       : selectedOutcome === 'REMOVED_FROM_ROUTES'
                       ? `Phê duyệt cập nhật địa chỉ và loại học sinh ${detail.studentName} khỏi mọi tuyến chưa duyệt hoặc đang hoạt động hiện tại.`
                       : `Dữ liệu của học sinh ${detail.studentName} sẽ được cập nhật trực tiếp trên hệ thống.`}
@@ -706,6 +731,10 @@ export function RequestDetailModal({
             Đóng
           </Button>
 
+          {requiresMembership && !schoolCanApprove && <div role="status" className="text-sm text-amber-800 p-3">
+            {membership?.key !== membershipKey ? 'Đang kiểm tra tuyến…' : membership.error || 'Chờ nhà xe xử lý lộ trình.'}
+            <Button variant="outline" size="sm" onClick={() => { setMembership(null); setMembershipRevision(v => v + 1); }}>Kiểm tra lại</Button>
+          </div>}
           {detail && detail.status === 'PENDING' && !isConfirmingApprove && !isConfirmingReject && (
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm"
@@ -731,7 +760,7 @@ export function RequestDetailModal({
                 ) : routingPreview.overallFeasibility === 'FEASIBLE' ? (
                   <Button
                     type="button"
-                    disabled={detail.isStale}
+                    disabled={detail.isStale || !schoolCanApprove}
                     onClick={() => {
                       setSelectedOutcome('REOPTIMIZED');
                       setIsConfirmingApprove(true);
@@ -744,7 +773,7 @@ export function RequestDetailModal({
                 ) : routingPreview.overallFeasibility === 'INFEASIBLE' ? (
                   <Button
                     type="button"
-                    disabled={detail.isStale}
+                    disabled={detail.isStale || !schoolCanApprove}
                     onClick={() => {
                       setSelectedOutcome('REMOVED_FROM_ROUTES');
                       setIsConfirmingApprove(true);
@@ -757,7 +786,7 @@ export function RequestDetailModal({
                 ) : routingPreview.routes.length === 0 ? (
                   <Button
                     type="button"
-                    disabled={detail.isStale}
+                    disabled={detail.isStale || !schoolCanApprove}
                     onClick={() => {
                       setSelectedOutcome('DIRECT_UPDATE');
                       setIsConfirmingApprove(true);
@@ -771,7 +800,7 @@ export function RequestDetailModal({
               ) : (
                 <Button
                   type="button"
-                  disabled={detail.isStale}
+                  disabled={detail.isStale || !schoolCanApprove}
                   onClick={() => {
                     setSelectedOutcome('DIRECT_UPDATE');
                     setIsConfirmingApprove(true);

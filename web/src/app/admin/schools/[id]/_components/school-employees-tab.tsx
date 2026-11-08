@@ -1,4 +1,5 @@
 'use client';
+import { ResendCredentialsDialog } from '@/components/admin/common/resend-credentials-dialog';
 
 import { ResourceStatusDialog } from '@/components/admin/common/resource-status-dialog';
 import type { ResourceTarget } from '@/lib/resource-status';
@@ -8,7 +9,7 @@ import { toast } from '@/stores/toast-store';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
-import type { SchoolEmployeeItem, PaginationMeta } from '@/lib/types';
+import type { SchoolEmployeeItem, PaginationMeta, CreateSchoolAdminResponse } from '@/lib/types';
 import {
   SearchIcon,
   PlusIcon,
@@ -39,6 +40,7 @@ export function SchoolEmployeesTab({
 }: SchoolEmployeesTabProps) {
   const { user } = useAuth();
   const canManage = user?.role === 'SYSTEM_ADMIN' || (user?.role === 'SCHOOL_ADMIN' && user.schoolId === schoolId);
+  const [resendTarget, setResendTarget] = useState<SchoolEmployeeItem | null>(null);
   const [statusTarget, setStatusTarget] = useState<ResourceTarget | null>(null);
   const [employees, setEmployees] = useState<SchoolEmployeeItem[]>([]);
   const [meta, setMeta] = useState<PaginationMeta>({
@@ -113,8 +115,10 @@ export function SchoolEmployeesTab({
     setPage(1);
   };
 
-  const handleCreateSuccess = () => {
-    toast.success('Tạo tài khoản quản trị trường thành công.');
+  const handleCreateSuccess = (result: CreateSchoolAdminResponse) => {
+    if (result.credentialDeliveryStatus === 'FAILED') toast.error('Đã tạo tài khoản nhưng gửi email thất bại. Cần gửi lại mật khẩu.');
+    else if (result.credentialDeliveryStatus === 'CONSOLE') toast.info('Đã tạo tài khoản; thông tin bàn giao ở console phát triển.');
+    else toast.success('Tạo tài khoản quản trị trường thành công.');
     fetchEmployees(1, limit, search, roleFilter, statusFilter);
 
   };
@@ -292,7 +296,10 @@ export function SchoolEmployeesTab({
                         {emp.isActive ? 'Đang hoạt động' : 'Ngừng hoạt động'}
                       </Badge>
                     </td>
-                    <td>{canManage && (emp.role === 'SCHOOL_ADMIN' || emp.role === 'BUS_ATTENDANT') && <TableActions actions={[{ label: emp.isActive ? 'Ngừng hoạt động' : 'Kích hoạt', warning: emp.isActive, onClick: () => setStatusTarget({ kind: 'employee', id: emp.id, name: emp.fullName, isActive: emp.isActive, schoolId, role: emp.role as 'SCHOOL_ADMIN' | 'BUS_ATTENDANT' }) }]} />}</td>
+                    <td>{canManage && (emp.role === 'SCHOOL_ADMIN' || emp.role === 'BUS_ATTENDANT') && <TableActions actions={[
+                      ...(user?.role === 'SYSTEM_ADMIN' && emp.role === 'SCHOOL_ADMIN' && emp.isActive && emp.email ? [{ label: 'Cấp lại mật khẩu', onClick: () => setResendTarget(emp) }] : []),
+                      { label: emp.isActive ? 'Ngừng hoạt động' : 'Kích hoạt', warning: emp.isActive, onClick: () => setStatusTarget({ kind: 'employee', id: emp.id, name: emp.fullName, isActive: emp.isActive, schoolId, role: emp.role as 'SCHOOL_ADMIN' | 'BUS_ATTENDANT' }) },
+                    ]} />}</td>
                   </tr>
                 ))
               )}
@@ -315,6 +322,7 @@ export function SchoolEmployeesTab({
         />
       </Card>
 
+      {resendTarget && <ResendCredentialsDialog key={resendTarget.id} kind="school-admin" schoolId={schoolId} employee={resendTarget} onClose={() => setResendTarget(null)} />}
       {/* Modal tạo School Admin */}
       {statusTarget && <ResourceStatusDialog key={statusTarget.id} target={statusTarget} onClose={() => setStatusTarget(null)} onSuccess={() => void fetchEmployees()} />}
       <CreateSchoolAdminModal

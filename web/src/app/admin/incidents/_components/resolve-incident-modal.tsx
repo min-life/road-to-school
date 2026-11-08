@@ -37,6 +37,7 @@ export function ResolveIncidentModal({
   const [cancelReason, setCancelReason] = useState<string>('');
 
   useEffect(() => {
+    let current = true;
     if (isOpen && incident) {
       setAction('ARRIVED');
       setReason('');
@@ -44,11 +45,13 @@ export function ResolveIncidentModal({
       setShowCancelTripConfirm(false);
       setCancelReason('');
 
+      setCandidates([]); setSelectedCandidateId('');
       // Fetch replacement candidates
       setLoadingCandidates(true);
       apiClient
         .getIncidentReplacementCandidates(incident.id)
         .then((res) => {
+          if (!current) return;
           setCandidates(res.candidates || []);
           if (res.candidates?.length) {
             setSelectedCandidateId(res.candidates[0].id);
@@ -57,14 +60,16 @@ export function ResolveIncidentModal({
           }
         })
         .catch((err) => {
+          if (!current) return;
           setError(
             err instanceof ApiError ? err.message : 'Không thể tải danh sách ứng viên thay thế',
           );
         })
         .finally(() => {
-          setLoadingCandidates(false);
+          if (current) setLoadingCandidates(false);
         });
     }
+    return () => { current = false; };
   }, [isOpen, incident]);
 
   if (!isOpen || !incident) return null;
@@ -76,7 +81,7 @@ export function ResolveIncidentModal({
     e.preventDefault();
     setError(null);
 
-    if (action === 'REPLACED' && !selectedCandidateId) {
+    if (action === 'REPLACED' && (loadingCandidates || !selectedCandidateId)) {
       setError('Vui lòng chọn nhân sự thay thế');
       return;
     }
@@ -94,6 +99,15 @@ export function ResolveIncidentModal({
       onClose();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Không thể xử lý sự cố');
+      if (err instanceof ApiError && [400, 409].includes(err.statusCode)) {
+        setSelectedCandidateId(''); setCandidates([]); setLoadingCandidates(true);
+        try {
+          const [latest, fresh] = await Promise.all([apiClient.getIncidentDetail(incident.id), apiClient.getIncidentReplacementCandidates(incident.id)]);
+          if (latest.status !== 'WAITING_ASSIGNMENT') { onSuccess(); onClose(); toast.warning('Sự cố đã đổi trạng thái.'); }
+          else setCandidates(fresh.candidates || []);
+        } catch (cause) { setError(cause instanceof Error ? cause.message : 'Không thể kiểm tra lại.'); }
+        finally { setLoadingCandidates(false); }
+      }
     } finally {
       setSubmitting(false);
     }
@@ -128,7 +142,7 @@ export function ResolveIncidentModal({
       </> : <>
         <Button className="incident-cancel-action" type="button" variant="ghost" disabled={submitting} onClick={() => setShowCancelTripConfirm(true)}>Hủy chuyến xe</Button>
         <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>Đóng</Button>
-        <Button type="submit" form={formId} variant="primary" disabled={submitting || (action === 'REPLACED' && !selectedCandidateId)}>{submitting && <SpinnerIcon className="w-4 h-4 animate-spin" />}Xác nhận xử lý</Button>
+        <Button type="submit" form={formId} variant="primary" disabled={submitting || (action === 'REPLACED' && (loadingCandidates || !selectedCandidateId))}>{submitting && <SpinnerIcon className="w-4 h-4 animate-spin" />}Xác nhận xử lý</Button>
       </>}>
       <section className="incident-summary"><div><span className="incident-label">Chuyến xe</span><strong>{incident.routeName || 'Chuyến xe'}</strong><small>{incident.serviceDate || ''}{incident.scheduledStartTime ? ` · ${incident.scheduledStartTime}` : ''}</small></div></section>
           {error && (

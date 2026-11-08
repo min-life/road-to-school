@@ -1,5 +1,7 @@
 ﻿# Đối chiếu FE Integration Guide với code API
 
+> Mốc lịch sử 05/11/2026. Source main đã đổi; xem [kế hoạch/cập nhật 07/11](web-api-main-2026-11-07-integration-plan.md). API hiện có lọc provinceId/wardId, base /api/v1 và cron dời bãi mỗi phút. Không dùng kết luận cũ bên dưới thay contract hiện hành.
+
 Ngày kiểm tra: **05/11/2026**. Phạm vi: các điểm lệch đã xác nhận khi tích hợp Web sau đợt cập nhật API. Đây là bản đối chiếu source, không phải kết quả kiểm thử API đang chạy và không phải kiểm toán toàn bộ tài liệu.
 
 ## 1. Nguyên tắc sử dụng

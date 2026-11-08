@@ -1,11 +1,15 @@
 'use client';
+import './_components/route-student-filters.css';
+import { selectVisibleStudents } from '@/lib/web-api-integration';
+import { GeographyFilter } from '@/components/admin/common/geography-filter';
+import type { GeographyQuery } from '@/lib/types';
 import { BackLink } from '@/components/admin/common/context-navigation';
 
 import { toast } from '@/stores/toast-store';
 
 import React, { useState, useEffect, useMemo, Suspense, useCallback, memo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { apiClient } from '@/lib/api-client';
+import { ApiError, apiClient } from '@/lib/api-client';
 import {
   RoutePreparationData,
   RoutePreviewResponse,
@@ -79,6 +83,23 @@ function CreateRoutePlanContent() {
     setFocusPoint({ latitude: pt.latitude, longitude: pt.longitude, zoom: 16 });
   }, [setFocusPoint]);
 
+  const [geography, setGeography] = useState<GeographyQuery>({});
+  const [filteredPrep, setFilteredPrep] = useState<{ data: RoutePreparationData; key: string } | null>(null);
+  const [geographyError, setGeographyError] = useState('');
+  const filterKey = JSON.stringify([schoolId, geography.provinceId, geography.wardId]);
+  const hasGeography = !!(geography.provinceId || geography.wardId);
+  const studentView = hasGeography ? (filteredPrep?.key === filterKey ? filteredPrep.data : null) : prepData;
+  useEffect(() => {
+    if (!schoolId || !hasGeography) return;
+    let current = true;
+    apiClient.getRoutePreparationData(schoolId, geography).then(data => {
+      if (current) {
+        setFilteredPrep({ data, key: filterKey }); setGeographyError('');
+        setPrepData(previous => previous ? { ...previous, eligibleStudents: [...new Map([...previous.eligibleStudents, ...data.eligibleStudents].map(student => [student.id, student])).values()] } : previous);
+      }
+    }).catch(error => { if (current) setGeographyError(error instanceof Error ? error.message : 'Không thể lọc học sinh.'); });
+    return () => { current = false; };
+  }, [schoolId, geography, hasGeography, filterKey]);
   // 1. Fetch Preparation Data
   const loadData = useCallback(async () => {
     if (!schoolId) return;
@@ -108,7 +129,7 @@ function CreateRoutePlanContent() {
     } finally {
       setLoadingPrep(false);
     }
-  }, [schoolId, setSelectedStudentIds, setSelectedVehicleIds]);
+  }, [schoolId, setSelectedStudentIds, setSelectedVehicleIds, setPrepData, setPrepError, setLoadingPrep]);
 
   useEffect(() => {
     if (!schoolId) {
@@ -133,29 +154,29 @@ function CreateRoutePlanContent() {
 
   // Filtered Students for Picker
   const filteredStudents = useMemo(() => {
-    if (!prepData) return [];
-    if (!studentSearch.trim()) return prepData.eligibleStudents;
+    if (!studentView) return [];
+    if (!studentSearch.trim()) return studentView.eligibleStudents;
     const q = studentSearch.toLowerCase();
-    return prepData.eligibleStudents.filter(
+    return studentView.eligibleStudents.filter(
       (s) =>
         s.fullName.toLowerCase().includes(q) ||
         s.code.toLowerCase().includes(q) ||
         s.addressText.toLowerCase().includes(q),
     );
-  }, [prepData, studentSearch]);
+  }, [studentView, studentSearch]);
 
   const filteredIneligibleStudents = useMemo(() => {
-    if (!prepData || !prepData.ineligibleStudents) return [];
-    if (!studentSearch.trim()) return prepData.ineligibleStudents;
+    if (!studentView || !studentView.ineligibleStudents) return [];
+    if (!studentSearch.trim()) return studentView.ineligibleStudents;
     const q = studentSearch.toLowerCase();
-    return prepData.ineligibleStudents.filter(
+    return studentView.ineligibleStudents.filter(
       (s) =>
         s.fullName.toLowerCase().includes(q) ||
         s.code.toLowerCase().includes(q) ||
         (s.addressText && s.addressText.toLowerCase().includes(q)) ||
         s.reasonMessage.toLowerCase().includes(q),
     );
-  }, [prepData, studentSearch]);
+  }, [studentView, studentSearch]);
 
   // Toggle student selection (pure toggle, does not focus map)
   const handleToggleStudent = (id: string, e?: React.MouseEvent) => {
@@ -170,11 +191,11 @@ function CreateRoutePlanContent() {
 
   const handleSelectAllStudents = () => {
     if (!prepData) return;
-    setSelectedStudentIds(new Set(prepData.eligibleStudents.map((s) => s.id)));
+    setSelectedStudentIds(previous => selectVisibleStudents(previous, filteredStudents.map(s => s.id), true));
   };
 
   const handleDeselectAllStudents = () => {
-    setSelectedStudentIds(new Set());
+    setSelectedStudentIds(previous => selectVisibleStudents(previous, filteredStudents.map(s => s.id), false));
   };
 
   // Toggle vehicle selection
@@ -281,6 +302,7 @@ function CreateRoutePlanContent() {
       setHiddenRouteIndices({ OUTBOUND: new Set(), RETURN: new Set() });
       setActiveRouteIndex(0);
     } catch (err: any) {
+      if (err instanceof ApiError && [404, 409].includes(err.statusCode)) setPreviewResult(null);
       setOptimizeError(err?.message || 'Không thể hủy tuyến về này');
     } finally {
       setCancellingReturnIndex(null);
@@ -319,7 +341,11 @@ function CreateRoutePlanContent() {
         router.push('/admin/routes');
       }
     } catch (err: any) {
-      setOptimizeError(err?.message || 'Lỗi khi xác nhận lưu phương án tuyến');
+      if (err instanceof ApiError && [404, 409].includes(err.statusCode)) {
+        setPreviewResult(null);
+        setShowSaveConfirmation(false);
+      }
+      setOptimizeError((err?.message || 'Lỗi khi xác nhận lưu phương án tuyến') + ' Vui lòng tối ưu lại trước khi lưu.');
       setIsConfirming(false);
     }
   };
@@ -632,28 +658,8 @@ function CreateRoutePlanContent() {
             {value: 'VEHICLES', label: `Xe (${selectedVehicleIds.size})`},
           ]} onChange={tab => setSetupTab(tab)} />
           <div className="route-workspace-content route-workspace-selection" hidden={setupTab !== 'STUDENTS'} role="tabpanel" id="planning-panel-STUDENTS" aria-labelledby="planning-tab-STUDENTS" tabIndex={0}><Card className="route-workspace-picker space-y-4">
-              <div className="flex items-center justify-between">
-                {studentPickerTab === 'ELIGIBLE' && (
-                  <div className="flex items-center gap-2 text-xs">
-                    <Button
-                      onClick={handleSelectAllStudents}
-                      className="text-blue-600 hover:underline cursor-pointer font-medium"
-                    >
-                      Chọn tất cả
-                    </Button>
-                    <span className="text-slate-300">•</span>
-                    <Button
-                      onClick={handleDeselectAllStudents}
-                      className="text-slate-500 hover:underline cursor-pointer font-medium"
-                    >
-                      Bỏ chọn hết
-                    </Button>
-                  </div>
-                )}
-              </div>
-
               {/* Segmented Control: Eligible vs Ineligible */}
-              <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
+              <div className="route-student-eligibility-tabs flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
                 <Button
                   type="button"
                   onClick={() => setStudentPickerTab('ELIGIBLE')}
@@ -678,16 +684,43 @@ function CreateRoutePlanContent() {
                 </Button>
               </div>
 
+              <div className="route-student-filter-toolbar">
               {/* Student Search */}
               <div className="relative">
                 <SearchIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <Input
                   type="text"
                   placeholder="Tìm học sinh theo tên, mã..."
+                  aria-label="Tìm học sinh theo tên hoặc mã"
                   value={studentSearch}
                   onChange={(e) => setStudentSearch(e.target.value)}
                   className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-primary"
                 />
+              </div>
+
+                <GeographyFilter popover schoolId={schoolId || undefined} value={geography} onChange={value => { setGeography(value); setGeographyError(''); }} />
+              </div>
+              {hasGeography && !studentView && !geographyError && <p role="status">Đang lọc học sinh…</p>}
+              {hasGeography && geographyError && <p role="alert" className="text-xs text-rose-700">{geographyError}</p>}
+              <div className="flex items-center justify-between">
+                {studentPickerTab === 'ELIGIBLE' && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <Button
+                      onClick={handleSelectAllStudents}
+                      className="text-blue-600 hover:underline cursor-pointer font-medium"
+                    >
+                      Chọn đang hiển thị
+                    </Button>
+                    <span className="text-slate-300">•</span>
+                    <Button
+                      onClick={handleDeselectAllStudents}
+                      aria-label="Bỏ chọn học sinh đang hiển thị"
+                      className="text-slate-500 hover:underline cursor-pointer font-medium"
+                    >
+                      Bỏ chọn
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {/* Student List */}
@@ -971,6 +1004,8 @@ function CreateRoutePlanScope() {
   const schoolId = searchParams.get('schoolId');
   const savedPlanId = searchParams.get('savedPlanId');
   const scope = JSON.stringify([user?.id, user?.role, user?.schoolId, schoolId]);
+  if (!user) return <p role="status">Đang xác thực…</p>;
+  if (user.role !== 'SYSTEM_ADMIN') return <p role="alert">Bạn không có quyền lập phương án tuyến.</p>;
   if (savedPlanId) return <SavedPlanRedirect planId={savedPlanId} />;
   return <RoutePlanDraftProvider key={scope}><CreateRoutePlanContent /></RoutePlanDraftProvider>;
 }

@@ -60,11 +60,11 @@ export function CancelRoutePlanModal({
       return;
     }
 
-    if (!impact || loadingImpact || loading) return;
+    if (!impact?.expectedFingerprint || loadingImpact || loading) return;
     try {
       setLoading(true);
       setError(null);
-      await apiClient.cancelRoutePlan(routePlanId, reason.trim(), impact?.expectedFingerprint);
+      await apiClient.cancelRoutePlan(routePlanId, reason.trim(), impact.expectedFingerprint);
       toast.success('Đã hủy phương án tuyến.');
       onSuccess();
       onClose();

@@ -1,4 +1,6 @@
 'use client';
+import { canDirectlyUpdateAddress, validCoordinates } from '@/lib/school-admin';
+import { ParentLinkHistory } from '@/components/admin/students/parent-link-history';
 import { BackLink, ContextLink } from '@/components/admin/common/context-navigation';
 import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
 
@@ -72,6 +74,9 @@ function StudentDetailPageContent() {
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // 2. Request History State
+  const [historyError, setHistoryError] = useState('');
+  const addressVersion = useRef(0);
+  const [addressChecking, setAddressChecking] = useState(false);
   const [historyRequests, setHistoryRequests] = useState<StudentUpdateRequest[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [historyTotal, setHistoryTotal] = useState(0);
@@ -102,7 +107,7 @@ function StudentDetailPageContent() {
   const fetchHistoryRequests = useCallback(async () => {
     if (!schoolId || !studentId) return;
     try {
-      setIsLoadingHistory(true);
+      setIsLoadingHistory(true); setHistoryError('');
       const res = await apiClient.listStudentRequestHistory(schoolId, studentId, {
         page: historyPage,
         limit: 5,
@@ -113,7 +118,7 @@ function StudentDetailPageContent() {
       setHistoryTotal(res.total);
       setHistoryTotalPages(res.totalPages);
     } catch (err) {
-      console.error('Error fetching student request history:', err);
+      setHistoryError(err instanceof Error ? err.message : 'Không thể tải lịch sử yêu cầu.');
     } finally {
       setIsLoadingHistory(false);
     }
@@ -128,18 +133,23 @@ function StudentDetailPageContent() {
   }, [fetchHistoryRequests]);
 
   // Handle start editing address
-  const handleStartEditAddress = () => {
-    if (!student) return;
-    setNewAddressText(student.addressText || '');
-    setNewLatitude(student.latitude ?? 10.776889);
-    setNewLongitude(student.longitude ?? 106.700806);
-    setAddressUpdateError(null);
-    setIsEditingAddress(true);
+  const handleStartEditAddress = async () => {
+    if (!student || !schoolId || addressChecking) return;
+    setAddressChecking(true); setAddressUpdateError(null);
+    try {
+      const impact = await apiClient.getStudentDisableImpact(schoolId, student.id);
+      if (!canDirectlyUpdateAddress(impact)) throw new Error('Học sinh đang có tuyến. Cần nhà xe kiểm tra lộ trình trước khi đổi địa chỉ.');
+      setNewAddressText(student.addressText || '');
+      setNewLatitude(student.latitude ?? null); setNewLongitude(student.longitude ?? null);
+      setIsEditingAddress(true);
+    } catch (error) { setAddressUpdateError(error instanceof Error ? error.message : 'Không thể kiểm tra tuyến.'); }
+    finally { setAddressChecking(false); }
   };
 
   // Handle address autocomplete search
   const handleAddressInputChange = (val: string) => {
-    setNewAddressText(val);
+    const version = ++addressVersion.current;
+    setNewAddressText(val); setNewLatitude(null); setNewLongitude(null);
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     if (!val.trim() || val.length < 2) {
       setAddressSuggestions([]);
@@ -150,6 +160,7 @@ function StudentDetailPageContent() {
       try {
         setIsSearchingAddress(true);
         const results = await vietmapService.autocomplete(val.trim());
+        if (version !== addressVersion.current) return;
         setAddressSuggestions(results);
         setShowAddressSuggestions(true);
       } catch (err) {
@@ -161,12 +172,14 @@ function StudentDetailPageContent() {
   };
 
   const handleSelectAddressSuggestion = async (sug: VietmapSuggestion) => {
+    const version = ++addressVersion.current;
     setNewAddressText(sug.address || sug.name);
+    setNewLatitude(null); setNewLongitude(null);
     setShowAddressSuggestions(false);
     try {
       setIsSearchingAddress(true);
       const details = await vietmapService.getPlaceDetail(sug.refId);
-      if (details) {
+      if (details && version === addressVersion.current) {
         setNewLatitude(details.latitude);
         setNewLongitude(details.longitude);
         if (details.addressText) setNewAddressText(details.addressText);
@@ -179,25 +192,21 @@ function StudentDetailPageContent() {
   };
 
   const handleSaveAddress = async () => {
-    if (!student || !schoolId || !newAddressText.trim() || !newLatitude || !newLongitude) {
+    if (!student || !schoolId || !newAddressText.trim() || newLatitude === null || newLongitude === null || !validCoordinates(newLatitude, newLongitude)) {
       setAddressUpdateError('Vui lòng chọn địa chỉ và tọa độ hợp lệ.');
       return;
     }
     try {
       setIsSavingAddress(true);
       setAddressUpdateError(null);
+      const impact = await apiClient.getStudentDisableImpact(schoolId, student.id);
+      if (!canDirectlyUpdateAddress(impact)) throw new Error('Học sinh đã có tuyến. Cần nhà xe xử lý thay đổi địa chỉ.');
       await apiClient.directUpdateStudentAddress(schoolId, student.id, {
         addressText: newAddressText.trim(),
         latitude: newLatitude,
         longitude: newLongitude,
       });
-      setStudent({
-        ...student,
-        addressText: newAddressText.trim(),
-        latitude: newLatitude,
-        longitude: newLongitude,
-        hasAddress: true,
-      });
+      await fetchStudent();
       setIsEditingAddress(false);
       toast.success('Đã cập nhật địa chỉ học sinh thành công.');
 
@@ -465,6 +474,7 @@ function StudentDetailPageContent() {
               </div>
             </dl>
 
+            {addressUpdateError && !isEditingAddress && <p role="alert" className="text-sm text-rose-700">{addressUpdateError}</p>}
             {/* Address Details & Direct Update */}
             <div className="border-t border-slate-100 pt-3">
               <div className="flex items-center justify-between mb-1">
@@ -472,7 +482,7 @@ function StudentDetailPageContent() {
                 {isAvailable && !isEditingAddress && (
                   <Button
                     type="button"
-                    onClick={handleStartEditAddress}
+                    onClick={() => void handleStartEditAddress()} disabled={addressChecking}
                     className="text-xs font-semibold text-amber-600 hover:text-amber-700 hover:underline cursor-pointer"
                   >
                     Chỉnh sửa địa chỉ
@@ -541,6 +551,7 @@ function StudentDetailPageContent() {
                       latitude={newLatitude}
                       longitude={newLongitude}
                       onChangeCoordinates={(lat: number, lng: number) => {
+                        addressVersion.current += 1;
                         setNewLatitude(lat);
                         setNewLongitude(lng);
                       }}
@@ -561,7 +572,7 @@ function StudentDetailPageContent() {
                     </Button>
                     <Button
                       type="button"
-                      disabled={isSavingAddress || !newAddressText.trim() || !newLatitude || !newLongitude}
+                      disabled={isSavingAddress || !newAddressText.trim() || newLatitude === null || newLongitude === null || !validCoordinates(newLatitude, newLongitude)}
                       onClick={handleSaveAddress}
                       className="px-4 py-1.5 text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-lg shadow-xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
                     >
@@ -584,6 +595,7 @@ function StudentDetailPageContent() {
         </div>
       </div>
 
+      <ParentLinkHistory audit={student.parentLinkAudit} />
       {/* Route Management Section */}
       <StudentRoutingSection studentId={student.id} studentName={student.fullName} />
 
@@ -594,7 +606,7 @@ function StudentDetailPageContent() {
             <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <StudentIcon className="w-4 h-4 text-amber-500" />
               Lịch sử yêu cầu cập nhật của học sinh
-            </h2>
+            </h2>{historyError && <div role="alert" className="text-sm text-rose-700">{historyError}<Button variant="outline" size="sm" onClick={() => void fetchHistoryRequests()}>Thử lại</Button></div>}
             <p className="text-xs text-slate-500 mt-0.5">
               Theo dõi và xử lý các yêu cầu cập nhật thông tin và địa chỉ gửi từ phụ huynh.
             </p>
@@ -665,7 +677,7 @@ function StudentDetailPageContent() {
                 </tr>
               )}
 
-              {!isLoadingHistory && historyRequests.length === 0 && (
+              {!isLoadingHistory && !historyError && historyRequests.length === 0 && (
                 <tr>
                   <td colSpan={5} className="p-6 text-center text-slate-400 italic">
                     Chưa có yêu cầu cập nhật nào cho học sinh này.

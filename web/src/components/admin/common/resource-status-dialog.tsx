@@ -75,6 +75,7 @@ export function ResourceStatusDialog({ target, onClose, onSuccess }: {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Không thể đổi trạng thái.');
       setReplacement(null);
+      setImpact(null);
     } finally { setBusy(false); }
   }
 

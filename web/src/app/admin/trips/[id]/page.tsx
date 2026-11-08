@@ -1,4 +1,6 @@
 'use client';
+import { TripActions } from './_components/trip-actions';
+import { TripOperationHistory } from './_components/trip-operation-history';
 import { getTripStatusLabel } from '@/lib/status-labels';
 import { BackLink, ContextLink } from '@/components/admin/common/context-navigation';
 import { effectivePlanStatus, lifecycleError, lifecycleReason, type TripAdminFinalization } from '@/lib/school-lifecycle';
@@ -294,10 +296,13 @@ function TripDetailContent({ tripId }: { tripId: string }) {
               <p className="text-sm">{policy.audit.reason || lifecycleReason(policy.audit.trigger)}</p>
               {policy.audit.finalizedAt && <p className="text-xs text-slate-500">Ghi nhận: {new Date(policy.audit.finalizedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}. Việc kết thúc hành chính không xác nhận học sinh đã xuống xe.</p>}
             </div>}
+            <TripOperationHistory trip={trip} />
           </details>
         </PageHeader>
 
         {trip.status === 'SCHEDULED' && (assignmentLock || attendance.error) && <p className="text-sm text-amber-800" role="status">{attendance.error ? 'Chưa thể kiểm tra phân công: không tải được điểm danh.' : assignmentLock}</p>}
+        <TripActions key={trip.id + ':' + trip.status} trip={trip} roster={attendance.error ? null : attendance.data} role={user?.role} schoolId={user?.schoolId}
+          onUpdated={() => { metadataAt.current = 0; historyLoaded.current = false; void loadTripDetail(); void attendance.refresh(); }} />
       {/* Action: Edit Assignment */}
         {canEditAssignment && (
           <Button

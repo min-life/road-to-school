@@ -91,6 +91,18 @@ export class ApiError extends Error {
 type UnauthorizedCallback = () => void;
 
 class ApiClient {
+  async getLocationOptions(schoolId?: string): Promise<import('./types').LocationOptions> {
+    return this.request(schoolId ? `/schools/${encodeURIComponent(schoolId)}/students/location-options` : '/schools/location-options');
+  }
+  async closeIncident(id: string, reason: string, expectedStatus: TripIncidentStatus): Promise<TripIncident> {
+    return this.request(`/incidents/${id}/close`, { method: 'POST', body: JSON.stringify({ reason, expectedStatus }) });
+  }
+  async cancelAllAbsent(id: string, reason: string): Promise<{ message: string }> {
+    return this.request(`/trips/${id}/cancel-all-absent`, { method: 'POST', body: JSON.stringify({ reason }) });
+  }
+  async reopenTrip(id: string, dto: import('./types').ReopenTripRequest): Promise<{ message: string; tripId: string }> {
+    return this.request(`/trips/${id}/reopen`, { method: 'POST', body: JSON.stringify(dto) });
+  }
   async getSchoolOperatingSettings(schoolId: string): Promise<import('./school-lifecycle').SchoolOperatingSettings> {
     return this.request(`/schools/${schoolId}/settings`, { method: 'GET' });
   }
@@ -112,8 +124,8 @@ class ApiClient {
   async cancelServiceCalendar(id: string): Promise<import('./school-lifecycle').ServiceCalendarEntry> {
     return this.request(`/service-calendar/${id}/cancel`, { method: 'POST' });
   }
-  async getAdminFinalizations(): Promise<import('./school-lifecycle').AdminFinalizationTrip[]> {
-    return this.request('/trips/admin-finalizations', { method: 'GET' });
+  async getAdminFinalizations(schoolId?: string): Promise<import('./school-lifecycle').AdminFinalizationTrip[]> {
+    return this.request('/trips/admin-finalizations' + (schoolId ? '?schoolId=' + encodeURIComponent(schoolId) : ''), { method: 'GET' });
   }
   async finalizeTrip(id: string, dto: import('./school-lifecycle').FinalizeTripInput): Promise<import('./school-lifecycle').AdminFinalizationTrip> {
     return this.request(`/trips/${id}/admin-finalization`, { method: 'POST', body: JSON.stringify(dto) });
@@ -330,8 +342,12 @@ class ApiClient {
     limit?: number;
     search?: string;
     status?: string;
+    provinceId?: string;
+    wardId?: string;
   }): Promise<SchoolListResponse> {
     const searchParams = new URLSearchParams();
+    if (params?.provinceId) searchParams.set('provinceId', params.provinceId);
+    if (params?.wardId) searchParams.set('wardId', params.wardId);
     if (params?.page) searchParams.set('page', String(params.page));
     if (params?.limit) searchParams.set('limit', String(params.limit));
     if (params?.search && params.search.trim()) {
@@ -497,7 +513,7 @@ class ApiClient {
 
   async createSchoolAdmin(
     schoolId: string,
-    body: { fullName: string; email?: string; phone?: string },
+    body: { fullName: string; email: string; phone: string },
   ): Promise<CreateSchoolAdminResponse> {
     return this.request<CreateSchoolAdminResponse>(
       `/schools/${schoolId}/employees`,
@@ -516,6 +532,10 @@ class ApiClient {
       `/schools/${schoolId}/employees/${employeeId}`,
       { method: 'GET' },
     );
+  }
+
+  async resendSchoolEmployeeCredentials(schoolId: string, employeeId: string): Promise<{ message: string; credentialDeliveryStatus: 'SENT' | 'FAILED' | 'CONSOLE' }> {
+    return this.request(`/schools/${encodeURIComponent(schoolId)}/employees/${encodeURIComponent(employeeId)}/credentials/resend`, { method: 'POST' });
   }
 
   async createTeacher(
@@ -539,10 +559,14 @@ class ApiClient {
       limit?: number;
       search?: string;
       status?: string;
+      provinceId?: string;
+      wardId?: string;
       hasAddress?: boolean;
     },
   ): Promise<StudentListResponse> {
     const searchParams = new URLSearchParams();
+    if (params?.provinceId) searchParams.set('provinceId', params.provinceId);
+    if (params?.wardId) searchParams.set('wardId', params.wardId);
     if (params?.routingStatus !== undefined) searchParams.set('routingStatus', String(params.routingStatus));
     if (params?.page) searchParams.set('page', String(params.page));
     if (params?.limit) searchParams.set('limit', String(params.limit));
@@ -664,6 +688,10 @@ class ApiClient {
 
   async getDriver(id: string): Promise<DriverItem> {
     return this.request<DriverItem>(`/drivers/${id}`, { method: 'GET' });
+  }
+
+  async resendDriverCredentials(id: string): Promise<{ message: string; credentialDeliveryStatus: 'SENT' | 'FAILED' | 'CONSOLE' }> {
+    return this.request(`/drivers/${encodeURIComponent(id)}/credentials/resend`, { method: 'POST' });
   }
 
   async createDriver(body: {
@@ -981,10 +1009,11 @@ class ApiClient {
   // Route Management & VRP Optimization APIs
   // ==========================================
 
-  async getRoutePreparationData(schoolId: string): Promise<RoutePreparationData> {
-    return this.request<RoutePreparationData>(`/routes/preparation/${schoolId}`, {
-      method: 'GET',
-    });
+  async getRoutePreparationData(schoolId: string, filters?: import('./types').GeographyQuery): Promise<RoutePreparationData> {
+    const query = new URLSearchParams();
+    if (filters?.provinceId) query.set('provinceId', filters.provinceId);
+    if (filters?.wardId) query.set('wardId', filters.wardId);
+    return this.request<RoutePreparationData>(`/routes/preparation/${schoolId}${query.size ? '?' + query.toString() : ''}`, { method: 'GET' });
   }
 
   async optimizeRoutePreview(dto: OptimizeRouteDto): Promise<RoutePreviewResponse> {
@@ -1020,6 +1049,7 @@ class ApiClient {
   }
 
   async listRoutePlans(params?: {
+    needsReoptimization?: boolean;
     search?: string;
     schoolId?: string;
     status?: string;
@@ -1027,6 +1057,7 @@ class ApiClient {
     limit?: number;
   }): Promise<RoutePlanListResponse> {
     const searchParams = new URLSearchParams();
+    if (params?.needsReoptimization !== undefined) searchParams.set('needsReoptimization', String(params.needsReoptimization));
     if (params?.search) searchParams.set('search', params.search.trim());
     if (params?.schoolId) searchParams.set('schoolId', params.schoolId);
     if (params?.status) searchParams.set('status', params.status);
@@ -1055,7 +1086,7 @@ class ApiClient {
   async cancelRoutePlan(
     id: string,
     reason: string,
-    expectedFingerprint?: string,
+    expectedFingerprint: string,
   ): Promise<{ message: string; cancelledTripsCount?: number }> {
     return this.request<{ message: string; cancelledTripsCount?: number }>(
       `/routes/route-plans/${id}/cancel`,
@@ -1157,16 +1188,16 @@ class ApiClient {
     );
   }
 
-  async getCandidateDrivers(planId: string): Promise<CandidateDriversResponse> {
+  async getCandidateDrivers(planId: string, vehicleId?: string): Promise<CandidateDriversResponse> {
     return this.request<CandidateDriversResponse>(
-      `/routes/route-plans/${planId}/candidate-drivers`,
+      `/routes/route-plans/${planId}/candidate-drivers${vehicleId ? `?vehicleId=${encodeURIComponent(vehicleId)}` : ''}`,
       { method: 'GET' },
     );
   }
 
-  async getCandidateBusAttendants(planId: string): Promise<CandidateBusAttendantsResponse> {
+  async getCandidateBusAttendants(planId: string, vehicleId?: string): Promise<CandidateBusAttendantsResponse> {
     return this.request<CandidateBusAttendantsResponse>(
-      `/routes/route-plans/${planId}/candidate-bus-attendants`,
+      `/routes/route-plans/${planId}/candidate-bus-attendants${vehicleId ? `?vehicleId=${encodeURIComponent(vehicleId)}` : ''}`,
       { method: 'GET' },
     );
   }

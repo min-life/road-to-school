@@ -1,4 +1,7 @@
 'use client';
+import { canCloseIncident } from '@/lib/web-api-integration';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from '@/stores/toast-store';
 import './_components/incident-modals.css';
 import { IncidentLocation } from './_components/incident-location';
 import { LifecycleDialog } from '@/components/admin/common/lifecycle-dialog';
@@ -58,6 +61,29 @@ export default function AdminIncidentsPage() {
   const [selectedIncidentForDetail, setSelectedIncidentForDetail] =
     useState<TripIncident | null>(null);
 
+  const [closeForm, setCloseForm] = useState(false);
+  const [closeReason, setCloseReason] = useState('');
+  const [closeError, setCloseError] = useState('');
+  const [closingIncident, setClosingIncident] = useState(false);
+  const detailKey = selectedIncidentForDetail?.id;
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset form drafts when the inspected incident changes.
+  useEffect(() => { setCloseForm(false); setCloseReason(''); setCloseError(''); }, [detailKey]);
+
+  async function finishIncident() {
+    if (!selectedIncidentForDetail || !canCloseIncident(selectedIncidentForDetail, user?.role, user?.schoolId) || closingIncident || !closeReason.trim() || closeReason.trim().length > 500) return;
+    setClosingIncident(true); setCloseError('');
+    try {
+      const updated = await apiClient.closeIncident(selectedIncidentForDetail.id, closeReason.trim(), selectedIncidentForDetail.status);
+      setSelectedIncidentForDetail(updated); setCloseForm(false);
+      toast.success('Đã kết thúc sự cố.'); void fetchIncidents();
+    } catch (cause) {
+      setCloseError(cause instanceof Error ? cause.message : 'Không thể kết thúc sự cố.');
+      if (cause instanceof ApiError && cause.statusCode === 409) {
+        try { setSelectedIncidentForDetail(await apiClient.getIncidentDetail(selectedIncidentForDetail.id)); } catch { /* Keep the form and error for review. */ }
+        void fetchIncidents();
+      }
+    } finally { setClosingIncident(false); }
+  }
   useRouteQuery(String(user?.id), (query, isCurrent) => {
     setSchoolFilter(isSystemAdmin ? query.get('schoolId') || '' : '');
     const type = query.get('type'), status = query.get('status');
@@ -428,7 +454,10 @@ export default function AdminIncidentsPage() {
 
       {/* Detail / Evidence Modal */}
       {selectedIncidentForDetail && (
-        <LifecycleDialog open className="incident-dialog" title={getTypeLabel(selectedIncidentForDetail.type)} onClose={() => setSelectedIncidentForDetail(null)} footer={<Button variant="outline" onClick={() => setSelectedIncidentForDetail(null)}>Đóng</Button>}>
+        <LifecycleDialog open className="incident-dialog" title={getTypeLabel(selectedIncidentForDetail.type)} busy={closingIncident} onClose={() => setSelectedIncidentForDetail(null)} footer={<>
+          <Button variant="outline" disabled={closingIncident} onClick={() => setSelectedIncidentForDetail(null)}>Đóng cửa sổ</Button>
+          {canCloseIncident(selectedIncidentForDetail, user?.role, user?.schoolId) && <Button variant="primary" disabled={closingIncident || (closeForm && (!closeReason.trim() || closeReason.trim().length > 500))} onClick={() => closeForm ? void finishIncident() : setCloseForm(true)}>{closingIncident ? 'Đang lưu…' : closeForm ? 'Xác nhận kết thúc' : 'Kết thúc sự cố'}</Button>}
+        </>}>
           <section className="incident-summary" aria-label="Chuyến xe liên quan">
             <span className="incident-summary-icon"><AlertTriangleIcon className="w-5 h-5" aria-hidden="true" /></span>
             <div><span className="incident-label">Chuyến xe</span><strong>{selectedIncidentForDetail.routeName || 'Chuyến xe'}</strong><small>{selectedIncidentForDetail.schoolName}{selectedIncidentForDetail.serviceDate ? ` · ${selectedIncidentForDetail.serviceDate}` : ''}</small></div>
@@ -440,11 +469,16 @@ export default function AdminIncidentsPage() {
           {selectedIncidentForDetail.description && <section className="incident-section"><h3>Nội dung báo</h3><p className="incident-description">{selectedIncidentForDetail.description}</p></section>}
           {selectedIncidentForDetail.resolution && <section className="incident-resolution" data-status={selectedIncidentForDetail.status}>
             <h3>Kết quả xử lý / Giải trình</h3>
-            <strong>{selectedIncidentForDetail.resolution.action === 'ARRIVED' ? 'Đã có mặt' : selectedIncidentForDetail.resolution.action === 'REPLACED' ? 'Đã bố trí thay thế' : 'Đã xử lý'}</strong>
+            <strong>{selectedIncidentForDetail.resolution.action === 'ARRIVED' ? 'Đã có mặt' : selectedIncidentForDetail.resolution.action === 'REPLACED' ? 'Đã bố trí thay thế' : selectedIncidentForDetail.resolution.action === 'CLOSED_BY_ADMIN' ? 'Đã kết thúc sự cố' : 'Đã xử lý'}</strong>
             {selectedIncidentForDetail.resolution.reason && <p>{selectedIncidentForDetail.resolution.reason}</p>}
             {selectedIncidentForDetail.processedByName && <small>Người thực hiện: {selectedIncidentForDetail.processedByName}{selectedIncidentForDetail.processedAt ? ` · ${new Date(selectedIncidentForDetail.processedAt).toLocaleString('vi-VN')}` : ''}</small>}
           </section>}
-          <IncidentLocation incident={selectedIncidentForDetail} />
+          {!closeForm && <IncidentLocation incident={selectedIncidentForDetail} />}
+          {closeError && <p role="alert" className="text-sm text-rose-700">{closeError}</p>}
+          {closeForm && canCloseIncident(selectedIncidentForDetail, user?.role, user?.schoolId) && <section className="incident-section">
+            <label htmlFor="incident-close-reason" className="block mb-2 font-semibold text-sm">Lý do kết thúc <span className="text-rose-600">*</span></label>
+            <Textarea className="block w-full border bg-white px-3 py-2" id="incident-close-reason" autoFocus maxLength={500} rows={3} value={closeReason} disabled={closingIncident} onChange={event => setCloseReason(event.target.value)} />
+          </section>}
         </LifecycleDialog>
       )}
     </div>

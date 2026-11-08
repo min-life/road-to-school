@@ -152,3 +152,35 @@ hiện trạng, không phải yêu cầu tự refactor toàn bộ trong task sty
 - Cài đặt hỗ trợ deep link `/admin/settings?tab=parking`; scheduledChange khác bãi hiện hành. API apply chỉ được gọi từ thao tác xác nhận khi đến ngày hiệu lực.
 - `TripAssignmentModal` kiểm tra lại GET detail/roster trước PATCH; page giữ điều kiện role/policy cũ và bổ sung ready/start/attendance. Thiếu dữ liệu không mặc định là cho phép sửa.
 - Hủy phương án dùng `expectedFingerprint` của cancellation-impact; không tự tính frozenTripsCount khi API không trả. Preview yêu cầu đổi địa chỉ bị vô hiệu sau lỗi duyệt để kiểm tra lại.
+
+## Đồng bộ API main 07/11/2026
+
+- `C/common/geography-filter.tsx`: options tỉnh/phường theo scope, dùng API DB; trường/học sinh lọc server-side qua `api-client.ts`. Không suy ID từ tên.
+- Lập tuyến vẫn giữ dataset gốc cho các học sinh đã chọn/marker; preparation có filter là view độc lập, chọn/bỏ chọn chỉ tác động kết quả đang hiện.
+- `src/lib/web-api-integration.ts`: guard đúng role cho đóng sự cố, hủy toàn vắng, mở lại; parser audit và helper selection độc lập. Backend vẫn quyết định tại mutation.
+- `src/app/admin/trips/admin-finalizations/page.tsx`: alias URL API cũ → tab finalizations, giữ schoolId. Panel chốt hành chính nhận scope trường.
+- `src/app/admin/trips/[id]/_components/trip-actions.tsx`, `reopen-resource-select.tsx`, `trip-operation-history.tsx`: hành động đúng quyền, lý do, nguồn lực tùy chọn có phân trang và audit readonly; không cấp quyền correction/điểm danh cho admin.
+- Sự cố dùng LifecycleDialog hiện có; kết thúc sự cố ở form lý do cùng dialog. LocationSource/capturedAt phân biệt điểm cuối ghi nhận với vị trí hiện tại.
+- Cài đặt bãi phân biệt chưa cấu hình (409 đặc thù) với lỗi tải; tọa độ chưa chọn null, radius từ API; lần cấu hình đầu không hẹn dời.
+- Hướng dẫn thao tác: [business-improvements-usage.md](business-improvements-usage.md). Thu hồi liên kết Parent chưa có UI ghi khi thiếu nguồn GET admin.
+
+## School Admin completion — điểm sở hữu (07/11/2026)
+
+- `src/lib/school-admin.ts`: tọa độ hợp lệ, phone theo DTO, điều kiện đổi địa chỉ từ hai count disable-impact; không gọi API/giữ global state.
+- `components/admin/common/resend-credentials-dialog.tsx`: xác nhận cấp lại cho Giáo viên, dùng client scoped employee, phân biệt delivery status; caller ở teachers list/detail.
+- `components/admin/students/parent-link-history.tsx`: audit thu hồi readonly từ GET học sinh, parse unknown an toàn; không suy parentId/contact.
+- `trips/[id]/_components/reopen-resource-select.tsx`: picker theo trang dùng thêm cho đổi phụ xe; selection độc lập trang, scope role giữ ở caller.
+- Request detail và student address dùng GET disable-impact để xác minh membership. Routing GET lỗi không phải bằng chứng không có tuyến. Backend vẫn kiểm tra trước mutation.
+- Tổng quan: wrapper bảng `relative overflow-x-auto` chứa cả header sr-only để không làm rộng document ở mobile.
+
+### Cấp lại tài khoản System Admin
+
+`resend-credentials-dialog.tsx` dùng discriminated props: kind=driver gọi resendDriverCredentials; kind=school-admin + schoolId gọi resendSchoolEmployeeCredentials; caller giáo viên cũ mặc định teacher và vẫn bắt buộc schoolId. Không đổi auth/store. Driver list/detail đã có guard SYSTEM_ADMIN; Nhân viên trường chỉ hiện action cho SYSTEM_ADMIN → SCHOOL_ADMIN active có email, không dùng quyền quản lý trạng thái để suy quyền cấp mật khẩu. Backend là kiểm tra quyền cuối cùng.
+
+### Lý do hủy phương án — 08/11/2026
+
+Hai workspace System/School dùng chung route-private `_components/route-plan-cancellation-reason.tsx` + CSS tại `routes/plans/[id]`. Chỉ render khi effective status CANCELLED và có reason không rỗng; badge trạng thái luôn giữ. Thay banner lý do bằng nút header, native popover top layer, giới hạn viewport, giữ whitespace/wrap và cuộn nội dung; đóng Escape/bấm ngoài/nút đóng, trả focus khi đóng bàn phím. Các cảnh báo lifecycle/reoptimization/hết hạn giữ nguyên. Không đổi cancellationReason/API/quyền.
+
+### Bộ lọc học sinh khi lập tuyến — 08/11/2026
+
+Route create dùng GeographyFilter với prop opt-in `popover`: tab đủ/chưa đủ điều kiện → tìm kiếm + Bộ lọc → tóm tắt địa bàn/Xóa khi đang lọc → chọn/bỏ chọn đang hiển thị → danh sách. Tỉnh/phường nằm trong native popover top layer, có đóng bằng Escape/bấm ngoài và giới hạn viewport. Caller khác mặc định giữ hai select inline. CSS bố cục riêng ở `routes/create/_components/route-student-filters.css`; CSS popover ở `components/admin/common/geography-filter.css`. Không đổi query preparation hoặc selectedStudentIds; đổi/xóa địa bàn không xóa học sinh đã chọn ngoài kết quả đang hiển thị.

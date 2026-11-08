@@ -1,4 +1,5 @@
 'use client';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { effectivePlanStatus } from '@/lib/school-lifecycle';
 import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
 import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
@@ -33,6 +34,9 @@ import { Badge } from '@/components/ui/badge';
 export default function RoutePlansPage() {
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
 
+  const routeQuery = useSearchParams();
+  const router = useRouter();
+  const needsReoptimization = routeQuery.get('needsReoptimization') === 'true';
   // Data states
   const [plans, setPlans] = useState<RoutePlanItem[]>([]);
   const [totalItems, setTotalItems] = useState(0);
@@ -94,6 +98,7 @@ export default function RoutePlansPage() {
       setLoading(true);
       setError(null);
       const res = await apiClient.listRoutePlans({
+        needsReoptimization: needsReoptimization || undefined,
         search: debouncedSearch.trim() || undefined,
         schoolId: selectedSchoolId || undefined,
         status: selectedStatus || undefined,
@@ -108,7 +113,7 @@ export default function RoutePlansPage() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, selectedSchoolId, selectedStatus, page, limit]);
+  }, [debouncedSearch, selectedSchoolId, selectedStatus, page, limit, needsReoptimization]);
 
   useEffect(() => {
     fetchRoutePlans();
@@ -148,6 +153,7 @@ export default function RoutePlansPage() {
         )} />
 
       {/* Filters Bar */}
+      {needsReoptimization && <Button variant="outline" size="sm" onClick={() => { const next = new URLSearchParams(routeQuery.toString()); next.delete('needsReoptimization'); router.replace('/admin/routes?' + next.toString()); }}>Cần tối ưu lại ×</Button>}
       <FilterToolbar
         hasActiveFilters={Boolean(search || selectedSchoolId || selectedStatus)}
         onReset={() => {
