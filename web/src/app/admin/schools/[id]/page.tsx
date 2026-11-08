@@ -1,31 +1,41 @@
 'use client';
+import type { UpdateSchoolStatusResponse } from '@/lib/types';
+import { displayDate } from '@/lib/school-lifecycle';
+import { BackLink } from '@/components/admin/common/context-navigation';
+
+import { toast } from '@/stores/toast-store';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { schoolTabFromQuery } from '@/lib/back-navigation';
 import { apiClient } from '@/lib/api-client';
 import type { SchoolDetail } from '@/lib/types';
 import {
-  ArrowLeftIcon,
   SchoolIcon,
   MapPinIcon,
   CalendarIcon,
-  ClockIcon,
   UsersIcon,
   SpinnerIcon,
   AlertIcon,
-  CheckIcon,
   StudentIcon,
   RouteIcon,
   BusIcon,
 } from '@/components/icons';
 import { useAuth } from '@/components/auth/auth-provider';
 import { SchoolStatusDialog } from '@/components/admin/schools/school-status-dialog';
-import { EditSchoolModal } from '@/components/admin/schools/edit-school-modal';
-import { SchoolEmployeesTab } from '@/components/admin/schools/school-employees-tab';
+import { VietMapPicker } from '@/components/admin/schools/vietmap-picker';
+import { EditSchoolModal } from './_components/edit-school-modal';
+import { SchoolEmployeesTab } from './_components/school-employees-tab';
 import { StudentTable } from '@/components/admin/students/student-table';
-import { SchoolRoutesTab } from '@/components/admin/schools/school-routes-tab';
-import { SchoolTripsTab } from '@/components/admin/schools/school-trips-tab';
+import { SchoolRoutesTab } from './_components/school-routes-tab';
+import { SchoolTripsTab } from './_components/school-trips-tab';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
+import { Badge } from '@/components/ui/badge';
+import { SchoolSchedule } from '@/components/admin/schools/school-schedule';
+import { SchoolOperatingCalendar, type CalendarTab } from '@/components/admin/schools/school-operating-calendar';
+import './_components/school-detail.css';
 
 function formatDate(dateStr: string): string {
   if (!dateStr) return '';
@@ -37,26 +47,6 @@ function formatDate(dateStr: string): string {
   return `${day}/${month}/${year}`;
 }
 
-const DAY_LABELS: Record<string, string> = {
-  monday: 'Thứ 2',
-  tuesday: 'Thứ 3',
-  wednesday: 'Thứ 4',
-  thursday: 'Thứ 5',
-  friday: 'Thứ 6',
-  saturday: 'Thứ 7',
-  sunday: 'Chủ nhật',
-};
-
-const DAY_ORDER = [
-  'monday',
-  'tuesday',
-  'wednesday',
-  'thursday',
-  'friday',
-  'saturday',
-  'sunday',
-];
-
 export default function AdminSchoolDetailPage() {
   const { user } = useAuth();
   const params = useParams();
@@ -66,14 +56,23 @@ export default function AdminSchoolDetailPage() {
   const [school, setSchool] = useState<SchoolDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
+
 
   // Edit & Status modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
+  const [showSchoolMap, setShowSchoolMap] = useState(false);
+  const [operatingCalendarTab, setOperatingCalendarTab] = useState<CalendarTab>('calendar');
 
   // Horizontal Tabs (employees, students, routes, trips)
-  const [activeTab, setActiveTab] = useState<'employees' | 'students' | 'routes' | 'trips'>('employees');
+  const pathname = usePathname();
+  const query = useSearchParams();
+  const activeTab = schoolTabFromQuery(query.get('tab'));
+  const setActiveTab = (tab: typeof activeTab) => {
+    const nextQuery = new URLSearchParams(query.toString());
+    nextQuery.set('tab', tab);
+    router.replace(`${pathname}?${nextQuery}`, { scroll: false });
+  };
 
   const fetchSchoolDetail = useCallback(async () => {
     if (!schoolId) return;
@@ -96,16 +95,14 @@ export default function AdminSchoolDetailPage() {
     fetchSchoolDetail();
   }, [fetchSchoolDetail]);
 
-  const handleStatusChangeSuccess = (newStatus: boolean) => {
-    setSuccessToast(
-      newStatus
-        ? 'Đã kích hoạt lại trường học thành công.'
-        : 'Đã chuyển trường học sang trạng thái ngừng hoạt động.',
+  const handleStatusChangeSuccess = (result: UpdateSchoolStatusResponse) => {
+    toast.success(
+      result.changeStatus === 'PENDING' && result.effectiveDate
+        ? `Đã hẹn ngừng hoạt động từ ${displayDate(result.effectiveDate)}.`
+        : result.message || 'Đã cập nhật trạng thái trường học.',
     );
     fetchSchoolDetail();
-    setTimeout(() => {
-      setSuccessToast(null);
-    }, 4000);
+
   };
 
   if (isLoading) {
@@ -120,15 +117,9 @@ export default function AdminSchoolDetailPage() {
   if (errorMessage || !school) {
     return (
       <div className="space-y-6">
-        <Link
-          href="/admin/schools"
-          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
-        >
-          <ArrowLeftIcon className="w-4 h-4" />
-          <span>Quay lại danh sách trường</span>
-        </Link>
+        <BackLink fallback="/admin/schools" className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors" />
 
-        <div className="bg-white rounded-2xl border border-red-200 p-8 text-center max-w-lg mx-auto shadow-xs">
+        <Card className="bg-white rounded-2xl border border-red-200 p-8 text-center max-w-lg mx-auto shadow-xs">
           <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 mx-auto flex items-center justify-center mb-4">
             <AlertIcon className="w-6 h-6" />
           </div>
@@ -138,46 +129,24 @@ export default function AdminSchoolDetailPage() {
           <p className="text-xs text-slate-600 mb-6 leading-relaxed">
             {errorMessage || 'Trường học không tồn tại hoặc đã bị xóa.'}
           </p>
-          <button
-            type="button"
-            onClick={() => router.push('/admin/schools')}
-            className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition-colors cursor-pointer"
-          >
-            Quay lại danh sách trường
-          </button>
-        </div>
+          <BackLink fallback="/admin/schools" className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition-colors cursor-pointer" />
+        </Card>
       </div>
     );
   }
 
-  // Phân tích lịch học tuần
-  const activeScheduleDays = DAY_ORDER.filter(
-    (dayKey) => school.weeklySchedule && school.weeklySchedule[dayKey],
-  );
-
   return (
     <div className="space-y-6">
       {/* Toast thông báo */}
-      {successToast && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2 font-medium">
-          <CheckIcon className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span>{successToast}</span>
-        </div>
-      )}
+
 
       {/* Navigation quay lại */}
       <div>
-        <Link
-          href="/admin/schools"
-          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-[#1E293B] transition-colors"
-        >
-          <ArrowLeftIcon className="w-4 h-4" />
-          <span>Danh sách trường học</span>
-        </Link>
+        <BackLink fallback="/admin/schools" className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-foreground transition-colors" />
       </div>
 
       {/* Header Trường học (Wireframe W5) */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs">
+      <Card className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6">
           <div className="flex items-start gap-4">
             {/* Ảnh trường học hoặc Placeholder */}
@@ -194,12 +163,12 @@ export default function AdminSchoolDetailPage() {
             </div>
 
             {/* Tên & Trạng thái */}
-            <div className="space-y-1.5">
+            <PageHeader className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-xl sm:text-2xl font-bold text-[#1E293B] tracking-tight">
+                <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">
                   {school.name}
                 </h1>
-                <span
+                <Badge
                   className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
                     school.isActive
                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
@@ -212,32 +181,34 @@ export default function AdminSchoolDetailPage() {
                     }`}
                   />
                   {school.isActive ? 'Đang hoạt động' : 'Ngừng hoạt động'}
-                </span>
+                </Badge>
               </div>
 
               <p className="text-xs sm:text-sm text-slate-600 flex items-center gap-1.5 pt-0.5">
                 <MapPinIcon className="w-4 h-4 text-slate-400 shrink-0" />
                 <span>{school.addressText}</span>
               </p>
+              <Button type="button" variant="outline" size="sm" className="school-detail-map-toggle"
+                aria-expanded={showSchoolMap} aria-controls="school-detail-location" onClick={() => setShowSchoolMap((open) => !open)}>
+                <MapPinIcon className="w-4 h-4" aria-hidden="true" />
+                {showSchoolMap ? 'Thu gọn bản đồ' : 'Xem bản đồ'}
+              </Button>
 
-              <p className="text-xs text-slate-500">
-                Tọa độ: {school.latitude.toFixed(6)}, {school.longitude.toFixed(6)}
-              </p>
-            </div>
+            </PageHeader>
           </div>
 
           {/* Action Buttons */}
           <div className="shrink-0 flex items-center gap-2">
             {user?.role === 'SYSTEM_ADMIN' && (
-              <button
+              <Button variant="outline" size="sm"
                 type="button"
                 onClick={() => setIsEditModalOpen(true)}
                 className="px-3.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 shadow-2xs"
               >
                 Chỉnh sửa trường & vị trí
-              </button>
+              </Button>
             )}
-            <button
+            <Button
               type="button"
               onClick={() => setIsStatusDialogOpen(true)}
               className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer border shadow-2xs ${
@@ -247,116 +218,90 @@ export default function AdminSchoolDetailPage() {
               }`}
             >
               {school.isActive ? 'Ngừng hoạt động' : 'Kích hoạt lại'}
-            </button>
+            </Button>
           </div>
         </div>
 
-        {/* Thông tin Hợp đồng & Lịch học */}
-        <div className="mt-6 pt-6 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-6 text-xs text-slate-700">
-          {/* Thời hạn hợp đồng */}
-          <div className="space-y-2 bg-slate-50/60 p-4 rounded-xl border border-slate-200/60">
-            <h3 className="font-bold text-slate-800 flex items-center gap-1.5 uppercase text-[11px] tracking-wider text-slate-500">
-              <CalendarIcon className="w-4 h-4 text-amber-500" />
-              <span>Thời hạn hợp đồng</span>
-            </h3>
-            <p className="text-sm font-semibold text-slate-800">
-              {formatDate(school.contractStartDate)} – {formatDate(school.contractEndDate)}
+        <div className="school-detail-summary">
+          <section className="school-detail-info-card school-detail-contract-card" aria-label="Thời hạn hợp đồng">
+            <div className="school-detail-section-heading">
+              <h3><CalendarIcon className="w-4 h-4" aria-hidden="true" />Thời hạn hợp đồng</h3>
+            </div>
+            <p className="school-detail-contract">
+              <time dateTime={school.contractStartDate}>{formatDate(school.contractStartDate)}</time>
+              <span>–</span>
+              <time dateTime={school.contractEndDate}>{formatDate(school.contractEndDate)}</time>
             </p>
-            <p className="text-[11px] text-slate-500">
-              Hệ thống tự động kiểm tra thời hạn hợp đồng khi kích hoạt lại trường học.
-            </p>
-          </div>
-
-          {/* Lịch học trong tuần */}
-          <div className="space-y-2 bg-slate-50/60 p-4 rounded-xl border border-slate-200/60">
-            <h3 className="font-bold text-slate-800 flex items-center gap-1.5 uppercase text-[11px] tracking-wider text-slate-500">
-              <ClockIcon className="w-4 h-4 text-amber-500" />
-              <span>Lịch học theo tuần</span>
-            </h3>
-            {activeScheduleDays.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">Chưa có cấu hình lịch học</p>
-            ) : (
-              <div className="space-y-1">
-                {activeScheduleDays.map((dayKey) => {
-                  const schedule = school.weeklySchedule[dayKey];
-                  if (!schedule) return null;
-                  return (
-                    <div
-                      key={dayKey}
-                      className="flex items-center justify-between text-xs py-0.5 border-b border-slate-200/40 last:border-0"
-                    >
-                      <span className="font-semibold text-slate-800">
-                        {DAY_LABELS[dayKey] || dayKey}:
-                      </span>
-                      <span className="text-slate-600">
-                        {schedule.start} – {schedule.end}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          </section>
+          <SchoolSchedule schedule={school.weeklySchedule ?? {}} schoolName={school.name} schoolId={school.id} contractStartDate={school.contractStartDate} contractEndDate={school.contractEndDate} isActive={school.isActive} />
         </div>
-      </div>
+        {showSchoolMap && (
+          <section id="school-detail-location" className="school-detail-location" aria-label="Vị trí trường">
+            <VietMapPicker
+              latitude={school.latitude}
+              longitude={school.longitude}
+              onChangeCoordinates={() => undefined}
+              disabled
+            />
+          </section>
+        )}
+      </Card>
 
       {/* 14. Horizontal Tabs (Section 14 & Wireframe W6) */}
-      <div className="space-y-4">
-        <div className="flex border-b border-slate-200 gap-6">
-          <button
+      <div className="space-y-2">
+        <div className="flex flex-wrap border-b border-slate-200 gap-6">
+          <Button
+            type="button"
+            onClick={() => setActiveTab('calendar')}
+            variant={activeTab === 'calendar' ? 'primary' : 'ghost'}
+            size="sm"
+          >
+            <CalendarIcon className="w-4 h-4" />
+            Lịch vận hành
+          </Button>
+          <Button
             type="button"
             onClick={() => setActiveTab('employees')}
-            className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
-              activeTab === 'employees'
-                ? 'border-[#FFCB56] text-[#1E293B]'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
+            variant={activeTab === 'employees' ? 'primary' : 'ghost'}
+            size="sm"
           >
             <UsersIcon className="w-4 h-4" />
             <span>Nhân viên trường</span>
-          </button>
+          </Button>
 
-          <button
+          <Button
             type="button"
             onClick={() => setActiveTab('students')}
-            className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
-              activeTab === 'students'
-                ? 'border-[#FFCB56] text-[#1E293B]'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
+            variant={activeTab === 'students' ? 'primary' : 'ghost'}
+            size="sm"
           >
             <StudentIcon className="w-4 h-4" />
             <span>Học sinh</span>
-          </button>
+          </Button>
 
-          <button
+          <Button
             type="button"
             onClick={() => setActiveTab('routes')}
-            className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
-              activeTab === 'routes'
-                ? 'border-[#FFCB56] text-[#1E293B]'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
+            variant={activeTab === 'routes' ? 'primary' : 'ghost'}
+            size="sm"
           >
             <RouteIcon className="w-4 h-4" />
             <span>Phương án tuyến</span>
-          </button>
+          </Button>
 
-          <button
+          <Button
             type="button"
             onClick={() => setActiveTab('trips')}
-            className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
-              activeTab === 'trips'
-                ? 'border-[#FFCB56] text-[#1E293B]'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
+            variant={activeTab === 'trips' ? 'primary' : 'ghost'}
+            size="sm"
           >
             <BusIcon className="w-4 h-4" />
             <span>Chuyến xe</span>
-          </button>
+          </Button>
         </div>
 
         {/* Tab Content */}
+        {activeTab === 'calendar' && <SchoolOperatingCalendar schoolId={school.id} role={user?.role ?? null} onUpdated={fetchSchoolDetail} activeTab={operatingCalendarTab} onTabChange={setOperatingCalendarTab} />}
         {activeTab === 'employees' && (
           <SchoolEmployeesTab
             schoolId={school.id}
@@ -397,9 +342,10 @@ export default function AdminSchoolDetailPage() {
         school={school}
         userRole={user?.role}
         onClose={() => setIsEditModalOpen(false)}
-        onSuccess={(msg?: string) => {
+        onSuccess={(msg?: string, partial?: boolean) => {
           setIsEditModalOpen(false);
-          setSuccessToast(msg || 'Cập nhật thông tin trường học thành công.');
+          if (partial) toast.warning(msg || 'Chỉ lưu được một phần thay đổi.');
+          else toast.success(msg || 'Cập nhật thông tin trường học thành công.');
           fetchSchoolDetail();
         }}
       />
@@ -410,6 +356,7 @@ export default function AdminSchoolDetailPage() {
         schoolId={school.id}
         schoolName={school.name}
         currentIsActive={school.isActive}
+        contractEndDate={school.contractEndDate}
         onClose={() => setIsStatusDialogOpen(false)}
         onSuccess={handleStatusChangeSuccess}
       />

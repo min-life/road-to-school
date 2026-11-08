@@ -1,17 +1,22 @@
 'use client';
+import { GeographyFilter } from '@/components/admin/common/geography-filter';
+import type { GeographyQuery } from '@/lib/types';
+import { TableActions } from '@/components/admin/common/table-actions';
+import { FilterField } from '@/components/ui/filter-toolbar';
+
+import { toast } from '@/stores/toast-store';
 
 import { useRouteQuery } from '@/hooks/use-route-query';
 
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import Link from 'next/link';
+import { ContextLink } from '@/components/admin/common/context-navigation';
 import { apiClient } from '@/lib/api-client';
 import type { StudentListItem, StudentStatus, EmptyRoutePlanInfo } from '@/lib/types';
 import {
   SearchIcon,
   SpinnerIcon,
   AlertIcon,
-  CheckIcon,
   StudentIcon,
   PhoneIcon,
 } from '@/components/icons';
@@ -22,12 +27,19 @@ import { InsertStudentModal } from './insert-student-modal';
 import { EmptyRoutePlanActionModal } from './empty-route-plan-action-modal';
 import { CancelRoutePlanModal } from '@/components/admin/routes/cancel-route-plan-modal';
 import { authStorage } from '@/lib/auth-storage';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Table } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { StudentCardSelectionCheckbox, StudentCardSelectionToolbar, useStudentCardSelection } from './student-card-selection';
+import { StudentCardPrinter } from './student-card-printer';
 
 interface StudentTableProps {
   schoolId: string;
   readOnly?: boolean;
   baseDetailUrl?: string; // e.g. "/admin/students" or "/admin/schools/:schoolId/students"
   onAddClick?: () => void;
+  allowCardPrinting?: boolean;
 }
 
 export function StudentTable({
@@ -35,7 +47,9 @@ export function StudentTable({
   readOnly = false,
   baseDetailUrl = '/admin/students',
   onAddClick,
+  allowCardPrinting = false,
 }: StudentTableProps) {
+  const [geography, setGeography] = useState<GeographyQuery>({});
   // Query state
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'AVAILABLE' | 'DISABLED'>('ALL');
@@ -50,11 +64,16 @@ export function StudentTable({
   });
   // Data state
   const [students, setStudents] = useState<StudentListItem[]>([]);
+  const [routeMembership, setRouteMembership] = useState<Record<string, boolean>>({});
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
+  const selection = useStudentCardSelection(schoolId, students);
+  const [printRequest, setPrintRequest] = useState<{ schoolId: string; studentIds: string[] } | null>(null);
+  const closePrint = useCallback(() => setPrintRequest(null), []);
+  const handlePrintError = useCallback((message: string) => { toast.error(message); setPrintRequest(null); }, []);
+
 
   // Status toggle modal state
   const [selectedStudent, setSelectedStudent] = useState<StudentListItem | null>(null);
@@ -86,6 +105,7 @@ export function StudentTable({
 
     try {
       const params: Parameters<typeof apiClient.getStudents>[1] = {
+        ...geography,
         page,
         limit,
       };
@@ -109,10 +129,25 @@ export function StudentTable({
 
       // Only apply if it's the latest request
       if (requestId === latestRequestRef.current) {
+        setRouteMembership({});
         setStudents(res.items);
         setTotal(res.meta.totalItems);
         setTotalPages(res.meta.totalPages);
       }
+      if (requestId !== latestRequestRef.current || currentUserRole !== 'SYSTEM_ADMIN') return;
+      const candidates = res.items.filter(student => student.status === 'AVAILABLE' && student.hasAddress);
+      const memberships: Record<string, boolean> = {};
+      for (let index = 0; index < candidates.length; index += 4) {
+        if (requestId !== latestRequestRef.current) return;
+        const results = await Promise.allSettled(candidates.slice(index, index + 4).map(async student => ({
+          id: student.id,
+          assigned: (await apiClient.getStudentInsertionOptions(student.id)).hasActiveMembership,
+        })));
+        for (const result of results) {
+          if (result.status === 'fulfilled') memberships[result.value.id] = result.value.assigned;
+        }
+      }
+      if (requestId === latestRequestRef.current) setRouteMembership(memberships);
     } catch (err: any) {
       if (requestId === latestRequestRef.current) {
         setErrorMessage(err?.message || 'Không thể tải danh sách học sinh.');
@@ -122,10 +157,11 @@ export function StudentTable({
         setIsLoading(false);
       }
     }
-  }, [schoolId, page, limit, search, statusFilter, addressFilter, routingFilter]);
+  }, [schoolId, page, limit, search, statusFilter, addressFilter, routingFilter, currentUserRole, geography]);
 
   useEffect(() => {
     fetchStudents();
+    return () => { latestRequestRef.current += 1; };
   }, [fetchStudents]);
 
   const handleOpenStatusModal = (student: StudentListItem) => {
@@ -188,26 +224,21 @@ export function StudentTable({
       prev.map((s) => (s.id === studentId ? { ...s, status: newStatus } : s))
     );
     if (res?.message) {
-      setSuccessToast(res.message);
+      toast.success(res.message);
     } else {
-      setSuccessToast(
+      toast.success(
         newStatus === 'AVAILABLE'
           ? 'Đã kích hoạt lại học sinh thành công.'
           : 'Đã vô hiệu hóa học sinh thành công.'
       );
     }
-    setTimeout(() => setSuccessToast(null), 5000);
+
   };
 
   return (
     <div className="space-y-4">
       {/* Toast message */}
-      {successToast && (
-        <div className="flex items-center gap-2 p-3 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg animate-in fade-in duration-200">
-          <CheckIcon className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-          <span>{successToast}</span>
-        </div>
-      )}
+
 
       {/* Cảnh báo tuyến rỗng cần hủy phương án để tối ưu lại */}
       {emptyPlanNotice && (
@@ -225,7 +256,7 @@ export function StudentTable({
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button
+            <Button
               type="button"
               onClick={() => {
                 setCancellingPlan({
@@ -237,25 +268,25 @@ export function StudentTable({
               className="px-3 py-1.5 rounded-lg bg-rose-600 text-white font-medium hover:bg-rose-700 transition-colors cursor-pointer text-xs"
             >
               Hủy toàn bộ phương án
-            </button>
-            <Link
+            </Button>
+            <ContextLink data-variant="outline" data-size="sm"
               href={`/admin/routes/plans/${emptyPlanNotice.planId}`}
-              className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition-colors cursor-pointer text-xs"
+              className="ui-button px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition-colors cursor-pointer text-xs"
             >
               Xem phương án
-            </Link>
-            <button
+            </ContextLink>
+            <Button
               type="button"
               onClick={() => setEmptyPlanNotice(null)}
               className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
             >
               ✕
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
-      <select aria-label="Phân tuyến" value={routingFilter} onChange={event => { setRoutingFilter(event.target.value); setPage(1); }} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"><option value="">Tất cả phân tuyến</option><option value="UNASSIGNED">Chưa có tuyến</option></select>
+
       {/* Filter bar */}
       <StudentFilters
         search={search}
@@ -282,35 +313,44 @@ export function StudentTable({
           setPage(1);
         }}
         onReset={() => {
+          setGeography({});
           setSearch('');
           setStatusFilter('ALL');
           setAddressFilter('ALL'); setRoutingFilter('');
           setPage(1);
         }}
-        hasActiveFilters={Boolean(search || statusFilter !== 'ALL' || addressFilter !== 'ALL' || routingFilter !== '')}
-      />
+        hasActiveFilters={Boolean(search || statusFilter !== 'ALL' || addressFilter !== 'ALL' || routingFilter !== '' || !!geography.provinceId || !!geography.wardId)}
+      ><FilterField label="Phân tuyến"><select aria-label="Phân tuyến" value={routingFilter} onChange={event => { setRoutingFilter(event.target.value); setPage(1); }} className="w-full"><option value="">Tất cả phân tuyến</option><option value="UNASSIGNED">Chưa có tuyến</option></select></FilterField><GeographyFilter schoolId={schoolId} value={geography} onChange={value => { setGeography(value); setPage(1); }} /></StudentFilters>
 
       {/* Error state */}
       {errorMessage && (
         <div className="flex items-center gap-2 p-4 text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl">
           <AlertIcon className="w-5 h-5 text-red-600 flex-shrink-0" />
           <div className="flex-1">{errorMessage}</div>
-          <button
+          <Button
             type="button"
             onClick={fetchStudents}
             className="text-xs font-semibold text-red-700 hover:text-red-900 underline ml-2 cursor-pointer"
           >
             Thử lại
-          </button>
+          </Button>
         </div>
       )}
 
       {/* Table Container */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+      {allowCardPrinting && <StudentCardSelectionToolbar count={selection.values.length} onClear={selection.clear}
+        printing={printRequest?.schoolId === schoolId} onCancel={closePrint}
+        onPrint={() => setPrintRequest({ schoolId, studentIds: selection.values.map(student => student.id) })} />}
+      <Card className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-700">
+          <Table className="w-full text-left text-sm text-slate-700" minWidth={allowCardPrinting ? 1378 : 1330}>
+            <colgroup>{allowCardPrinting && <col style={{ width: 48 }} />}<col /><col style={{ width: 160 }} /><col style={{ width: 170 }} /><col style={{ width: 190 }} /><col style={{ width: 180 }} /><col style={{ width: 390 }} /></colgroup>
             <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
               <tr>
+                {allowCardPrinting && <th className="px-4 py-3" scope="col">
+                  <StudentCardSelectionCheckbox checked={selection.allOnPage} mixed={selection.someOnPage && !selection.allOnPage}
+                    disabled={isLoading || !students.length} label="Chọn tất cả học sinh trên trang này" onChange={selection.togglePage} />
+                </th>}
                 <th className="px-4 py-3">Học sinh</th>
                 <th className="px-4 py-3">Mã học sinh</th>
                 <th className="px-4 py-3">SĐT Phụ huynh</th>
@@ -322,7 +362,7 @@ export function StudentTable({
             <tbody className="divide-y divide-slate-100">
               {isLoading && students.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
+                  <td colSpan={allowCardPrinting ? 7 : 6} className="px-4 py-12 text-center text-slate-400">
                     <div className="inline-flex items-center gap-2">
                       <SpinnerIcon className="w-5 h-5 animate-spin text-amber-500" />
                       <span>Đang tải danh sách học sinh...</span>
@@ -331,7 +371,7 @@ export function StudentTable({
                 </tr>
               ) : students.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
+                  <td colSpan={allowCardPrinting ? 7 : 6} className="px-4 py-12 text-center text-slate-500">
                     <div className="max-w-xs mx-auto space-y-2">
                       <div className="w-12 h-12 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
                         <StudentIcon className="w-6 h-6" />
@@ -343,13 +383,13 @@ export function StudentTable({
                           : 'Bắt đầu thêm học sinh vào trường của bạn.'}
                       </p>
                       {!readOnly && onAddClick && !search && statusFilter === 'ALL' && addressFilter === 'ALL' && (
-                        <button
+                        <Button variant="primary" size="sm"
                           type="button"
                           onClick={onAddClick}
-                          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-900 bg-[#FFCB56] hover:bg-amber-400 rounded-lg transition-colors cursor-pointer"
+                          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-900 bg-primary hover:bg-amber-400 rounded-lg transition-colors cursor-pointer"
                         >
                           + Thêm học sinh
-                        </button>
+                        </Button>
                       )}
                     </div>
                   </td>
@@ -364,6 +404,10 @@ export function StudentTable({
                       key={student.id}
                       className="hover:bg-amber-50/30 transition-colors group"
                     >
+                      {allowCardPrinting && <td className="px-4 py-3">
+                        <StudentCardSelectionCheckbox checked={!!selection.selected[student.id]} disabled={isLoading}
+                          label={`Chọn ${student.fullName}, mã ${student.code}`} onChange={() => selection.toggle(student)} />
+                      </td>}
                       {/* Avatar + Full Name */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
@@ -379,12 +423,12 @@ export function StudentTable({
                             </div>
                           )}
                           <div>
-                            <Link
+                            <ContextLink
                               href={detailHref}
                               className="font-semibold text-slate-900 hover:text-amber-700 transition-colors line-clamp-1"
                             >
                               {student.fullName}
-                            </Link>
+                            </ContextLink>
                           </div>
                         </div>
                       </td>
@@ -407,75 +451,48 @@ export function StudentTable({
                       {/* Address Availability */}
                       <td className="px-4 py-3 text-center">
                         {student.hasAddress ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                             Đã có địa chỉ
-                          </span>
+                          </Badge>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                          <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                             Chưa có địa chỉ
-                          </span>
+                          </Badge>
                         )}
                       </td>
 
                       {/* Student Status */}
                       <td className="px-4 py-3 text-center">
                         {isAvailable ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
                             Khả dụng
-                          </span>
+                          </Badge>
                         ) : (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-300">
+                          <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-300">
                             Đã vô hiệu hóa
-                          </span>
+                          </Badge>
                         )}
                       </td>
 
                       {/* Actions */}
                       <td className="px-4 py-3 text-right">
-                        <div className="inline-flex items-center gap-2">
-                          <Link
-                            href={detailHref}
-                            className="text-xs font-medium text-slate-600 hover:text-amber-700 px-2.5 py-1 rounded-lg hover:bg-slate-100 transition-colors"
-                          >
-                            Xem chi tiết
-                          </Link>
-
-                          {currentUserRole === 'SYSTEM_ADMIN' && isAvailable && student.hasAddress && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setInsertingStudent(student);
-                                setIsInsertModalOpen(true);
-                              }}
-                              className="text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-                            >
-                              Thêm vào tuyến
-                            </button>
-                          )}
-
-                          {!readOnly && (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenStatusModal(student)}
-                              className={`text-xs font-medium px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
-                                isAvailable
-                                  ? 'text-red-700 hover:bg-red-50 border border-red-200'
-                                  : 'text-emerald-700 hover:bg-emerald-50 border border-emerald-200'
-                              }`}
-                            >
-                              {isAvailable ? 'Vô hiệu hóa' : 'Kích hoạt'}
-                            </button>
-                          )}
-                        </div>
+                        <TableActions label={`Thao tác với ${student.fullName}`} actions={[
+                          ...(currentUserRole === 'SYSTEM_ADMIN' && isAvailable && student.hasAddress && routeMembership[student.id] === false ? [{
+                            label: 'Thêm vào tuyến', primary: true,
+                            onClick: () => { setInsertingStudent(student); setIsInsertModalOpen(true); },
+                          }] : []),
+                          { label: 'Chi tiết', href: detailHref },
+                        ]} more={!readOnly ? [{ label: isAvailable ? 'Vô hiệu hóa' : 'Kích hoạt', danger: isAvailable,
+                          onClick: () => handleOpenStatusModal(student) }] : []} />
                       </td>
                     </tr>
                   );
                 })
               )}
             </tbody>
-          </table>
+          </Table>
         </div>
 
         {/* Pagination bar */}
@@ -491,9 +508,13 @@ export function StudentTable({
             setPage(1);
           }}
         />
-      </div>
+      </Card>
 
       {/* Status Confirm Modal */}
+      {allowCardPrinting && printRequest?.schoolId === schoolId && printRequest.studentIds.length > 0 &&
+        <StudentCardPrinter schoolId={schoolId} studentIds={printRequest.studentIds}
+          onClose={closePrint} onError={handlePrintError} />}
+
       {selectedStudent && targetStatus && (
         <StatusConfirmModal
           isOpen={isStatusModalOpen}
@@ -522,7 +543,7 @@ export function StudentTable({
         onSuccess={() => {
           setIsInsertModalOpen(false);
           setInsertingStudent(null);
-          setSuccessToast('Đã thêm học sinh vào cặp tuyến thành công.');
+          toast.success('Đã thêm học sinh vào cặp tuyến thành công.');
           fetchStudents();
         }}
       />
@@ -557,10 +578,8 @@ export function StudentTable({
           onSuccess={() => {
             setCancellingPlan(null);
             setEmptyPlanNotice(null);
-            setSuccessToast(
-              'Đã hủy toàn bộ phương án tuyến thành công. Tài nguyên xe và tài xế đã được giải phóng.',
-            );
-            setTimeout(() => setSuccessToast(null), 5000);
+
+
             fetchStudents();
           }}
         />

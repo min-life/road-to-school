@@ -1,0 +1,318 @@
+{
+  "results": [
+    {
+      "route": "/login",
+      "width": 1440,
+      "scrollWidth": 1440,
+      "font": "beVietnamPro, \"beVietnamPro Fallback\", Arial, Helvetica, sans-serif",
+      "hero": "block",
+      "inputHeight": 52,
+      "buttonHeight": 56,
+      "headingSize": "39px",
+      "primaryColor": "rgb(255, 203, 86)",
+      "cssLoaded": "900px",
+      "images": [
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image",
+          "loaded": true
+        },
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        }
+      ]
+    },
+    {
+      "route": "/login",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "font": "beVietnamPro, \"beVietnamPro Fallback\", Arial, Helvetica, sans-serif",
+      "hero": "block",
+      "inputHeight": 52,
+      "buttonHeight": 56,
+      "headingSize": "39px",
+      "primaryColor": "rgb(255, 203, 86)",
+      "cssLoaded": "900px",
+      "images": [
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image",
+          "loaded": true
+        },
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        }
+      ]
+    },
+    {
+      "route": "/login",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "font": "beVietnamPro, \"beVietnamPro Fallback\", Arial, Helvetica, sans-serif",
+      "hero": "block",
+      "inputHeight": 52,
+      "buttonHeight": 56,
+      "headingSize": "39px",
+      "primaryColor": "rgb(255, 203, 86)",
+      "cssLoaded": "900px",
+      "images": [
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image",
+          "loaded": true
+        },
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        }
+      ]
+    },
+    {
+      "route": "/login",
+      "width": 768,
+      "scrollWidth": 768,
+      "font": "beVietnamPro, \"beVietnamPro Fallback\", Arial, Helvetica, sans-serif",
+      "hero": "block",
+      "inputHeight": 52,
+      "buttonHeight": 56,
+      "headingSize": "39px",
+      "primaryColor": "rgb(255, 203, 86)",
+      "cssLoaded": "900px",
+      "images": [
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image",
+          "loaded": true
+        },
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        }
+      ]
+    },
+    {
+      "route": "/login",
+      "width": 760,
+      "scrollWidth": 760,
+      "font": "beVietnamPro, \"beVietnamPro Fallback\", Arial, Helvetica, sans-serif",
+      "hero": "none",
+      "inputHeight": 52,
+      "buttonHeight": 56,
+      "headingSize": "39px",
+      "primaryColor": "rgb(255, 203, 86)",
+      "cssLoaded": "900px",
+      "images": [
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image",
+          "loaded": true
+        },
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        }
+      ]
+    },
+    {
+      "route": "/login",
+      "width": 390,
+      "scrollWidth": 390,
+      "font": "beVietnamPro, \"beVietnamPro Fallback\", Arial, Helvetica, sans-serif",
+      "hero": "none",
+      "inputHeight": 52,
+      "buttonHeight": 56,
+      "headingSize": "34px",
+      "primaryColor": "rgb(255, 203, 86)",
+      "cssLoaded": "900px",
+      "images": [
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image",
+          "loaded": true
+        },
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        }
+      ]
+    },
+    {
+      "route": "/forgot-password",
+      "width": 1440,
+      "scrollWidth": 1440,
+      "font": "beVietnamPro, \"beVietnamPro Fallback\", Arial, Helvetica, sans-serif",
+      "hero": "block",
+      "inputHeight": 52,
+      "buttonHeight": 56,
+      "headingSize": "39px",
+      "primaryColor": "rgb(255, 203, 86)",
+      "cssLoaded": "900px",
+      "images": [
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image",
+          "loaded": true
+        },
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        }
+      ]
+    },
+    {
+      "route": "/forgot-password",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "font": "beVietnamPro, \"beVietnamPro Fallback\", Arial, Helvetica, sans-serif",
+      "hero": "block",
+      "inputHeight": 52,
+      "buttonHeight": 56,
+      "headingSize": "39px",
+      "primaryColor": "rgb(255, 203, 86)",
+      "cssLoaded": "900px",
+      "images": [
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image",
+          "loaded": true
+        },
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        }
+      ]
+    },
+    {
+      "route": "/forgot-password",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "font": "beVietnamPro, \"beVietnamPro Fallback\", Arial, Helvetica, sans-serif",
+      "hero": "block",
+      "inputHeight": 52,
+      "buttonHeight": 56,
+      "headingSize": "39px",
+      "primaryColor": "rgb(255, 203, 86)",
+      "cssLoaded": "900px",
+      "images": [
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image",
+          "loaded": true
+        },
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        }
+      ]
+    },
+    {
+      "route": "/forgot-password",
+      "width": 768,
+      "scrollWidth": 768,
+      "font": "beVietnamPro, \"beVietnamPro Fallback\", Arial, Helvetica, sans-serif",
+      "hero": "block",
+      "inputHeight": 52,
+      "buttonHeight": 56,
+      "headingSize": "39px",
+      "primaryColor": "rgb(255, 203, 86)",
+      "cssLoaded": "900px",
+      "images": [
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image",
+          "loaded": true
+        },
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        }
+      ]
+    },
+    {
+      "route": "/forgot-password",
+      "width": 760,
+      "scrollWidth": 760,
+      "font": "beVietnamPro, \"beVietnamPro Fallback\", Arial, Helvetica, sans-serif",
+      "hero": "none",
+      "inputHeight": 52,
+      "buttonHeight": 56,
+      "headingSize": "39px",
+      "primaryColor": "rgb(255, 203, 86)",
+      "cssLoaded": "900px",
+      "images": [
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image",
+          "loaded": true
+        },
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        }
+      ]
+    },
+    {
+      "route": "/forgot-password",
+      "width": 390,
+      "scrollWidth": 390,
+      "font": "beVietnamPro, \"beVietnamPro Fallback\", Arial, Helvetica, sans-serif",
+      "hero": "none",
+      "inputHeight": 52,
+      "buttonHeight": 56,
+      "headingSize": "34px",
+      "primaryColor": "rgb(255, 203, 86)",
+      "cssLoaded": "900px",
+      "images": [
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        },
+        {
+          "src": "/_next/image",
+          "loaded": true
+        },
+        {
+          "src": "/road-to-school-variant-navy.svg",
+          "loaded": true
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "nonGet": []
+}

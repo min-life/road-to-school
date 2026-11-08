@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { SpinnerIcon, AlertIcon } from '@/components/icons';
 import { apiClient } from '@/lib/api-client';
 import type { StudentListItem, StudentStatus, StudentDisableImpactResponse } from '@/lib/types';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 interface StatusConfirmModalProps {
   isOpen: boolean;
@@ -29,24 +31,27 @@ export function StatusConfirmModal({
 
   const isDisabling = targetStatus === 'DISABLED';
 
+  const [impactError, setImpactError] = useState('');
+  const [revision, setRevision] = useState(0);
+  const [impactKey, setImpactKey] = useState('');
+  const key = `${schoolId}:${student?.id}:${targetStatus}`;
   useEffect(() => {
+    let current = true;
     if (isOpen && isDisabling && student && schoolId) {
-      setLoadingImpact(true);
-      apiClient
-        .getStudentDisableImpact(schoolId, student.id)
-        .then(setImpact)
-        .catch((err) => console.warn('Could not load disable impact', err))
-        .finally(() => setLoadingImpact(false));
-    } else {
-      setImpact(null);
-    }
-  }, [isOpen, isDisabling, student, schoolId]);
+      setLoadingImpact(true); setImpact(null); setImpactKey(''); setImpactError('');
+      apiClient.getStudentDisableImpact(schoolId, student.id)
+        .then(value => { if (current) { setImpact(value); setImpactKey(key); } })
+        .catch(error => { if (current) setImpactError(error instanceof Error ? error.message : 'Không thể tải tác động.'); })
+        .finally(() => { if (current) setLoadingImpact(false); });
+    } else { setImpact(null); setImpactKey(''); }
+    return () => { current = false; };
+  }, [isOpen, isDisabling, student?.id, schoolId, key, revision]);
 
   if (!isOpen || !student || !targetStatus) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200/80 animate-in fade-in zoom-in-95 duration-150">
+      <Card className="ui-dialog-panel bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200/80 animate-in fade-in zoom-in-95 duration-150">
         <div className="flex items-start gap-4">
           <div
             className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
@@ -59,7 +64,7 @@ export function StatusConfirmModal({
           </div>
 
           <div className="flex-1 min-w-0">
-            <h3 className="text-base font-semibold text-[#1E293B]">
+            <h3 className="text-base font-semibold text-foreground">
               {isDisabling
                 ? 'Xác nhận vô hiệu hóa học sinh?'
                 : 'Kích hoạt lại học sinh?'}
@@ -80,6 +85,7 @@ export function StatusConfirmModal({
               )}
             </p>
 
+            {impactError && <div role="alert" className="mt-3 text-sm text-rose-700">{impactError}<Button variant="outline" size="sm" onClick={() => setRevision(v => v + 1)}>Thử lại</Button></div>}
             {/* Thống kê tác động khi vô hiệu hóa */}
             {isDisabling && (
               <div className="mt-3">
@@ -91,19 +97,19 @@ export function StatusConfirmModal({
                 ) : impact ? (
                   <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1.5 text-slate-700">
                     <div className="flex items-center justify-between">
-                      <span>Tuyến ACTIVE đang tham gia:</span>
+                      <span>Tuyến thuộc phương án đang hoạt động:</span>
                       <span className="font-bold text-amber-700">
                         {impact.activeRoutePlansCount} phương án
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span>Tuyến DRAFT đang tham gia:</span>
+                      <span>Tuyến thuộc phương án chưa duyệt:</span>
                       <span className="font-bold text-slate-700">
                         {impact.draftRoutePlansCount} phương án
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span>Chuyến SCHEDULED sẽ loại học sinh:</span>
+                      <span>Chuyến đã lên lịch sẽ loại học sinh:</span>
                       <span className="font-bold text-rose-600">
                         {impact.scheduledTripsCount} chuyến
                       </span>
@@ -146,18 +152,18 @@ export function StatusConfirmModal({
         </div>
 
         <div className="mt-6 flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-          <button
+          <Button
             type="button"
             onClick={onClose}
             disabled={isLoading}
             className="px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
           >
             Hủy
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={onConfirm}
-            disabled={isLoading || loadingImpact}
+            disabled={isLoading || (isDisabling && (loadingImpact || !impact || impactKey !== key || !!impactError))}
             className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white rounded-xl transition-colors cursor-pointer disabled:opacity-50 ${
               isDisabling
                 ? 'bg-amber-600 hover:bg-amber-700'
@@ -168,9 +174,9 @@ export function StatusConfirmModal({
             <span>
               {isDisabling ? 'Xác nhận vô hiệu hóa' : 'Kích hoạt lại'}
             </span>
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

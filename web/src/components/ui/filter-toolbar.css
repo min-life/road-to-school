@@ -1,0 +1,48 @@
+.ui-filter-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--brand-border);
+}
+.ui-filter-field { display: flex; flex: 0 1 208px; flex-direction: column; gap: 6px; min-width: 0; }
+.ui-filter-field-grow { flex: 1 1 360px; max-width: 480px; }
+.ui-filter-label { color: var(--brand-foreground); font-size: 13px; font-weight: 500; line-height: 20px; }
+.ui-filter-control { position: relative; min-width: 0; }
+.ui-filter-control > :where(input, select),
+.ui-filter-toolbar .ui-filter-control > div > button.ui-button:first-child {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--brand-input-border);
+  border-radius: 8px;
+  background: var(--brand-surface);
+  color: var(--brand-foreground);
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+}
+.ui-filter-control > div { width: 100%; min-width: 0; }
+.ui-filter-toolbar .ui-filter-control > div > button.ui-button:first-child { justify-content: space-between; font-weight: 400; }
+.ui-filter-control > :where(input, select):focus-visible,
+.ui-filter-control > div > button:first-child:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: 2px; }
+.ui-filter-control-search > input { padding-left: 38px; }
+.ui-filter-icon { position: absolute; left: 12px; top: 50%; display: flex; transform: translateY(-50%); color: var(--brand-muted); pointer-events: none; }
+.ui-filter-icon svg { width: 16px; height: 16px; }
+.ui-filter-toolbar button.ui-filter-reset { flex: none; height: 44px; min-height: 44px; }
+.ui-filter-toolbar .ui-filter-refresh { min-height: 44px; padding: 0 16px; border: 1px solid var(--brand-input-border); border-radius: 8px; font-size: 14px; font-weight: 500; }
+.ui-filter-toolbar > .ui-filter-meta { align-self: center; color: var(--brand-muted); font-size: 13px; }
+.ui-filter-toolbar > .ui-filter-actions { margin-left: auto; }
+.ui-filter-inline { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; min-width: 0; }
+@media (max-width: 767px) {
+  .ui-filter-toolbar { padding: 16px; }
+  .ui-filter-toolbar > .ui-filter-field,
+  .ui-filter-inline > .ui-filter-field { flex-basis: 100%; width: 100%; }
+  .ui-filter-field-grow { max-width: none; }
+  .ui-filter-toolbar > .ui-filter-actions { margin-left: 0; width: 100%; }
+}

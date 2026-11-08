@@ -1,10 +1,15 @@
 'use client';
 
-import React from 'react';
-import { SearchIcon, CloseIcon } from '@/components/icons';
+import React, { type ReactNode } from 'react';
+import { SearchIcon } from '@/components/icons';
 import { StudentStatus } from '@/lib/types';
+import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+
 
 interface StudentFiltersProps {
+  children?: ReactNode;
   search: string;
   onSearchChange: (value: string) => void;
   status: StudentStatus | '';
@@ -24,67 +29,48 @@ export function StudentFilters({
   onHasAddressChange,
   onReset,
   hasActiveFilters,
+  children,
 }: StudentFiltersProps) {
   return (
-    <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
-      <div className="flex flex-col sm:flex-row gap-3">
-        {/* Search Input */}
-        <div className="relative flex-1">
-          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-            <SearchIcon className="w-4 h-4" />
-          </div>
-          <input
+    <FilterToolbar onReset={onReset} hasActiveFilters={hasActiveFilters}>
+        <FilterField label="Tìm kiếm" grow icon={<SearchIcon />}>
+          <Input
             type="text"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Tìm kiếm theo họ tên hoặc mã học sinh (STU)..."
-            className="w-full pl-10 pr-3.5 py-2.5 text-sm bg-slate-50/70 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-[#FFCB56] focus:border-transparent text-[#1E293B] placeholder-slate-400"
+            className="w-full"
           />
-        </div>
+        </FilterField>
 
-        {/* Filter 1: Trạng thái học sinh (AVAILABLE / DISABLED) */}
-        <div className="w-full sm:w-48">
-          <select
+        <FilterField label="Trạng thái">
+          <Select
             value={status}
             onChange={(e) => onStatusChange(e.target.value as StudentStatus | '')}
-            className="w-full px-3.5 py-2.5 text-sm bg-slate-50/70 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-[#FFCB56] text-[#1E293B] cursor-pointer"
+            className="w-full"
             aria-label="Lọc theo trạng thái học sinh"
           >
             <option value="">Tất cả trạng thái</option>
             <option value="AVAILABLE">Khả dụng</option>
             <option value="DISABLED">Đã vô hiệu hóa</option>
-          </select>
-        </div>
+          </Select>
+        </FilterField>
 
-        {/* Filter 2: Tình trạng địa chỉ (hasAddress: true / false) */}
-        <div className="w-full sm:w-48">
-          <select
+        <FilterField label="Địa chỉ">
+          <Select
             value={hasAddress}
             onChange={(e) =>
               onHasAddressChange(e.target.value as 'true' | 'false' | '')
             }
-            className="w-full px-3.5 py-2.5 text-sm bg-slate-50/70 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-[#FFCB56] text-[#1E293B] cursor-pointer"
+            className="w-full"
             aria-label="Lọc theo tình trạng địa chỉ"
           >
             <option value="">Tất cả địa chỉ</option>
             <option value="true">Đã có địa chỉ</option>
             <option value="false">Chưa có địa chỉ</option>
-          </select>
-        </div>
-
-        {/* Reset Filter Button */}
-        {hasActiveFilters && (
-          <button
-            type="button"
-            onClick={onReset}
-            className="flex items-center justify-center gap-1.5 px-3 py-2 text-sm text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 rounded-xl transition-colors cursor-pointer shrink-0"
-            title="Đặt lại bộ lọc"
-          >
-            <CloseIcon className="w-4 h-4" />
-            <span className="hidden sm:inline">Đặt lại</span>
-          </button>
-        )}
-      </div>
-    </div>
+          </Select>
+        </FilterField>
+        {children}
+      </FilterToolbar>
   );
 }

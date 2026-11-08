@@ -1,0 +1,5 @@
+.route-plan-cancellation-popover { position: fixed; inset: auto; margin: 0; padding: 0; border: 1px solid var(--brand-border); border-radius: 12px; background: var(--brand-surface); color: var(--brand-foreground); box-shadow: var(--brand-shadow); overflow: hidden; }
+.route-plan-cancellation-popover:popover-open { display: flex; flex-direction: column; }
+.route-plan-cancellation-popover > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--brand-border); flex-shrink: 0; }
+.route-plan-cancellation-popover h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.route-plan-cancellation-popover > p { min-height: 0; margin: 0; padding: 12px 14px; overflow-y: auto; overscroll-behavior: contain; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.6; text-align: left; }

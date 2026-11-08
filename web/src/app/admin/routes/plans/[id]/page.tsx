@@ -1,25 +1,41 @@
 'use client';
+import { effectivePlanStatus } from '@/lib/school-lifecycle';
+import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
+import { BackLink, ContextLink } from '@/components/admin/common/context-navigation';
 
 import React, { useState, useEffect, useCallback, use } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { RoutePlanItem, RouteItem, Role, ApprovalReadinessResponse } from '@/lib/types';
 import {
   RouteIcon,
-  ChevronLeftIcon,
   SpinnerIcon,
   AlertIcon,
   InfoIcon,
 } from '@/components/icons';
 import { CancelRoutePlanModal } from '@/components/admin/routes/cancel-route-plan-modal';
-import { ApprovalReadinessCard } from '@/components/admin/routes/approval-readiness-card';
-import { RoutePlanAssignments } from '@/components/admin/routes/route-plan-assignments';
+import { ApprovalReadinessCard } from '@/app/admin/routes/plans/[id]/_components/approval-readiness-card';
+import { RoutePlanAssignments } from '@/app/admin/routes/plans/[id]/_components/route-plan-assignments';
 import { authStorage } from '@/lib/auth-storage';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
+import { Badge } from '@/components/ui/badge';
+import { Table } from '@/components/ui/table';
+import { useAuth } from '@/components/auth/auth-provider';
+import { SavedRoutePlanWorkspace } from '@/app/admin/routes/plans/[id]/_components/saved-route-plan-workspace';
 
 export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const { user, isLoading } = useAuth();
+  if (isLoading || !user) return <div className="py-20 text-center" role="status">Đang tải phương án…</div>;
+  if (user.role === 'SYSTEM_ADMIN' || user.role === 'SCHOOL_ADMIN') {
+    return <SavedRoutePlanWorkspace key={`${user.id}:${user.role}:${user.schoolId}:${id}`} planId={id} role={user.role} schoolId={user.schoolId} />;
+  }
+  return <LegacyRoutePlanDetailPage params={params} />;
+}
+
+function LegacyRoutePlanDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: planId } = use(params);
-  const router = useRouter();
 
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
   const [plan, setPlan] = useState<RoutePlanItem | null>(null);
@@ -77,8 +93,8 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
   }, [loadPlanDetail]);
 
   const isSystemAdmin = currentUserRole === 'SYSTEM_ADMIN';
-  const isDraft = plan?.status === 'DRAFT';
-  const isActive = plan?.status === 'ACTIVE';
+  const isDraft = (plan ? effectivePlanStatus(plan) : undefined) === 'DRAFT';
+  const isActive = (plan ? effectivePlanStatus(plan) : undefined) === 'ACTIVE';
 
   const formatDateTime = (isoDate: string) => {
     try {
@@ -109,7 +125,7 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
   if (loading) {
     return (
       <div className="py-20 text-center">
-        <SpinnerIcon className="w-8 h-8 animate-spin mx-auto text-[#FFCB56] mb-3" />
+        <SpinnerIcon className="w-8 h-8 animate-spin mx-auto text-primary mb-3" />
         <p className="text-sm text-slate-500">Đang tải chi tiết phương án tuyến...</p>
       </div>
     );
@@ -118,26 +134,15 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
   if (error || !plan) {
     return (
       <div className="space-y-4">
-        <Link
-          href="/admin/routes"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800"
-        >
-          <ChevronLeftIcon className="w-4 h-4" />
-          <span>Quay lại danh sách phương án</span>
-        </Link>
-        <div className="p-8 rounded-2xl bg-white border border-rose-200 text-center">
+        <BackLink fallback="/admin/routes" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800" />
+        <Card className="p-8 rounded-2xl bg-white border border-rose-200 text-center">
           <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3">
             <AlertIcon className="w-6 h-6" />
           </div>
           <h2 className="text-base font-bold text-slate-800">Không tìm thấy phương án tuyến</h2>
           <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">{error || 'Phương án không tồn tại hoặc bạn không có quyền truy cập.'}</p>
-          <button
-            onClick={() => router.push('/admin/routes')}
-            className="mt-4 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
-          >
-            Về trang danh sách
-          </button>
-        </div>
+          <BackLink fallback="/admin/routes" className="mt-4 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors" />
+        </Card>
       </div>
     );
   }
@@ -146,39 +151,33 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
     <div className="space-y-6">
       {/* Breadcrumb & Navigation */}
       <div className="flex items-center justify-between">
-        <Link
-          href="/admin/routes"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
-        >
-          <ChevronLeftIcon className="w-4 h-4" />
-          <span>Quay lại danh sách phương án</span>
-        </Link>
+        <BackLink fallback="/admin/routes" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors" />
         <span className="text-xs text-slate-400">
           Mã phương án: <code className="text-slate-600 font-mono text-[11px]">{plan.id.slice(0, 8)}...</code>
         </span>
       </div>
 
       {/* Header Card */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="space-y-1">
+      <Card className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <PageHeader className="space-y-1">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-slate-800">{plan.name}</h1>
             {isActive ? (
-              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                ACTIVE
-              </span>
+              <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                {getRoutePlanStatusLabel(effectivePlanStatus(plan))}
+              </Badge>
             ) : isDraft ? (
-              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                DRAFT
-              </span>
-            ) : plan.status === 'EXPIRED' ? (
-              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300">
-                EXPIRED
-              </span>
+              <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                {getRoutePlanStatusLabel(effectivePlanStatus(plan))}
+              </Badge>
+            ) : effectivePlanStatus(plan) === 'EXPIRED' ? (
+              <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300">
+                {getRoutePlanStatusLabel(effectivePlanStatus(plan))}
+              </Badge>
             ) : (
-              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                CANCELLED
-              </span>
+              <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                {getRoutePlanStatusLabel(effectivePlanStatus(plan))}
+              </Badge>
             )}
           </div>
           <p className="text-xs text-slate-500">
@@ -192,7 +191,7 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
               </>
             )}
           </p>
-        </div>
+        </PageHeader>
 
         {/* Cancellation Action:
             - DRAFT: System Admin only
@@ -200,15 +199,15 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
         */}
         {(isDraft || isActive) &&
           (isSystemAdmin || (currentUserRole === 'SCHOOL_ADMIN' && isActive)) && (
-          <button
+          <Button variant="outline" size="sm"
             onClick={() => setIsCancelModalOpen(true)}
             className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer shrink-0"
           >
             <AlertIcon className="w-4 h-4 text-rose-600" />
             <span>Hủy phương án</span>
-          </button>
+          </Button>
         )}
-      </div>
+      </Card>
 
       {/* Approval Readiness Card (Only for DRAFT) */}
       {isDraft && (
@@ -225,7 +224,7 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
       )}
 
       {/* Notice if Expired */}
-      {plan.status === 'EXPIRED' && (
+      {effectivePlanStatus(plan) === 'EXPIRED' && (
         <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 flex items-start gap-3">
           <InfoIcon className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <div className="text-xs text-amber-900 leading-relaxed">
@@ -236,7 +235,7 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
       )}
 
       {/* Cancellation Notice if Cancelled */}
-      {plan.status === 'CANCELLED' && (
+      {effectivePlanStatus(plan) === 'CANCELLED' && (
         <div className="p-4 rounded-2xl bg-rose-50/80 border border-rose-200 flex items-start gap-3">
           <AlertIcon className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
           <div className="text-xs text-rose-900 leading-relaxed">
@@ -266,7 +265,7 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
       {/* 4 Metric Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Tổng số tuyến */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
             Tổng số tuyến
           </span>
@@ -274,10 +273,10 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
             <span className="text-2xl font-black text-slate-800">{allRoutes.length}</span>
             <span className="text-xs text-slate-500 font-medium">tuyến</span>
           </div>
-        </div>
+        </Card>
 
         {/* Card 2: Tuyến chiều đi */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
           <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider block mb-1">
             Tuyến chiều đi
           </span>
@@ -285,10 +284,10 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
             <span className="text-2xl font-black text-emerald-700">{outboundRoutes.length || plan.totalOutboundRoutes}</span>
             <span className="text-xs text-emerald-600 font-medium">tuyến</span>
           </div>
-        </div>
+        </Card>
 
         {/* Card 3: Tuyến chiều về */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
           <span className="text-[11px] font-bold text-sky-600 uppercase tracking-wider block mb-1">
             Tuyến chiều về
           </span>
@@ -296,10 +295,10 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
             <span className="text-2xl font-black text-sky-700">{returnRoutes.length || plan.totalReturnRoutes}</span>
             <span className="text-xs text-sky-600 font-medium">tuyến</span>
           </div>
-        </div>
+        </Card>
 
         {/* Card 4: Học sinh dự kiến (Distinct Students) */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
           <span className="text-[11px] font-bold text-[#b48010] uppercase tracking-wider block mb-1">
             {isDraft ? 'Học sinh dự kiến' : 'Học sinh'}
           </span>
@@ -307,11 +306,11 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
             <span className="text-2xl font-black text-slate-900">{plan.totalStudents}</span>
             <span className="text-xs text-slate-500 font-medium">học sinh</span>
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* Member Routes Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+      <Card className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
         {/* Table Tabs Header */}
         <div className="px-6 py-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-50/50">
           <div className="flex items-center gap-2">
@@ -320,7 +319,7 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
           </div>
 
           <div className="flex items-center gap-1 bg-slate-200/60 p-1 rounded-xl text-xs font-semibold">
-            <button
+            <Button
               onClick={() => setActiveTab('ALL')}
               className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
                 activeTab === 'ALL'
@@ -329,8 +328,8 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
               }`}
             >
               Tất cả ({allRoutes.length})
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => setActiveTab('TO_SCHOOL')}
               className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
                 activeTab === 'TO_SCHOOL'
@@ -339,8 +338,8 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
               }`}
             >
               Chiều đi ({outboundRoutes.length || plan.totalOutboundRoutes})
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => setActiveTab('TO_PARKING')}
               className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
                 activeTab === 'TO_PARKING'
@@ -349,13 +348,14 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
               }`}
             >
               Chiều về ({returnRoutes.length || plan.totalReturnRoutes})
-            </button>
+            </Button>
           </div>
         </div>
 
         {/* Routes Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <Table className="w-full text-left border-collapse" minWidth={1465}>
+            <colgroup><col /><col style={{ width: 130 }} /><col style={{ width: 150 }} /><col style={{ width: 190 }} /><col style={{ width: 190 }} /><col style={{ width: 100 }} /><col style={{ width: 100 }} /><col style={{ width: 135 }} /><col style={{ width: 130 }} /><col style={{ width: 100 }} /></colgroup>
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/75 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                 <th className="py-3 px-4">Tên tuyến</th>
@@ -387,24 +387,24 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
                   return (
                     <tr key={route.id} className="hover:bg-slate-50/60 transition-colors">
                       <td className="py-3.5 px-4 font-semibold text-slate-800">
-                        <Link
+                        <ContextLink
                           href={`/admin/routes/${route.id}`}
                           className="hover:text-blue-600 hover:underline flex items-center gap-2"
                         >
                           <RouteIcon className="w-4 h-4 text-slate-400 shrink-0" />
                           <span>{route.name}</span>
-                        </Link>
+                        </ContextLink>
                       </td>
 
                       <td className="py-3.5 px-4">
                         {isToSchool ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                          <Badge className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
                             Chiều đi
-                          </span>
+                          </Badge>
                         ) : (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200/60">
+                          <Badge className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200/60">
                             Chiều về
-                          </span>
+                          </Badge>
                         )}
                       </td>
 
@@ -441,10 +441,10 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
 
                       <td className="py-3.5 px-4 text-center">
                         {route.studentCount === 0 ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                          <Badge className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
                             <AlertIcon className="w-3 h-3 text-rose-600" />
                             0 (Vi phạm)
-                          </span>
+                          </Badge>
                         ) : (
                           <span className="font-bold text-slate-800">{route.studentCount}</span>
                         )}
@@ -463,25 +463,25 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
                       </td>
 
                       <td className="py-3.5 px-4 text-right">
-                        <Link
+                        <ContextLink  data-size="sm"
                           href={`/admin/routes/${route.id}`}
-                          className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-[#FFCB56] hover:text-slate-900 transition-colors"
+                          className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-primary hover:text-slate-900 transition-colors"
                         >
                           Xem bản đồ
-                        </Link>
+                        </ContextLink>
                       </td>
                     </tr>
                   );
                 })
               )}
             </tbody>
-          </table>
+          </Table>
         </div>
-      </div>
+      </Card>
 
       {/* Unassigned Students Section if any exist from optimization */}
       {plan.unassignedStudents && plan.unassignedStudents.length > 0 && (
-        <div className="bg-white p-5 rounded-2xl border border-amber-200/80 shadow-xs space-y-3">
+        <Card className="bg-white p-5 rounded-2xl border border-amber-200/80 shadow-xs space-y-3">
           <div className="flex items-center justify-between border-b border-amber-100 pb-2.5">
             <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
@@ -499,11 +499,11 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
                 <div className="flex items-center justify-between">
                   <p className="font-bold text-slate-800">{s.fullName}</p>
                   {s.missingDirection && (
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                    <Badge className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
                       {s.missingDirection === 'RETURN' && 'Thiếu chiều về'}
                       {s.missingDirection === 'OUTBOUND' && 'Thiếu chiều đi'}
                       {s.missingDirection === 'BOTH' && 'Không xếp được 2 chiều'}
-                    </span>
+                    </Badge>
                   )}
                 </div>
                 {s.addressText && <p className="text-slate-500 truncate">{s.addressText}</p>}
@@ -511,7 +511,7 @@ export default function RoutePlanDetailPage({ params }: { params: Promise<{ id: 
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Cancel RoutePlan Modal */}

@@ -23,6 +23,15 @@ Trước khi phân tích hoặc triển khai bất kỳ task nào, Agent **BẮT
 5. [docs/ai-review/LATEST.md](docs/ai-review/LATEST.md) — Báo cáo AI Review của phiên làm việc gần nhất.
 6. *Tài liệu chuyên biệt của module liên quan* (trong `docs/ai-review/` hoặc `docs/architecture/` nếu task yêu cầu).
 
+### Tra cứu Web và tái sử dụng ngữ cảnh
+
+Với task Web, sau các tài liệu nền trên, dùng [web/AGENTS.md](web/AGENTS.md) và
+[web/docs/README.md](web/docs/README.md) để chọn đúng mục design/kiến trúc/quy tắc component.
+Không yêu cầu đọc toàn bộ bộ tài liệu Web cho một thay đổi nhỏ. Trong cùng phiên,
+tài liệu đã đọc và chưa thay đổi có thể dùng lại từ ngữ cảnh; đọc lại phần liên quan
+khi file thay đổi hoặc ngữ cảnh không còn. Không dùng cơ chế này để bỏ qua phê duyệt,
+quy tắc dữ liệu, phân quyền hoặc kiểm tra contract khi task có tác động nghiệp vụ.
+
 ---
 
 ## 3. Source of Truth Priority (Thứ tự ưu tiên nguồn sự thật)

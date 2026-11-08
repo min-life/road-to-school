@@ -1,26 +1,69 @@
 @import "tailwindcss";
+@import "../components/ui/ui.css";
+@import "../components/admin/admin-shell.css";
+@import "../components/auth/auth-page-shell.css";
 
 :root {
-  --color-primary: #FFCB56;
-  --color-background: #FFFDF6;
-  --color-foreground: #1E293B;
-  --color-surface: #FFFFFF;
-
-  --background: var(--color-background);
-  --foreground: var(--color-foreground);
+  --brand-primary: #ffcb56;
+  --brand-primary-hover: #f6bf3e;
+  --brand-background: #fffdf6;
+  --brand-foreground: #1e293b;
+  --brand-surface: #ffffff;
+  --brand-navy: #193652;
+  --brand-heading: #17243b;
+  --brand-muted: #64748b;
+  --brand-border: #e2e8f0;
+  --brand-input-border: #cfdbea;
+  --brand-accent: #fff5dc;
+  --brand-ring: #b88619;
+  --brand-danger: #b42335;
+  --brand-danger-surface: #fff0f1;
+  --brand-danger-border: #fecdd3;
+  --brand-info: #2466a8;
+  --brand-hover: #f8fafc;
+  --brand-row-hover: #fffdf5;
+  --brand-hero: #172f4b;
+  --brand-on-navy: #e4ebf2;
+  --brand-navy-muted: #bdcddd;
+  --brand-navy-border: #ffffff25;
+  --brand-shadow: 0 1px 3px #0f172a0a;
+  --brand-radius: 12px;
+  --color-primary: var(--brand-primary);
+  --color-background: var(--brand-background);
+  --color-foreground: var(--brand-foreground);
+  --color-surface: var(--brand-surface);
+  --background: var(--brand-background);
+  --foreground: var(--brand-foreground);
 }
 
 @theme inline {
-  --color-primary: var(--color-primary);
-  --color-background: var(--color-background);
-  --color-foreground: var(--color-foreground);
-  --color-surface: var(--color-surface);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-primary: var(--brand-primary);
+  --color-background: var(--brand-background);
+  --color-foreground: var(--brand-foreground);
+  --color-surface: var(--brand-surface);
+  --color-navy: var(--brand-navy);
+  --font-sans: var(--font-be-vietnam-pro), Arial, Helvetica, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 
-body {
-  background: var(--color-background);
-  color: var(--color-foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+  body {
+    margin: 0;
+    background: var(--brand-background);
+    color: var(--brand-foreground);
+    font-family: var(--font-be-vietnam-pro), Arial, Helvetica, sans-serif;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input, select, textarea { font-family: inherit; }
+  button:not(:disabled), [role="button"]:not([aria-disabled="true"]) { cursor: pointer; }
+  button:focus-visible, a:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: 3px; }
+}
+
+.brand-logo { display: block; width: 202px; max-width: 100%; height: auto; flex-shrink: 0; object-fit: contain; }
+.brand-logo-icon { width: 40px; }
+.role-splash-brand { padding: 10px 20px; margin-bottom: 24px; border-radius: 12px; background: var(--brand-navy); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-button, .ui-input, .ui-select, .ui-textarea { transition: none; }
 }

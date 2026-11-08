@@ -1,0 +1,57 @@
+.auth-page { display: grid; width: 100%; min-height: 100dvh; grid-template-columns: minmax(430px, 40.6%) minmax(0, 59.4%); background: var(--brand-background); }
+.auth-hero { position: relative; min-height: 100dvh; overflow: hidden; padding: clamp(52px, 8vh, 80px) clamp(42px, 5.7vw, 76px); background: var(--brand-hero); color: var(--brand-surface); }
+.auth-hero .auth-hero-logo { position: relative; z-index: 2; width: min(100%, 300px); }
+.auth-hero-copy { position: relative; z-index: 2; max-width: 410px; margin-top: clamp(35px, 7.8vh, 73px); }
+.auth-rule { display: block; width: 50px; height: 4px; background: var(--brand-primary); }
+.auth-hero-copy h2 { margin-top: 36px; font-size: clamp(31px, 3vw, 42px); font-weight: 700; line-height: 1.18; letter-spacing: -.045em; }
+.auth-hero-copy em { color: var(--brand-primary); font-style: normal; }
+.auth-illustration { position: absolute; bottom: -2px; left: 0; width: 100%; height: auto; object-fit: contain; object-position: left bottom; }
+.auth-form-area { position: relative; display: grid; min-width: 0; min-height: 100dvh; place-items: center; overflow: hidden; padding: 44px; }
+.auth-ring { position: absolute; top: -210px; right: -137px; width: 440px; height: 440px; border: 70px solid var(--brand-accent); border-radius: 50%; opacity: .72; pointer-events: none; }
+.auth-arc { position: absolute; bottom: -276px; left: -260px; width: 470px; height: 470px; border-radius: 50%; background: var(--brand-accent); opacity: .65; pointer-events: none; }
+.auth-dots { position: absolute; right: 42px; bottom: 37px; width: 70px; height: 70px; background-image: radial-gradient(circle, var(--brand-primary) 2.4px, transparent 2.7px); background-size: 18px 18px; pointer-events: none; }
+.auth-mobile-brand { display: none; }
+.auth-content { position: relative; z-index: 1; width: min(100%, 438px); }
+.auth-content .auth-heading { margin-bottom: 28px; text-align: left; }
+.auth-content .auth-heading::before { content: ""; display: block; width: 50px; height: 4px; margin-bottom: 27px; background: var(--brand-primary); }
+.auth-content h1 { color: var(--brand-navy); font-size: 39px; font-weight: 700; line-height: 1.16; letter-spacing: -.045em; }
+.auth-content .auth-heading p { margin-top: 8px; color: var(--brand-muted); font-size: 14px; line-height: 1.5; }
+.auth-content form { display: grid; gap: 20px; }
+.auth-content form > * { margin-block: 0; }
+.auth-content label { color: var(--brand-navy); font-size: 13px; font-weight: 600; }
+.auth-content input.ui-input { min-height: 52px; background: color-mix(in srgb, var(--brand-surface) 60%, transparent); }
+.auth-content .ui-button[type="submit"] { min-height: 56px; width: 100%; margin-top: 4px; font-size: 16px; }
+.auth-content .auth-footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--brand-border); color: var(--brand-muted); font-size: 11px; line-height: 1.6; text-align: center; }
+@media (min-width: 1440px) {
+  .auth-hero { padding-top: clamp(80px, 10vh, 112px); }
+  .auth-content { width: min(100%, clamp(438px, 30vw, 460px)); }
+}
+@media (max-width: 1040px) {
+  .auth-page { grid-template-columns: minmax(360px, 42%) minmax(0, 58%); }
+  .auth-hero { padding-inline: 38px; }
+  .auth-hero-copy h2 { font-size: 34px; }
+  .auth-form-area { padding-inline: 34px; }
+}
+@media (max-width: 760px) {
+  .auth-page { display: block; }
+  .auth-hero { display: none; }
+  .auth-form-area { padding: 118px 24px 42px; }
+  .auth-mobile-brand { position: absolute; top: 28px; left: 24px; z-index: 2; display: block; padding: 8px 12px; border-radius: 10px; background: var(--brand-hero); }
+  .auth-mobile-brand .brand-logo { width: 196px; }
+  .auth-ring { top: -195px; right: -210px; }
+  .auth-arc { display: none; }
+  .auth-dots { right: 14px; bottom: 16px; opacity: .55; }
+}
+@media (max-width: 460px) {
+  .auth-form-area { padding-inline: 18px; }
+  .auth-mobile-brand { left: 18px; }
+  .auth-content h1 { font-size: 34px; }
+}
+@media (max-height: 700px) and (min-width: 761px) {
+  .auth-hero { padding-top: 30px; }
+  .auth-hero-copy { margin-top: 30px; }
+  .auth-hero-copy h2 { margin-top: 20px; }
+  .auth-form-area { padding-block: 24px; }
+  .auth-content .auth-heading::before { margin-bottom: 18px; }
+  .auth-content form { gap: 14px; }
+}

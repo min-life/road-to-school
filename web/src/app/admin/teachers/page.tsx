@@ -1,7 +1,14 @@
 'use client';
+import { ResendCredentialsDialog } from '@/components/admin/common/resend-credentials-dialog';
+import type { CreateSchoolAdminResponse } from '@/lib/types';
+
+import { ResourceStatusDialog } from '@/components/admin/common/resource-status-dialog';
+import type { ResourceTarget } from '@/lib/resource-status';
+import { TableActions } from '@/components/admin/common/table-actions';
+import { toast } from '@/stores/toast-store';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import Link from 'next/link';
+import { ContextLink } from '@/components/admin/common/context-navigation';
 import { useAuth } from '@/components/auth/auth-provider';
 import { SchoolAdminGuard } from '@/components/admin/school-admin-guard';
 import { apiClient } from '@/lib/api-client';
@@ -11,17 +18,26 @@ import {
   SearchIcon,
   SpinnerIcon,
   AlertIcon,
-  CheckIcon,
   TeacherIcon,
   PhoneIcon,
 } from '@/components/icons';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
-import { AddTeacherModal } from '@/components/admin/teachers/add-teacher-modal';
+import { AddTeacherModal } from './_components/add-teacher-modal';
+import { PageHeader } from '@/components/ui/page-header';
+import { Button } from '@/components/ui/button';
+import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Card } from '@/components/ui/card';
+import { Table } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 
 function TeachersPageContent() {
   const { user } = useAuth();
   const schoolId = user?.schoolId;
 
+  const [resendTarget, setResendTarget] = useState<SchoolEmployeeItem | null>(null);
+  const [statusTarget, setStatusTarget] = useState<ResourceTarget | null>(null);
   const [teachers, setTeachers] = useState<SchoolEmployeeItem[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -32,7 +48,7 @@ function TeachersPageContent() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
+
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const latestRequestRef = useRef(0);
@@ -90,10 +106,12 @@ function TeachersPageContent() {
     setPage(1);
   };
 
-  const handleTeacherAdded = () => {
-    setSuccessToast('Đã tạo tài khoản giáo viên thành công.');
+  const handleTeacherAdded = (result: CreateSchoolAdminResponse) => {
+    if (result.credentialDeliveryStatus === 'FAILED') toast.error('Đã tạo giáo viên nhưng email chưa gửi được. Dùng Cấp lại mật khẩu để bàn giao.');
+    else if (result.credentialDeliveryStatus === 'CONSOLE') toast.info('Đã tạo giáo viên; thông tin bàn giao ở console phát triển.');
+    else toast.success('Đã tạo tài khoản giáo viên và gửi email.');
     fetchTeachers();
-    setTimeout(() => setSuccessToast(null), 3000);
+
   };
 
   if (!schoolId) {
@@ -111,85 +129,72 @@ function TeachersPageContent() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="ui-list-page">
       {/* Toast message */}
-      {successToast && (
-        <div className="flex items-center gap-2 p-3 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg animate-in fade-in duration-200">
-          <CheckIcon className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-          <span>{successToast}</span>
-        </div>
-      )}
+
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            <TeacherIcon className="w-7 h-7 text-amber-500" />
-            Quản lý giáo viên
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Danh sách giáo viên (BUS_ATTENDANT) quản lý tuyến và điểm danh học sinh.
-          </p>
-        </div>
-
-        <button
+      <PageHeader title="Giáo viên" actions={<Button variant="primary" size="default"
           type="button"
           onClick={() => setIsAddModalOpen(true)}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-900 bg-[#FFCB56] hover:bg-amber-400 rounded-xl transition-colors shadow-xs cursor-pointer"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-900 bg-primary hover:bg-amber-400 rounded-xl transition-colors shadow-xs cursor-pointer"
         >
           <PlusIcon className="w-4 h-4" />
           <span>Thêm giáo viên</span>
-        </button>
-      </div>
+        </Button>} />
 
       {/* Filters */}
-      <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-        <div className="relative flex-1">
-          <input
+      <FilterToolbar
+        hasActiveFilters={Boolean(search || statusFilter !== 'ALL')}
+        onReset={() => {
+          setSearch('');
+          setStatusFilter('ALL');
+          setPage(1);
+        }}
+      >
+        <FilterField label="Tìm kiếm" grow icon={<SearchIcon />}>
+          <Input
             type="text"
             value={search}
             onChange={handleSearchChange}
             placeholder="Tìm theo tên, email hoặc số điện thoại giáo viên..."
-            className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white text-slate-800"
+            className="w-full"
           />
-          <SearchIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-        </div>
+        </FilterField>
 
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-semibold text-slate-600 whitespace-nowrap">
-            Trạng thái:
-          </label>
-          <select
+        <FilterField label="Trạng thái">
+          <Select
             value={statusFilter}
             onChange={handleStatusChange}
-            className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 text-slate-700 cursor-pointer"
+            className="w-full"
           >
             <option value="ALL">Tất cả trạng thái</option>
             <option value="ACTIVE">Đang hoạt động</option>
             <option value="INACTIVE">Ngừng hoạt động</option>
-          </select>
-        </div>
-      </div>
+          </Select>
+        </FilterField>
+      </FilterToolbar>
 
       {/* Error state */}
       {errorMessage && (
         <div className="flex items-center gap-2 p-4 text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl">
           <AlertIcon className="w-5 h-5 text-red-600 flex-shrink-0" />
           <div className="flex-1">{errorMessage}</div>
-          <button
+          <Button
             type="button"
             onClick={fetchTeachers}
             className="text-xs font-semibold text-red-700 hover:text-red-900 underline ml-2"
           >
             Thử lại
-          </button>
+          </Button>
         </div>
       )}
 
       {/* Teachers Table */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+      <Card className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-700">
+          <Table className="w-full text-left text-sm text-slate-700" minWidth={1175}>
+            <colgroup><col /><col style={{ width: 235 }} /><col style={{ width: 155 }} /><col style={{ width: 165 }} /><col style={{ width: 170 }} /><col style={{ width: 210 }} /></colgroup>
             <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
               <tr>
                 <th className="px-4 py-3">Họ và tên</th>
@@ -233,12 +238,12 @@ function TeachersPageContent() {
                     className="hover:bg-amber-50/30 transition-colors group"
                   >
                     <td className="px-4 py-3 font-semibold text-slate-900">
-                      <Link
+                      <ContextLink
                         href={`/admin/teachers/${teacher.id}`}
                         className="hover:text-amber-700 transition-colors"
                       >
                         {teacher.fullName}
-                      </Link>
+                      </ContextLink>
                     </td>
 
                     <td className="px-4 py-3 text-xs text-slate-600">
@@ -257,36 +262,34 @@ function TeachersPageContent() {
                     </td>
 
                     <td className="px-4 py-3 text-center">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                      <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
                         Giáo viên
-                      </span>
+                      </Badge>
                     </td>
 
                     <td className="px-4 py-3 text-center">
                       {teacher.isActive ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
                           Đang hoạt động
-                        </span>
+                        </Badge>
                       ) : (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-300">
+                        <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-300">
                           Ngừng hoạt động
-                        </span>
+                        </Badge>
                       )}
                     </td>
 
                     <td className="px-4 py-3 text-right">
-                      <Link
-                        href={`/admin/teachers/${teacher.id}`}
-                        className="text-xs font-medium text-slate-600 hover:text-amber-700 px-2.5 py-1 rounded-lg hover:bg-slate-100 transition-colors"
-                      >
-                        Xem chi tiết
-                      </Link>
+                      <TableActions actions={[{ label: 'Chi tiết', href: `/admin/teachers/${teacher.id}` }]} more={[
+                        ...(teacher.isActive && teacher.email && teacher.role === 'BUS_ATTENDANT' ? [{ label: 'Cấp lại mật khẩu', onClick: () => setResendTarget(teacher) }] : []),
+                        ...(teacher.role === 'BUS_ATTENDANT' ? [{ label: teacher.isActive ? 'Ngừng hoạt động' : 'Kích hoạt', warning: teacher.isActive,
+                          onClick: () => setStatusTarget({ kind: 'employee', schoolId, role: 'BUS_ATTENDANT', id: teacher.id, name: teacher.fullName, isActive: teacher.isActive }) }] : [])]} />
                     </td>
                   </tr>
                 ))
               )}
             </tbody>
-          </table>
+          </Table>
         </div>
 
         {/* Pagination */}
@@ -302,9 +305,11 @@ function TeachersPageContent() {
             setPage(1);
           }}
         />
-      </div>
+      </Card>
 
+      {resendTarget && <ResendCredentialsDialog schoolId={schoolId} employee={resendTarget} onClose={() => setResendTarget(null)} />}
       {/* Add Teacher Modal */}
+      {statusTarget && <ResourceStatusDialog key={statusTarget.id} target={statusTarget} onClose={() => setStatusTarget(null)} onSuccess={() => void fetchTeachers()} />}
       <AddTeacherModal
         isOpen={isAddModalOpen}
         schoolId={schoolId}

@@ -1,9 +1,15 @@
 'use client';
 
+import { ServiceCalendarPanel } from '@/components/admin/schools/service-calendar-panel';
+import { LifecycleDialog } from '@/components/admin/common/lifecycle-dialog';
+import { vietnamDateKey } from '@/lib/business-improvements';
+import { useRouteQuery } from '@/hooks/use-route-query';
+import { toast } from '@/stores/toast-store';
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { authStorage } from '@/lib/auth-storage';
-import { apiClient, ApiError } from '@/lib/api-client';
+import { ApiError, apiClient } from '@/lib/api-client';
 import { ParkingLot, ParkingLotImpactResponse } from '@/lib/types';
 import { vietmapService, VietmapSuggestion } from '@/lib/vietmap';
 import {
@@ -11,19 +17,27 @@ import {
   EyeIcon,
   EyeOffIcon,
   SpinnerIcon,
-  CheckIcon,
   AlertIcon,
   MapPinIcon,
 } from '@/components/icons';
 import { LogoutDialog } from '@/components/admin/logout-dialog';
 import { formatRoleLabel, getAvatarInitial } from '@/components/admin/admin-nav.config';
 import { VietMapPicker } from '@/components/admin/schools/vietmap-picker';
+import { PageHeader } from '@/components/ui/page-header';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { ContextLink } from '@/components/admin/common/context-navigation';
 
-type SettingsTab = 'ACCOUNT' | 'PARKING_LOT';
+type SettingsTab = 'ACCOUNT' | 'PARKING_LOT' | 'HOLIDAYS';
 
 export default function AdminSettingsPage() {
   const { user, logout, setUser } = useAuth();
   const [activeTab, setActiveTab] = useState<SettingsTab>('ACCOUNT');
+  useRouteQuery(String(user?.id), query => {
+    setActiveTab(user?.role === 'SYSTEM_ADMIN' ? query.get('tab') === 'holidays' ? 'HOLIDAYS' : query.get('tab') === 'parking' ? 'PARKING_LOT' : 'ACCOUNT' : 'ACCOUNT');
+  });
 
   // Logout dialog
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
@@ -34,7 +48,7 @@ export default function AdminSettingsPage() {
   const [selectedAvatarFile, setSelectedAvatarFile] = useState<File | null>(null);
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
-  const [avatarSuccessMsg, setAvatarSuccessMsg] = useState<string | null>(null);
+
   const [avatarErrorMsg, setAvatarErrorMsg] = useState<string | null>(null);
 
   // 2. Change Password State
@@ -45,24 +59,30 @@ export default function AdminSettingsPage() {
   const [showNewPass, setShowNewPass] = useState(false);
   const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [isChangingPass, setIsChangingPass] = useState(false);
-  const [passSuccessMsg, setPassSuccessMsg] = useState<string | null>(null);
+
   const [passErrorMsg, setPassErrorMsg] = useState<string | null>(null);
 
   // 3. Parking Lot Settings State (SYSTEM_ADMIN only)
   const [parkingLot, setParkingLot] = useState<ParkingLot | null>(null);
   const [isLoadingParkingLot, setIsLoadingParkingLot] = useState(false);
   const [parkingAddress, setParkingAddress] = useState('');
-  const [parkingLat, setParkingLat] = useState<number | null>(10.776889);
-  const [parkingLng, setParkingLng] = useState<number | null>(106.700806);
+  const [parkingLat, setParkingLat] = useState<number | null>(null);
+  const [parkingLng, setParkingLng] = useState<number | null>(null);
+  const [parkingUnconfigured, setParkingUnconfigured] = useState(false);
+  const [parkingRadius, setParkingRadius] = useState('50');
   const [parkingSuggestions, setParkingSuggestions] = useState<VietmapSuggestion[]>([]);
   const [isSearchingParking, setIsSearchingParking] = useState(false);
   const [showParkingSuggestions, setShowParkingSuggestions] = useState(false);
   const [isSavingParkingLot, setIsSavingParkingLot] = useState(false);
-  const [parkingSuccessMsg, setParkingSuccessMsg] = useState<string | null>(null);
+
   const [parkingErrorMsg, setParkingErrorMsg] = useState<string | null>(null);
   const parkingSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Parking relocation impact modal state
+  const [parkingEffectiveDate, setParkingEffectiveDate] = useState(() => vietnamDateKey(1));
+  const [scheduledAction, setScheduledAction] = useState<'apply' | 'cancel' | null>(null);
+  const [scheduledBusy, setScheduledBusy] = useState(false);
+  const [scheduledError, setScheduledError] = useState('');
   const [parkingImpact, setParkingImpact] = useState<ParkingLotImpactResponse | null>(null);
   const [isParkingImpactModalOpen, setIsParkingImpactModalOpen] = useState(false);
   const [parkingRelocateReason, setParkingRelocateReason] = useState('');
@@ -74,15 +94,24 @@ export default function AdminSettingsPage() {
     if (user?.role !== 'SYSTEM_ADMIN') return;
     try {
       setIsLoadingParkingLot(true);
+      setParkingErrorMsg(null);
       const data = await apiClient.getParkingLot();
+      setParkingUnconfigured(false);
       if (data) {
         setParkingLot(data);
         setParkingAddress(data.addressText || '');
-        setParkingLat(data.latitude || 10.776889);
-        setParkingLng(data.longitude || 106.700806);
+        setParkingLat(data.latitude);
+        setParkingLng(data.longitude);
+        setParkingRadius(String(data.maxOperatingRadiusKm ?? 50));
       }
     } catch (err: any) {
-      console.warn('Không thể tải cấu hình bãi đỗ xe:', err?.message);
+      if (err instanceof ApiError && err.statusCode === 409 && err.message === 'Cần cấu hình bãi trung tâm trước khi lập lịch phục vụ') {
+        setParkingUnconfigured(true); setParkingLot(null);
+        setParkingLat(null); setParkingLng(null); setParkingAddress('');
+      } else {
+        setParkingUnconfigured(false);
+        setParkingErrorMsg(err?.message || 'Không thể tải cấu hình bãi xe. Vui lòng làm mới trang.');
+      }
     } finally {
       setIsLoadingParkingLot(false);
     }
@@ -101,7 +130,7 @@ export default function AdminSettingsPage() {
   // Xử lý Cập nhật Avatar
   // ==========================================
   const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setAvatarSuccessMsg(null);
+
     setAvatarErrorMsg(null);
     const file = e.target.files?.[0];
     if (!file) return;
@@ -131,7 +160,7 @@ export default function AdminSettingsPage() {
   const handleUploadAvatar = async () => {
     if (!selectedAvatarFile) return;
     setIsUploadingAvatar(true);
-    setAvatarSuccessMsg(null);
+
     setAvatarErrorMsg(null);
 
     try {
@@ -139,7 +168,7 @@ export default function AdminSettingsPage() {
       const updatedUser = { ...user, avatarUrl: res.avatarUrl };
       setUser(updatedUser);
       authStorage.setUser(updatedUser);
-      setAvatarSuccessMsg('Cập nhật ảnh đại diện thành công');
+      toast.success('Cập nhật ảnh đại diện thành công');
       setSelectedAvatarFile(null);
       if (avatarPreviewUrl) {
         URL.revokeObjectURL(avatarPreviewUrl);
@@ -158,7 +187,7 @@ export default function AdminSettingsPage() {
   // ==========================================
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    setPassSuccessMsg(null);
+
     setPassErrorMsg(null);
 
     if (!currentPassword) {
@@ -184,7 +213,7 @@ export default function AdminSettingsPage() {
         currentPassword,
         newPassword,
       });
-      setPassSuccessMsg(res.message || 'Đổi mật khẩu thành công');
+      toast.success(res.message || 'Đổi mật khẩu thành công');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -200,7 +229,7 @@ export default function AdminSettingsPage() {
   // ==========================================
   const handleParkingAddressInput = (text: string) => {
     setParkingAddress(text);
-    setParkingSuccessMsg(null);
+
     setParkingErrorMsg(null);
 
     if (parkingSearchTimeoutRef.current) {
@@ -246,8 +275,9 @@ export default function AdminSettingsPage() {
 
   const handleSaveParkingLot = async (e: React.FormEvent) => {
     e.preventDefault();
-    setParkingSuccessMsg(null);
+
     setParkingErrorMsg(null);
+    if (isSavingParkingLot || isSearchingParking || (!parkingLot && !parkingUnconfigured) || parkingLot?.scheduledChange) return;
 
     if (!parkingAddress.trim()) {
       setParkingErrorMsg('Địa chỉ bãi xe không được để trống');
@@ -259,8 +289,17 @@ export default function AdminSettingsPage() {
       return;
     }
 
+    const radius = Number(parkingRadius);
+    if (!Number.isFinite(radius) || radius <= 0 || radius > 500) {
+      setParkingErrorMsg('Bán kính phục vụ phải lớn hơn 0 và không quá 500 km.'); return;
+    }
     setIsSavingParkingLot(true);
     try {
+      if (parkingUnconfigured) {
+        const updated = await apiClient.updateParkingLot({ addressText: parkingAddress.trim(), latitude: parkingLat, longitude: parkingLng, maxOperatingRadiusKm: radius });
+        setParkingLot(updated); setParkingUnconfigured(false);
+        toast.success('Đã cấu hình bãi xe trung tâm.'); return;
+      }
       // 1. Kiểm tra xem tọa độ có thay đổi so với hiện tại không
       const coordsChanged =
         !parkingLot ||
@@ -270,35 +309,17 @@ export default function AdminSettingsPage() {
       if (!coordsChanged) {
         // Chỉ sửa nhãn địa chỉ, tọa độ giữ nguyên -> Cập nhật trực tiếp
         const updated = await apiClient.updateParkingLot({
+          maxOperatingRadiusKm: radius,
           addressText: parkingAddress.trim(),
           latitude: parkingLat,
           longitude: parkingLng,
         });
         setParkingLot(updated);
-        setParkingSuccessMsg('Cập nhật địa chỉ bãi xe trung tâm thành công (không đổi tọa độ)');
+        toast.success('Cập nhật địa chỉ bãi xe trung tâm thành công (không đổi tọa độ)');
         return;
       }
 
-      // 2. Tọa độ có thay đổi -> Lấy tác động từ hệ thống
-      const impact = await apiClient.getParkingLotImpact(parkingLat, parkingLng);
-      const totalAffectedPlans =
-        (impact.cancelledPlansCount ??
-          ((impact.totalDraftPlansCount || 0) + (impact.totalActivePlansCount || 0))) || 0;
-
-      // Yêu cầu: "nếu chưa có bất kì phương án nào ở draft, active thì tiến hành đổi, còn nếu có thì hủy mọi phương án đó"
-      if (totalAffectedPlans === 0) {
-        // Chưa có phương án DRAFT hay ACTIVE nào trên toàn hệ thống -> Tiến hành đổi ngay lập tức
-        const updated = await apiClient.updateParkingLot({
-          addressText: parkingAddress.trim(),
-          latitude: parkingLat,
-          longitude: parkingLng,
-        });
-        setParkingLot(updated);
-        setParkingSuccessMsg('Cập nhật vị trí bãi đỗ xe trung tâm thành công (hệ thống chưa có phương án nào bị ảnh hưởng)');
-        return;
-      }
-
-      // Có phương án DRAFT hoặc ACTIVE -> Mở modal cảnh báo & hủy phương án
+      const impact = await apiClient.getParkingLotImpact(parkingLat, parkingLng, parkingEffectiveDate);
       setParkingImpact(impact);
       setParkingRelocateReason('Bãi xe trung tâm thay đổi vị trí');
       setParkingRelocateReasonError(null);
@@ -315,35 +336,49 @@ export default function AdminSettingsPage() {
       setParkingRelocateReasonError('Vui lòng nhập lý do thay đổi vị trí bãi xe (bắt buộc)');
       return;
     }
-    if (parkingLat === null || parkingLng === null || !parkingImpact) return;
+    if (isConfirmingRelocation || parkingLat === null || parkingLng === null || !parkingImpact) return;
 
+    const radius = Number(parkingRadius);
+    if (!Number.isFinite(radius) || radius <= 0 || radius > 500) { setParkingRelocateReasonError('Bán kính phải lớn hơn 0 và không quá 500 km.'); return; }
     setIsConfirmingRelocation(true);
     setParkingRelocateReasonError(null);
     try {
-      const fingerprint = parkingImpact.fingerprint || parkingImpact.expectedFingerprint;
-      const cancelledPlans =
-        parkingImpact.cancelledPlansCount ??
-        ((parkingImpact.totalDraftPlansCount || 0) + (parkingImpact.totalActivePlansCount || 0));
-      const cancelledTrips =
-        parkingImpact.cancelledTripsCount ?? (parkingImpact.totalScheduledTripsCount || 0);
-
+      const fingerprint = parkingImpact.expectedFingerprint || parkingImpact.fingerprint;
       const updated = await apiClient.updateParkingLot({
         addressText: parkingAddress.trim(),
         latitude: parkingLat,
         longitude: parkingLng,
         reason: parkingRelocateReason.trim(),
+        maxOperatingRadiusKm: radius,
         expectedFingerprint: fingerprint,
+        effectiveDate: parkingEffectiveDate,
       });
       setParkingLot(updated);
       setIsParkingImpactModalOpen(false);
-      setParkingSuccessMsg(
-        `Cập nhật vị trí bãi xe thành công! Đã cascade hủy ${cancelledPlans} phương án tuyến toàn hệ thống và ${cancelledTrips} chuyến xe lập lịch.`,
-      );
+      await fetchParkingLot();
+      toast.success('Đã hẹn dời bãi xe. Tác động được áp dụng khi đến ngày hiệu lực.');
     } catch (err: any) {
-      setParkingRelocateReasonError(err?.message || 'Xác nhận thay đổi thất bại');
+      setIsParkingImpactModalOpen(false);
+      setParkingImpact(null);
+      setParkingErrorMsg(err?.message || 'Dữ liệu đã thay đổi. Vui lòng xem tác động lại.');
     } finally {
       setIsConfirmingRelocation(false);
     }
+  };
+
+  const handleScheduledAction = async () => {
+    if (!scheduledAction || scheduledBusy) return;
+    setScheduledBusy(true); setScheduledError('');
+    try {
+      if (scheduledAction === 'apply') {
+        const result = await apiClient.applyScheduledParkingChange();
+        if (!result.applied) throw new Error('Chưa đến ngày hiệu lực hoặc lịch thay đổi không còn tồn tại.');
+      } else await apiClient.cancelScheduledParkingChange();
+      await fetchParkingLot();
+      toast.success(scheduledAction === 'apply' ? 'Đã áp dụng vị trí bãi mới.' : 'Đã hủy lịch dời bãi.');
+      setScheduledAction(null);
+    } catch (cause) { setScheduledError(cause instanceof Error ? cause.message : 'Không thể cập nhật lịch dời bãi.'); }
+    finally { setScheduledBusy(false); }
   };
 
   const handleConfirmLogout = async () => {
@@ -359,9 +394,9 @@ export default function AdminSettingsPage() {
   return (
     <div className="space-y-6">
       {/* Tiêu đề & Điều hướng Tabs */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 pb-4">
+      <PageHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 pb-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1E293B]">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
             Cài đặt hệ thống
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
@@ -370,51 +405,53 @@ export default function AdminSettingsPage() {
         </div>
 
         {/* Tabs switcher nếu là SYSTEM_ADMIN */}
-        {user.role === 'SYSTEM_ADMIN' && (
-          <div className="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200/80 self-start sm:self-auto">
-            <button
+        {(user.role === 'SYSTEM_ADMIN' || user.role === 'SCHOOL_ADMIN') && (
+          <div className="inline-flex flex-wrap p-1 rounded-xl bg-slate-100 border border-slate-200/80 self-start sm:self-auto">
+            {user.role === 'SCHOOL_ADMIN' && <ContextLink href="/admin/calendar" className="ui-button" data-variant="outline" data-size="sm">Lịch vận hành</ContextLink>}
+            <Button
               type="button"
               onClick={() => setActiveTab('ACCOUNT')}
               className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
                 activeTab === 'ACCOUNT'
-                  ? 'bg-white text-[#1E293B] shadow-xs'
+                  ? 'bg-white text-foreground shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Tài khoản
-            </button>
-            <button
+            </Button>
+            {user.role === 'SYSTEM_ADMIN' && <Button
               type="button"
               onClick={() => setActiveTab('PARKING_LOT')}
               className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
                 activeTab === 'PARKING_LOT'
-                  ? 'bg-white text-[#1E293B] shadow-xs'
+                  ? 'bg-white text-foreground shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Vị trí bãi xe
-            </button>
+            </Button>}
+            {user.role === 'SYSTEM_ADMIN' && <Button type="button" onClick={() => setActiveTab('HOLIDAYS')}
+              className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${activeTab === 'HOLIDAYS' ? 'bg-white text-foreground shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}>
+              Lịch nghỉ nhà xe
+            </Button>}
           </div>
         )}
-      </div>
+      </PageHeader>
 
       {/* ============================================================= */}
       {/* TAB 1: CÀI ĐẶT TÀI KHOẢN (Cho cả SYSTEM_ADMIN & SCHOOL_ADMIN)  */}
       {/* ============================================================= */}
+      {activeTab === 'HOLIDAYS' && user.role === 'SYSTEM_ADMIN' && <ServiceCalendarPanel key={`operator:${user.id}`} role={user.role} operatorOnly />}
+
       {activeTab === 'ACCOUNT' && (
         <div className="space-y-6">
           {/* Card 1: Thông tin & Đổi Avatar */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs">
-            <h2 className="text-base font-bold text-[#1E293B] mb-5 pb-3 border-b border-slate-100">
+          <Card className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs">
+            <h2 className="text-base font-bold text-foreground mb-5 pb-3 border-b border-slate-100">
               Ảnh đại diện & Thông tin cá nhân
             </h2>
 
-            {avatarSuccessMsg && (
-              <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2">
-                <CheckIcon className="w-5 h-5 text-emerald-600 shrink-0" />
-                <span>{avatarSuccessMsg}</span>
-              </div>
-            )}
+
 
             {avatarErrorMsg && (
               <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-center gap-2">
@@ -431,10 +468,10 @@ export default function AdminSettingsPage() {
                   <img
                     src={avatarPreviewUrl || user.avatarUrl!}
                     alt={user.fullName}
-                    className="w-20 h-20 rounded-full object-cover border-2 border-[#FFCB56] shadow-xs"
+                    className="w-20 h-20 rounded-full object-cover border-2 border-primary shadow-xs"
                   />
                 ) : (
-                  <div className="w-20 h-20 rounded-full bg-[#FFCB56] text-[#1E293B] font-bold text-3xl flex items-center justify-center border-2 border-amber-300 shadow-xs">
+                  <div className="w-20 h-20 rounded-full bg-primary text-foreground font-bold text-3xl flex items-center justify-center border-2 border-amber-300 shadow-xs">
                     {initial}
                   </div>
                 )}
@@ -443,32 +480,32 @@ export default function AdminSettingsPage() {
               {/* Thao tác chọn ảnh */}
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-3">
-                  <input
+                  <Input
                     type="file"
                     ref={fileInputRef}
                     accept="image/jpeg,image/png,image/webp"
                     className="hidden"
                     onChange={handleAvatarFileChange}
                   />
-                  <button
+                  <Button variant="outline" size="default"
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isUploadingAvatar}
                     className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold text-slate-700 transition-colors cursor-pointer"
                   >
                     Chọn ảnh mới
-                  </button>
+                  </Button>
 
                   {selectedAvatarFile && (
-                    <button
+                    <Button variant="primary" size="default"
                       type="button"
                       onClick={handleUploadAvatar}
                       disabled={isUploadingAvatar}
-                      className="px-4 py-2 rounded-xl bg-[#FFCB56] hover:bg-amber-400 text-sm font-bold text-[#1E293B] transition-colors cursor-pointer flex items-center gap-2"
+                      className="px-4 py-2 rounded-xl bg-primary hover:bg-amber-400 text-sm font-bold text-foreground transition-colors cursor-pointer flex items-center gap-2"
                     >
                       {isUploadingAvatar && <SpinnerIcon className="w-4 h-4 animate-spin" />}
                       <span>Lưu ảnh</span>
-                    </button>
+                    </Button>
                   )}
                 </div>
                 <p className="text-xs text-slate-500">
@@ -481,38 +518,33 @@ export default function AdminSettingsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm pt-2">
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
                 <span className="text-xs text-slate-500 block mb-1">Họ và tên</span>
-                <span className="font-semibold text-[#1E293B]">{user.fullName}</span>
+                <span className="font-semibold text-foreground">{user.fullName}</span>
               </div>
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
                 <span className="text-xs text-slate-500 block mb-1">Vai trò quản trị</span>
-                <span className="font-semibold text-[#1E293B]">{roleLabel}</span>
+                <span className="font-semibold text-foreground">{roleLabel}</span>
               </div>
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
                 <span className="text-xs text-slate-500 block mb-1">Địa chỉ Email</span>
-                <span className="font-semibold text-[#1E293B] break-all">{user.email || '—'}</span>
+                <span className="font-semibold text-foreground break-all">{user.email || '—'}</span>
               </div>
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
                 <span className="text-xs text-slate-500 block mb-1">Số điện thoại</span>
-                <span className="font-semibold text-[#1E293B]">{user.phone || '—'}</span>
+                <span className="font-semibold text-foreground">{user.phone || '—'}</span>
               </div>
             </div>
-          </div>
+          </Card>
 
           {/* Card 2: Đổi Mật Khẩu */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs">
-            <h2 className="text-base font-bold text-[#1E293B] mb-2 pb-3 border-b border-slate-100">
+          <Card className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs">
+            <h2 className="text-base font-bold text-foreground mb-2 pb-3 border-b border-slate-100">
               Đổi mật khẩu
             </h2>
             <p className="text-xs text-slate-500 mb-5">
               Sau khi đổi mật khẩu thành công, toàn bộ các phiên đăng nhập khác sẽ được thu hồi tự động để bảo mật.
             </p>
 
-            {passSuccessMsg && (
-              <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2">
-                <CheckIcon className="w-5 h-5 text-emerald-600 shrink-0" />
-                <span>{passSuccessMsg}</span>
-              </div>
-            )}
+
 
             {passErrorMsg && (
               <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-center gap-2">
@@ -528,21 +560,21 @@ export default function AdminSettingsPage() {
                   Mật khẩu hiện tại *
                 </label>
                 <div className="relative">
-                  <input
+                  <Input
                     type={showCurrentPass ? 'text' : 'password'}
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
                     required
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#FFCB56] text-sm pr-10"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-sm pr-10"
                     placeholder="Nhập mật khẩu hiện tại"
                   />
-                  <button
+                  <Button
                     type="button"
                     onClick={() => setShowCurrentPass(!showCurrentPass)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                   >
                     {showCurrentPass ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
-                  </button>
+                  </Button>
                 </div>
               </div>
 
@@ -552,21 +584,21 @@ export default function AdminSettingsPage() {
                   Mật khẩu mới (tối thiểu 8 ký tự) *
                 </label>
                 <div className="relative">
-                  <input
+                  <Input
                     type={showNewPass ? 'text' : 'password'}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     required
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#FFCB56] text-sm pr-10"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-sm pr-10"
                     placeholder="Nhập mật khẩu mới"
                   />
-                  <button
+                  <Button
                     type="button"
                     onClick={() => setShowNewPass(!showNewPass)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                   >
                     {showNewPass ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
-                  </button>
+                  </Button>
                 </div>
               </div>
 
@@ -576,54 +608,54 @@ export default function AdminSettingsPage() {
                   Xác nhận mật khẩu mới *
                 </label>
                 <div className="relative">
-                  <input
+                  <Input
                     type={showConfirmPass ? 'text' : 'password'}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#FFCB56] text-sm pr-10"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-sm pr-10"
                     placeholder="Nhập lại mật khẩu mới"
                   />
-                  <button
+                  <Button
                     type="button"
                     onClick={() => setShowConfirmPass(!showConfirmPass)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                   >
                     {showConfirmPass ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
-                  </button>
+                  </Button>
                 </div>
               </div>
 
               <div className="pt-2">
-                <button
+                <Button variant="primary" size="default"
                   type="submit"
                   disabled={isChangingPass}
-                  className="px-5 py-2.5 rounded-xl bg-[#FFCB56] hover:bg-amber-400 text-sm font-bold text-[#1E293B] transition-colors cursor-pointer flex items-center gap-2 shadow-xs"
+                  className="px-5 py-2.5 rounded-xl bg-primary hover:bg-amber-400 text-sm font-bold text-foreground transition-colors cursor-pointer flex items-center gap-2 shadow-xs"
                 >
                   {isChangingPass && <SpinnerIcon className="w-4 h-4 animate-spin" />}
                   <span>Cập nhật mật khẩu</span>
-                </button>
+                </Button>
               </div>
             </form>
-          </div>
+          </Card>
 
           {/* Card 3: Đăng xuất */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <Card className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h2 className="text-base font-bold text-[#1E293B]">Phiên đăng nhập</h2>
+              <h2 className="text-base font-bold text-foreground">Phiên đăng nhập</h2>
               <p className="text-sm text-slate-500 mt-0.5">
                 Đăng xuất tài khoản khỏi thiết bị hiện tại
               </p>
             </div>
-            <button
+            <Button variant="outline" size="default"
               type="button"
               onClick={() => setIsLogoutDialogOpen(true)}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 text-sm font-semibold transition-colors cursor-pointer shrink-0"
             >
               <LogoutIcon className="w-4 h-4" />
               <span>Đăng xuất</span>
-            </button>
-          </div>
+            </Button>
+          </Card>
         </div>
       )}
 
@@ -631,9 +663,9 @@ export default function AdminSettingsPage() {
       {/* TAB 2: VỊ TRÍ BÃI XE TRUNG TÂM (Chỉ hiển thị cho SYSTEM_ADMIN) */}
       {/* ============================================================= */}
       {activeTab === 'PARKING_LOT' && user.role === 'SYSTEM_ADMIN' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-6">
+        <Card className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-6">
           <div>
-            <h2 className="text-base font-bold text-[#1E293B]">
+            <h2 className="text-base font-bold text-foreground">
               Vị trí bãi đỗ xe trung tâm
             </h2>
             <p className="text-xs text-slate-500 mt-1">
@@ -641,12 +673,7 @@ export default function AdminSettingsPage() {
             </p>
           </div>
 
-          {parkingSuccessMsg && (
-            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2">
-              <CheckIcon className="w-5 h-5 text-emerald-600 shrink-0" />
-              <span>{parkingSuccessMsg}</span>
-            </div>
-          )}
+
 
           {parkingErrorMsg && (
             <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-center gap-2">
@@ -655,20 +682,37 @@ export default function AdminSettingsPage() {
             </div>
           )}
 
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm" hidden={!parkingLot}>
+            <p className="font-semibold">Bãi đang áp dụng</p><p>{parkingLot?.addressText}</p>
+          </div>
+          {parkingLot?.scheduledChange && <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
+            <p className="font-semibold">Thay đổi đã hẹn · {parkingLot.scheduledChange.effectiveDate.split('-').reverse().join('/')}</p>
+            <p>{parkingLot.scheduledChange.newAddressText}</p>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => { setScheduledError(''); setScheduledAction('cancel'); }}>Hủy lịch thay đổi</Button>
+              {parkingLot.scheduledChange.effectiveDate <= vietnamDateKey() && <Button variant="primary" onClick={() => { setScheduledError(''); setScheduledAction('apply'); }}>Áp dụng vị trí mới</Button>}
+              <Button variant="outline" onClick={() => void fetchParkingLot()}>Làm mới</Button>
+            </div>
+          </div>}
           <form onSubmit={handleSaveParkingLot} className="space-y-5">
+            <fieldset disabled={(!parkingLot && !parkingUnconfigured) || !!parkingLot?.scheduledChange || isSavingParkingLot || isLoadingParkingLot} className="space-y-5">
+            {parkingUnconfigured && <p role="status" className="lifecycle-notice">Chưa cấu hình bãi trung tâm. Chọn địa chỉ và vị trí để bắt đầu.</p>}
+            <div className="max-w-xs space-y-1.5"><label htmlFor="parking-radius" className="block text-sm font-semibold">Bán kính phục vụ (km)</label>
+              <Input className="w-full border bg-white px-3 py-2" id="parking-radius" type="number" min="0" max="500" step="any" required value={parkingRadius} onChange={event => { setParkingRadius(event.target.value); setParkingImpact(null); }} />
+            </div>
             {/* Địa chỉ bãi xe với Autocomplete */}
             <div className="relative">
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Địa chỉ bãi xe *
               </label>
               <div className="relative">
-                <input
+                <Input
                   type="text"
                   value={parkingAddress}
                   onChange={(e) => handleParkingAddressInput(e.target.value)}
                   placeholder="Nhập địa chỉ bãi xe để tìm kiếm..."
                   required
-                  className="w-full px-3.5 py-2.5 pl-10 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#FFCB56] text-sm"
+                  className="w-full px-3.5 py-2.5 pl-10 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                 />
                 <MapPinIcon className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 {isSearchingParking && (
@@ -678,9 +722,9 @@ export default function AdminSettingsPage() {
 
               {/* Danh sách gợi ý từ VietMap */}
               {showParkingSuggestions && parkingSuggestions.length > 0 && (
-                <div className="absolute z-20 w-full mt-1.5 bg-white rounded-xl border border-slate-200 shadow-xl max-h-56 overflow-y-auto">
+                <Card className="absolute z-20 w-full mt-1.5 bg-white rounded-xl border border-slate-200 shadow-xl max-h-56 overflow-y-auto">
                   {parkingSuggestions.map((sugg) => (
-                    <button
+                    <Button
                       key={sugg.refId}
                       type="button"
                       onClick={() => handleSelectParkingSuggestion(sugg)}
@@ -691,9 +735,9 @@ export default function AdminSettingsPage() {
                         <span className="font-semibold text-slate-800 block">{sugg.name}</span>
                         <span className="text-slate-500 block text-[11px]">{sugg.address || sugg.display}</span>
                       </div>
-                    </button>
+                    </Button>
                   ))}
-                </div>
+                </Card>
               )}
             </div>
 
@@ -720,6 +764,9 @@ export default function AdminSettingsPage() {
               </div>
             </div>
 
+            {!parkingUnconfigured && <div className="max-w-xs space-y-1.5"><label htmlFor="parking-effective-date" className="block text-sm font-semibold">Ngày hiệu lực dời bãi</label>
+              <Input id="parking-effective-date" type="date" min={vietnamDateKey(1)} required value={parkingEffectiveDate} onChange={event => { setParkingEffectiveDate(event.target.value); setParkingImpact(null); }} />
+            </div>}
             {/* Nút Lưu cấu hình */}
             <div className="flex items-center justify-between pt-2">
               <span className="text-xs text-slate-500">
@@ -728,104 +775,39 @@ export default function AdminSettingsPage() {
                   : 'Chưa có thông tin cập nhật'}
               </span>
 
-              <button
+              <Button variant="primary" size="default"
                 type="submit"
-                disabled={isSavingParkingLot}
-                className="px-6 py-2.5 rounded-xl bg-[#FFCB56] hover:bg-amber-400 text-sm font-bold text-[#1E293B] transition-colors cursor-pointer flex items-center gap-2 shadow-xs"
+                disabled={isSavingParkingLot || isSearchingParking}
+                className="px-6 py-2.5 rounded-xl bg-primary hover:bg-amber-400 text-sm font-bold text-foreground transition-colors cursor-pointer flex items-center gap-2 shadow-xs"
               >
                 {isSavingParkingLot && <SpinnerIcon className="w-4 h-4 animate-spin" />}
-                <span>Lưu vị trí bãi xe</span>
-              </button>
+                <span>{parkingUnconfigured ? 'Lưu cấu hình bãi' : 'Xem tác động / Lưu cấu hình'}</span>
+              </Button>
             </div>
+            </fieldset>
           </form>
-        </div>
+        </Card>
       )}
 
-      {/* Modal xác nhận đổi vị trí bãi đỗ xe trung tâm (Toàn hệ thống) */}
-      {isParkingImpactModalOpen && parkingImpact && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg p-6 space-y-5">
-            <div className="flex items-start gap-3">
-              <div className="p-3 bg-rose-50 text-rose-600 rounded-xl shrink-0">
-                <AlertIcon className="w-6 h-6" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-lg font-bold text-slate-900">
-                  Xác nhận đổi vị trí bãi đỗ xe trung tâm
-                </h3>
-                <p className="text-sm text-slate-500">
-                  Hành động này có tác động trên toàn hệ thống và không thể hoàn tác.
-                </p>
-              </div>
-            </div>
-
-            {/* Thống kê tác động */}
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2 text-sm text-slate-700">
-              <div className="flex items-center justify-between">
-                <span>Phương án DRAFT/ACTIVE bị hủy toàn hệ thống:</span>
-                <span className="font-bold text-rose-600">
-                  {parkingImpact.cancelledPlansCount ??
-                    ((parkingImpact.totalDraftPlansCount || 0) + (parkingImpact.totalActivePlansCount || 0))}{' '}
-                  phương án
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Chuyến xe SCHEDULED liên quan bị hủy:</span>
-                <span className="font-bold text-rose-600">
-                  {parkingImpact.cancelledTripsCount ?? (parkingImpact.totalScheduledTripsCount || 0)} chuyến
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Chuyến xe đang chạy (IN_PROGRESS) giữ nguyên:</span>
-                <span className="font-bold text-emerald-600">
-                  {parkingImpact.inProgressTripsPreservedCount ?? (parkingImpact.totalInProgressTripsCount || 0)} chuyến
-                </span>
-              </div>
-            </div>
-
-            {/* Nhập lý do bắt buộc */}
-            <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-slate-700">
-                Lý do thay đổi vị trí <span className="text-rose-500">*</span>
-              </label>
-              <textarea
-                value={parkingRelocateReason}
-                onChange={(e) => {
-                  setParkingRelocateReason(e.target.value);
-                  setParkingRelocateReasonError(null);
-                }}
-                rows={3}
-                placeholder="Nhập lý do thay đổi tọa độ bãi xe trung tâm..."
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
-              />
-              {parkingRelocateReasonError && (
-                <p className="text-xs text-rose-600 font-medium">{parkingRelocateReasonError}</p>
-              )}
-            </div>
-
-            {/* Hành động */}
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                disabled={isConfirmingRelocation}
-                onClick={() => setIsParkingImpactModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                Hủy bỏ
-              </button>
-              <button
-                type="button"
-                disabled={isConfirmingRelocation}
-                onClick={handleConfirmParkingRelocation}
-                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-sm font-bold text-white transition-colors cursor-pointer flex items-center gap-2 shadow-xs"
-              >
-                {isConfirmingRelocation && <SpinnerIcon className="w-4 h-4 animate-spin" />}
-                <span>Xác nhận & Hủy phương án</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <LifecycleDialog open={isParkingImpactModalOpen && !!parkingImpact} title="Xác nhận hẹn dời bãi" busy={isConfirmingRelocation} onClose={() => setIsParkingImpactModalOpen(false)}
+        footer={<><Button variant="outline" disabled={isConfirmingRelocation} onClick={() => setIsParkingImpactModalOpen(false)}>Quay lại</Button><Button variant="primary" disabled={isConfirmingRelocation || !parkingRelocateReason.trim()} onClick={handleConfirmParkingRelocation}>{isConfirmingRelocation ? 'Đang lưu…' : 'Xác nhận'}</Button></>}>
+        {parkingImpact && <div className="space-y-4 text-sm">
+          <p className="font-semibold">{parkingAddress}</p><p>Ngày hiệu lực: {parkingEffectiveDate.split('-').reverse().join('/')}</p>
+          <dl className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex justify-between gap-4"><dt>Phương án cần tối ưu lại</dt><dd className="font-bold">{parkingImpact.plansNeedingReoptimizationCount}</dd></div>
+            <div className="flex justify-between gap-4"><dt>Chuyến đã lên lịch bị hủy từ ngày hiệu lực</dt><dd className="font-bold text-rose-600">{parkingImpact.tripsCancelledAfterEffectiveDateCount}</dd></div>
+            <div className="flex justify-between gap-4"><dt>Chuyến trước ngày hiệu lực giữ nguyên</dt><dd className="font-bold">{parkingImpact.tripsPreservedBeforeEffectiveDateCount}</dd></div>
+          </dl>
+          <label htmlFor="parking-reason" className="block font-semibold">Lý do thay đổi *</label>
+          <Textarea id="parking-reason" rows={3} value={parkingRelocateReason} onChange={event => setParkingRelocateReason(event.target.value)} />
+          {parkingRelocateReasonError && <p role="alert" className="text-rose-600">{parkingRelocateReasonError}</p>}
+        </div>}
+      </LifecycleDialog>
+      <LifecycleDialog open={!!scheduledAction} title={scheduledAction === 'apply' ? 'Áp dụng vị trí bãi mới?' : 'Hủy lịch dời bãi?'} busy={scheduledBusy} onClose={() => setScheduledAction(null)}
+        footer={<><Button variant="outline" disabled={scheduledBusy} onClick={() => setScheduledAction(null)}>Quay lại</Button><Button variant={scheduledAction === 'cancel' ? 'danger' : 'primary'} disabled={scheduledBusy} onClick={handleScheduledAction}>Xác nhận</Button></>}>
+        <p className="text-sm">{scheduledAction === 'apply' ? 'Vị trí mới sẽ được dùng khi tối ưu lại phương án. Thao tác này không tự sinh lại chuyến.' : 'Hủy lịch dời bãi trước hạn; các chuyến hiện tại được giữ nguyên.'}</p>
+        {scheduledError && <p role="alert" className="mt-3 text-sm text-rose-600">{scheduledError}</p>}
+      </LifecycleDialog>
 
       {/* Logout Confirmation Dialog */}
       <LogoutDialog

@@ -1,0 +1,12 @@
+.geography-filter-trigger.ui-button { min-height: 44px; white-space: nowrap; gap: 6px; }
+.geography-filter-popup { position: fixed; inset: auto; margin: 0; padding: 0; border: 1px solid var(--brand-border); border-radius: 12px; background: var(--brand-surface); color: var(--brand-foreground); box-shadow: var(--brand-shadow); overflow: hidden; }
+.geography-filter-popup:popover-open { display: flex; flex-direction: column; }
+.geography-filter-popup > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--brand-border); flex-shrink: 0; }
+.geography-filter-popup h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.geography-filter-popup-body { min-height: 0; padding: 12px; overflow-y: auto; overscroll-behavior: contain; }
+.geography-filter-popup .geography-filter-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.geography-filter-popup .ui-filter-field { min-width: 0; width: 100%; }
+.geography-filter-summary { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; color: var(--brand-muted); }
+.geography-filter-summary > span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.geography-filter-summary > button { flex-shrink: 0; }
+.geography-filter-error { grid-column: 1 / -1; }

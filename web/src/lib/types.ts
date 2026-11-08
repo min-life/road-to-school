@@ -45,7 +45,7 @@ export interface PaginationMeta {
   totalPages: number;
 }
 
-export interface SchoolListItem {
+export interface SchoolListItem extends GeographyFields {
   id: string;
   name: string;
   addressText: string;
@@ -89,6 +89,9 @@ export interface SchoolDetail {
 }
 
 export interface UpdateSchoolStatusResponse {
+  scheduledChangeId?: string;
+  effectiveDate?: string;
+  changeStatus?: 'PENDING';
   id: string;
   isActive: boolean;
   message: string;
@@ -110,6 +113,7 @@ export interface SchoolEmployeeListResponse {
 }
 
 export interface CreateSchoolAdminResponse {
+  credentialDeliveryStatus?: 'SENT' | 'FAILED' | 'CONSOLE';
   id: string;
   fullName: string;
   email: string | null;
@@ -124,7 +128,7 @@ export interface CreateSchoolAdminResponse {
 
 export type StudentStatus = 'AVAILABLE' | 'DISABLED';
 
-export interface StudentListItem {
+export interface StudentListItem extends GeographyFields {
   id: string;
   code: string;
   fullName: string;
@@ -140,7 +144,8 @@ export interface StudentListResponse {
   meta: PaginationMeta;
 }
 
-export interface StudentDetail {
+export interface StudentDetail extends GeographyFields {
+  parentLinkAudit?: unknown;
   id: string;
   code: string;
   schoolId: string;
@@ -178,6 +183,7 @@ export interface DriverListResponse {
 }
 
 export interface CreateDriverResponse {
+  credentialDeliveryStatus: 'SENT' | 'FAILED' | 'CONSOLE';
   id: string;
   fullName: string;
   email: string | null;
@@ -207,6 +213,7 @@ export interface SchoolEmployeeDetail {
 // ==========================================
 
 export interface Vehicle {
+  isActive: boolean;
   id: string;
   brand: string;
   seatCount: number; // Số ghế khả dụng cho học sinh
@@ -231,6 +238,8 @@ export interface CreateVehicleDto {
 }
 
 export interface ParkingLot {
+  maxOperatingRadiusKm?: number;
+  scheduledChange?: { newAddressText: string; newLatitude: number; newLongitude: number; effectiveDate: string; reason?: string; scheduledAt: string; scheduledById?: string } | null;
   addressText: string;
   latitude: number;
   longitude: number;
@@ -242,6 +251,8 @@ export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 export type UserRole = Role;
 
 export interface UpdateParkingLotDto {
+  maxOperatingRadiusKm?: number;
+  effectiveDate?: string;
   addressText: string;
   latitude: number;
   longitude: number;
@@ -250,6 +261,10 @@ export interface UpdateParkingLotDto {
 }
 
 export interface ParkingLotImpactResponse {
+  effectiveDate?: string;
+  plansNeedingReoptimizationCount: number;
+  tripsCancelledAfterEffectiveDateCount: number;
+  tripsPreservedBeforeEffectiveDateCount: number;
   currentAddressText?: string;
   currentLatitude?: number;
   currentLongitude?: number;
@@ -284,9 +299,9 @@ export interface RoutePlanCancellationImpactResponse {
   status: RoutePlanStatus;
   scheduledTripsCount: number;
   inProgressTripsCount: number;
-  pendingStaffLeaveNoticesCount: number;
+  completedTripsCount: number;
   routesCount: number;
-  fingerprint: string;
+  expectedFingerprint: string;
 }
 
 export interface EmptyRoutePlanInfo {
@@ -522,7 +537,7 @@ export type RouteStopType =
   | 'DROPOFF'
   | 'PARKING_END';
 
-export interface EligibleStudentItem {
+export interface EligibleStudentItem extends GeographyFields {
   id: string;
   code: string;
   fullName: string;
@@ -533,7 +548,7 @@ export interface EligibleStudentItem {
   longitude: number;
 }
 
-export interface IneligibleStudentItem {
+export interface IneligibleStudentItem extends GeographyFields {
   id: string;
   code: string;
   fullName: string;
@@ -779,11 +794,16 @@ export interface CandidateBusAttendantsResponse {
 }
 
 export interface RoutePlanItem {
+  firstServiceDate?: string | null;
+  needsReoptimization?: boolean;
+  reoptimizationReason?: string | null;
   id: string;
   schoolId: string;
   schoolName?: string;
   name: string;
   status: RoutePlanStatus;
+  effectiveStatus?: RoutePlanStatus;
+  effectiveStatusReason?: string | null;
   totalStudents: number;
   totalOutboundRoutes: number;
   totalReturnRoutes: number;
@@ -870,19 +890,17 @@ export interface ApprovalBlocker {
 }
 
 export interface ApprovalSummary {
-  fullyAssignedRoutes: number;
-  missingVehicleRoutes: number;
-  missingDriverRoutes: number;
-  missingBusAttendantRoutes: number;
+  totalRoutes: number;
+  routesWithVehicle: number;
+  routesWithDriver: number;
+  routesWithBusAttendant: number;
 }
 
 export interface ApprovalReadinessResponse {
+  firstServiceDate?: string | null;
   isReadyForApproval: boolean;
   routePlanId: string;
-  schoolId: string;
-  schoolName: string;
-  totalRoutes: number;
-  totalVehicles: number;
+  status: RoutePlanStatus;
   summary: ApprovalSummary;
   blockers: ApprovalBlocker[];
 }
@@ -908,6 +926,8 @@ export interface AssignBusAttendantGroupRequest {
 
 export interface TripItem {
   id: string;
+  driverId?: string;
+  type?: 'PERSISTED' | 'VIRTUAL';
   isVirtual?: boolean;
   serviceDate: string;
   routeId: string;
@@ -1015,7 +1035,46 @@ export interface CancelTripFromNoticeDto {
   expectedStatus?: LeaveNoticeStatus;
 }
 
+export type TripAttendanceStatus = 'UNMARKED' | 'PRESENT' | 'ABSENT';
+
+export interface TripAttendanceStudent {
+  studentId: string;
+  studentCode: string;
+  fullName: string;
+  avatarUrl?: string | null;
+  stopOrder: number;
+  addressText: string;
+  plannedArrivalTime?: string | null;
+  status: TripAttendanceStatus;
+  absenceReason?: string | null;
+  markedById?: string | null;
+  markedByName?: string | null;
+  markedAt?: string | null;
+  alightedAt?: string | null;
+  isAlighted: boolean;
+}
+
+export interface TripAttendanceRoster {
+  tripId: string;
+  totalStudents: number;
+  markedCount: number;
+  presentCount: number;
+  absentCount: number;
+  unmarkedCount: number;
+  isAllMarked: boolean;
+  alightedCount: number;
+  pendingAlightCount: number;
+  isAllAlighted: boolean;
+  students: TripAttendanceStudent[];
+}
+
 export interface TripDetail {
+  operationAudit?: unknown;
+  actualStartTime?: string | null;
+  actualEndTime?: string | null;
+  attendantReadyAt?: string | null;
+  isAttendantReady?: boolean;
+  adminFinalization?: import('./school-lifecycle').TripAdminFinalization | null;
   id: string;
   routeId: string;
   routeName: string;
@@ -1079,7 +1138,10 @@ export type TripIncidentType =
   | 'ATTENDANT_MISSING'
   | 'DRIVER_MISSING'
   | 'OFF_ROUTE'
-  | 'LATE_STOP';
+  | 'LATE_STOP'
+  | 'NO_GUARDIAN_AT_STOP'
+  | 'TRAFFIC_DELAY'
+  | 'GPS_SIGNAL_LOST';
 
 export type TripIncidentStatus =
   | 'WAITING_ASSIGNMENT'
@@ -1135,3 +1197,17 @@ export interface IncidentCandidatesResponse {
   total: number;
 }
 
+
+// Optional geography metadata from the effective address; IDs are VietMap strings.
+export interface GeographyFields {
+  province?: string | null;
+  provinceId?: string | null;
+  wardId?: string | null;
+  ward?: string | null;
+}
+export interface GeographyQuery { provinceId?: string; wardId?: string }
+export interface LocationOptions {
+  provinces: { id: string; name: string }[];
+  wards: { id: string; name: string; provinceId: string }[];
+}
+export interface ReopenTripRequest { reason: string; vehicleId?: string; driverId?: string; busAttendantId?: string }

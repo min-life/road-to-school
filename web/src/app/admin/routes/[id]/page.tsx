@@ -1,12 +1,14 @@
 'use client';
+import { effectivePlanStatus } from '@/lib/school-lifecycle';
+import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
+import { BackLink } from '@/components/admin/common/context-navigation';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { apiClient } from '@/lib/api-client';
 import { RouteItem, Role } from '@/lib/types';
 import {
-  ArrowLeftIcon,
   SpinnerIcon,
   AlertIcon,
   RouteIcon,
@@ -16,10 +18,13 @@ import {
 import { RouteMap, MapPoint } from '@/components/admin/routes/route-map';
 import { CancelRoutePlanModal } from '@/components/admin/routes/cancel-route-plan-modal';
 import { authStorage } from '@/lib/auth-storage';
+import { PageHeader } from '@/components/ui/page-header';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 
 export default function RouteDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const routeId = params.id as string;
 
   const [route, setRoute] = useState<RouteItem | null>(null);
@@ -40,7 +45,8 @@ export default function RouteDetailPage() {
       setLoading(true);
       setError(null);
       const data = await apiClient.getRouteDetail(routeId);
-      setRoute(data);
+      const parent = data.routePlanId ? await apiClient.getRoutePlanDetail(data.routePlanId) : null;
+      setRoute(parent ? { ...data, planStatus: effectivePlanStatus(parent) } : data);
     } catch (err: any) {
       setError(err?.message || 'Không thể tải thông tin tuyến đường');
     } finally {
@@ -104,7 +110,7 @@ export default function RouteDetailPage() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-slate-500">
-        <SpinnerIcon className="w-8 h-8 animate-spin text-[#FFCB56] mb-3" />
+        <SpinnerIcon className="w-8 h-8 animate-spin text-primary mb-3" />
         <p className="text-sm font-medium">Đang tải chi tiết tuyến đường...</p>
       </div>
     );
@@ -118,20 +124,14 @@ export default function RouteDetailPage() {
         </div>
         <h2 className="text-lg font-bold text-slate-800">Không tìm thấy tuyến đường</h2>
         <p className="text-sm text-slate-500">{error}</p>
-        <Link
-          href="/admin/routes"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition-colors"
-        >
-          <ArrowLeftIcon className="w-4 h-4" />
-          <span>Quay lại danh sách tuyến</span>
-        </Link>
+        <BackLink fallback="/admin/routes" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition-colors" />
       </div>
     );
   }
 
   const isToSchool = route.direction === 'TO_SCHOOL';
-  const isDraft = route.planStatus === 'DRAFT' || route.status === 'DRAFT';
-  const isActive = route.planStatus === 'ACTIVE' || route.status === 'ACTIVE';
+  const isDraft = (route.planStatus ?? route.status) === 'DRAFT';
+  const isActive = (route.planStatus ?? route.status) === 'ACTIVE';
   const isSystemAdmin = currentUserRole === 'SYSTEM_ADMIN';
   const distanceKm = (route.totalDistanceMeters / 1000).toFixed(1);
   const durationMins = Math.round(route.estimatedDurationSeconds / 60);
@@ -172,18 +172,12 @@ export default function RouteDetailPage() {
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <Link
-            href={planUrl}
-            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
-            title="Quay lại Phương án tuyến"
-          >
-            <ArrowLeftIcon className="w-5 h-5" />
-          </Link>
-          <div>
+        <div className="flex flex-col items-start gap-3">
+          <BackLink fallback={planUrl} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors" />
+          <PageHeader>
             <div className="flex items-center gap-2.5">
               <h1 className="text-2xl font-bold text-slate-800">{route.name}</h1>
-              <span
+              <Badge
                 className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
                   isToSchool
                     ? 'bg-blue-100 text-blue-800 border border-blue-200'
@@ -191,7 +185,7 @@ export default function RouteDetailPage() {
                 }`}
               >
                 {isToSchool ? 'Chiều đi: Bãi xe → Trường' : 'Chiều về: Trường → Bãi xe'}
-              </span>
+              </Badge>
               <span
                 className={`text-xs font-semibold px-2 py-0.5 rounded-md ${
                   isActive
@@ -201,7 +195,7 @@ export default function RouteDetailPage() {
                     : 'bg-rose-50 text-rose-700 border border-rose-200'
                 }`}
               >
-                Phương án: {isActive ? 'ACTIVE' : isDraft ? 'DRAFT' : 'CANCELLED'}
+                Phương án: {getRoutePlanStatusLabel(route.planStatus ?? route.status)}
               </span>
             </div>
             <p className="text-sm text-slate-500 mt-1">
@@ -211,23 +205,23 @@ export default function RouteDetailPage() {
               </Link>{' '}
               • Trường: <span className="font-semibold text-slate-700">{route.schoolName}</span>
             </p>
-          </div>
+          </PageHeader>
         </div>
 
         {isSystemAdmin && isDraft && (
-          <button
+          <Button variant="outline" size="sm"
             onClick={() => setIsCancelModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 transition-colors cursor-pointer shadow-xs"
           >
             <TrashIcon className="w-4 h-4 text-rose-600" />
             <span>Hủy toàn bộ phương án tuyến</span>
-          </button>
+          </Button>
         )}
       </div>
 
       {/* Metrics Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
           <p className="text-xs text-slate-500 font-medium">Xe đề xuất (Proposed)</p>
           <p className="text-lg font-mono font-bold text-slate-800 mt-1">
             {route.proposedVehiclePlate || 'Chưa gán'}
@@ -235,33 +229,33 @@ export default function RouteDetailPage() {
           <p className="text-[11px] text-slate-400 mt-0.5">
             {route.proposedVehicleBrand || 'Xe dự kiến'}
           </p>
-        </div>
+        </Card>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
           <p className="text-xs text-slate-500 font-medium">Số học sinh trên tuyến</p>
           <p className="text-2xl font-black text-slate-800 mt-1">{route.studentCount} em</p>
           <p className="text-[11px] text-slate-400 mt-0.5">Đã phân tuyến 2 chiều</p>
-        </div>
+        </Card>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
           <p className="text-xs text-slate-500 font-medium">Quãng đường dự kiến</p>
           <p className="text-2xl font-black text-blue-600 mt-1">{distanceKm} km</p>
           <p className="text-[11px] text-slate-400 mt-0.5">Theo lộ trình VietMap</p>
-        </div>
+        </Card>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
           <p className="text-xs text-slate-500 font-medium">Thời gian di chuyển</p>
           <p className="text-2xl font-black text-amber-600 mt-1">~{durationMins} phút</p>
           <p className="text-[11px] text-slate-400 mt-0.5">
             {route.departureTime} → {route.arrivalTime}
           </p>
-        </div>
+        </Card>
       </div>
 
       {/* Main Grid: Interactive Map & Stops List */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Interactive Map (7 cols) */}
-        <div className="lg:col-span-7 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
+        <Card className="lg:col-span-7 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
               <RouteIcon className="w-4 h-4 text-slate-500" />
@@ -280,10 +274,10 @@ export default function RouteDetailPage() {
             focusPoint={focusPoint}
             height="520px"
           />
-        </div>
+        </Card>
 
         {/* Sequential Stops Timeline (5 cols) */}
-        <div className="lg:col-span-5 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+        <Card className="lg:col-span-5 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <h3 className="text-sm font-bold text-slate-800">Lộ trình & Thứ tự đón/trả</h3>
             <span className="text-xs font-semibold text-slate-500">
@@ -309,7 +303,7 @@ export default function RouteDetailPage() {
                         isDepot
                           ? 'bg-blue-600 text-white'
                           : isSchool
-                          ? 'bg-[#FFCB56] text-[#1E293B]'
+                          ? 'bg-primary text-foreground'
                           : 'bg-emerald-600 text-white'
                       }`}
                     >
@@ -343,7 +337,7 @@ export default function RouteDetailPage() {
               <p className="text-xs text-slate-400 text-center py-6">Chưa có danh sách điểm dừng</p>
             )}
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* Cancel Entire RoutePlan Modal */}

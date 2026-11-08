@@ -50,9 +50,9 @@ export function SchoolIcon({ className = 'w-12 h-12' }: { className?: string }) 
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="m2 9 10-5 10 5-10 5z" fill="#FFCB56" fillOpacity="0.3" stroke="#1E293B" />
-      <path d="M6 11v6c0 2 2.5 4 6 4s6-2 6-4v-6" stroke="#1E293B" />
-      <path d="M22 10v6" stroke="#1E293B" />
+      <path d="m2 9 10-5 10 5-10 5z" fill="#FFCB56" fillOpacity="0.3" />
+      <path d="M6 11v6c0 2 2.5 4 6 4s6-2 6-4v-6" />
+      <path d="M22 10v6" />
     </svg>
   );
 }
@@ -323,6 +323,27 @@ export function CalendarIcon({ className = 'w-5 h-5' }: { className?: string }) 
       <line x1="16" x2="16" y1="2" y2="6" />
       <line x1="8" x2="8" y1="2" y2="6" />
       <line x1="3" x2="21" y1="10" y2="10" />
+    </svg>
+  );
+}
+
+export function CalendarXIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+      <line x1="16" x2="16" y1="2" y2="6" />
+      <line x1="8" x2="8" y1="2" y2="6" />
+      <line x1="3" x2="21" y1="10" y2="10" />
+      <line x1="9" x2="15" y1="14" y2="20" />
+      <line x1="15" x2="9" y1="14" y2="20" />
     </svg>
   );
 }
@@ -678,5 +699,4 @@ export function AlertTriangleIcon({ className = 'w-5 h-5' }: { className?: strin
     </svg>
   );
 }
-
 

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 470 150" role="img" aria-labelledby="title desc">
+  <title id="title">Logo Road To School trên nền navy</title>
+  <desc id="desc">Logo đầy đủ màu trắng và vàng, nền trong suốt.</desc>
+  <defs>
+    <mask id="bus-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="176" height="109">
+      <path d="M28 20h91c14 0 23 5 30 16l15 25v18H16V35c0-9 4-15 12-15Z" fill="#fff"/>
+      <path d="M34 34h27v25H34V34Zm35 0h29v25H69V34Zm37 0h13c8 0 13 3 17 10l9 15h-39V34Z" fill="#000"/>
+      <path d="M16 64h148v15H16V64Z" fill="#fff"/>
+      <path d="M20 79h140" stroke="#000" stroke-width="4"/>
+      <circle cx="47" cy="79" r="16" fill="#fff"/>
+      <circle cx="47" cy="79" r="7" fill="#000"/>
+      <circle cx="132" cy="79" r="16" fill="#fff"/>
+      <circle cx="132" cy="79" r="7" fill="#000"/>
+    </mask>
+  </defs>
+  <g transform="translate(8 17)">
+    <rect x="0" y="0" width="176" height="109" fill="#FFFDF6" mask="url(#bus-cut)"/>
+    <g transform="translate(0 -8)" fill="#FFCB56">
+      <path d="M8 105c16-9 34 9 52 0s36-9 54 0 36 9 54 0" fill="none" stroke="#FFCB56" stroke-width="6" stroke-linecap="round"/>
+      <circle cx="8" cy="105" r="6"/>
+      <circle cx="168" cy="105" r="6"/>
+    </g>
+  </g>
+  <g fill="#FFFDF6" font-family="Manrope, Arial, sans-serif" font-weight="800" font-size="54" letter-spacing="-3.24">
+    <text x="205" y="65">Road <tspan opacity=".58">To</tspan></text>
+    <text x="205" y="119">School</text>
+  </g>
+</svg>
