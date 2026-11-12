@@ -1,41 +1,31 @@
-# RoadToSchool — Viết hoa chỉ dẫn ngay khi hiển thị
+# RoadToSchool — Bán kính chuyển sang lái thủ công
 
 ## 1. Task Information
 
-- Task Name: Sửa chỉ dẫn đang hiển thị vẫn còn chữ đầu viết thường.
-- Date: 12/11/2026, giờ Việt Nam.
-- Project Scope: Mobile và báo cáo.
-- Task Type: Fix.
-- Status: COMPLETED cho code và kiểm tra component; giới hạn native ở mục 9.
+Ngày 12/11/2026, giờ Việt Nam. Đã triển khai ngưỡng 10 m trong Mobile.
 
 ## 2. Original Request
 
-Sau khi đã yêu cầu viết hoa đầu câu, người dùng gửi ảnh vẫn hiển thị chặng dừng chân 1 · 128 m. Người dùng xác nhận cần sửa để hiển thị Chặng dừng chân 1 · 128 m.
+Người dùng yêu cầu hạ ngưỡng tự chuyển từ tự động di chuyển sang lái thủ công từ 100 m xuống 10 m.
 
 ## 3. Approved Scope
 
-Sửa đúng cách trình bày đầu câu chỉ dẫn trên Mobile. Giữ nguyên nội dung còn lại, tên đường, khoảng cách, thuật toán điều hướng, dữ liệu chuyến và API. Không sửa đồng hồ hoặc phần xử lý timestamp. Giữ các thay đổi có sẵn của những task trước.
+Áp dụng bán kính 10 m tính từ vị trí xe đến tọa độ của điểm đón hoặc trả đang được nhắm tới trong TEST_AUTO.
 
 ## 4. Analysis & Decisions
 
-Lần trước viết hoa trong nextGuidance, chỉ tác động khi tạo lại guidance. Component hiển thị trực tiếp p.guidance.text, nên một giá trị chữ thường được giữ trong state/closure của phiên chạy vẫn có thể hiện nguyên dạng. Chưa bắt được lifecycle Fast Refresh của chính lần trong ảnh, nên không khẳng định Fast Refresh là nguyên nhân duy nhất.
-
-Đã tái hiện bằng chính TripNavigationControls với guidance đang giữ giá trị chặng dừng chân 1: trước sửa component không viết hoa. Chuyển định dạng về component hiển thị, áp dụng cho mọi giá trị guidance hiện có mà không cần thay đổi hay tải lại dữ liệu chỉ dẫn. Bỏ định dạng ở nextGuidance để chỉ thực hiện tại một nơi.
+Nhánh chuyển điểm điều hướng hiện có thể chạy ở 30 m. Giữ điểm đón hoặc trả hiện tại trong TEST_AUTO để xe có thể vào bán kính 10 m trước khi bàn giao. Nếu tuyến không đi vào bán kính này, xe mô phỏng dừng tại mốc trên tuyến để tài xế có thể dùng chế độ lái thủ công. Dùng mốc điểm dừng đã có trong chỉ dẫn, hoặc phép chiếu tọa độ điểm lên tuyến khi thiếu mốc.
 
 ## 5. Implementation Details
 
-- `mobile/components/trip-navigation-controls.tsx`: viết hoa ký tự đầu của p.guidance.text khi render bằng charAt(0).toUpperCase() + slice(1).
-- `mobile/utils/trip-navigation.ts`: bỏ viết hoa ở bước tính chỉ dẫn; giữ nguyên chọn câu, trim, fallback, tên đường và khoảng cách.
-- `mobile/scripts/trip-navigation-controls.test.ts`: render component thực bằng React DOM server và React Native Web đã cài; kiểm tra chỉ dẫn đang giữ chữ thường, dấu tiếng Việt, chữ hoa sẵn có, khoảng cách 128m và input không bị đổi. Không thêm dependency hoặc giả response API.
-- `mobile/scripts/trip-navigation.test.ts`: chuyển kiểm tra phần dữ liệu về giữ nguyên câu provider sau trim; kiểm tra viết hoa nằm ở test component.
-- `docs/ai-review/LATEST.md` và `LATEST.diff`: báo cáo và diff riêng task.
-- Báo cáo/diff trước giữ nguyên trong `docs/ai-review/history/2026-11-12-guidance-uppercase-and-windows-time.md` và `.diff`.
-
-Đã tìm toàn bộ caller: use-trip-navigation tạo guidance tại các nhánh route, prepare và cập nhật vị trí; TripNavigationControls là nơi hiển thị câu này. Không cần sửa hook, config, fixture, API, dependency hay export.
+- `mobile/utils/trip-navigation.ts` dùng ngưỡng 10 m và chia sẻ điều kiện áp dụng theo loại điểm cùng cách lấy mốc điểm dừng.
+- `mobile/hooks/use-trip-navigation.ts` giữ điểm đón/trả cho đến khi chọn hoặc tự chuyển sang lái thủ công. Bước di chuyển tự động được giới hạn ở mốc trên tuyến và giữ vị trí nếu người dùng bật tự động sau khi đã đi qua mốc.
+- `mobile/scripts/auto-manual-handoff.test.ts` kiểm tra 10 m, 10,1 m, các loại điểm và chế độ.
+- Báo cáo và diff màu chữ trước đó được lưu tại `docs/ai-review/history/2026-11-12-next-stop-summary-color.md` và `.diff`.
 
 ## 6. Database Changes
 
-None. Không truy cập hoặc ghi database, không tạo/chỉnh sửa chuyến để kiểm thử.
+None.
 
 ## 7. API & Swagger Changes
 
@@ -43,31 +33,29 @@ None.
 
 ## 8. UI/UX Changes
 
-Chỉ dẫn chặng dừng chân 1 · 128 m hiển thị thành Chặng dừng chân 1 · 128 m ngay khi render, kể cả khi guidance đã có sẵn trong state. Các câu rẽ/đi/đến cũng được viết hoa đầu câu; không viết hoa các từ còn lại. Không đổi bố cục hoặc thêm màn hình, không cần wireframe mới.
+Khi xe mô phỏng tới mốc trên tuyến mà chưa vào bán kính 10 m, khung chỉ dẫn hiện “Chọn Lái thủ công để đến điểm dừng”.
 
 ## 9. Verification & Testing
 
-- PASS cho tái hiện lỗi: `node --test scripts/trip-navigation-controls.test.ts` trước sửa component thất bại ở ca chữ đầu cần viết hoa.
-- PASS sau sửa: `node --test scripts/trip-navigation-controls.test.ts scripts/trip-navigation.test.ts`, 35/35 tests.
-- PASS: `npx --no-install tsc --noEmit --incremental false` trong mobile, exit code 0.
-- PASS: `git diff --check` và kiểm tra LATEST.diff phân tích được bằng git apply --numstat --unidiff-zero; không áp dụng patch vào source.
-- Đã đọc screenshot hiện tại của Samsung bằng ADB screencap, không bấm thao tác. Chuyến đã ở trạng thái Đã hoàn thành và không còn câu chỉ dẫn để đối chiếu.
-- NOT_VERIFIED: chữ đầu trên native khi một chuyến đang chạy sau sửa. Không mở lại hoặc tạo chuyến để ép điều kiện kiểm thử.
-
-Ảnh quan sát sau sửa: `C:/Users/toila/AppData/Local/Temp/rts-guidance-render-a6a9ed7e3dc240938ac67a4ec93a38be/samsung-guidance-after.png`. Các test chỉ dùng props trình bày, chuỗi và hình học thuần; không DB hoặc API có side effects.
+- Ca kiểm tra 10,1 m thất bại trước khi sửa ngưỡng.
+- PASS `node --test scripts/auto-manual-handoff.test.ts scripts/trip-navigation.test.ts`, 43/43.
+- PASS `npx --no-install tsc --noEmit --incremental false` trong Mobile.
+- PASS kiểm tra callback thật với dữ liệu hình học thuần. Chỉ đổi ngưỡng khiến luồng cũ gọi ADVANCE sớm. Sau sửa, mô phỏng đón và trả chuyển sang lái thủ công trong 10 m, dừng ở mốc nếu tọa độ lệch khỏi đường, giữ vị trí nếu xe đã qua mốc và vẫn chuyển điểm ở chế độ thủ công hoặc khi tới trường.
+- PASS `git diff --check` và kiểm tra cấu trúc diff task bằng `git apply --numstat --unidiff-zero`.
+- NOT_VERIFIED trên điện thoại với chuyến đang chạy.
 
 ## 10. Issues & Risks
 
-Không phát hiện rủi ro mới qua kiểm tra. Chưa xác nhận lifecycle Fast Refresh của lỗi cũ; việc định dạng ngay khi render loại bỏ phụ thuộc vào giá trị guidance đã lưu. Native cần quan sát khi có chuyến đang chạy hợp lệ. Các vấn đề thời gian/GPS đã ghi ở báo cáo trước không thuộc task này.
+Bán kính hẹp có thể nằm ngoài hình học đường do tọa độ bị đưa về đường đi được. Khi đó tài xế cần chọn Lái thủ công ở mốc xe dừng.
 
 ## 11. Reviewer Focus
 
-Kiểm tra định dạng chỉ tồn tại ở component hiển thị và xử lý được guidance chữ thường có sẵn. Giữ nguyên dấu tiếng Việt, phần còn lại của câu, tên đường, mét, props và thuật toán nextGuidance. Kiểm tra riêng ca chặng dừng chân 1 từ ảnh người dùng.
+Xác nhận điểm đón/trả hiện tại được giữ khi xe còn cách hơn 10 m và ca đổi chế độ tại 10 m.
 
 ## 12. Suggested Next Step
 
-Quan sát dòng chỉ dẫn trên chuyến đang chạy tiếp theo của người dùng để xác nhận native.
+Quan sát xe tự động đi tới điểm đón hoặc trả kế tiếp trên thiết bị.
 
 ## 13. Approval Status
 
-WAITING FOR USER REVIEW / APPROVAL. Đã triển khai theo chỉ thị sửa trực tiếp; chưa có nghiệm thu native sau sửa.
+READY FOR USER REVIEW.

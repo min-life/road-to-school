@@ -1,5 +1,13 @@
 # Staff map alignment — preserve Parent
 
+## Hiện hành 12/11/2026 — Ước tính điểm kế tiếp khi Driver thu gọn sheet
+
+PO duyệt thay header thu gọn của Driver đang chạy bằng thời gian còn lại và khoảng cách đến điểm tiếp theo, dạng `3 phút · 850 m`. Kéo lên giữ nguyên header chuyến và toàn bộ nội dung/tab; phần chỉ dẫn trên bản đồ và footer vàng không đổi. Parent, Bus Attendant và chuyến chưa chạy/đã kết thúc giữ header cũ.
+
+`TripNextStopSummary` chỉ hiển thị khi Driver + IN_PROGRESS + !isExpanded. `nextStopEstimate` dùng mốc waypoint đầu tiên (sign 5; sign 4 cho điểm cuối) trong geometry của đoạn định tuyến hiện có, trừ progress để lấy quãng đường còn lại. TEST tính thời gian theo tốc độ km/h đang chọn; LIVE dùng tỷ lệ durationSeconds/distanceMeters của tuyến VietMap nên là ước tính theo tốc độ trung bình tuyến, chưa có thời gian chi tiết từng đoạn. Không sửa API hoặc thêm request/poller. Thiếu tuyến/vị trí mới, lỗi điều hướng hoặc target không khớp thì hiện Chưa có ước tính. Gesture và đo chiều cao header hiện có tiếp tục được dùng.
+
+50 tests, TypeScript và kiểm tra source parity PASS. Đã kéo lên/xuống trên Samsung với dữ liệu hiện có: thu gọn hiện `1 phút · 138 m`, mở rộng trả lại mã chuyến, giờ, tab và ba thẻ thông tin; footer vàng giữ nguyên. Chưa kiểm chứng GPS ngoài đường và VoiceOver/TalkBack.
+
 ## Hiện hành 12/11/2026 — Một nguồn icon trường và xe
 
 PO xác nhận giữ `P` cho bãi đỗ, chỉ đồng bộ icon trường và xe theo Parent. `mobile/utils/trip-map-icons.ts` chứa HTML 🏫/🚌 và CSS gốc Parent; cả bản đồ chuyến `/trip/[id]` (Parent, Driver, Bus Attendant) và bản đồ tuyến dự kiến của Parent import trực tiếp. Kích thước, anchor và marker học sinh giữ nguyên.

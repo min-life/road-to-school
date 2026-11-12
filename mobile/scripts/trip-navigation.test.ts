@@ -1,6 +1,34 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { autoPosition, cumulativeDistances, distance, joystickPosition, nextGuidance, projectProgress, recordedParts, splitSegment } from '../utils/trip-navigation.ts';
+import { autoPosition, cumulativeDistances, distance, joystickPosition, nextGuidance, nextStopEstimate, projectProgress, recordedParts, splitSegment } from '../utils/trip-navigation.ts';
+
+describe('Estimated arrival at the next stop', () => {
+  const instruction = (sign: number, index: number) => ({ interval: [index, index] as [number, number], sign, text: '', streetName: '', distance: 0 });
+  it('stops at the first waypoint rather than a turn or the end of the full route', () => {
+    const instructions = [instruction(-2, 1), instruction(5, 2), instruction(5, 4), instruction(4, 5)];
+    assert.deepEqual(nextStopEstimate(instructions, [0, 100, 600, 900, 1200, 2000], 100, 0.3), { metres: 500, seconds: 150 });
+  });
+  it('counts down with progress and responds to the selected simulation speed', () => {
+    const instructions = [instruction(5, 1)];
+    assert.deepEqual(nextStopEstimate(instructions, [0, 1000], 500, 3.6 / 30), { metres: 500, seconds: 60 });
+    assert.deepEqual(nextStopEstimate(instructions, [0, 1000], 750, 3.6 / 60), { metres: 250, seconds: 15 });
+  });
+  it('uses the final destination when there are no intermediate waypoints', () => {
+    assert.deepEqual(nextStopEstimate([instruction(4, 2)], [0, 500, 1000], 200, 0.5), { metres: 800, seconds: 400 });
+  });
+  it('does not jump past the current stop when it shares coordinates with later stops', () => {
+    assert.deepEqual(nextStopEstimate([instruction(5, 1), instruction(5, 1), instruction(4, 2)], [0, 100, 500], 125, 0.3), { metres: 0, seconds: 0 });
+  });
+  it('withholds estimates for missing geometry, stop markers or invalid timing', () => {
+    assert.equal(nextStopEstimate([], [0, 100], 0, 0.3), null);
+    assert.equal(nextStopEstimate([instruction(5, 2)], [0, 100], 0, 0.3), null);
+    assert.equal(nextStopEstimate([instruction(5, 1)], [], 0, 0.3), null);
+    for (const rate of [0, -1, Infinity, NaN]) {
+      assert.equal(nextStopEstimate([instruction(5, 1)], [0, 100], 0, rate), null);
+    }
+    assert.equal(nextStopEstimate([instruction(5, 1)], [0, 100], NaN, 0.3), null);
+  });
+});
 
 describe('Navigation geometry and independent movement providers (pure only)', () => {
   const line: [number, number][] = [[10, 106], [10.001, 106], [10.001, 106.001]];

@@ -1,75 +1,83 @@
-diff --git a/mobile/components/trip-navigation-controls.tsx b/mobile/components/trip-navigation-controls.tsx
-index 18b2620..e2c774f 100644
---- a/mobile/components/trip-navigation-controls.tsx
-+++ b/mobile/components/trip-navigation-controls.tsx
-@@ -46 +46 @@ export function TripNavigationControls(p: Props) {
--    {p.guidance && <><Text style={styles.guidance}>{p.guidance.text} · {p.guidance.metres} m</Text>
-+    {p.guidance && <><Text style={styles.guidance}>{p.guidance.text.charAt(0).toUpperCase() + p.guidance.text.slice(1)} · {p.guidance.metres} m</Text>
 diff --git a/mobile/utils/trip-navigation.ts b/mobile/utils/trip-navigation.ts
-index 18dae5d..5ba0053 100644
+index 6b710ce..499190c 100644
 --- a/mobile/utils/trip-navigation.ts
 +++ b/mobile/utils/trip-navigation.ts
-@@ -67 +67 @@ export function nextGuidance(instructions: Instruction[], cumulative: number[],
--  return { text: continues && progress > cumulative[next.interval[0]] + 3 ? 'Tiếp tục đến điểm dừng' : text.charAt(0).toUpperCase() + text.slice(1),
-+  return { text: continues && progress > cumulative[next.interval[0]] + 3 ? 'Tiếp tục đến điểm dừng' : text,
-diff --git a/mobile/scripts/trip-navigation.test.ts b/mobile/scripts/trip-navigation.test.ts
-index e2cff5b..df3dae8 100644
---- a/mobile/scripts/trip-navigation.test.ts
-+++ b/mobile/scripts/trip-navigation.test.ts
-@@ -44 +44 @@ describe('Navigation geometry and independent movement providers (pure only)', (
--  it('capitalizes only the first letter of provider guidance', () => {
-+  it('preserves trimmed provider guidance and street names', () => {
-@@ -46,3 +46,3 @@ describe('Navigation geometry and independent movement providers (pure only)', (
--      ['  rẽ trái vào Đường Số 4  ', 'Rẽ trái vào Đường Số 4'],
--      ['đi thẳng vào Đường Số 4', 'Đi thẳng vào Đường Số 4'],
--      ['đến điểm dừng', 'Đến điểm dừng'],
-+      ['  rẽ trái vào Đường Số 4  ', 'rẽ trái vào Đường Số 4'],
-+      ['đi thẳng vào Đường Số 4', 'đi thẳng vào Đường Số 4'],
-+      ['đến điểm dừng', 'đến điểm dừng'],
-diff --git a/mobile/scripts/trip-navigation-controls.test.ts b/mobile/scripts/trip-navigation-controls.test.ts
-new file mode 100644
---- /dev/null
-+++ b/mobile/scripts/trip-navigation-controls.test.ts
-@@ -0,0 +1,42 @@
-+import { describe, it } from 'node:test';
-+import assert from 'node:assert/strict';
-+import { readFileSync } from 'node:fs';
-+import { createRequire } from 'node:module';
-+import { Script } from 'node:vm';
-+import { createElement } from 'react';
-+import { renderToStaticMarkup } from 'react-dom/server';
-+import ts from 'typescript';
-+import { colors } from '../constants/theme.ts';
+@@ -2,0 +3,4 @@ import type { Instruction, LocationPoint, LocationSource, Position } from '../se
++export function isAutoStudentStop(source: LocationSource | null, stopType: string | undefined) {
++  return source === 'TEST_AUTO' && (stopType === 'PICKUP' || stopType === 'DROPOFF');
++}
 +
-+const require = createRequire(import.meta.url);
-+const source = readFileSync(new URL('../components/trip-navigation-controls.tsx', import.meta.url), 'utf8');
-+const compiled = ts.transpileModule(source, {
-+  compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 },
-+}).outputText;
-+const exports: Record<string, any> = {};
-+new Script(compiled).runInNewContext({
-+  exports,
-+  require: (id: string) => id === 'react-native' ? require('react-native-web')
-+    : id === '../constants/theme' ? { colors } : require(id),
-+});
+@@ -4,2 +8 @@ export function shouldHandOffToManual(source: LocationSource | null, stopType: s
+-  return source === 'TEST_AUTO' && (stopType === 'PICKUP' || stopType === 'DROPOFF')
+-    && metres >= 0 && metres <= 100;
++  return isAutoStudentStop(source, stopType) && metres >= 0 && metres <= 10;
+@@ -72 +75 @@ export function nextGuidance(instructions: Instruction[], cumulative: number[],
+-export function nextStopEstimate(instructions: Instruction[], cumulative: number[], progress: number, secondsPerMetre: number) {
++export function nextStopProgress(instructions: Instruction[], cumulative: number[]) {
+@@ -74 +77,5 @@ export function nextStopEstimate(instructions: Instruction[], cumulative: number
+-  const end = stop ? cumulative[stop.interval[0]] : undefined;
++  return stop ? cumulative[stop.interval[0]] : undefined;
++}
 +
-+describe('Navigation guidance presentation', () => {
-+  it('capitalizes retained guidance at render time without changing its text or distance', () => {
-+    for (const [text, expected] of [
-+      ['chặng dừng chân 1', 'Chặng dừng chân 1'],
-+      ['rẽ trái vào Đường Số 4', 'Rẽ trái vào Đường Số 4'],
-+      ['đi thẳng', 'Đi thẳng'],
-+      ['đến điểm dừng', 'Đến điểm dừng'],
-+      ['Rẽ phải vào Đường Số 4', 'Rẽ phải vào Đường Số 4'],
-+    ]) {
-+      const guidance = { text, streetName: '', metres: 128 };
-+      const html = renderToStaticMarkup(createElement(exports.TripNavigationControls, {
-+        canPublish: false, testMode: false, mode: null, message: null,
-+        guidance, change: async () => {},
-+      }));
-+      const renderedText = html.replace(/<[^>]*>/g, '');
-+      assert.ok(renderedText.includes(`${expected} · 128 m`), renderedText);
-+      assert.deepEqual(guidance, { text, streetName: '', metres: 128 });
-+    }
-+  });
-+});
++export function nextStopEstimate(instructions: Instruction[], cumulative: number[], progress: number, secondsPerMetre: number) {
++  const end = nextStopProgress(instructions, cumulative);
+diff --git a/mobile/hooks/use-trip-navigation.ts b/mobile/hooks/use-trip-navigation.ts
+index 552db11..5290f91 100644
+--- a/mobile/hooks/use-trip-navigation.ts
++++ b/mobile/hooks/use-trip-navigation.ts
+@@ -6 +6 @@ import { navigationApi, type Checkpoint, type LocationSource, type NavigationSeg
+-import { autoPosition, coordinate, cumulativeDistances, distance, joystickPosition, nextGuidance, nextStopEstimate, projectProgress, shouldHandOffToManual, splitSegment, type Coordinate } from '../utils/trip-navigation';
++import { autoPosition, coordinate, cumulativeDistances, distance, isAutoStudentStop, joystickPosition, nextGuidance, nextStopEstimate, nextStopProgress, projectProgress, shouldHandOffToManual, splitSegment, type Coordinate } from '../utils/trip-navigation';
+@@ -242 +242 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
+-  function accept(position: PositionSample, token: number) {
++  function accept(position: PositionSample, token: number, atAutoStop = false) {
+@@ -259,0 +260 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
++    const waitForManual = isAutoStudentStop(cp.current.activeSource, target?.stopType);
+@@ -271 +272 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
+-      if (target && first?.id === target.id && distance(p, coordinate(target)) <= 20) {
++      if (target && !waitForManual && first?.id === target.id && distance(p, coordinate(target)) <= 20) {
+@@ -299 +300 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
+-        if (target) {
++        if (target && !waitForManual) {
+@@ -326 +327 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
+-          message: null,
++          message: atAutoStop ? 'Chọn Lái thủ công để đến điểm dừng' : null,
+@@ -386 +387,3 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
+-      if (cp.current?.activeSource === 'TEST_AUTO') {
++      const checkpoint = cp.current;
++      let atAutoStop = false;
++      if (checkpoint?.activeSource === 'TEST_AUTO') {
+@@ -388 +391,8 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
+-          current.travelled = Math.min(current.cumulative.at(-1) ?? 0, current.travelled + seconds * speedMps);
++          const target = stopsRef.current.find(s => s.id === checkpoint.targetStopId);
++          const stopAt = target && isAutoStudentStop(checkpoint.activeSource, target.stopType)
++            ? nextStopProgress(current.instructions, current.cumulative)
++              ?? projectProgress(current.coords, current.cumulative, coordinate(target), 0, Infinity).progress
++            : undefined;
++          const end = stopAt ?? current.cumulative.at(-1) ?? 0;
++          current.travelled = Math.max(current.travelled, Math.min(end, current.travelled + seconds * speedMps));
++          atAutoStop = stopAt !== undefined && current.travelled >= stopAt;
+@@ -407 +417 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
+-      accept({ latitude: p[0], longitude: p[1], capturedAt: new Date().toISOString() }, token);
++      accept({ latitude: p[0], longitude: p[1], capturedAt: new Date().toISOString() }, token, atAutoStop);
+diff --git a/mobile/scripts/auto-manual-handoff.test.ts b/mobile/scripts/auto-manual-handoff.test.ts
+index 8c7df5e..cf14d12 100644
+--- a/mobile/scripts/auto-manual-handoff.test.ts
++++ b/mobile/scripts/auto-manual-handoff.test.ts
+@@ -6 +6 @@ describe('Automatic driving hands off near student stops', () => {
+-  it('hands off at 100 m or closer for pickup and dropoff', () => {
++  it('hands off at 10 m or closer for pickup and dropoff', () => {
+@@ -8 +8 @@ describe('Automatic driving hands off near student stops', () => {
+-      for (const metres of [100, 99.9, 30, 0]) {
++      for (const metres of [10, 9.9, 0]) {
+@@ -11 +11,3 @@ describe('Automatic driving hands off near student stops', () => {
+-      assert.equal(shouldHandOffToManual('TEST_AUTO', stopType, 100.1), false);
++      for (const metres of [10.1, 30, 100]) {
++        assert.equal(shouldHandOffToManual('TEST_AUTO', stopType, metres), false);
++      }
+@@ -16 +18 @@ describe('Automatic driving hands off near student stops', () => {
+-      assert.equal(shouldHandOffToManual(source, 'PICKUP', 20), false);
++      assert.equal(shouldHandOffToManual(source, 'PICKUP', 5), false);
+@@ -21 +23 @@ describe('Automatic driving hands off near student stops', () => {
+-      assert.equal(shouldHandOffToManual('TEST_AUTO', type, 20), false);
++      assert.equal(shouldHandOffToManual('TEST_AUTO', type, 5), false);

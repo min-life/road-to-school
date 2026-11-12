@@ -63,6 +63,7 @@ import { useParentMapAvatars } from "@/hooks/use-parent-map-avatars";
 import { decodePolyline } from "@/utils/polyline";
 import { useTripNavigation } from "@/hooks/use-trip-navigation";
 import { TripNavigationControls } from "@/components/trip-navigation-controls";
+import { TripNextStopSummary } from "@/components/trip-next-stop-summary";
 import { TripJoystick } from "@/components/trip-joystick";
 import { TripContactCallButton } from "@/components/trip-contact-call-button";
 import {
@@ -151,6 +152,7 @@ export default function MobileTripDetailScreen() {
   const isBusAttendant = user?.role === "BUS_ATTENDANT";
   const isDriver = user?.role === "DRIVER";
   const isParent = user?.role === "PARENT";
+  const showNextStopSummary = isDriver && !isExpanded && operationalState?.status === "IN_PROGRESS";
   const showTripAction = hasTripAction(user?.role, operationalState?.status);
   const bottomActionOffset = showTripAction ? bottomActionHeight : 0;
   const sheetBottomPadding = showTripAction ? 10 : insets.bottom + 10;
@@ -1536,7 +1538,7 @@ export default function MobileTripDetailScreen() {
               : undefined
           }
           style={styles.sheetHandleArea}
-          accessible={true}
+          accessible={!showNextStopSummary}
           accessibilityRole="button"
           accessibilityLabel={
             isExpanded ? "Thu gọn chi tiết" : "Mở rộng chi tiết"
@@ -1546,6 +1548,10 @@ export default function MobileTripDetailScreen() {
 
           <View style={styles.collapsedHeader}>
             <View style={{ flex: 1 }}>
+              {showNextStopSummary ? (
+                <TripNextStopSummary estimate={engine.nextStopEstimate} />
+              ) : (
+              <>
               <View style={styles.titleRow}>
                 <Text style={styles.sheetRouteName} numberOfLines={1}>
                   {trip.routeName}
@@ -1633,10 +1639,14 @@ export default function MobileTripDetailScreen() {
                   }[operationalState?.status || trip.status]
                 }
               </Text>
+              </>
+              )}
             </View>
 
             <TouchableOpacity
               onPress={toggleSheet}
+              accessibilityRole="button"
+              accessibilityLabel={isExpanded ? "Thu gọn chi tiết" : "Mở rộng chi tiết"}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               activeOpacity={0.7}
             >
