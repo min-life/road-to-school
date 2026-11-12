@@ -248,17 +248,22 @@ export default function AdminSchoolDetailPage() {
       </Card>
 
       {/* 14. Horizontal Tabs (Section 14 & Wireframe W6) */}
-      <div className="space-y-4">
+      <div className="space-y-2">
         <div className="flex flex-wrap border-b border-slate-200 gap-6">
-          <Button type="button" onClick={() => setActiveTab('calendar')} variant={activeTab === 'calendar' ? 'primary' : 'ghost'} size="sm"><CalendarIcon className="w-4 h-4" />Lịch vận hành</Button>
+          <Button
+            type="button"
+            onClick={() => setActiveTab('calendar')}
+            variant={activeTab === 'calendar' ? 'primary' : 'ghost'}
+            size="sm"
+          >
+            <CalendarIcon className="w-4 h-4" />
+            Lịch vận hành
+          </Button>
           <Button
             type="button"
             onClick={() => setActiveTab('employees')}
-            className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
-              activeTab === 'employees'
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
+            variant={activeTab === 'employees' ? 'primary' : 'ghost'}
+            size="sm"
           >
             <UsersIcon className="w-4 h-4" />
             <span>Nhân viên trường</span>
@@ -267,11 +272,8 @@ export default function AdminSchoolDetailPage() {
           <Button
             type="button"
             onClick={() => setActiveTab('students')}
-            className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
-              activeTab === 'students'
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
+            variant={activeTab === 'students' ? 'primary' : 'ghost'}
+            size="sm"
           >
             <StudentIcon className="w-4 h-4" />
             <span>Học sinh</span>
@@ -280,11 +282,8 @@ export default function AdminSchoolDetailPage() {
           <Button
             type="button"
             onClick={() => setActiveTab('routes')}
-            className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
-              activeTab === 'routes'
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
+            variant={activeTab === 'routes' ? 'primary' : 'ghost'}
+            size="sm"
           >
             <RouteIcon className="w-4 h-4" />
             <span>Phương án tuyến</span>
@@ -293,11 +292,8 @@ export default function AdminSchoolDetailPage() {
           <Button
             type="button"
             onClick={() => setActiveTab('trips')}
-            className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
-              activeTab === 'trips'
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
+            variant={activeTab === 'trips' ? 'primary' : 'ghost'}
+            size="sm"
           >
             <BusIcon className="w-4 h-4" />
             <span>Chuyến xe</span>

@@ -1,4 +1,5 @@
 'use client';
+import { normalizeGuardianPhone, validGuardianPhone } from '@/lib/school-admin';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
@@ -197,7 +198,7 @@ export function AddStudentModal({
     setErrorMessage(null);
 
     const trimmedName = fullName.trim();
-    const trimmedPhone = guardianPhone.trim();
+    const trimmedPhone = normalizeGuardianPhone(guardianPhone);
 
     if (!trimmedName) {
       setErrorMessage('Vui lòng nhập họ và tên học sinh.');
@@ -210,9 +211,8 @@ export function AddStudentModal({
     }
 
     // Phone validation
-    const phoneRegex = /^[0-9]{10,11}$/;
-    if (!phoneRegex.test(trimmedPhone)) {
-      setErrorMessage('Số điện thoại phụ huynh không hợp lệ. Vui lòng nhập 10-11 chữ số.');
+    if (!validGuardianPhone(trimmedPhone)) {
+      setErrorMessage('Số điện thoại phụ huynh không hợp lệ. Vui lòng nhập đầu 0 hoặc +84 theo định dạng Việt Nam.');
       return;
     }
 

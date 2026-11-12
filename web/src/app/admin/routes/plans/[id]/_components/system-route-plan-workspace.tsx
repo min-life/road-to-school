@@ -1,4 +1,6 @@
 ﻿'use client';
+import { RoutePlanCancellationReason } from './route-plan-cancellation-reason';
+import { RoutePlanReoptimization } from '@/components/admin/routes/route-plan-reoptimization';
 import { effectivePlanStatus, lifecycleReason } from '@/lib/school-lifecycle';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -6,15 +8,16 @@ import { getRoutePlanStatusLabel } from '@/lib/status-labels';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import type { Role, RouteItem, RoutePlanItem } from '@/lib/types';
-import { BackLink, ContextLink } from '@/components/admin/common/context-navigation';
+import { BackLink } from '@/components/admin/common/context-navigation';
 import { Button } from '@/components/ui/button';
 import { AlertIcon, CheckIcon } from '@/components/icons';
 import { RouteMap, type MapPoint } from '@/components/admin/routes/route-map';
 import { RoutePlanningWorkspace, PlanningTabs } from '@/components/admin/routes/route-planning-workspace';
+import { SavedPlanRoutesPanel } from './saved-plan-routes-panel';
 import { RoutePlanAssignments } from './route-plan-assignments';
 import { CancelRoutePlanModal } from '@/components/admin/routes/cancel-route-plan-modal';
 import { getAssignmentProgress, resolveSavedRoutePlanTab } from '@/components/admin/routes/route-plan-assignment-state';
-import { RouteMapVisibilityControl } from './route-map-visibility-control';
+import { RouteMapVisibilityControl } from '@/components/admin/routes/route-map-visibility-control';
 import { PREVIEW_ROUTE_COLORS } from '@/components/admin/routes/preview-route-selector';
 import './system-route-plan-workspace.css';
 
@@ -131,13 +134,17 @@ export function SystemRoutePlanWorkspace({ planId, role }: { planId: string; rol
   return <div ref={pageRef} className="route-planning-page saved-plan-page system-route-plan-workspace">
     <BackLink fallback="/admin/routes" />
     <header className="saved-plan-heading">
-      <div className="saved-plan-heading-title"><h1>{plan.name}</h1><p>{plan.schoolName} · {routes.length} tuyến · {plan.totalStudents} học sinh</p></div>
+      <div className="saved-plan-heading-title"><h1>{plan.name}</h1><p>{plan.schoolName} · {routes.length} tuyến · {plan.totalStudents} học sinh{plan.firstServiceDate ? ' · Ngày phục vụ đầu tiên: ' + plan.firstServiceDate.split('-').reverse().join('/') : ''}</p></div>
       <div className="saved-plan-heading-actions">
+      <div className="saved-plan-heading-statuses">
       <span className="saved-plan-status" data-status={effectivePlanStatus(plan)}>{getRoutePlanStatusLabel(effectivePlanStatus(plan))}</span>
+      {effectivePlanStatus(plan) === 'CANCELLED' && <RoutePlanCancellationReason reason={plan.cancellationReason} />}
       {editable && routes.length > 0 && <span className="saved-plan-assignment-progress" data-pending={actionableSystemPendingGroupCount > 0} role="status" aria-atomic="true">
         {actionableSystemPendingGroupCount > 0 ? <><AlertIcon className="w-4 h-4" aria-hidden="true" />Còn {actionableSystemPendingGroupCount} nhóm xe chưa đủ</>
           : <><CheckIcon className="w-4 h-4" aria-hidden="true" />Nhà xe đã phân công đủ</>}
       </span>}
+      </div>
+      <div className="saved-plan-heading-buttons">
       {actionableSystemPendingGroupCount > 0 && <Button type="button" variant="primary" size="sm" onClick={openPendingAssignments}>
         Phân công <span aria-hidden="true">→</span>
       </Button>}
@@ -146,9 +153,10 @@ export function SystemRoutePlanWorkspace({ planId, role }: { planId: string; rol
         Hủy phương án
       </Button>}
       </div>
+      </div>
     </header>
+    <RoutePlanReoptimization plan={plan} systemAdmin={true} onUpdated={() => { setRoute(null); setRevision(value => value + 1); }} />
     {plan.effectiveStatusReason && <p className="saved-plan-notice" role="status">{lifecycleReason(plan.effectiveStatusReason)}. Phương án chỉ còn để tra cứu.</p>}
-    {effectivePlanStatus(plan) === 'CANCELLED' && <p className="saved-plan-notice">Phương án đã hủy{plan.cancellationReason ? `: ${plan.cancellationReason}` : '.'}</p>}
     {effectivePlanStatus(plan) === 'EXPIRED' && <p className="saved-plan-notice">Phương án hết hạn hợp đồng. Thông tin được giữ để tra cứu.</p>}
     <RoutePlanningWorkspace preview panelLabel={tab === 'assignments' ? `Phân công${actionableSystemPendingGroupCount ? ` (${actionableSystemPendingGroupCount})` : ''}` : 'Tuyến'}
       map={routes.length ? <>
@@ -168,36 +176,21 @@ export function SystemRoutePlanWorkspace({ planId, role }: { planId: string; rol
       panel={<>
         <PlanningTabs tabs={[{ value: 'routes', label: 'Tuyến' }, { value: 'assignments', label: `Phân công${actionableSystemPendingGroupCount ? ` (${actionableSystemPendingGroupCount})` : ''}` }]}
           value={tab} onChange={value => updateQuery({ tab: value })} />
-        <div ref={panelRef} className="route-workspace-content" role="tabpanel" id={`planning-panel-${tab}`} aria-labelledby={`planning-tab-${tab}`}>
+        <div ref={panelRef} className={`route-workspace-content${tab === 'routes' ? ' saved-plan-routes-content' : ''}`} role="tabpanel" id={`planning-panel-${tab}`} aria-labelledby={`planning-tab-${tab}`}>
           {tab === 'assignments' ? <>
             <RoutePlanAssignments plan={plan} currentUserRole={editable ? role : null} compact
               onUpdated={() => setRevision(value => value + 1)} />
           </> : <>
-            <section className="saved-plan-route-list" aria-label="Chọn tuyến xem thông tin">
-              {mapOptions.map(item => <button key={item.id} type="button" aria-pressed={activeId === item.id} onClick={() => chooseRoute(item.id)}>
-                <i style={{ backgroundColor: item.color }} aria-hidden="true" />
-                <span><strong>{item.name}</strong><small>{item.direction === 'TO_SCHOOL' ? 'Chiều đi' : 'Chiều về'}{item.vehiclePlate ? ` · Xe ${item.vehiclePlate}` : ''}</small></span>
-              </button>)}
-            </section>
-            {visibleRoute && <section className="saved-plan-route-info">
-              <strong>{visibleRoute.name}</strong>
-              <p>{visibleRoute.studentCount} học sinh · {(visibleRoute.totalDistanceMeters / 1000).toFixed(1)} km · {Math.round(visibleRoute.estimatedDurationSeconds / 60)} phút</p>
-              <ContextLink href={`/admin/routes/${visibleRoute.id}`}>Xem thông tin tuyến</ContextLink>
-            </section>}
-            <h2 className="saved-plan-stops-title">Điểm dừng · Giờ dự kiến</h2>
-            {visibleRoute?.stops?.length ? <ol className="saved-plan-stops">
-              {visibleRoute.stops.map(stop => <li key={stop.id}><button type="button" onClick={() => setFocusPoint({ latitude: stop.latitude, longitude: stop.longitude, zoom: 16 })}>
-                <span className="saved-plan-stop-number">{stop.stopOrder}</span>
-                <span><strong>{stop.studentName || (stop.stopType.includes('PARKING') ? 'Bãi xe' : plan.schoolName || 'Trường học')}</strong><small>{stop.addressText}</small></span>
-                <time>{stop.plannedArrivalTime}</time>
-              </button></li>)}
-            </ol> : <p className="route-workspace-empty">{routeError?.id === activeId ? 'Chưa tải được điểm dừng.' : route?.id !== activeId && activeId ? 'Đang tải điểm dừng…' : 'Không có điểm dừng.'}</p>}
+            <SavedPlanRoutesPanel routes={routes} activeId={activeId} route={visibleRoute} schoolName={plan.schoolName}
+              routeError={routeError?.id === activeId ? routeError.message : undefined}
+              loading={route?.id !== activeId && Boolean(activeId)} onChoose={chooseRoute} onFocus={setFocusPoint} />
             {!!plan.unassignedStudents?.length && <details className="saved-plan-readiness"><summary>Học sinh chưa được xếp ({plan.unassignedStudents.length})</summary><ul>
               {plan.unassignedStudents.map(student => <li key={student.id}>{student.fullName} — {student.reason || 'Chưa được xếp tuyến'}</li>)}
             </ul></details>}
             <details className="saved-plan-readiness"><summary>Thông tin phương án</summary>
               <p>Tạo lúc: {new Date(plan.createdAt).toLocaleString('vi-VN')}</p>
-              {plan.activatedAt && <p>Duyệt lúc: {new Date(plan.activatedAt).toLocaleString('vi-VN')}{plan.approvedByName ? ` · ${plan.approvedByName}` : ''}</p>}
+              {plan.firstServiceDate && <p>Ngày phục vụ đầu tiên: {plan.firstServiceDate.split('-').reverse().join('/')}</p>}
+                {plan.activatedAt && <p>Duyệt lúc: {new Date(plan.activatedAt).toLocaleString('vi-VN')}{plan.approvedByName ? ` · ${plan.approvedByName}` : ''}</p>}
               {plan.cancelledAt && <p>Hủy lúc: {new Date(plan.cancelledAt).toLocaleString('vi-VN')}</p>}
               <p>Mã phương án: {plan.id}</p>
             </details>

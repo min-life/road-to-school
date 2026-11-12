@@ -29,7 +29,7 @@ export function SchoolRoutePlanApproval({ plan, readiness, failed, onRefresh, on
       const updated = await apiClient.approveRoutePlan(plan.id);
       dialogRef.current?.close();
       onApproved(updated);
-      toast.success('Đã duyệt phương án tuyến.');
+      toast.success(updated.firstServiceDate ? 'Đã duyệt. Ngày phục vụ đầu tiên: ' + updated.firstServiceDate.split('-').reverse().join('/') : 'Đã duyệt phương án tuyến.');
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : 'Không thể duyệt phương án.');
       onRefresh();

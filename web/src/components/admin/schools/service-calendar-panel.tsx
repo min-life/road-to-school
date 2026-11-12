@@ -14,7 +14,7 @@ import { calendarMatches, calendarOccurrence } from '@/lib/service-calendar';
 import { vietnamDate } from '@/lib/school-lifecycle';
 
 const statuses = { PENDING: 'Chờ duyệt', APPROVED: 'Đã duyệt', REJECTED: 'Đã từ chối', CANCELLED: 'Đã hủy', BLOCKED: 'Bị chặn' };
-export function ServiceCalendarPanel({ schoolId, role, onUpdated }: { schoolId?: string; role: Role | null; onUpdated?: () => void }) {
+export function ServiceCalendarPanel({ schoolId, role, onUpdated, operatorOnly = false }: { schoolId?: string; role: Role | null; onUpdated?: () => void; operatorOnly?: boolean }) {
   const [rows, setRows] = useState<ServiceCalendarEntry[]>([]);
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
@@ -47,9 +47,9 @@ export function ServiceCalendarPanel({ schoolId, role, onUpdated }: { schoolId?:
     finally { setBusy(false); }
   };
   if (!allowed) return null;
-  const visible = rows.filter(row => filter === 'ALL' || row.status === 'PENDING');
-  return <section className="lifecycle-panel" aria-label="Lịch nghỉ và học bù">
-    <div className="lifecycle-panel-heading"><h2>{schoolId ? 'Lịch nghỉ và học bù' : 'Lịch dịch vụ'}</h2><div className="flex flex-wrap gap-2">
+  const visible = rows.filter(row => (!operatorOnly || !row.schoolId) && (filter === 'ALL' || row.status === 'PENDING'));
+  return <section className="lifecycle-panel" aria-label={operatorOnly ? 'Lịch nghỉ nhà xe' : 'Lịch nghỉ và học bù'}>
+    <div className="lifecycle-panel-heading"><h2>{schoolId ? 'Lịch nghỉ và học bù' : operatorOnly ? 'Lịch nghỉ nhà xe' : 'Lịch dịch vụ'}</h2><div className="flex flex-wrap gap-2">
       <Button type="button" variant="outline" size="sm" onClick={() => setFilter(value => value === 'ALL' ? 'PENDING' : 'ALL')}>{filter === 'ALL' ? 'Chỉ chờ duyệt' : 'Tất cả lịch'}</Button>
       <Button type="button" variant="outline" size="sm" onClick={() => setRevision(value => value + 1)}>Làm mới</Button>
       <Button type="button" variant="primary" size="sm" onClick={() => setCreating(true)}>{schoolId ? role === 'SCHOOL_ADMIN' ? 'Thêm ngày nghỉ / học bù' : 'Thêm ngày nghỉ' : 'Thêm ngày nghỉ nhà xe'}</Button>

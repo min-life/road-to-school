@@ -31,7 +31,7 @@ export default function AdminTripsPage() {
 
       {/* Trips Table */}
       {currentUserRole === 'SYSTEM_ADMIN' && <div className="flex flex-wrap gap-2"><Button type="button" variant={!finalizationsOpen ? 'primary' : 'outline'} onClick={() => selectTab('trips')}>Danh sách chuyến</Button><Button type="button" variant={finalizationsOpen ? 'primary' : 'outline'} onClick={() => selectTab('finalizations')}>Cần xử lý hành chính</Button></div>}
-      {finalizationsOpen ? <AdminFinalizationsPanel onUpdated={() => setRefreshKey(value => value + 1)} /> :
+      {finalizationsOpen ? <AdminFinalizationsPanel key={query.get('schoolId') || 'operator'} schoolId={query.get('schoolId') || undefined} onUpdated={() => setRefreshKey(value => value + 1)} /> :
       <TripsTable
         refreshKey={refreshKey}
         fixedSchoolId={currentUserSchoolId}

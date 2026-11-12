@@ -4,7 +4,7 @@ import { effectivePlanStatus } from '@/lib/school-lifecycle';
 import { toast } from '@/stores/toast-store';
 
 import React, { useState, useEffect } from 'react';
-import { apiClient } from '@/lib/api-client';
+import { ApiError, apiClient } from '@/lib/api-client';
 import {
   RoutePlanItem,
   RouteItem,
@@ -99,10 +99,10 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
         const res = await apiClient.getCandidateVehicles(plan.id, group.vehicleId || undefined);
         setCandidateVehicles(res.candidates || []);
       } else if (type === 'DRIVER') {
-        const res = await apiClient.getCandidateDrivers(plan.id);
+        const res = await apiClient.getCandidateDrivers(plan.id, group.vehicleId || undefined);
         setCandidateDrivers(res.candidates || []);
       } else if (type === 'ATTENDANT') {
-        const res = await apiClient.getCandidateBusAttendants(plan.id);
+        const res = await apiClient.getCandidateBusAttendants(plan.id, group.vehicleId || undefined);
         setCandidateAttendants(res.candidates || []);
       }
     } catch (err: any) {
@@ -158,6 +158,17 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
       onUpdated();
     } catch (err: any) {
       setActionError(err?.message || 'Không thể cập nhật phân công tài nguyên');
+      setSelectedResourceId('');
+      if (err instanceof ApiError && [400, 409].includes(err.statusCode)) {
+        onUpdated();
+        setLoadingOptions(true);
+        try {
+          if (modalType === 'DRIVER') setCandidateDrivers((await apiClient.getCandidateDrivers(plan.id, selectedGroup.vehicleId || undefined)).candidates);
+          else if (modalType === 'ATTENDANT') setCandidateAttendants((await apiClient.getCandidateBusAttendants(plan.id, selectedGroup.vehicleId || undefined)).candidates);
+          else setCandidateVehicles((await apiClient.getCandidateVehicles(plan.id, selectedGroup.vehicleId || undefined)).candidates);
+        } catch { setCandidateDrivers([]); setCandidateAttendants([]); setCandidateVehicles([]); }
+        finally { setLoadingOptions(false); }
+      }
     } finally {
       setSubmitting(false);
     }

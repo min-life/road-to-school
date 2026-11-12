@@ -1,5 +1,6 @@
 'use client';
 
+import type { CreateSchoolAdminResponse } from '@/lib/types';
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { CloseIcon, SpinnerIcon, AlertIcon } from '@/components/icons';
@@ -12,7 +13,7 @@ interface CreateSchoolAdminModalProps {
   schoolId: string;
   schoolName: string;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (result: CreateSchoolAdminResponse) => void;
 }
 
 export function CreateSchoolAdminModal({
@@ -45,20 +46,20 @@ export function CreateSchoolAdminModal({
 
     const trimmedName = fullName.trim();
     const trimmedEmail = email.trim();
-    const trimmedPhone = phone.trim();
+    const trimmedPhone = phone.trim().replace(/[\s\-().]/g, '');
 
     if (!trimmedName) {
       setErrorMessage('Vui lòng nhập họ và tên của quản trị viên.');
       return;
     }
 
-    if (!trimmedEmail && !trimmedPhone) {
-      setErrorMessage('Vui lòng cung cấp ít nhất Email hoặc Số điện thoại để làm thông tin đăng nhập.');
+    if (!trimmedEmail || !trimmedPhone) {
+      setErrorMessage('Vui lòng nhập đầy đủ email và số điện thoại.');
       return;
     }
 
     // Phone format check if provided
-    if (trimmedPhone && !/^(0|\+84)[3|5|7|8|9][0-9]{8}$/.test(trimmedPhone)) {
+    if (trimmedPhone && !/^(0|\+84|84)?[35789]\d{8}$/.test(trimmedPhone)) {
       setErrorMessage('Số điện thoại không đúng định dạng di động Việt Nam (ví dụ: 0912345678).');
       return;
     }
@@ -71,13 +72,13 @@ export function CreateSchoolAdminModal({
 
     try {
       setIsLoading(true);
-      await apiClient.createSchoolAdmin(schoolId, {
+      const result = await apiClient.createSchoolAdmin(schoolId, {
         fullName: trimmedName,
-        email: trimmedEmail || undefined,
-        phone: trimmedPhone || undefined,
+        email: trimmedEmail,
+        phone: trimmedPhone,
       });
 
-      onSuccess();
+      onSuccess(result);
       onClose();
     } catch (err: any) {
       setErrorMessage(
@@ -162,11 +163,12 @@ export function CreateSchoolAdminModal({
               htmlFor="admin-email"
               className="block text-xs font-semibold text-slate-700 mb-1"
             >
-              Email <span className="text-xs font-normal text-slate-400">(Tùy chọn nếu đã có SĐT)</span>
+              Email <span className="text-red-500">*</span>
             </label>
             <Input
               type="email"
               id="admin-email"
+              required
               value={email}
               disabled={isLoading}
               onChange={(e) => setEmail(e.target.value)}
@@ -180,11 +182,12 @@ export function CreateSchoolAdminModal({
               htmlFor="admin-phone"
               className="block text-xs font-semibold text-slate-700 mb-1"
             >
-              Số điện thoại <span className="text-xs font-normal text-slate-400">(Tùy chọn nếu đã có Email)</span>
+              Số điện thoại <span className="text-red-500">*</span>
             </label>
             <Input
               type="tel"
               id="admin-phone"
+              required
               value={phone}
               disabled={isLoading}
               onChange={(e) => setPhone(e.target.value)}
@@ -194,7 +197,7 @@ export function CreateSchoolAdminModal({
           </div>
 
           <div className="p-3 bg-amber-50/60 border border-amber-200/80 rounded-xl text-xs text-amber-800 leading-relaxed">
-            Hệ thống sẽ tự động gán vai trò <strong>Quản trị trường (SCHOOL_ADMIN)</strong> và tạo mật khẩu ban đầu an toàn. Thông tin đăng nhập được gửi qua kênh bàn giao nội bộ.
+            Hệ thống sẽ tự động gán vai trò <strong>Quản trị trường (SCHOOL_ADMIN)</strong> và tạo mật khẩu ban đầu an toàn. Mật khẩu được gửi qua email.
           </div>
 
           {/* Footer Actions */}

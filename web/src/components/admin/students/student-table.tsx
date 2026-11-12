@@ -1,4 +1,6 @@
 'use client';
+import { GeographyFilter } from '@/components/admin/common/geography-filter';
+import type { GeographyQuery } from '@/lib/types';
 import { TableActions } from '@/components/admin/common/table-actions';
 import { FilterField } from '@/components/ui/filter-toolbar';
 
@@ -47,6 +49,7 @@ export function StudentTable({
   onAddClick,
   allowCardPrinting = false,
 }: StudentTableProps) {
+  const [geography, setGeography] = useState<GeographyQuery>({});
   // Query state
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'AVAILABLE' | 'DISABLED'>('ALL');
@@ -102,6 +105,7 @@ export function StudentTable({
 
     try {
       const params: Parameters<typeof apiClient.getStudents>[1] = {
+        ...geography,
         page,
         limit,
       };
@@ -153,7 +157,7 @@ export function StudentTable({
         setIsLoading(false);
       }
     }
-  }, [schoolId, page, limit, search, statusFilter, addressFilter, routingFilter, currentUserRole]);
+  }, [schoolId, page, limit, search, statusFilter, addressFilter, routingFilter, currentUserRole, geography]);
 
   useEffect(() => {
     fetchStudents();
@@ -309,13 +313,14 @@ export function StudentTable({
           setPage(1);
         }}
         onReset={() => {
+          setGeography({});
           setSearch('');
           setStatusFilter('ALL');
           setAddressFilter('ALL'); setRoutingFilter('');
           setPage(1);
         }}
-        hasActiveFilters={Boolean(search || statusFilter !== 'ALL' || addressFilter !== 'ALL' || routingFilter !== '')}
-      ><FilterField label="Phân tuyến"><select aria-label="Phân tuyến" value={routingFilter} onChange={event => { setRoutingFilter(event.target.value); setPage(1); }} className="w-full"><option value="">Tất cả phân tuyến</option><option value="UNASSIGNED">Chưa có tuyến</option></select></FilterField></StudentFilters>
+        hasActiveFilters={Boolean(search || statusFilter !== 'ALL' || addressFilter !== 'ALL' || routingFilter !== '' || !!geography.provinceId || !!geography.wardId)}
+      ><FilterField label="Phân tuyến"><select aria-label="Phân tuyến" value={routingFilter} onChange={event => { setRoutingFilter(event.target.value); setPage(1); }} className="w-full"><option value="">Tất cả phân tuyến</option><option value="UNASSIGNED">Chưa có tuyến</option></select></FilterField><GeographyFilter schoolId={schoolId} value={geography} onChange={value => { setGeography(value); setPage(1); }} /></StudentFilters>
 
       {/* Error state */}
       {errorMessage && (

@@ -33,19 +33,23 @@ export function CancelRoutePlanModal({
 
   const [impact, setImpact] = useState<RoutePlanCancellationImpactResponse | null>(null);
   const [loadingImpact, setLoadingImpact] = useState(false);
+  const [impactRevision, setImpactRevision] = useState(0);
 
   useEffect(() => {
+    let current = true;
     if (isOpen && routePlanId) {
       setReason(defaultReason || '');
       setError(null);
+      setImpact(null);
       setLoadingImpact(true);
       apiClient
         .getRoutePlanCancellationImpact(routePlanId)
-        .then((res) => setImpact(res))
-        .catch((err) => setError(err?.message || 'Không thể lấy thông tin tác động hủy'))
-        .finally(() => setLoadingImpact(false));
+        .then((res) => { if (current) setImpact(res); })
+        .catch((err) => { if (current) setError(err?.message || 'Không thể lấy thông tin tác động hủy'); })
+        .finally(() => { if (current) setLoadingImpact(false); });
     }
-  }, [isOpen, routePlanId]);
+    return () => { current = false; };
+  }, [isOpen, routePlanId, defaultReason, impactRevision]);
 
   if (!isOpen) return null;
 
@@ -56,14 +60,16 @@ export function CancelRoutePlanModal({
       return;
     }
 
+    if (!impact?.expectedFingerprint || loadingImpact || loading) return;
     try {
       setLoading(true);
       setError(null);
-      await apiClient.cancelRoutePlan(routePlanId, reason.trim(), impact?.fingerprint);
+      await apiClient.cancelRoutePlan(routePlanId, reason.trim(), impact.expectedFingerprint);
       toast.success('Đã hủy phương án tuyến.');
       onSuccess();
       onClose();
     } catch (err: any) {
+      setImpact(null);
       setError(err?.message || 'Có lỗi xảy ra khi hủy phương án');
     } finally {
       setLoading(false);
@@ -132,21 +138,14 @@ export function CancelRoutePlanModal({
                     <dd className="shrink-0 font-semibold text-slate-900">{impact.routesCount} tuyến</dd>
                   </div>
                   <div className="flex items-center justify-between gap-4 py-2.5">
-                    <dt className="text-slate-600">Chuyến đã lên lịch sẽ bị hủy</dt>
+                    <dt className="text-slate-600">Chuyến chưa đóng băng sẽ bị hủy</dt>
                     <dd className="shrink-0 font-semibold text-rose-600">{impact.scheduledTripsCount} chuyến</dd>
                   </div>
                   <div className="flex items-center justify-between gap-4 py-2.5">
                     <dt className="text-slate-600">Chuyến đang chạy được giữ nguyên</dt>
                     <dd className="shrink-0 font-semibold text-emerald-700">{impact.inProgressTripsCount} chuyến</dd>
                   </div>
-                  {impact.pendingStaffLeaveNoticesCount > 0 && (
-                    <div className="flex items-center justify-between gap-4 py-2.5">
-                      <dt className="text-slate-600">Báo nghỉ chờ duyệt sẽ được đóng</dt>
-                      <dd className="shrink-0 font-semibold text-amber-700">
-                        {impact.pendingStaffLeaveNoticesCount} báo nghỉ
-                      </dd>
-                    </div>
-                  )}
+
                 </dl>
               </section>
             ) : null}
@@ -174,6 +173,7 @@ export function CancelRoutePlanModal({
               <div id="cancel-route-plan-error" role="alert" className="flex gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm leading-5 text-rose-700">
                 <AlertIcon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                 <span>{error}</span>
+                {!impact && !loadingImpact && <Button type="button" variant="outline" size="sm" disabled={loading} onClick={() => setImpactRevision(value => value + 1)}>Kiểm tra lại</Button>}
               </div>
             )}
           </div>
@@ -190,7 +190,7 @@ export function CancelRoutePlanModal({
             </Button>
             <Button
               type="submit"
-              disabled={loading || loadingImpact}
+              disabled={loading || loadingImpact || !impact?.expectedFingerprint}
               className="w-full border border-rose-700 bg-rose-600 px-5 font-semibold text-white hover:bg-rose-700 disabled:border-rose-300 disabled:bg-rose-300 sm:w-auto"
             >
               {loading && <SpinnerIcon className="h-4 w-4 animate-spin" aria-hidden="true" />}

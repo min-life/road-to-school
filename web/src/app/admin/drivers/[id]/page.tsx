@@ -1,4 +1,7 @@
 'use client';
+import { ResendCredentialsDialog } from '@/components/admin/common/resend-credentials-dialog';
+import { ResourceStatusDialog } from '@/components/admin/common/resource-status-dialog';
+import { Button } from '@/components/ui/button';
 import { BackLink } from '@/components/admin/common/context-navigation';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -23,6 +26,8 @@ function DriverDetailPageContent() {
   const params = useParams();
   const driverId = params?.id as string;
 
+  const [resendOpen, setResendOpen] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(false);
   const [driver, setDriver] = useState<DriverItem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -77,6 +82,10 @@ function DriverDetailPageContent() {
       <PageHeader className="driver-detail-heading">
         <BackLink fallback="/admin/drivers" className="driver-detail-back" />
         <h1>Chi tiết tài xế</h1>
+        <div className="flex flex-wrap gap-2">
+        {driver.isActive && driver.email && <Button variant="outline" onClick={() => setResendOpen(true)}>Cấp lại mật khẩu</Button>}
+        <Button variant="outline" onClick={() => setStatusOpen(true)}>{driver.isActive ? 'Ngừng hoạt động' : 'Kích hoạt'}</Button>
+        </div>
       </PageHeader>
 
       <Card className="driver-detail-profile">
@@ -120,6 +129,8 @@ function DriverDetailPageContent() {
           </dl>
         </Card>
       </div>
+      {resendOpen && <ResendCredentialsDialog key={driver.id} kind="driver" employee={driver} onClose={() => setResendOpen(false)} />}
+      {statusOpen && <ResourceStatusDialog target={{ kind: 'driver', id: driver.id, name: driver.fullName, isActive: driver.isActive }} onClose={() => setStatusOpen(false)} onSuccess={() => void fetchDriver()} />}
       <DriverSchedule key={driver.id} driverId={driver.id} />
     </div>
   );

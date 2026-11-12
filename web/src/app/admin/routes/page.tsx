@@ -1,4 +1,5 @@
 'use client';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { effectivePlanStatus } from '@/lib/school-lifecycle';
 import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
 import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
@@ -33,6 +34,9 @@ import { Badge } from '@/components/ui/badge';
 export default function RoutePlansPage() {
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
 
+  const routeQuery = useSearchParams();
+  const router = useRouter();
+  const needsReoptimization = routeQuery.get('needsReoptimization') === 'true';
   // Data states
   const [plans, setPlans] = useState<RoutePlanItem[]>([]);
   const [totalItems, setTotalItems] = useState(0);
@@ -94,6 +98,7 @@ export default function RoutePlansPage() {
       setLoading(true);
       setError(null);
       const res = await apiClient.listRoutePlans({
+        needsReoptimization: needsReoptimization || undefined,
         search: debouncedSearch.trim() || undefined,
         schoolId: selectedSchoolId || undefined,
         status: selectedStatus || undefined,
@@ -108,7 +113,7 @@ export default function RoutePlansPage() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, selectedSchoolId, selectedStatus, page, limit]);
+  }, [debouncedSearch, selectedSchoolId, selectedStatus, page, limit, needsReoptimization]);
 
   useEffect(() => {
     fetchRoutePlans();
@@ -136,16 +141,6 @@ export default function RoutePlansPage() {
 
   return (
     <div className="ui-list-page">
-      {/* Top Banner Notice: RoutePlan Lifecycle Rule */}
-      <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200/80 flex items-start gap-3">
-        <InfoIcon className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-        <div className="text-xs text-amber-900 leading-relaxed">
-          <strong className="font-semibold text-amber-950">Nguyên tắc quản lý Phương án tuyến:</strong>{' '}
-          Phương án tuyến (RoutePlan) là tập hợp toàn bộ các tuyến đi và về được tối ưu đồng thời cho trường học.
-          Chỉ phương án có trạng thái vòng đời (Chưa duyệt / Đang hoạt động / Đã hủy / Hết hạn hợp đồng). Không thể hủy hoặc kích hoạt riêng lẻ từng tuyến.
-        </div>
-      </div>
-
       {/* Header */}
       <PageHeader title="Phương án tuyến" actions={isSystemAdmin && (
           <Button variant="primary" size="default"
@@ -158,6 +153,7 @@ export default function RoutePlansPage() {
         )} />
 
       {/* Filters Bar */}
+      {needsReoptimization && <Button variant="outline" size="sm" onClick={() => { const next = new URLSearchParams(routeQuery.toString()); next.delete('needsReoptimization'); router.replace('/admin/routes?' + next.toString()); }}>Cần tối ưu lại ×</Button>}
       <FilterToolbar
         hasActiveFilters={Boolean(search || selectedSchoolId || selectedStatus)}
         onReset={() => {
@@ -272,7 +268,7 @@ export default function RoutePlansPage() {
                             className="hover:text-blue-600 hover:underline flex items-center gap-2"
                           >
                             <RouteIcon className="w-4 h-4 text-slate-400 shrink-0" />
-                            <span>{plan.name}</span>
+                            <span>{plan.name}{plan.needsReoptimization && <span className="ml-2 inline-block rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800" title={plan.reoptimizationReason || undefined}>Cần tối ưu lại</span>}</span>
                           </ContextLink>
                         </td>
 

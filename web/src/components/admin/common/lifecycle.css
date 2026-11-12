@@ -9,6 +9,35 @@
 .lifecycle-fields { display: grid; min-width: 0; gap: 16px; }
 .lifecycle-fields label { display: grid; min-width: 0; gap: 6px; font-size: 13px; font-weight: 600; }
 .lifecycle-fields .ui-input, .lifecycle-fields .ui-select, .lifecycle-fields .ui-textarea { width: 100%; min-width: 0; min-height: 42px; padding: 8px 10px; border: 1px solid var(--brand-input-border); background: var(--brand-surface); }
+.lifecycle-calendar-field { display: grid; gap: 6px; }
+.lifecycle-label { font-size: 13px; font-weight: 600; }
+.lifecycle-calendar-input { position: relative; display: flex; align-items: center; }
+.lifecycle-calendar-input .ui-input { flex: 1; padding-right: 48px; }
+.lifecycle-calendar-input .ui-button { position: absolute; right: 4px; min-height: 34px; width: 34px; border: 0; background: transparent; color: var(--brand-muted); }
+.lifecycle-calendar-input .ui-button[aria-expanded=true] { background: var(--brand-accent); color: var(--brand-heading); }
+.lifecycle-calendar-input input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0; pointer-events: none; }
+.lifecycle-calendar-popover { position: fixed; inset: auto; margin: 0; padding: 0; width: 340px; max-width: calc(100vw - 32px); overflow: auto; overscroll-behavior: contain; border: 1px solid var(--brand-input-border); border-radius: 12px; background: var(--brand-surface); color: var(--brand-foreground); box-shadow: 0 8px 28px #19365226; }
+.lifecycle-calendar-popover .shadcn-calendar { width: 100%; border: 0; border-radius: inherit; box-shadow: none; }
+.shadcn-calendar { --rdp-accent-color: var(--brand-navy); --rdp-day-width: 42px; --rdp-day-height: 44px; width: 340px; max-width: 100%; border: 1px solid var(--brand-input-border); border-radius: 12px; padding: 12px; background: var(--brand-surface); }
+.shadcn-calendar .rdp-months { justify-content: center; }
+.shadcn-calendar .rdp-month { width: 100%; }
+.shadcn-calendar .rdp-month_grid { width: 100%; table-layout: fixed; }
+.shadcn-calendar .rdp-month_caption { display: flex; align-items: center; justify-content: center; min-height: 40px; font-size: 15px; font-weight: 700; color: var(--brand-heading); }
+.shadcn-calendar .rdp-nav { display: flex; gap: 4px; }
+.shadcn-calendar .rdp-button_previous, .shadcn-calendar .rdp-button_next { width: 34px; height: 34px; border: 1px solid var(--brand-border); border-radius: 9px; color: var(--brand-foreground); background: var(--brand-surface); }
+.shadcn-calendar .rdp-button_previous:hover, .shadcn-calendar .rdp-button_next:hover { background: var(--brand-hover); }
+.shadcn-calendar .rdp-chevron { fill: currentColor; width: 18px; height: 18px; }
+.shadcn-calendar .rdp-weekdays { margin-bottom: 4px; }
+.shadcn-calendar .rdp-weekday { height: 28px; color: var(--brand-muted); font-size: 11px; font-weight: 700; }
+.shadcn-calendar .rdp-day { width: auto; height: 44px; padding: 2px; }
+.shadcn-calendar .rdp-day_button { display: flex; width: 100%; height: 100%; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border: 1px solid transparent; border-radius: 8px; color: var(--brand-foreground); font-size: 14px; }
+.shadcn-calendar .rdp-day_button small { color: var(--brand-muted); font-size: 10px; line-height: 1; }
+.shadcn-calendar .rdp-day_button:hover { background: var(--brand-hover); }
+.shadcn-calendar .rdp-today:not(.rdp-outside) .rdp-day_button { border-color: var(--brand-input-border); font-weight: 700; }
+.shadcn-calendar .rdp-selected .rdp-day_button { border-color: var(--brand-primary); background: var(--brand-primary); color: var(--brand-heading); }
+.shadcn-calendar .rdp-selected .rdp-day_button small { color: var(--brand-heading); }
+.shadcn-calendar .rdp-outside .rdp-day_button { color: var(--brand-muted); opacity: .55; }
+.shadcn-calendar .rdp-disabled .rdp-day_button { cursor: not-allowed; opacity: .35; }
 .lifecycle-field-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .lifecycle-notice { padding: 12px 14px; border: 1px solid var(--brand-input-border); border-radius: 10px; background: var(--brand-hover); font-size: 13px; line-height: 1.6; }
 .lifecycle-error { color: var(--brand-danger); background: var(--brand-danger-surface); border: 1px solid var(--brand-danger-border); border-radius: 8px; padding: 10px 12px; font-size: 13px; }
@@ -27,4 +56,6 @@
   .lifecycle-field-row { grid-template-columns: minmax(0, 1fr); }
   .lifecycle-record { flex-direction: column; }
   .lifecycle-panel { padding: 14px; }
+  .shadcn-calendar { width: min(340px, calc(100vw - 32px)); padding: 10px; }
+  .shadcn-calendar .rdp-day { width: auto; height: 44px; }
 }

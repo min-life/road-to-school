@@ -1,11 +1,15 @@
 'use client';
+import { TripActions } from './_components/trip-actions';
+import { TripOperationHistory } from './_components/trip-operation-history';
 import { getTripStatusLabel } from '@/lib/status-labels';
 import { BackLink, ContextLink } from '@/components/admin/common/context-navigation';
 import { effectivePlanStatus, lifecycleError, lifecycleReason, type TripAdminFinalization } from '@/lib/school-lifecycle';
 
-import React, { useState, useEffect, useMemo, useRef, use } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useId, use } from 'react';
 import { apiClient, ApiError } from '@/lib/api-client';
 import { TripDetail } from '@/lib/types';
+import { Copy } from 'lucide-react';
+import { toast } from '@/stores/toast-store';
 import { useAuth } from '@/components/auth/auth-provider';
 import { useVisibleRefresh } from '@/hooks/use-visible-refresh';
 import type { RefreshContext } from '@/lib/refresh-loop';
@@ -14,11 +18,14 @@ import {
   AlertIcon,
   RouteIcon,
   BusIcon,
-  ClockIcon,
-  MapPinIcon,
 } from '@/components/icons';
 import { RouteMap, MapPoint } from '@/components/admin/routes/route-map';
+import { tripAssignmentLock } from '@/lib/business-improvements';
 import { TripAssignmentModal } from './_components/trip-assignment-modal';
+import { TripAttendancePanel, TripAttendanceSummary } from './_components/trip-attendance';
+import { TripStopsPanel } from './_components/trip-stops-panel';
+import { useTripAttendance } from './_components/use-trip-attendance';
+import './_components/trip-detail.css';
 import { getRecordedHistory, getTripLocation, splitRecordedHistory, type RecordedPoint, type TripLocationState } from '@/lib/trip-location';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,6 +40,13 @@ export default function AdminTripDetailPage({
   const { id: tripId } = use(params);
   const { user } = useAuth();
 
+  return <TripDetailContent key={JSON.stringify([tripId, user?.id, user?.role, user?.schoolId])} tripId={tripId} />;
+}
+
+function TripDetailContent({ tripId }: { tripId: string }) {
+  const { user } = useAuth();
+  const [panelTab, setPanelTab] = useState<'attendance' | 'stops'>('attendance');
+  const tabId = useId();
   const currentUserRole = user?.role || null;
   const currentUserSchoolId = user?.schoolId || null;
   const [trip, setTrip] = useState<TripDetail | null>(null);
@@ -110,14 +124,17 @@ export default function AdminTripDetailPage({
   useEffect(() => { setTrip(null); setLocation(null); setHistory(null); historyLoaded.current = false; metadataAt.current = 0;
     setShowPlanned(false); setIsEditModalOpen(false); setLoading(true); }, [identity]);
   const loadTripDetail = useVisibleRefresh(identity, fetchTripDetail, 5000);
+  const attendance = useTripAttendance(tripId, identity, Boolean(user && ['SYSTEM_ADMIN', 'SCHOOL_ADMIN'].includes(user.role)));
 
+  const assignmentLock = trip ? tripAssignmentLock(trip, attendance.data) : null;
   const canEditAssignment = useMemo(() => {
     if (!currentUserRole || !trip) return false;
+    if (assignmentLock || attendance.error) return false;
     if (trip.status !== 'SCHEDULED' || !policy || policy.tripId !== trip.id || policy.blocked) return false;
     if (currentUserRole === 'SYSTEM_ADMIN') return true;
     if (currentUserRole === 'SCHOOL_ADMIN' && currentUserSchoolId === trip.schoolId) return true;
     return false;
-  }, [currentUserRole, currentUserSchoolId, trip, policy]);
+  }, [currentUserRole, currentUserSchoolId, trip, policy, assignmentLock, attendance.error]);
 
   // Locations for Map
   const parkingLocation = useMemo(() => {
@@ -202,21 +219,30 @@ export default function AdminTripDetailPage({
     );
   }
 
+  const isCancelled = trip.status === 'CANCELLED';
+  const actualTime = (value: string) => new Date(value).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false });
+  const focusStudent = (studentId: string) => {
+    const stop = trip.stops?.find(stop => stop.studentId === studentId);
+    if (stop && Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude)) {
+      setFocusPoint({ latitude: stop.latitude, longitude: stop.longitude, zoom: 16 });
+    }
+  };
   const isToSchool = trip.direction === 'TO_SCHOOL';
 
   return (
-    <div className="space-y-6">
+    <div className="trip-detail-page">
       {/* Breadcrumb & Navigation */}
       <div className="flex items-center justify-between">
         <BackLink fallback="/admin/trips" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors" />
-        <span className="text-xs text-slate-400">
-          Mã chuyến: <code className="text-slate-600 font-mono text-[11px]">{trip.id.slice(0, 8)}...</code>
-        </span>
+        <Button type="button" variant="ghost" size="sm" className="trip-detail-copy" title={trip.id} aria-label="Sao chép mã chuyến" onClick={async () => {
+          try { await navigator.clipboard.writeText(trip.id); toast.success('Đã sao chép mã chuyến'); }
+          catch { toast.error('Không thể sao chép mã chuyến'); }
+        }}><code>{trip.id.slice(0, 8)}</code><Copy className="w-3.5 h-3.5" aria-hidden="true" /></Button>
       </div>
 
       {/* Header Card */}
-      <Card className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <PageHeader className="space-y-1.5">
+      <Card className="trip-detail-header">
+        <PageHeader className="trip-detail-header-content">
           <div className="flex flex-wrap items-center gap-2.5">
             <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
               <BusIcon className="w-6 h-6 text-slate-700" />
@@ -233,119 +259,89 @@ export default function AdminTripDetailPage({
               </Badge>
             )}
 
-            <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+            <Badge className="trip-detail-status" data-status={trip.status}>
               {getTripStatusLabel(trip.status)}
             </Badge>
+            {(policy?.tripId === trip.id && (policy.audit?.state === 'PENDING' || (!['COMPLETED', 'CANCELLED'].includes(trip.status) && policy.blocked))) && <details className="trip-detail-policy-note" data-finalized={policy.audit?.state === 'FINALIZED'}>
+              <summary><AlertIcon className="w-4 h-4" aria-hidden="true" /><span>{policy.audit?.state === 'FINALIZED' ? 'Lịch sử xử lý hành chính' : 'Cần kiểm tra điều kiện vận hành'}</span></summary>
+              <div className="trip-detail-policy-content">
+                <p className="text-sm">{policy.error || policy.audit?.reason || lifecycleReason(policy.audit?.trigger) || 'Chuyến không còn đủ điều kiện đổi phân công.'}</p>
+                {policy.audit?.finalizedAt && <p className="text-xs text-slate-500">Ghi nhận: {new Date(policy.audit.finalizedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}. Việc kết thúc hành chính không xác nhận học sinh đã xuống xe.</p>}
+                {currentUserRole === 'SYSTEM_ADMIN' && policy.audit?.state === 'PENDING' && <ContextLink href="/admin/trips?tab=finalizations" className="text-sm font-semibold text-blue-700">Xử lý hành chính</ContextLink>}
+                {policy.error && <Button type="button" variant="outline" size="sm" onClick={loadTripDetail}>Thử lại</Button>}
+              </div>
+            </details>}
           </div>
 
-          <p className="text-xs text-slate-500">
-            Ngày dịch vụ: <strong className="text-slate-800 font-semibold">{formatServiceDateLong(trip.serviceDate)}</strong>
-            {' • '}
-            Trường: <strong className="text-slate-700 font-semibold">{trip.schoolName}</strong>
-            {' • '}
-            Phương án: <span className="text-slate-600">{trip.routePlanName}</span>
+          <p className="trip-detail-service-line">
+            <span title={formatServiceDateLong(trip.serviceDate)}>{formatServiceDateLong(trip.serviceDate)}</span>
+            <span>Dự kiến <strong>{trip.scheduledStartTime} – {trip.scheduledEndTime}</strong></span>
+            <span>Xe <strong>{trip.vehiclePlate || 'Chưa gán'}</strong></span>
+            <span title={trip.driverName}>Tài xế: <strong>{trip.driverName || 'Chưa gán'}</strong></span>
+            <span title={trip.busAttendantName}>Giáo viên: <strong>{trip.busAttendantName || 'Chưa gán'}</strong></span>
           </p>
+          <details className="trip-detail-expanded">
+            <summary>Chi tiết <span aria-hidden="true">⌄</span></summary>
+            <dl className="trip-detail-metadata">
+              <div><dt>Trường học</dt><dd>{trip.schoolName}</dd></div>
+              <div><dt>Phương án tuyến</dt><dd><ContextLink href={`/admin/routes/plans/${trip.routePlanId}`}>{trip.routePlanName}</ContextLink></dd></div>
+              <div><dt>Lịch dự kiến</dt><dd>{trip.scheduledStartTime} – {trip.scheduledEndTime}</dd><small>{trip.actualStartTime || trip.actualEndTime ? `Thực tế: ${trip.actualStartTime ? actualTime(trip.actualStartTime) : 'Chưa bắt đầu'} – ${trip.actualEndTime ? actualTime(trip.actualEndTime) : 'Chưa kết thúc'}` : `Khởi hành từ ${isToSchool ? 'bãi xe' : 'trường học'}`}</small></div>
+              <div><dt>Phương tiện</dt><dd>{trip.vehiclePlate || 'Chưa gán xe'}</dd><small>{trip.vehicleSeats ? `${trip.vehicleSeats} chỗ` : 'Chưa cập nhật sức chứa'}{trip.vehicleBrand ? ` · ${trip.vehicleBrand}` : ''}</small></div>
+              <div><dt>Tài xế</dt><dd>{trip.driverName || 'Chưa gán tài xế'}</dd><small>{trip.driverPhone || 'Chưa cập nhật số điện thoại'}</small></div>
+              <div><dt>Giáo viên phụ xe</dt><dd>{trip.busAttendantName || 'Chưa gán giáo viên'}</dd><small>{trip.busAttendantPhone || 'Chưa cập nhật số điện thoại'}</small></div>
+            </dl>
+            {isCancelled && trip.cancellationReason && <p className="trip-detail-cancellation"><strong>Lý do hủy:</strong> {trip.cancellationReason}</p>}
+            {policy?.tripId === trip.id && policy.audit?.state === 'FINALIZED' && <div className="trip-detail-policy-content">
+              <strong className="text-xs">Lịch sử xử lý hành chính</strong>
+              <p className="text-sm">{policy.audit.reason || lifecycleReason(policy.audit.trigger)}</p>
+              {policy.audit.finalizedAt && <p className="text-xs text-slate-500">Ghi nhận: {new Date(policy.audit.finalizedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}. Việc kết thúc hành chính không xác nhận học sinh đã xuống xe.</p>}
+            </div>}
+            <TripOperationHistory trip={trip} />
+          </details>
         </PageHeader>
 
-        {/* Action: Edit Assignment */}
+        {trip.status === 'SCHEDULED' && (assignmentLock || attendance.error) && <p className="text-sm text-amber-800" role="status">{attendance.error ? 'Chưa thể kiểm tra phân công: không tải được điểm danh.' : assignmentLock}</p>}
+        <TripActions key={trip.id + ':' + trip.status} trip={trip} roster={attendance.error ? null : attendance.data} role={user?.role} schoolId={user?.schoolId}
+          onUpdated={() => { metadataAt.current = 0; historyLoaded.current = false; void loadTripDetail(); void attendance.refresh(); }} />
+      {/* Action: Edit Assignment */}
         {canEditAssignment && (
           <Button
             onClick={() => setIsEditModalOpen(true)}
-            className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0"
+            variant="outline"
           >
             <span>Đổi phân công chuyến</span>
           </Button>
         )}
       </Card>
 
-      {(policy?.tripId === trip.id && (policy.blocked || policy.audit)) && <Card className="p-4 space-y-2 border border-amber-200">
-        <h2 className="font-semibold">{policy.audit?.state === 'FINALIZED' ? 'Đã kết thúc hành chính' : 'Cần kiểm tra điều kiện vận hành'}</h2>
-        <p className="text-sm">{policy.error || policy.audit?.reason || lifecycleReason(policy.audit?.trigger) || 'Chuyến không còn đủ điều kiện đổi phân công.'}</p>
-        {policy.audit?.finalizedAt && <p className="text-xs text-slate-500">Ghi nhận: {new Date(policy.audit.finalizedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}. Việc kết thúc hành chính không xác nhận học sinh đã xuống xe.</p>}
-        {currentUserRole === 'SYSTEM_ADMIN' && policy.audit?.state === 'PENDING' && <ContextLink href="/admin/trips?tab=finalizations" className="text-sm font-semibold text-blue-700">Xử lý hành chính</ContextLink>}
-        {policy.error && <Button type="button" variant="outline" size="sm" onClick={loadTripDetail}>Thử lại</Button>}
-      </Card>}
-
-      {/* 4 Cards: Thời gian, Xe, Tài xế, Giáo viên */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Giờ vận hành */}
-        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-            Khung giờ vận hành
-          </span>
-          <div className="text-xl font-black text-slate-800 font-mono">
-            {trip.scheduledStartTime} – {trip.scheduledEndTime}
-          </div>
-          <span className="text-[11px] text-slate-500 block">
-            Khởi hành từ {isToSchool ? 'Bãi xe' : 'Trường học'}
-          </span>
-        </Card>
-
-        {/* Card 2: Xe đưa đón */}
-        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-            Phương tiện (Xe)
-          </span>
-          <div className="text-base font-bold text-slate-900">
-            {trip.vehiclePlate || 'Chưa gán xe'}
-          </div>
-          <span className="text-xs text-slate-500 block">
-            {trip.vehicleSeats} chỗ • {trip.vehicleBrand}
-          </span>
-        </Card>
-
-        {/* Card 3: Tài xế */}
-        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-            Tài xế phụ trách
-          </span>
-          <div className="text-base font-bold text-slate-900">
-            {trip.driverName || 'Chưa gán tài xế'}
-          </div>
-          <span className="text-xs text-slate-500 block font-mono">
-            {trip.driverPhone || '—'}
-          </span>
-        </Card>
-
-        {/* Card 4: Giáo viên */}
-        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-            Giáo viên phụ xe
-          </span>
-          <div className="text-base font-bold text-slate-900">
-            {trip.busAttendantName || 'Chưa gán giáo viên'}
-          </div>
-          <span className="text-xs text-slate-500 block font-mono">
-            {trip.busAttendantPhone || '—'}
-          </span>
-        </Card>
-      </div>
+      <TripAttendanceSummary data={attendance.data} cancelled={isCancelled} />
 
       {/* Main Content: Map & Stops Timeline */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="trip-detail-layout">
         {/* Left Column: RouteMap (7 cols) */}
-        <Card className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-          <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <Card className="trip-detail-map">
+          <div className="trip-detail-map-heading">
             <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
               <RouteIcon className="w-4 h-4 text-slate-500" />
               <span>Bản đồ lộ trình chuyến xe</span>
             </h2>
             <span className="text-xs text-slate-400">
-              {mapPoints.length} điểm đón học sinh
+              {mapPoints.length} điểm {isToSchool ? 'đón' : 'trả'} học sinh
             </span>
           </div>
 
-          <div className="p-3">
+          <div className="trip-detail-map-body">
             <p className="text-xs text-slate-500 mb-2">
               {trip.status === 'COMPLETED' || trip.status === 'CANCELLED'
                 ? history === null ? 'Đang tải hành trình' : history.length && !showPlanned ? 'Hành trình ghi nhận' : 'Tuyến dự kiến'
-                : !location?.latestPosition ? 'Chưa có vị trí' : location.freshness === 'STALE' ? 'Mất cập nhật' : `Cập nhật lúc ${new Date(location.latestPosition.recordedAt).toLocaleTimeString('vi-VN')}`}
+                : !location?.latestPosition ? 'Chưa có vị trí' : location.freshness === 'STALE' ? 'Mất cập nhật' : `Cập nhật lúc ${new Date(location.latestPosition.recordedAt).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`}
               {!showPlanned && historyParts.length > 1 ? ' · Có đoạn chưa ghi nhận' : ''}
             </p>
             {!!history?.length && <div className="flex gap-2 mb-2 text-xs">
               <Button className={`px-3 py-2 rounded-lg ${!showPlanned ? 'bg-amber-200' : 'bg-slate-100'}`} onClick={() => setShowPlanned(false)}>Hành trình ghi nhận</Button>
               <Button className={`px-3 py-2 rounded-lg ${showPlanned ? 'bg-amber-200' : 'bg-slate-100'}`} onClick={() => setShowPlanned(true)}>Tuyến dự kiến</Button>
             </div>}
+            <div className="trip-detail-map-canvas">
             <RouteMap
               schoolLocation={schoolLocation}
               parkingLocation={parkingLocation}
@@ -354,68 +350,35 @@ export default function AdminTripDetailPage({
               vehiclePosition={location?.latestPosition}
               recordedTrack={history?.length && !showPlanned ? historyParts : undefined}
               focusPoint={focusPoint}
-              height="500px"
+              height="100%"
               className="rounded-xl overflow-hidden"
             />
+            </div>
           </div>
         </Card>
 
-        {/* Right Column: Stops Timeline (5 cols) */}
-        <Card className="lg:col-span-5 bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-          <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-            <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <ClockIcon className="w-4 h-4 text-slate-500" />
-              <span>Trình tự điểm dừng ({trip.stops?.length || 0})</span>
-            </h2>
+        <Card className="trip-detail-side">
+          <div className="trip-detail-tabs" role="tablist" aria-label="Thông tin chuyến xe">
+            {(['attendance', 'stops'] as const).map(tab => <Button
+              key={tab} type="button" role="tab" id={`${tabId}-${tab}-tab`}
+              aria-controls={`${tabId}-${tab}-panel`} aria-selected={panelTab === tab}
+              tabIndex={panelTab === tab ? 0 : -1}
+              variant={panelTab === tab ? 'primary' : 'ghost'}
+              onClick={() => setPanelTab(tab)}
+              onKeyDown={event => {
+                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                event.preventDefault();
+                const next = event.key === 'Home' ? 'attendance' : event.key === 'End' ? 'stops' : tab === 'attendance' ? 'stops' : 'attendance';
+                setPanelTab(next);
+                document.getElementById(`${tabId}-${next}-tab`)?.focus();
+              }}
+            >{tab === 'attendance' ? `Học sinh${attendance.data ? ` (${attendance.data.totalStudents})` : ''}` : `Điểm dừng (${trip.stops?.length || 0})`}</Button>)}
           </div>
-
-          <div className="p-4 max-h-[500px] overflow-y-auto space-y-3">
-            {trip.stops && trip.stops.length > 0 ? (
-              trip.stops.map((stop, idx) => {
-                const isParking = stop.stopType === 'PARKING_START' || stop.stopType === 'PARKING_END';
-                const isSchool = stop.stopType === 'SCHOOL_ARRIVAL' || stop.stopType === 'SCHOOL_DEPARTURE';
-
-                return (
-                  <div
-                    key={stop.id || idx}
-                    onClick={() => {
-                      setFocusPoint({ latitude: stop.latitude, longitude: stop.longitude, zoom: 16 });
-                    }}
-                    className="p-3 rounded-xl border border-slate-100 hover:border-primary hover:bg-amber-50/20 transition-all cursor-pointer space-y-1"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 font-bold text-[11px] flex items-center justify-center">
-                          {stop.stopOrder}
-                        </span>
-                        <span className="text-xs font-bold text-slate-800">
-                          {isParking
-                            ? 'Bãi xe trung tâm'
-                            : isSchool
-                            ? trip.schoolName
-                            : stop.studentName || 'Điểm đón học sinh'}
-                        </span>
-                      </div>
-
-                      {stop.plannedArrivalTime && (
-                        <span className="text-xs font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md">
-                          {stop.plannedArrivalTime}
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="text-[11px] text-slate-500 pl-7 leading-relaxed flex items-start gap-1">
-                      <MapPinIcon className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
-                      <span>{stop.addressText}</span>
-                    </p>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="py-8 text-center text-xs text-slate-400">
-                Không có dữ liệu điểm dừng
-              </div>
-            )}
+          <div role="tabpanel" id={`${tabId}-attendance-panel`} aria-labelledby={`${tabId}-attendance-tab`} hidden={panelTab !== 'attendance'}>
+            <TripAttendancePanel data={attendance.data} error={attendance.error} updatedAt={attendance.updatedAt} onRefresh={attendance.refresh} isRefreshing={attendance.isRefreshing} cancelled={isCancelled} onFocusStudent={focusStudent} />
+          </div>
+          <div role="tabpanel" id={`${tabId}-stops-panel`} aria-labelledby={`${tabId}-stops-tab`} hidden={panelTab !== 'stops'}>
+            <TripStopsPanel stops={trip.stops ?? []} schoolName={trip.schoolName} onFocus={setFocusPoint} />
           </div>
         </Card>
       </div>
@@ -424,10 +387,12 @@ export default function AdminTripDetailPage({
       <TripAssignmentModal
         isOpen={isEditModalOpen}
         trip={trip}
+        lockReason={assignmentLock || (attendance.error ? 'Không thể kiểm tra điểm danh.' : null)}
         currentUserRole={currentUserRole}
         onClose={() => setIsEditModalOpen(false)}
         onUpdated={() => {
           loadTripDetail();
+          attendance.refresh();
         }}
       />
     </div>

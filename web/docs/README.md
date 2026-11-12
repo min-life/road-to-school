@@ -17,6 +17,8 @@
 
 ## Vai trò của từng tài liệu
 
+- [business-improvements-usage.md](business-improvements-usage.md): dời bãi theo ngày hiệu lực, tối ưu lại phương án, ngừng/kích hoạt và bàn giao tài nguyên, khóa phân công và sự cố mới.
+
 - [school-lifecycle-usage.md](school-lifecycle-usage.md): màn hình, quyền, cách hẹn thay đổi trường,
   ngày nghỉ/học bù, hiệu lực phương án và xử lý hành chính chuyến; kèm giới hạn tích hợp.
 

@@ -21,22 +21,26 @@ export function StudentRoutingSection({
 }: StudentRoutingSectionProps) {
   const [detail, setDetail] = useState<StudentRoutingDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [revision, setRevision] = useState(0);
   const [activeDirection, setActiveDirection] = useState<'OUTBOUND' | 'RETURN'>('OUTBOUND');
 
   useEffect(() => {
+    let current = true;
     async function loadRouting() {
       try {
-        setLoading(true);
+        setLoading(true); setError('');
         const data = await apiClient.getStudentRoutingDetail(studentId);
-        setDetail(data);
+        if (current) setDetail(data);
       } catch (err) {
-        console.error('Lỗi tải thông tin tuyến học sinh:', err);
+        if (current) setError(err instanceof Error ? err.message : 'Không thể tải thông tin tuyến.');
       } finally {
-        setLoading(false);
+        if (current) setLoading(false);
       }
     }
     loadRouting();
-  }, [studentId]);
+    return () => { current = false; };
+  }, [studentId, revision]);
 
   if (loading) {
     return (
@@ -46,6 +50,8 @@ export function StudentRoutingSection({
       </Card>
     );
   }
+
+  if (error) return <Card className="border bg-white p-5 space-y-3"><h2 className="font-semibold">Tuyến đường đưa đón</h2><p role="alert" className="text-sm text-rose-700">{error}</p><Button variant="outline" onClick={() => setRevision(value => value + 1)}>Thử lại</Button></Card>;
 
   if (!detail || detail.routingStatus !== 'ASSIGNED_DRAFT') {
     let message = 'Học sinh chưa được phân tuyến đưa đón.';

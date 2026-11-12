@@ -5,8 +5,8 @@ import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import './lifecycle.css';
 
-export function LifecycleDialog({ open, title, busy = false, onClose, children, footer }: {
-  open: boolean; title: string; busy?: boolean; onClose: () => void; children: ReactNode; footer?: ReactNode;
+export function LifecycleDialog({ open, title, busy = false, onClose, children, footer, className = '' }: {
+  open: boolean; title: string; busy?: boolean; onClose: () => void; children: ReactNode; footer?: ReactNode; className?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -16,7 +16,7 @@ export function LifecycleDialog({ open, title, busy = false, onClose, children, 
     if (!open && dialog?.open) dialog.close();
   }, [open]);
   if (!open) return null;
-  return <dialog ref={ref} className="lifecycle-dialog" aria-labelledby={titleId}
+  return <dialog ref={ref} className={`lifecycle-dialog ${className}`} aria-labelledby={titleId}
     onCancel={(event) => { event.preventDefault(); if (!busy) onClose(); }}
     onClick={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
     <div className="lifecycle-dialog-panel">

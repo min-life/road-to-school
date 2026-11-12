@@ -1,4 +1,5 @@
 'use client';
+import type { CreateSchoolAdminResponse } from '@/lib/types';
 
 import React, { useState } from 'react';
 import { apiClient } from '@/lib/api-client';
@@ -12,7 +13,7 @@ interface AddTeacherModalProps {
   isOpen: boolean;
   schoolId: string;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (result: CreateSchoolAdminResponse) => void;
 }
 
 export function AddTeacherModal({ isOpen, ...props }: AddTeacherModalProps) {
@@ -65,13 +66,13 @@ function AddTeacherForm({
 
     try {
       setIsLoading(true);
-      await apiClient.createTeacher(schoolId, {
+      const result = await apiClient.createTeacher(schoolId, {
         fullName: trimmedName,
         email: trimmedEmail,
         phone: trimmedPhone,
       });
 
-      onSuccess();
+      onSuccess(result);
       onClose();
     } catch (err: unknown) {
       setErrorMessage(

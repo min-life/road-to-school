@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ChevronDown, Layers } from 'lucide-react';
+import './route-map-visibility-control.css';
 
 export interface RouteVisibilityOption {
   id: string;

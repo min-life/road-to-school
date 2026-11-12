@@ -8,13 +8,13 @@ import { ContextLink } from '@/components/admin/common/context-navigation';
 import type { OverviewTrip } from '@/lib/admin-overview';
 
 export function OverviewTrips({ trips, title, href }: { trips: OverviewTrip[]; title: string; href?: string }) {
-  return <section className="overflow-hidden rounded-2xl border border-slate-200 bg-surface shadow-xs">
+  return <section className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-slate-200 bg-surface shadow-xs">
     <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
       <h2 className="font-bold text-foreground">{title}</h2>
       {href && <ContextLink href={href} className="text-sm font-semibold text-slate-600 hover:underline">Xem tất cả →</ContextLink>}
     </div>
     {trips.length === 0 ? <p className="px-5 py-8 text-center text-sm text-slate-500">Không có chuyến cần chú ý</p> :
-      <div className="overflow-x-auto"><Table className="w-full text-left text-sm" minWidth={815}>
+      <div className="relative overflow-x-auto"><Table className="w-full text-left text-sm" minWidth={815}>
             <colgroup><col style={{ width: 110 }} /><col /><col style={{ width: 210 }} /><col style={{ width: 175 }} /><col style={{ width: 110 }} /></colgroup>
         <thead className="bg-slate-50 text-xs text-slate-500"><tr>
           <th className="px-5 py-3">Giờ</th><th className="px-4 py-3">Chuyến</th><th className="px-4 py-3">Nhân sự</th><th className="px-4 py-3">Trạng thái</th><th className="px-4 py-3"><span className="sr-only">Thao tác</span></th>

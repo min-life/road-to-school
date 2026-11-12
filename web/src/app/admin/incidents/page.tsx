@@ -1,4 +1,11 @@
 'use client';
+import { canCloseIncident } from '@/lib/web-api-integration';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from '@/stores/toast-store';
+import './_components/incident-modals.css';
+import { IncidentLocation } from './_components/incident-location';
+import { LifecycleDialog } from '@/components/admin/common/lifecycle-dialog';
+import { Button } from '@/components/ui/button';
 import { TableActions } from '@/components/admin/common/table-actions';
 import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
 import { PageHeader } from '@/components/ui/page-header';
@@ -21,7 +28,6 @@ import {
 import {
   SpinnerIcon,
   AlertIcon,
-  CloseIcon,
   AlertTriangleIcon,
 } from '@/components/icons';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
@@ -55,10 +61,33 @@ export default function AdminIncidentsPage() {
   const [selectedIncidentForDetail, setSelectedIncidentForDetail] =
     useState<TripIncident | null>(null);
 
+  const [closeForm, setCloseForm] = useState(false);
+  const [closeReason, setCloseReason] = useState('');
+  const [closeError, setCloseError] = useState('');
+  const [closingIncident, setClosingIncident] = useState(false);
+  const detailKey = selectedIncidentForDetail?.id;
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset form drafts when the inspected incident changes.
+  useEffect(() => { setCloseForm(false); setCloseReason(''); setCloseError(''); }, [detailKey]);
+
+  async function finishIncident() {
+    if (!selectedIncidentForDetail || !canCloseIncident(selectedIncidentForDetail, user?.role, user?.schoolId) || closingIncident || !closeReason.trim() || closeReason.trim().length > 500) return;
+    setClosingIncident(true); setCloseError('');
+    try {
+      const updated = await apiClient.closeIncident(selectedIncidentForDetail.id, closeReason.trim(), selectedIncidentForDetail.status);
+      setSelectedIncidentForDetail(updated); setCloseForm(false);
+      toast.success('Đã kết thúc sự cố.'); void fetchIncidents();
+    } catch (cause) {
+      setCloseError(cause instanceof Error ? cause.message : 'Không thể kết thúc sự cố.');
+      if (cause instanceof ApiError && cause.statusCode === 409) {
+        try { setSelectedIncidentForDetail(await apiClient.getIncidentDetail(selectedIncidentForDetail.id)); } catch { /* Keep the form and error for review. */ }
+        void fetchIncidents();
+      }
+    } finally { setClosingIncident(false); }
+  }
   useRouteQuery(String(user?.id), (query, isCurrent) => {
     setSchoolFilter(isSystemAdmin ? query.get('schoolId') || '' : '');
     const type = query.get('type'), status = query.get('status');
-    setTypeFilter(type && ['ATTENDANT_MISSING','DRIVER_MISSING','OFF_ROUTE','LATE_STOP'].includes(type) ? type : 'ALL');
+    setTypeFilter(type && ['ATTENDANT_MISSING','DRIVER_MISSING','OFF_ROUTE','LATE_STOP','NO_GUARDIAN_AT_STOP','TRAFFIC_DELAY','GPS_SIGNAL_LOST'].includes(type) ? type : 'ALL');
     setStatusFilter(status && ['WAITING_ASSIGNMENT','WAITING_CONFIRMATION','RESOLVED','CONFIRMED','CLOSED'].includes(status) ? status : 'ALL');
     setActionableOnly(query.get('actionable') === 'true'); setDateFilter(query.get('date') || ''); setPage(1);
     const id = query.get('incidentId'); if (id) void apiClient.getIncidentDetail(id).then(item => {
@@ -119,8 +148,11 @@ export default function AdminIncidentsPage() {
         return 'Lệch tuyến';
       case 'LATE_STOP':
         return 'Đón/trả chậm';
+      case 'NO_GUARDIAN_AT_STOP': return 'Không có người đón tại điểm dừng';
+      case 'TRAFFIC_DELAY': return 'Chậm do giao thông';
+      case 'GPS_SIGNAL_LOST': return 'Mất tín hiệu GPS';
       default:
-        return type;
+        return 'Không xác định';
     }
   };
 
@@ -130,10 +162,13 @@ export default function AdminIncidentsPage() {
         return 'bg-purple-50 text-purple-700 border-purple-200';
       case 'DRIVER_MISSING':
         return 'bg-blue-50 text-blue-700 border-blue-200';
+      case 'NO_GUARDIAN_AT_STOP':
+      case 'TRAFFIC_DELAY':
       case 'OFF_ROUTE':
         return 'bg-amber-50 text-amber-700 border-amber-200';
       case 'LATE_STOP':
         return 'bg-rose-50 text-rose-700 border-rose-200';
+      case 'GPS_SIGNAL_LOST': return 'bg-slate-100 text-slate-700 border-slate-300';
       default:
         return 'bg-slate-50 text-slate-700 border-slate-200';
     }
@@ -240,6 +275,9 @@ export default function AdminIncidentsPage() {
             <option value="DRIVER_MISSING">Tài xế chưa đến</option>
             <option value="OFF_ROUTE">Lệch tuyến</option>
             <option value="LATE_STOP">Đón/trả chậm</option>
+            <option value="NO_GUARDIAN_AT_STOP">Không có người đón tại điểm dừng</option>
+            <option value="TRAFFIC_DELAY">Chậm do giao thông</option>
+            <option value="GPS_SIGNAL_LOST">Mất tín hiệu GPS</option>
           </select>
         </FilterField>
 
@@ -416,70 +454,32 @@ export default function AdminIncidentsPage() {
 
       {/* Detail / Evidence Modal */}
       {selectedIncidentForDetail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/50">
-              <h3 className="text-sm font-bold text-slate-800">
-                Chi tiết: {getTypeLabel(selectedIncidentForDetail.type)}
-              </h3>
-              <button
-                onClick={() => setSelectedIncidentForDetail(null)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
-              >
-                <CloseIcon className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-5 space-y-3.5 text-xs text-slate-700">
-              <div>
-                <span className="font-semibold text-slate-500 block mb-0.5">Chuyến xe:</span>
-                <span className="font-medium text-slate-900">
-                  {selectedIncidentForDetail.routeName} ({selectedIncidentForDetail.serviceDate})
-                </span>
-              </div>
-              <div>
-                <span className="font-semibold text-slate-500 block mb-0.5">Trạng thái:</span>
-                {getStatusBadge(selectedIncidentForDetail.status)}
-              </div>
-              {selectedIncidentForDetail.description && (
-                <div>
-                  <span className="font-semibold text-slate-500 block mb-0.5">Nội dung báo:</span>
-                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80">
-                    {selectedIncidentForDetail.description}
-                  </div>
-                </div>
-              )}
-              {selectedIncidentForDetail.resolution && (
-                <div>
-                  <span className="font-semibold text-slate-500 block mb-0.5">Kết quả xử lý / Giải trình:</span>
-                  <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900">
-                    <p className="font-medium">
-                      Hành động: {selectedIncidentForDetail.resolution.action || 'Xử lý'}
-                    </p>
-                    {selectedIncidentForDetail.resolution.reason && (
-                      <p className="mt-1 text-slate-700">
-                        Lý do: {selectedIncidentForDetail.resolution.reason}
-                      </p>
-                    )}
-                    {selectedIncidentForDetail.processedByName && (
-                      <p className="mt-1 text-[11px] text-slate-500">
-                        Người thực hiện: {selectedIncidentForDetail.processedByName} (
-                        {new Date(selectedIncidentForDetail.processedAt || '').toLocaleString('vi-VN')})
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="p-4 border-t border-slate-100 flex justify-end bg-slate-50/50">
-              <button
-                onClick={() => setSelectedIncidentForDetail(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors"
-              >
-                Đóng
-              </button>
-            </div>
-          </div>
-        </div>
+        <LifecycleDialog open className="incident-dialog" title={getTypeLabel(selectedIncidentForDetail.type)} busy={closingIncident} onClose={() => setSelectedIncidentForDetail(null)} footer={<>
+          <Button variant="outline" disabled={closingIncident} onClick={() => setSelectedIncidentForDetail(null)}>Đóng cửa sổ</Button>
+          {canCloseIncident(selectedIncidentForDetail, user?.role, user?.schoolId) && <Button variant="primary" disabled={closingIncident || (closeForm && (!closeReason.trim() || closeReason.trim().length > 500))} onClick={() => closeForm ? void finishIncident() : setCloseForm(true)}>{closingIncident ? 'Đang lưu…' : closeForm ? 'Xác nhận kết thúc' : 'Kết thúc sự cố'}</Button>}
+        </>}>
+          <section className="incident-summary" aria-label="Chuyến xe liên quan">
+            <span className="incident-summary-icon"><AlertTriangleIcon className="w-5 h-5" aria-hidden="true" /></span>
+            <div><span className="incident-label">Chuyến xe</span><strong>{selectedIncidentForDetail.routeName || 'Chuyến xe'}</strong><small>{selectedIncidentForDetail.schoolName}{selectedIncidentForDetail.serviceDate ? ` · ${selectedIncidentForDetail.serviceDate}` : ''}</small></div>
+          </section>
+          <dl className="incident-metadata">
+            <div><dt>Trạng thái</dt><dd>{getStatusBadge(selectedIncidentForDetail.status)}</dd></div>
+            <div><dt>Thời điểm ghi nhận</dt><dd><time dateTime={selectedIncidentForDetail.createdAt}>{new Date(selectedIncidentForDetail.createdAt).toLocaleString('vi-VN')}</time></dd></div>
+          </dl>
+          {selectedIncidentForDetail.description && <section className="incident-section"><h3>Nội dung báo</h3><p className="incident-description">{selectedIncidentForDetail.description}</p></section>}
+          {selectedIncidentForDetail.resolution && <section className="incident-resolution" data-status={selectedIncidentForDetail.status}>
+            <h3>Kết quả xử lý / Giải trình</h3>
+            <strong>{selectedIncidentForDetail.resolution.action === 'ARRIVED' ? 'Đã có mặt' : selectedIncidentForDetail.resolution.action === 'REPLACED' ? 'Đã bố trí thay thế' : selectedIncidentForDetail.resolution.action === 'CLOSED_BY_ADMIN' ? 'Đã kết thúc sự cố' : 'Đã xử lý'}</strong>
+            {selectedIncidentForDetail.resolution.reason && <p>{selectedIncidentForDetail.resolution.reason}</p>}
+            {selectedIncidentForDetail.processedByName && <small>Người thực hiện: {selectedIncidentForDetail.processedByName}{selectedIncidentForDetail.processedAt ? ` · ${new Date(selectedIncidentForDetail.processedAt).toLocaleString('vi-VN')}` : ''}</small>}
+          </section>}
+          {!closeForm && <IncidentLocation incident={selectedIncidentForDetail} />}
+          {closeError && <p role="alert" className="text-sm text-rose-700">{closeError}</p>}
+          {closeForm && canCloseIncident(selectedIncidentForDetail, user?.role, user?.schoolId) && <section className="incident-section">
+            <label htmlFor="incident-close-reason" className="block mb-2 font-semibold text-sm">Lý do kết thúc <span className="text-rose-600">*</span></label>
+            <Textarea className="block w-full border bg-white px-3 py-2" id="incident-close-reason" autoFocus maxLength={500} rows={3} value={closeReason} disabled={closingIncident} onChange={event => setCloseReason(event.target.value)} />
+          </section>}
+        </LifecycleDialog>
       )}
     </div>
   );

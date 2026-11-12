@@ -9,12 +9,12 @@ import {
 import type { Role } from '../../lib/types.ts';
 
 describe('Admin Navigation Configuration & Role Filtering', () => {
-  it('SYSTEM_ADMIN phải nhìn thấy đầy đủ 11 mục điều hướng: Tổng quan, Trường học, Tài xế, Phương tiện, Phương án tuyến, Chuyến xe, Báo nghỉ, Sự cố, Yêu cầu, Lịch vận hành, Cài đặt', () => {
+  it('SYSTEM_ADMIN có 10 mục điều hướng, lịch nghỉ nhà xe nằm trong Cài đặt: Tổng quan, Trường học, Tài xế, Phương tiện, Phương án tuyến, Chuyến xe, Báo nghỉ, Sự cố, Yêu cầu, Cài đặt', () => {
     const items = getVisibleNavItems('SYSTEM_ADMIN');
     const ids = items.map((item) => item.id);
 
-    assert.equal(items.length, 11);
-    assert.deepEqual(ids, ['overview', 'schools', 'drivers', 'vehicles', 'routes', 'trips', 'leave-notices', 'incidents', 'requests', 'calendar', 'settings']);
+    assert.equal(items.length, 10);
+    assert.deepEqual(ids, ['overview', 'schools', 'drivers', 'vehicles', 'routes', 'trips', 'leave-notices', 'incidents', 'requests', 'settings']);
 
     const schoolsItem = items.find((i) => i.id === 'schools');
     assert.ok(schoolsItem, 'Mục Trường học phải tồn tại cho SYSTEM_ADMIN');

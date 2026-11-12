@@ -39,6 +39,8 @@ export function ReplacementModal({
       return;
     }
 
+    let current = true;
+    setCandidates([]);
     setLoading(true);
     setError(null);
     setSelectedUserId('');
@@ -46,15 +48,16 @@ export function ReplacementModal({
     apiClient
       .getReplacementCandidates(notice.id)
       .then((res) => {
-        setCandidates(res.candidates || []);
+        if (current) setCandidates(res.candidates || []);
       })
       .catch((err) => {
         const msg = err instanceof ApiError ? err.message : 'Không thể tải danh sách ứng viên';
-        setError(msg);
+        if (current) setError(msg);
       })
       .finally(() => {
-        setLoading(false);
+        if (current) setLoading(false);
       });
+    return () => { current = false; };
   }, [isOpen, notice]);
 
   if (!isOpen || !notice) return null;
@@ -81,6 +84,15 @@ export function ReplacementModal({
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'Phân công thay thế thất bại';
       setError(msg);
+      if (err instanceof ApiError && [400, 409].includes(err.statusCode)) {
+        setSelectedUserId(''); setCandidates([]); setLoading(true);
+        try {
+          const [latest, fresh] = await Promise.all([apiClient.getLeaveNoticeDetail(notice.id), apiClient.getReplacementCandidates(notice.id)]);
+          if (!latest.canAssignReplacement) { onSuccess(); onClose(); toast.warning('Báo nghỉ không còn cho phép bố trí thay thế.'); }
+          else setCandidates(fresh.candidates || []);
+        } catch (cause) { setError(msg + ' ' + (cause instanceof Error ? cause.message : 'Không thể kiểm tra lại.')); }
+        finally { setLoading(false); }
+      }
     } finally {
       setSubmitting(false);
     }

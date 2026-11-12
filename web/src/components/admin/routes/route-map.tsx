@@ -1,7 +1,7 @@
 'use client';
 
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { Building2, BusFront, LocateFixed, Maximize2, UserRound, Warehouse } from 'lucide-react';
+import { AlertTriangle, Building2, BusFront, LocateFixed, Maximize2, UserRound, Warehouse } from 'lucide-react';
 import { Map, MapControls, MapMarker, MapRoute, MarkerContent, MarkerPopup, MarkerTooltip, useMap } from '@/components/ui/map';
 import { decodePolyline } from '@/lib/polyline';
 import type { VehiclePosition } from '@/lib/trip-location';
@@ -14,7 +14,7 @@ export interface MapPoint {
   longitude: number;
   title: string;
   subtitle?: string;
-  type: 'DEPOT' | 'SCHOOL' | 'STUDENT';
+  type: 'DEPOT' | 'SCHOOL' | 'STUDENT' | 'INCIDENT';
   order?: number;
   eta?: string;
   isSelected?: boolean;
@@ -175,7 +175,7 @@ function RouteScene({ schoolLocation, parkingLocation, points = EMPTY_POINTS, po
         {typeof point.order === 'number' ? <>
           <svg className="rts-map-pin-shape" viewBox="0 0 32 40" aria-hidden="true"><path d="M16 1C7.7 1 1 7.7 1 16c0 10.5 15 23 15 23s15-12.5 15-23C31 7.7 24.3 1 16 1Z" /></svg>
           <span className="rts-map-pin-number">{point.order}</span>
-        </> : <span className="rts-map-student-icon"><UserRound size={14} aria-hidden="true" /></span>}
+        </> : <span className="rts-map-student-icon">{point.type === 'INCIDENT' ? <AlertTriangle size={16} aria-hidden="true" /> : <UserRound size={14} aria-hidden="true" />}</span>}
       </button></MarkerContent>
       <MarkerTooltip className="rts-map-tooltip">{point.title}</MarkerTooltip>
       <MarkerPopup className="rts-map-popup" closeButton>
@@ -195,7 +195,9 @@ function RouteScene({ schoolLocation, parkingLocation, points = EMPTY_POINTS, po
         {vehiclePosition && <button type="button" onClick={() => map?.flyTo({ center: [vehiclePosition.longitude, vehiclePosition.latitude], duration: 500 })}><LocateFixed size={15} />Theo xe</button>}
       </div>
       <div className="rts-map-legend" aria-label="Chú giải bản đồ">
-        <span><i className="rts-legend-depot" />Bãi xe</span><span><i className="rts-legend-school" />Trường học</span><span><i className="rts-legend-stop" />Học sinh</span>
+        {points.length > 0 && points.every(point => point.type === 'INCIDENT')
+          ? <span><AlertTriangle size={14} aria-hidden="true" />Vị trí ghi nhận sự cố</span>
+          : <><span><i className="rts-legend-depot" />Bãi xe</span><span><i className="rts-legend-school" />Trường học</span><span><i className="rts-legend-stop" />Học sinh</span></>}
       </div>
     </>}
     {mapError && <MapMessage>{mapError}</MapMessage>}

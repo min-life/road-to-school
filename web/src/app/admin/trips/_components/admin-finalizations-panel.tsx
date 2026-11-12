@@ -13,7 +13,7 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/stores/toast-store';
 
-export function AdminFinalizationsPanel({ onUpdated }: { onUpdated: () => void }) {
+export function AdminFinalizationsPanel({ onUpdated, schoolId }: { onUpdated: () => void; schoolId?: string }) {
   const [rows, setRows] = useState<AdminFinalizationTrip[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -27,11 +27,11 @@ export function AdminFinalizationsPanel({ onUpdated }: { onUpdated: () => void }
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     let current = true;
-    apiClient.getAdminFinalizations().then(data => { if (current) { setRows(data); setError(''); } })
+    apiClient.getAdminFinalizations(schoolId).then(data => { if (current) { setRows(data); setError(''); } })
       .catch(value => { if (current) setError(lifecycleError(value)); })
       .finally(() => { if (current) setLoading(false); });
     return () => { current = false; };
-  }, [revision]);
+  }, [revision, schoolId]);
   const confirm = async () => {
     if (!selected || busy || !['SCHEDULED', 'IN_PROGRESS'].includes(selected.status)) return;
     if (!reason.trim()) { setActionError('Vui lòng nhập lý do xử lý.'); return; }

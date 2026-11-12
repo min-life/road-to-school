@@ -1,4 +1,5 @@
 'use client';
+import { Button } from '@/components/ui/button';
 import { getTripStatusLabel } from '@/lib/status-labels';
 import { TableActions } from '@/components/admin/common/table-actions';
 
@@ -51,6 +52,8 @@ export function TripsTable({
   const [limit, setLimit] = useState<number>(10);
 
   // Contract dates for selected school (Requirement 08)
+  const [contractError, setContractError] = useState('');
+  const [contractRevision, setContractRevision] = useState(0);
   const [contractBounds, setContractBounds] = useState<{ start?: string; end?: string }>({});
 
   // Reset to the initial date window, respecting a fixed school's contract bounds.
@@ -80,9 +83,10 @@ export function TripsTable({
   // When activeSchoolId changes, fetch school contract dates
   useEffect(() => {
     let current = true;
-    if (activeSchoolId) {
-      apiClient
-        .getSchoolDetail(activeSchoolId)
+    if (activeSchoolId && currentUserRole) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Drop the previous school's bounds before loading the new scope.
+      setContractError(''); setContractBounds({});
+      (currentUserRole === 'SCHOOL_ADMIN' ? apiClient.getSchoolOperatingSettings(activeSchoolId) : apiClient.getSchoolDetail(activeSchoolId))
         .then((school) => {
           if (!current) return;
           if (school?.contractStartDate && school?.contractEndDate) {
@@ -104,16 +108,17 @@ export function TripsTable({
             });
           }
         })
-        .catch(() => {
+        .catch(cause => {
           if (!current) return;
           setContractBounds({});
+          setContractError(cause instanceof Error ? cause.message : 'Không thể tải giới hạn hợp đồng.');
         });
     } else {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Remove bounds from the previously selected school.
       setContractBounds({});
     }
     return () => { current = false; };
-  }, [activeSchoolId]);
+  }, [activeSchoolId, currentUserRole, contractRevision]);
 
   // Load trips
   const fetchTrips = async ({ isCurrent }: RefreshContext) => {
@@ -301,7 +306,8 @@ export function TripsTable({
             </Select>
         </FilterField>
 
-        {contractBounds.start && contractBounds.end && (<Badge className="ui-filter-meta">Hợp đồng: {contractBounds.start} – {contractBounds.end}</Badge>)}
+        {contractError && <div role="alert" className="w-full text-sm text-rose-700">{contractError} <Button variant="outline" size="sm" onClick={() => setContractRevision(v => v + 1)}>Thử lại giới hạn ngày</Button></div>}
+          {contractBounds.start && contractBounds.end && (<Badge className="ui-filter-meta">Hợp đồng: {contractBounds.start} – {contractBounds.end}</Badge>)}
       </FilterToolbar>
 
       {/* Main Trips Table */}

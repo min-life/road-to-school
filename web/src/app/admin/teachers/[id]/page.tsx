@@ -1,4 +1,7 @@
 'use client';
+import { ResendCredentialsDialog } from '@/components/admin/common/resend-credentials-dialog';
+import { ResourceStatusDialog } from '@/components/admin/common/resource-status-dialog';
+import { Button } from '@/components/ui/button';
 import { BackLink } from '@/components/admin/common/context-navigation';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -24,6 +27,8 @@ function TeacherDetailPageContent() {
   const { user } = useAuth();
   const schoolId = user?.schoolId;
 
+  const [resendOpen, setResendOpen] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(false);
   const [teacher, setTeacher] = useState<SchoolEmployeeDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -96,6 +101,8 @@ function TeacherDetailPageContent() {
             <p className="text-xs text-slate-500 mt-0.5">
               Vai trò kỹ thuật: <span className="font-mono text-slate-600">BUS_ATTENDANT</span>
             </p>
+            {schoolId && teacher.role === 'BUS_ATTENDANT' && teacher.isActive && teacher.email && <Button variant="outline" size="sm" onClick={() => setResendOpen(true)}>Cấp lại mật khẩu</Button>}
+            {schoolId && teacher.role === 'BUS_ATTENDANT' && <Button variant="outline" size="sm" onClick={() => setStatusOpen(true)}>{teacher.isActive ? 'Ngừng hoạt động' : 'Kích hoạt'}</Button>}
           </PageHeader>
         </div>
 
@@ -112,6 +119,8 @@ function TeacherDetailPageContent() {
         </div>
       </Card>
 
+      {resendOpen && schoolId && <ResendCredentialsDialog schoolId={schoolId} employee={teacher} onClose={() => setResendOpen(false)} />}
+      {statusOpen && schoolId && <ResourceStatusDialog target={{ kind: 'employee', id: teacher.id, name: teacher.fullName, isActive: teacher.isActive, schoolId, role: 'BUS_ATTENDANT' }} onClose={() => setStatusOpen(false)} onSuccess={() => void fetchTeacher()} />}
       {/* Information Card */}
       <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
         <h2 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-3 flex items-center gap-2">

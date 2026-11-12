@@ -1,38 +1,38 @@
 'use client';
+import './_components/route-student-filters.css';
+import { selectVisibleStudents } from '@/lib/web-api-integration';
+import { GeographyFilter } from '@/components/admin/common/geography-filter';
+import type { GeographyQuery } from '@/lib/types';
 import { BackLink } from '@/components/admin/common/context-navigation';
 
 import { toast } from '@/stores/toast-store';
 
 import React, { useState, useEffect, useMemo, Suspense, useCallback, memo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { apiClient } from '@/lib/api-client';
+import { ApiError, apiClient } from '@/lib/api-client';
 import {
   RoutePreparationData,
   RoutePreviewResponse,
-  PreviewRoute,
   RouteConstraints,
-  RouteDirection,
 } from '@/lib/types';
 import {
   SpinnerIcon,
   CheckIcon,
   AlertIcon,
   SearchIcon,
-  InfoIcon,
   SchoolIcon,
-  ClockIcon,
   TrashIcon,
 } from '@/components/icons';
 import { RouteMap, MapPoint } from '@/components/admin/routes/route-map';
 import { RoutePlanningWorkspace, PlanningTabs } from '@/components/admin/routes/route-planning-workspace';
 import { SaveRoutePlanDialog } from './_components/save-route-plan-dialog';
-import { PreviewRouteSelector, PREVIEW_ROUTE_COLORS } from '@/components/admin/routes/preview-route-selector';
+import { PreviewRouteSelector, PREVIEW_ROUTE_COLORS, type PreviewRouteEntry } from '@/components/admin/routes/preview-route-selector';
+import { RouteMapVisibilityControl } from '@/components/admin/routes/route-map-visibility-control';
 import { PreviewStudentsPanel } from './_components/preview-students-panel';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/components/auth/auth-provider';
 import { useShallow } from 'zustand/react/shallow';
 import { RoutePlanDraftProvider, useRoutePlanDraft } from './_components/route-plan-draft-provider';
@@ -64,8 +64,7 @@ function CreateRoutePlanContent() {
   // Editable Time Constraints (PO decisions: max duration & stop service duration)
   const { maxRouteDurationMinutes, setMaxRouteDurationMinutes } = useRoutePlanDraft(useShallow(state => ({ maxRouteDurationMinutes: state.maxRouteDurationMinutes, setMaxRouteDurationMinutes: state.setMaxRouteDurationMinutes })));
   const { defaultStopServiceSeconds, setDefaultStopServiceSeconds } = useRoutePlanDraft(useShallow(state => ({ defaultStopServiceSeconds: state.defaultStopServiceSeconds, setDefaultStopServiceSeconds: state.setDefaultStopServiceSeconds })));
-  const { stopServiceOverrides, setStopServiceOverrides } = useRoutePlanDraft(useShallow(state => ({ stopServiceOverrides: state.stopServiceOverrides, setStopServiceOverrides: state.setStopServiceOverrides })));
-  const { showOverridesAccordion, setShowOverridesAccordion } = useRoutePlanDraft(useShallow(state => ({ showOverridesAccordion: state.showOverridesAccordion, setShowOverridesAccordion: state.setShowOverridesAccordion })));
+  const stopServiceOverrides = useRoutePlanDraft(state => state.stopServiceOverrides);
 
   // Map camera focus
   const { focusPoint, setFocusPoint } = useRoutePlanDraft(useShallow(state => ({ focusPoint: state.focusPoint, setFocusPoint: state.setFocusPoint })));
@@ -84,6 +83,23 @@ function CreateRoutePlanContent() {
     setFocusPoint({ latitude: pt.latitude, longitude: pt.longitude, zoom: 16 });
   }, [setFocusPoint]);
 
+  const [geography, setGeography] = useState<GeographyQuery>({});
+  const [filteredPrep, setFilteredPrep] = useState<{ data: RoutePreparationData; key: string } | null>(null);
+  const [geographyError, setGeographyError] = useState('');
+  const filterKey = JSON.stringify([schoolId, geography.provinceId, geography.wardId]);
+  const hasGeography = !!(geography.provinceId || geography.wardId);
+  const studentView = hasGeography ? (filteredPrep?.key === filterKey ? filteredPrep.data : null) : prepData;
+  useEffect(() => {
+    if (!schoolId || !hasGeography) return;
+    let current = true;
+    apiClient.getRoutePreparationData(schoolId, geography).then(data => {
+      if (current) {
+        setFilteredPrep({ data, key: filterKey }); setGeographyError('');
+        setPrepData(previous => previous ? { ...previous, eligibleStudents: [...new Map([...previous.eligibleStudents, ...data.eligibleStudents].map(student => [student.id, student])).values()] } : previous);
+      }
+    }).catch(error => { if (current) setGeographyError(error instanceof Error ? error.message : 'Không thể lọc học sinh.'); });
+    return () => { current = false; };
+  }, [schoolId, geography, hasGeography, filterKey]);
   // 1. Fetch Preparation Data
   const loadData = useCallback(async () => {
     if (!schoolId) return;
@@ -113,7 +129,7 @@ function CreateRoutePlanContent() {
     } finally {
       setLoadingPrep(false);
     }
-  }, [schoolId, setSelectedStudentIds, setSelectedVehicleIds]);
+  }, [schoolId, setSelectedStudentIds, setSelectedVehicleIds, setPrepData, setPrepError, setLoadingPrep]);
 
   useEffect(() => {
     if (!schoolId) {
@@ -138,29 +154,29 @@ function CreateRoutePlanContent() {
 
   // Filtered Students for Picker
   const filteredStudents = useMemo(() => {
-    if (!prepData) return [];
-    if (!studentSearch.trim()) return prepData.eligibleStudents;
+    if (!studentView) return [];
+    if (!studentSearch.trim()) return studentView.eligibleStudents;
     const q = studentSearch.toLowerCase();
-    return prepData.eligibleStudents.filter(
+    return studentView.eligibleStudents.filter(
       (s) =>
         s.fullName.toLowerCase().includes(q) ||
         s.code.toLowerCase().includes(q) ||
         s.addressText.toLowerCase().includes(q),
     );
-  }, [prepData, studentSearch]);
+  }, [studentView, studentSearch]);
 
   const filteredIneligibleStudents = useMemo(() => {
-    if (!prepData || !prepData.ineligibleStudents) return [];
-    if (!studentSearch.trim()) return prepData.ineligibleStudents;
+    if (!studentView || !studentView.ineligibleStudents) return [];
+    if (!studentSearch.trim()) return studentView.ineligibleStudents;
     const q = studentSearch.toLowerCase();
-    return prepData.ineligibleStudents.filter(
+    return studentView.ineligibleStudents.filter(
       (s) =>
         s.fullName.toLowerCase().includes(q) ||
         s.code.toLowerCase().includes(q) ||
         (s.addressText && s.addressText.toLowerCase().includes(q)) ||
         s.reasonMessage.toLowerCase().includes(q),
     );
-  }, [prepData, studentSearch]);
+  }, [studentView, studentSearch]);
 
   // Toggle student selection (pure toggle, does not focus map)
   const handleToggleStudent = (id: string, e?: React.MouseEvent) => {
@@ -175,11 +191,11 @@ function CreateRoutePlanContent() {
 
   const handleSelectAllStudents = () => {
     if (!prepData) return;
-    setSelectedStudentIds(new Set(prepData.eligibleStudents.map((s) => s.id)));
+    setSelectedStudentIds(previous => selectVisibleStudents(previous, filteredStudents.map(s => s.id), true));
   };
 
   const handleDeselectAllStudents = () => {
-    setSelectedStudentIds(new Set());
+    setSelectedStudentIds(previous => selectVisibleStudents(previous, filteredStudents.map(s => s.id), false));
   };
 
   // Toggle vehicle selection
@@ -226,27 +242,6 @@ function CreateRoutePlanContent() {
         v.reasonMessage.toLowerCase().includes(q),
     );
   }, [prepData, vehicleSearch]);
-
-  // Per-student service override handlers
-  const handleSetStudentOverride = (
-    studentId: string,
-    serviceSeconds: number,
-    direction?: RouteDirection,
-  ) => {
-    setStopServiceOverrides((prev) => {
-      const filtered = prev.filter(
-        (o) => !(o.studentId === studentId && (direction ? o.direction === direction : !o.direction)),
-      );
-      if (serviceSeconds !== defaultStopServiceSeconds) {
-        return [...filtered, { studentId, serviceSeconds, direction }];
-      }
-      return filtered;
-    });
-  };
-
-  const handleResetOverrides = () => {
-    setStopServiceOverrides([]);
-  };
 
   // Trigger VRP Optimization
   const handleRunOptimization = async () => {
@@ -307,6 +302,7 @@ function CreateRoutePlanContent() {
       setHiddenRouteIndices({ OUTBOUND: new Set(), RETURN: new Set() });
       setActiveRouteIndex(0);
     } catch (err: any) {
+      if (err instanceof ApiError && [404, 409].includes(err.statusCode)) setPreviewResult(null);
       setOptimizeError(err?.message || 'Không thể hủy tuyến về này');
     } finally {
       setCancellingReturnIndex(null);
@@ -345,7 +341,11 @@ function CreateRoutePlanContent() {
         router.push('/admin/routes');
       }
     } catch (err: any) {
-      setOptimizeError(err?.message || 'Lỗi khi xác nhận lưu phương án tuyến');
+      if (err instanceof ApiError && [404, 409].includes(err.statusCode)) {
+        setPreviewResult(null);
+        setShowSaveConfirmation(false);
+      }
+      setOptimizeError((err?.message || 'Lỗi khi xác nhận lưu phương án tuyến') + ' Vui lòng tối ưu lại trước khi lưu.');
       setIsConfirming(false);
     }
   };
@@ -366,27 +366,36 @@ function CreateRoutePlanContent() {
       }));
   }, [prepData, selectedStudentIds]);
 
-  const previewRoutes = useMemo(() => (previewDirection === 'RETURN' ? previewResult?.returnRoutes : previewResult?.outboundRoutes) ?? [], [previewResult, previewDirection]);
-  const togglePreviewRoute = (index: number) => {
+  const previewEntries = useMemo<PreviewRouteEntry[]>(() => [
+    ...(previewResult?.outboundRoutes ?? []).map((route, index) => ({ id: `OUTBOUND-${index}`, direction: 'OUTBOUND' as const, index, route })),
+    ...(previewResult?.returnRoutes ?? []).map((route, index) => ({ id: `RETURN-${index}`, direction: 'RETURN' as const, index, route })),
+  ].map((entry, index) => ({ ...entry, color: PREVIEW_ROUTE_COLORS[index % PREVIEW_ROUTE_COLORS.length] })), [previewResult]);
+  const directionPreviewEntries = previewEntries.filter(entry => entry.direction === previewDirection);
+  const activePreviewEntry = useMemo(() => previewEntries.find(entry => entry.direction === previewDirection && entry.index === activeRouteIndex) ?? previewEntries.find(entry => entry.direction === previewDirection), [previewEntries, previewDirection, activeRouteIndex]);
+  const activePreviewRoute = activePreviewEntry?.route;
+  const previewMapOptions = previewEntries.map(entry => ({
+    id: entry.id, name: entry.route.name, direction: entry.direction === 'OUTBOUND' ? 'TO_SCHOOL' : 'TO_PARKING',
+    vehiclePlate: entry.route.proposedVehiclePlate, color: entry.color,
+  }));
+  const hiddenPreviewIds = new Set(previewEntries.filter(entry => hiddenRouteIndices[entry.direction].has(entry.index)).map(entry => entry.id));
+  const togglePreviewRoute = (id: string) => {
+    const entry = previewEntries.find(route => route.id === id);
+    if (!entry) return;
     setHiddenRouteIndices(previous => {
-      const hidden = new Set(previous[previewDirection]);
-      if (hidden.has(index)) hidden.delete(index);
-      else hidden.add(index);
-      return { ...previous, [previewDirection]: hidden };
+      const hidden = new Set(previous[entry.direction]);
+      if (hidden.has(entry.index)) hidden.delete(entry.index);
+      else hidden.add(entry.index);
+      return { ...previous, [entry.direction]: hidden };
     });
   };
-  const previewMapRoutes = useMemo(() => previewRoutes.flatMap((route, index) => hiddenRouteIndices[previewDirection].has(index) ? [] : [{
-    id: `${previewDirection}-${index}`, polylineGeometry: route.polylineGeometry,
-    color: PREVIEW_ROUTE_COLORS[index % PREVIEW_ROUTE_COLORS.length], active: index === activeRouteIndex,
-  }]), [previewRoutes, hiddenRouteIndices, previewDirection, activeRouteIndex]);
+  const previewMapRoutes = previewEntries.filter(entry => !hiddenPreviewIds.has(entry.id)).map(entry => ({
+    id: entry.id, polylineGeometry: entry.route.polylineGeometry, color: entry.color, active: entry.id === activePreviewEntry?.id,
+  }));
 
   // Only the inspected visible route gets numbered markers, keeping the overview readable.
-  const activePreviewRoute: PreviewRoute | undefined = useMemo(() => {
-    return previewRoutes[activeRouteIndex] || previewRoutes[0];
-  }, [previewRoutes, activeRouteIndex]);
-
   const previewMapPoints: MapPoint[] = useMemo(() => {
-    if (!activePreviewRoute || hiddenRouteIndices[previewDirection].has(activeRouteIndex)) return [];
+    if (!activePreviewEntry || hiddenRouteIndices[activePreviewEntry.direction].has(activePreviewEntry.index)) return [];
+    const activePreviewRoute = activePreviewEntry.route;
     return activePreviewRoute.stops
       .filter((st) => st.type === 'PICKUP' || st.type === 'DROPOFF' || st.stopType === 'PICKUP' || st.stopType === 'DROPOFF')
       .map((st) => ({
@@ -397,11 +406,11 @@ function CreateRoutePlanContent() {
         longitude: st.longitude,
         type: 'STUDENT',
         order: st.stopOrder,
-        color: PREVIEW_ROUTE_COLORS[activeRouteIndex % PREVIEW_ROUTE_COLORS.length],
+        color: activePreviewEntry.color,
         eta: st.plannedArrivalTime,
         isSelected: true,
       }));
-  }, [activePreviewRoute, hiddenRouteIndices, previewDirection, activeRouteIndex]);
+  }, [activePreviewEntry, hiddenRouteIndices]);
 
   // Memoized School Location & Parking Location
   const schoolLocation = useMemo(() => {
@@ -440,12 +449,6 @@ function CreateRoutePlanContent() {
     );
   }
 
-  // School Schedule summary string
-  const weeklySchedule = prepData.school.weeklySchedule as Record<string, { start?: string; end?: string }> | null;
-  const scheduleEntries = weeklySchedule
-    ? Object.entries(weeklySchedule).filter(([_, v]) => v && v.start && v.end)
-    : [];
-
   return (
     <div className="route-planning-page">
       <PageHeader className="flex flex-col items-start gap-2">
@@ -473,16 +476,6 @@ function CreateRoutePlanContent() {
 
       <RoutePlanningWorkspace preview={Boolean(previewResult)}
         configuration={!previewResult ? (<Card className="route-workspace-config route-workspace-config-form">
-              <div className="route-workspace-schedule">
-                <span className="flex items-center gap-2"><ClockIcon className="w-4 h-4" />Lịch học</span>
-                {scheduleEntries.length > 0 && (
-                  <strong>{scheduleEntries[0][1].start}–{scheduleEntries[0][1].end}</strong>
-                )}
-                <details className="route-workspace-schedule-info">
-                  <summary aria-label="Thông tin lịch học"><InfoIcon className="w-4 h-4" /></summary>
-                  <p>Giờ đón/trả được tính từ lịch học của trường. Lộ trình dùng chung cho các ngày học trong tuần.</p>
-                </details>
-              </div>
               <div className="route-workspace-config-fields">
                 {/* Max Route Duration */}
                 <div>
@@ -492,7 +485,7 @@ function CreateRoutePlanContent() {
                   <div className="route-workspace-number-field">
                   <Input
                     id="route-max-duration"
-                    aria-describedby="route-max-duration-help"
+                    aria-describedby="route-max-duration-unit"
                     type="number"
                     min={15}
                     max={240}
@@ -505,11 +498,8 @@ function CreateRoutePlanContent() {
                     placeholder="Không giới hạn"
                     className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-primary"
                   />
-                  <span>phút</span>
+                  <span id="route-max-duration-unit">phút</span>
                   </div>
-                  <p id="route-max-duration-help" className="text-[11px] text-slate-500 mt-1">
-                    Bao gồm di chuyển và dừng đón/trả.
-                  </p>
                 </div>
 
                 {/* Default Stop Service Seconds */}
@@ -520,6 +510,7 @@ function CreateRoutePlanContent() {
                   <div className="route-workspace-number-field">
                   <Input
                     id="route-default-stop"
+                    aria-describedby="route-default-stop-unit"
                     type="number"
                     min={10}
                     max={600}
@@ -532,134 +523,57 @@ function CreateRoutePlanContent() {
                     }
                     className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-primary"
                   />
-                  <span>giây</span>
+                  <span id="route-default-stop-unit">giây</span>
                   </div>
                 </div>
               </div>
 
-              {/* Per-Stop Service Overrides Accordion */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden mt-2">
-                <Button
-                  type="button"
-                  aria-expanded={showOverridesAccordion}
-                  aria-controls="route-student-overrides"
-                  onClick={() => setShowOverridesAccordion((prev) => !prev)}
-                  className="route-workspace-overrides-toggle"
-                >
-                  <span>
-                    Tùy chỉnh theo học sinh
-                    {stopServiceOverrides.length > 0 && (
-                      <Badge className="ml-2 px-2 py-0.5 rounded-full bg-primary text-foreground text-[10px]">
-                        {stopServiceOverrides.length}
-                      </Badge>
-                    )}
-                  </span>
-                  <span aria-hidden="true">{showOverridesAccordion ? '−' : '+'}</span>
-                </Button>
-
-                {showOverridesAccordion && (
-                  <div id="route-student-overrides" className="p-3 space-y-3 bg-white">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-slate-500">
-                        Thời gian dừng riêng (giây).
-                      </p>
-                      {stopServiceOverrides.length > 0 && (
-                        <Button
-                          type="button"
-                          onClick={handleResetOverrides}
-                          className="text-xs text-rose-600 hover:underline font-medium cursor-pointer"
-                        >
-                          Đặt lại
-                        </Button>
-                      )}
-                    </div>
-
-                    <div className="space-y-2  pr-1">
-                      {prepData.eligibleStudents
-                        .filter((s) => selectedStudentIds.has(s.id))
-                        .map((s) => {
-                          const override = stopServiceOverrides.find((o) => o.studentId === s.id);
-                          const currentSeconds = override ? override.serviceSeconds : defaultStopServiceSeconds;
-
-                          return (
-                            <div
-                              key={s.id}
-                              className="flex items-center justify-between p-2 rounded-lg border border-slate-100 hover:bg-slate-50/50 text-xs"
-                            >
-                              <div className="min-w-0 flex-1 mr-3">
-                                <p className="font-semibold text-slate-800 truncate">{s.fullName}</p>
-                                <p className="text-[11px] text-slate-400 truncate">{s.addressText}</p>
-                              </div>
-
-                              <div className="flex items-center gap-2 shrink-0">
-                                <Input
-                                  aria-label={`Thời gian dừng của ${s.fullName} (giây)`}
-                                  type="number"
-                                  min={10}
-                                  max={600}
-                                  step={5}
-                                  value={currentSeconds}
-                                  onChange={(e) => {
-                                    const val = parseInt(e.target.value, 10) || defaultStopServiceSeconds;
-                                    handleSetStudentOverride(s.id, val);
-                                  }}
-                                  className="w-16 px-2 py-1 text-center font-mono text-xs rounded-lg border border-slate-200"
-                                />
-                                <span className="text-[11px] text-slate-500">giây</span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                    </div>
-                  </div>
-                )}
-              </div>
             </Card>) : undefined}
-        map={<DraftRouteMap schoolLocation={schoolLocation} parkingLocation={parkingLocation}
+        map={<><DraftRouteMap schoolLocation={schoolLocation} parkingLocation={parkingLocation}
           points={previewResult ? previewMapPoints : initialMapPoints}
           routes={previewResult ? previewMapRoutes : undefined}
-          focusPoint={focusPoint} onPointClick={handleMapPointClick} height="100%" />}
+          focusPoint={focusPoint} onPointClick={handleMapPointClick} height="100%" />
+          {previewResult && <RouteMapVisibilityControl routes={previewMapOptions} hiddenIds={hiddenPreviewIds}
+            onToggle={togglePreviewRoute}
+            onShowAll={() => setHiddenRouteIndices({ OUTBOUND: new Set(), RETURN: new Set() })}
+            onHideAll={() => setHiddenRouteIndices({
+              OUTBOUND: new Set(previewResult.outboundRoutes.map((_, index) => index)),
+              RETURN: new Set(previewResult.returnRoutes.map((_, index) => index)),
+            })} />}</>}
         panel={previewResult ? <>
           <div className="route-workspace-summary" aria-live="polite">
             <strong>{previewResult.summary.assignedBothWaysCount}/{previewResult.summary.totalSelectedStudents} học sinh đủ hai chiều</strong>
             <span>{previewResult.summary.unassignedCount} chưa xếp đủ</span>
             <span>{Math.round((previewResult.summary.coverageRate ?? (previewResult.summary.assignedBothWaysCount / previewResult.summary.totalSelectedStudents)) * 100)}% bao phủ</span>
           </div>
-          <PlanningTabs value={activePreviewTab} tabs={[
-            {value: 'OUTBOUND', label: `Chiều đi (${previewResult.outboundRoutes.length})`},
-            {value: 'RETURN', label: `Chiều về (${previewResult.returnRoutes.length})`},
+          <PlanningTabs value={activePreviewTab === 'STUDENTS' ? 'STUDENTS' : 'ROUTES'} tabs={[
+            {value: 'ROUTES', label: `Tuyến (${previewEntries.length})`},
             {value: 'STUDENTS', label: 'Học sinh'},
-          ]} onChange={tab => {
-            if (tab === 'STUDENTS') {
-              setActivePreviewTab('STUDENTS');
-            } else { setPreviewDirection(tab); setActivePreviewTab(tab); setActiveRouteIndex(0); }
-          }} />
-          <div className={`route-workspace-content${activePreviewTab !== 'STUDENTS' ? ' preview-routes-content' : ' preview-students-content'}`} role="tabpanel" id={`planning-panel-${activePreviewTab}`} aria-labelledby={`planning-tab-${activePreviewTab}`} tabIndex={0}>
-            {activePreviewTab === 'STUDENTS' ? <PreviewStudentsPanel preview={previewResult} /> : activePreviewRoute ? (<>
+          ]} onChange={tab => setActivePreviewTab(tab === 'STUDENTS' ? 'STUDENTS' : 'OUTBOUND')} />
+          <div className={`route-workspace-content${activePreviewTab !== 'STUDENTS' ? ' preview-routes-content' : ' preview-students-content'}`} role="tabpanel" id={`planning-panel-${activePreviewTab === 'STUDENTS' ? 'STUDENTS' : 'ROUTES'}`} aria-labelledby={`planning-tab-${activePreviewTab === 'STUDENTS' ? 'STUDENTS' : 'ROUTES'}`} tabIndex={0}>
+            {activePreviewTab === 'STUDENTS' ? <PreviewStudentsPanel preview={previewResult} /> : <>
+              <div className="preview-direction-tabs">
+                <PlanningTabs label="Chiều tuyến" value={previewDirection} tabs={[
+                  { value: 'OUTBOUND', label: `Chiều đi (${previewResult.outboundRoutes.length})` },
+                  { value: 'RETURN', label: `Chiều về (${previewResult.returnRoutes.length})` },
+                ]} onChange={direction => { setPreviewDirection(direction); setActiveRouteIndex(0); }} />
+              </div>
+              <div className="preview-direction-panel" role="tabpanel" id={`planning-panel-${previewDirection}`} aria-labelledby={`planning-tab-${previewDirection}`} tabIndex={0}>
+              {activePreviewRoute ? (<>
+
                             {/* Route Selector & Info (5 cols) */}
               <div className="preview-routes-layout">
-                <PreviewRouteSelector routes={previewRoutes} hiddenIndices={hiddenRouteIndices[previewDirection]}
-                  activeIndex={activeRouteIndex} onToggle={togglePreviewRoute}
-                  onSelectAll={visible => setHiddenRouteIndices(previous => ({ ...previous,
-                    [previewDirection]: visible ? new Set<number>() : new Set(previewRoutes.map((_, index) => index)),
-                  }))}
-                  onInspect={index => {
-                    setActiveRouteIndex(index);
-                    setHiddenRouteIndices(previous => {
-                      const hidden = new Set(previous[previewDirection]);
-                      hidden.delete(index);
-                      return { ...previous, [previewDirection]: hidden };
-                    });
-                  }} />
+                <PreviewRouteSelector routes={directionPreviewEntries} activeId={activePreviewEntry?.id}
+                  onInspect={entry => { setPreviewDirection(entry.direction); setActiveRouteIndex(entry.index); }} />
 
                 {/* Stops Sequence for Active Route with Normalized Elapsed Time */}
                 <section className="preview-route-stops" aria-label="Điểm dừng của tuyến đang xem">
                   <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
                     Điểm dừng · {activePreviewRoute.name}
                   </h4>
-                  {activePreviewTab === 'RETURN' && <Button type="button" size="sm" variant="outline" disabled={cancellingReturnIndex !== null}
-                    onClick={() => handleCancelReturnRoute(activeRouteIndex)}>
-                    {cancellingReturnIndex === activeRouteIndex ? <SpinnerIcon className="w-3.5 h-3.5 animate-spin" /> : <TrashIcon className="w-3.5 h-3.5" />}
+                  {activePreviewEntry?.direction === 'RETURN' && <Button type="button" size="sm" variant="outline" disabled={cancellingReturnIndex !== null}
+                    onClick={() => handleCancelReturnRoute(activePreviewEntry.index)}>
+                    {cancellingReturnIndex === activePreviewEntry.index ? <SpinnerIcon className="w-3.5 h-3.5 animate-spin" /> : <TrashIcon className="w-3.5 h-3.5" />}
                     Hủy tuyến về này
                   </Button>}
                   <div className="preview-route-stops-list space-y-2" tabIndex={0} role="region" aria-label={`Điểm dừng của ${activePreviewRoute.name}`}>
@@ -730,6 +644,8 @@ function CreateRoutePlanContent() {
 
 
             </>) : <p className="route-workspace-empty">Không có tuyến ở chiều này.</p>}
+              </div>
+            </>}
           </div>
         </> : <>
           <div className="route-workspace-summary" aria-live="polite">
@@ -742,28 +658,8 @@ function CreateRoutePlanContent() {
             {value: 'VEHICLES', label: `Xe (${selectedVehicleIds.size})`},
           ]} onChange={tab => setSetupTab(tab)} />
           <div className="route-workspace-content route-workspace-selection" hidden={setupTab !== 'STUDENTS'} role="tabpanel" id="planning-panel-STUDENTS" aria-labelledby="planning-tab-STUDENTS" tabIndex={0}><Card className="route-workspace-picker space-y-4">
-              <div className="flex items-center justify-between">
-                {studentPickerTab === 'ELIGIBLE' && (
-                  <div className="flex items-center gap-2 text-xs">
-                    <Button
-                      onClick={handleSelectAllStudents}
-                      className="text-blue-600 hover:underline cursor-pointer font-medium"
-                    >
-                      Chọn tất cả
-                    </Button>
-                    <span className="text-slate-300">•</span>
-                    <Button
-                      onClick={handleDeselectAllStudents}
-                      className="text-slate-500 hover:underline cursor-pointer font-medium"
-                    >
-                      Bỏ chọn hết
-                    </Button>
-                  </div>
-                )}
-              </div>
-
               {/* Segmented Control: Eligible vs Ineligible */}
-              <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
+              <div className="route-student-eligibility-tabs flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
                 <Button
                   type="button"
                   onClick={() => setStudentPickerTab('ELIGIBLE')}
@@ -788,16 +684,43 @@ function CreateRoutePlanContent() {
                 </Button>
               </div>
 
+              <div className="route-student-filter-toolbar">
               {/* Student Search */}
               <div className="relative">
                 <SearchIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <Input
                   type="text"
                   placeholder="Tìm học sinh theo tên, mã..."
+                  aria-label="Tìm học sinh theo tên hoặc mã"
                   value={studentSearch}
                   onChange={(e) => setStudentSearch(e.target.value)}
                   className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-primary"
                 />
+              </div>
+
+                <GeographyFilter popover schoolId={schoolId || undefined} value={geography} onChange={value => { setGeography(value); setGeographyError(''); }} />
+              </div>
+              {hasGeography && !studentView && !geographyError && <p role="status">Đang lọc học sinh…</p>}
+              {hasGeography && geographyError && <p role="alert" className="text-xs text-rose-700">{geographyError}</p>}
+              <div className="flex items-center justify-between">
+                {studentPickerTab === 'ELIGIBLE' && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <Button
+                      onClick={handleSelectAllStudents}
+                      className="text-blue-600 hover:underline cursor-pointer font-medium"
+                    >
+                      Chọn đang hiển thị
+                    </Button>
+                    <span className="text-slate-300">•</span>
+                    <Button
+                      onClick={handleDeselectAllStudents}
+                      aria-label="Bỏ chọn học sinh đang hiển thị"
+                      className="text-slate-500 hover:underline cursor-pointer font-medium"
+                    >
+                      Bỏ chọn
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {/* Student List */}
@@ -1081,6 +1004,8 @@ function CreateRoutePlanScope() {
   const schoolId = searchParams.get('schoolId');
   const savedPlanId = searchParams.get('savedPlanId');
   const scope = JSON.stringify([user?.id, user?.role, user?.schoolId, schoolId]);
+  if (!user) return <p role="status">Đang xác thực…</p>;
+  if (user.role !== 'SYSTEM_ADMIN') return <p role="alert">Bạn không có quyền lập phương án tuyến.</p>;
   if (savedPlanId) return <SavedPlanRedirect planId={savedPlanId} />;
   return <RoutePlanDraftProvider key={scope}><CreateRoutePlanContent /></RoutePlanDraftProvider>;
 }

@@ -1,11 +1,14 @@
 'use client';
 
+import { LifecycleDialog } from '@/components/admin/common/lifecycle-dialog';
+import { Button } from '@/components/ui/button';
+import './incident-modals.css';
 import { toast } from '@/stores/toast-store';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useId } from 'react';
 import { apiClient, ApiError } from '@/lib/api-client';
 import { TripIncident, IncidentCandidate } from '@/lib/types';
-import { SpinnerIcon, AlertIcon, CloseIcon } from '@/components/icons';
+import { SpinnerIcon, AlertIcon } from '@/components/icons';
 
 interface ResolveIncidentModalProps {
   incident: TripIncident | null;
@@ -20,6 +23,7 @@ export function ResolveIncidentModal({
   onClose,
   onSuccess,
 }: ResolveIncidentModalProps) {
+  const formId = useId();
   const [action, setAction] = useState<'ARRIVED' | 'REPLACED'>('ARRIVED');
   const [candidates, setCandidates] = useState<IncidentCandidate[]>([]);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string>('');
@@ -33,6 +37,7 @@ export function ResolveIncidentModal({
   const [cancelReason, setCancelReason] = useState<string>('');
 
   useEffect(() => {
+    let current = true;
     if (isOpen && incident) {
       setAction('ARRIVED');
       setReason('');
@@ -40,11 +45,13 @@ export function ResolveIncidentModal({
       setShowCancelTripConfirm(false);
       setCancelReason('');
 
+      setCandidates([]); setSelectedCandidateId('');
       // Fetch replacement candidates
       setLoadingCandidates(true);
       apiClient
         .getIncidentReplacementCandidates(incident.id)
         .then((res) => {
+          if (!current) return;
           setCandidates(res.candidates || []);
           if (res.candidates?.length) {
             setSelectedCandidateId(res.candidates[0].id);
@@ -53,14 +60,16 @@ export function ResolveIncidentModal({
           }
         })
         .catch((err) => {
+          if (!current) return;
           setError(
             err instanceof ApiError ? err.message : 'Không thể tải danh sách ứng viên thay thế',
           );
         })
         .finally(() => {
-          setLoadingCandidates(false);
+          if (current) setLoadingCandidates(false);
         });
     }
+    return () => { current = false; };
   }, [isOpen, incident]);
 
   if (!isOpen || !incident) return null;
@@ -72,7 +81,7 @@ export function ResolveIncidentModal({
     e.preventDefault();
     setError(null);
 
-    if (action === 'REPLACED' && !selectedCandidateId) {
+    if (action === 'REPLACED' && (loadingCandidates || !selectedCandidateId)) {
       setError('Vui lòng chọn nhân sự thay thế');
       return;
     }
@@ -90,6 +99,15 @@ export function ResolveIncidentModal({
       onClose();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Không thể xử lý sự cố');
+      if (err instanceof ApiError && [400, 409].includes(err.statusCode)) {
+        setSelectedCandidateId(''); setCandidates([]); setLoadingCandidates(true);
+        try {
+          const [latest, fresh] = await Promise.all([apiClient.getIncidentDetail(incident.id), apiClient.getIncidentReplacementCandidates(incident.id)]);
+          if (latest.status !== 'WAITING_ASSIGNMENT') { onSuccess(); onClose(); toast.warning('Sự cố đã đổi trạng thái.'); }
+          else setCandidates(fresh.candidates || []);
+        } catch (cause) { setError(cause instanceof Error ? cause.message : 'Không thể kiểm tra lại.'); }
+        finally { setLoadingCandidates(false); }
+      }
     } finally {
       setSubmitting(false);
     }
@@ -116,38 +134,26 @@ export function ResolveIncidentModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-          <div>
-            <h3 className="text-base font-bold text-slate-800">
-              Xử lý {roleTitle.toLowerCase()} chưa đến
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {incident.routeName || 'Chuyến xe'} · {incident.serviceDate || ''} · {incident.scheduledStartTime || ''}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            disabled={submitting}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
-          >
-            <CloseIcon className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-6">
+    <LifecycleDialog open={isOpen} busy={submitting} className="incident-dialog incident-dialog--resolve"
+      title={showCancelTripConfirm ? 'Hủy chuyến xe' : `Xử lý ${roleTitle.toLowerCase()} chưa đến`} onClose={onClose}
+      footer={showCancelTripConfirm ? <>
+        <Button type="button" variant="outline" disabled={submitting} onClick={() => setShowCancelTripConfirm(false)}>Quay lại</Button>
+        <Button type="button" variant="danger" disabled={submitting || !cancelReason.trim()} onClick={handleConfirmCancelTrip}>{submitting && <SpinnerIcon className="w-4 h-4 animate-spin" />}Xác nhận hủy chuyến</Button>
+      </> : <>
+        <Button className="incident-cancel-action" type="button" variant="ghost" disabled={submitting} onClick={() => setShowCancelTripConfirm(true)}>Hủy chuyến xe</Button>
+        <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>Đóng</Button>
+        <Button type="submit" form={formId} variant="primary" disabled={submitting || (action === 'REPLACED' && (loadingCandidates || !selectedCandidateId))}>{submitting && <SpinnerIcon className="w-4 h-4 animate-spin" />}Xác nhận xử lý</Button>
+      </>}>
+      <section className="incident-summary"><div><span className="incident-label">Chuyến xe</span><strong>{incident.routeName || 'Chuyến xe'}</strong><small>{incident.serviceDate || ''}{incident.scheduledStartTime ? ` · ${incident.scheduledStartTime}` : ''}</small></div></section>
           {error && (
-            <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-rose-700 text-xs">
+            <div role="alert" className="mb-4 p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-rose-700 text-xs">
               <AlertIcon className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
 
           {!showCancelTripConfirm ? (
-            <form onSubmit={handleSubmitResolve} className="space-y-5">
+            <form id={formId} onSubmit={handleSubmitResolve} className="incident-resolution-form">
               {/* Incident description */}
               {incident.description && (
                 <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl text-xs text-amber-900">
@@ -156,13 +162,13 @@ export function ResolveIncidentModal({
               )}
 
               {/* Action selection */}
-              <div className="space-y-3">
-                <label className="text-xs font-semibold text-slate-700 block">
+              <fieldset className="incident-options">
+                <legend className="incident-label">
                   Phương án giải quyết
-                </label>
+                </legend>
 
                 {/* Option ARRIVED */}
-                <label className="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 hover:border-slate-300 cursor-pointer transition-colors bg-white">
+                <label className="incident-action-option">
                   <input
                     type="radio"
                     name="action"
@@ -180,7 +186,7 @@ export function ResolveIncidentModal({
                 </label>
 
                 {/* Option REPLACED */}
-                <label className="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 hover:border-slate-300 cursor-pointer transition-colors bg-white">
+                <label className="incident-action-option">
                   <input
                     type="radio"
                     name="action"
@@ -208,6 +214,7 @@ export function ResolveIncidentModal({
                               Chọn người thay thế:
                             </label>
                             <select
+                              aria-label="Chọn người thay thế"
                               value={selectedCandidateId}
                               onChange={(e) => setSelectedCandidateId(e.target.value)}
                               className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
@@ -228,7 +235,7 @@ export function ResolveIncidentModal({
                     )}
                   </div>
                 </label>
-              </div>
+              </fieldset>
 
               {/* Note / reason */}
               <div>
@@ -236,6 +243,7 @@ export function ResolveIncidentModal({
                   Ghi chú xử lý (Tùy chọn)
                 </label>
                 <textarea
+                  aria-label="Ghi chú xử lý"
                   rows={2}
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
@@ -244,36 +252,6 @@ export function ResolveIncidentModal({
                 />
               </div>
 
-              {/* Footer buttons */}
-              <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowCancelTripConfirm(true)}
-                  disabled={submitting}
-                  className="px-3.5 py-2 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-colors"
-                >
-                  Hủy chuyến xe
-                </button>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    disabled={submitting}
-                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
-                  >
-                    Đóng
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submitting || (action === 'REPLACED' && !selectedCandidateId)}
-                    className="px-4 py-2 text-xs font-bold text-slate-900 bg-[#FFCB56] hover:bg-[#f5be38] rounded-xl shadow-sm transition-colors flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    {submitting && <SpinnerIcon className="w-3.5 h-3.5 animate-spin" />}
-                    <span>Xác nhận xử lý</span>
-                  </button>
-                </div>
-              </div>
             </form>
           ) : (
             <div className="space-y-4">
@@ -289,6 +267,7 @@ export function ResolveIncidentModal({
                   Lý do hủy chuyến <span className="text-rose-500">*</span>
                 </label>
                 <textarea
+                  aria-label="Lý do hủy chuyến"
                   rows={3}
                   value={cancelReason}
                   onChange={(e) => setCancelReason(e.target.value)}
@@ -297,29 +276,8 @@ export function ResolveIncidentModal({
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowCancelTripConfirm(false)}
-                  disabled={submitting}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
-                >
-                  Quay lại
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmCancelTrip}
-                  disabled={submitting || !cancelReason.trim()}
-                  className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-sm transition-colors flex items-center gap-1.5 disabled:opacity-50"
-                >
-                  {submitting && <SpinnerIcon className="w-3.5 h-3.5 animate-spin" />}
-                  <span>Xác nhận hủy chuyến</span>
-                </button>
-              </div>
             </div>
           )}
-        </div>
-      </div>
-    </div>
+    </LifecycleDialog>
   );
 }

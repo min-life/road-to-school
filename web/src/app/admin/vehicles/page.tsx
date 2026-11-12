@@ -1,5 +1,9 @@
 'use client';
 
+import { ResourceStatusDialog } from '@/components/admin/common/resource-status-dialog';
+import type { ResourceTarget } from '@/lib/resource-status';
+import { Select } from '@/components/ui/select';
+import { TableActions } from '@/components/admin/common/table-actions';
 import { toast } from '@/stores/toast-store';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -24,6 +28,8 @@ import { Badge } from '@/components/ui/badge';
 
 export default function VehiclesPage() {
   const { user } = useAuth();
+  const [statusTarget, setStatusTarget] = useState<ResourceTarget | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -57,6 +63,7 @@ export default function VehiclesPage() {
         page,
         limit,
         search: debouncedSearch,
+        status: statusFilter,
       });
       setVehicles(data.items || []);
       setTotalItems(data.total || 0);
@@ -66,7 +73,7 @@ export default function VehiclesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user, page, limit, debouncedSearch]);
+  }, [user, page, limit, debouncedSearch, statusFilter]);
 
   useEffect(() => {
     fetchVehicles();
@@ -113,9 +120,9 @@ export default function VehiclesPage() {
 
       {/* Search Bar & Total */}
       <FilterToolbar
-        hasActiveFilters={Boolean(search)}
+        hasActiveFilters={Boolean(search || statusFilter !== 'ALL')}
         onReset={() => {
-          handleSearchChange('');
+          handleSearchChange(''); setStatusFilter('ALL');
         }}
       >
         <FilterField label="Tìm kiếm" grow icon={<SearchIcon />}>
@@ -128,6 +135,7 @@ export default function VehiclesPage() {
           />
         </FilterField>
 
+<FilterField label="Trạng thái"><Select value={statusFilter} onChange={event => { setStatusFilter(event.target.value as typeof statusFilter); setPage(1); }}><option value="ALL">Tất cả trạng thái</option><option value="ACTIVE">Đang hoạt động</option><option value="INACTIVE">Ngừng hoạt động</option></Select></FilterField>
 <div className="ui-filter-meta">
           Tổng số phương tiện: <strong className="text-slate-800">{totalItems}</strong>
         </div>
@@ -136,8 +144,8 @@ export default function VehiclesPage() {
       {/* Vehicle Table */}
       <Card className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
-          <Table className="w-full text-left text-sm" minWidth={930}>
-            <colgroup><col /><col style={{ width: 180 }} /><col style={{ width: 180 }} /><col style={{ width: 150 }} /><col style={{ width: 180 }} /></colgroup>
+          <Table className="w-full text-left text-sm" minWidth={1250}>
+            <colgroup><col /><col style={{ width: 180 }} /><col style={{ width: 180 }} /><col style={{ width: 150 }} /><col style={{ width: 180 }} /><col style={{ width: 180 }} /><col style={{ width: 190 }} /></colgroup>
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-xs uppercase tracking-wider">
               <tr>
                 <th className="py-3.5 px-4">Hãng xe</th>
@@ -151,20 +159,20 @@ export default function VehiclesPage() {
                   </div>
                 </th>
                 <th className="py-3.5 px-4">Màu sắc</th>
-                <th className="py-3.5 px-4">Ngày đăng ký</th>
+                <th className="py-3.5 px-4">Ngày đăng ký</th><th>Trạng thái</th><th className="text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-slate-400">
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
                     <SpinnerIcon className="w-6 h-6 animate-spin mx-auto text-amber-500 mb-2" />
                     <span className="text-xs">Đang tải dữ liệu phương tiện...</span>
                   </td>
                 </tr>
               ) : vehicles.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-slate-400">
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
                     <VehicleIcon className="w-10 h-10 mx-auto text-slate-300 mb-2" />
                     <p className="text-sm font-semibold text-slate-600">Không tìm thấy phương tiện nào</p>
                     <p className="text-xs text-slate-400 mt-1">
@@ -194,6 +202,8 @@ export default function VehiclesPage() {
                     <td className="py-3.5 px-4 text-xs text-slate-500">
                       {new Date(v.createdAt).toLocaleDateString('vi-VN')}
                     </td>
+                    <td><Badge className={v.isActive ? 'text-emerald-700 bg-emerald-50' : 'text-slate-600 bg-slate-100'}>{v.isActive ? 'Đang hoạt động' : 'Ngừng hoạt động'}</Badge></td>
+                    <td><TableActions actions={[{ label: v.isActive ? 'Ngừng hoạt động' : 'Kích hoạt', warning: v.isActive, onClick: () => setStatusTarget({ kind: 'vehicle', id: v.id, name: v.licensePlate, isActive: v.isActive }) }]} /></td>
                   </tr>
                 ))
               )}
@@ -216,6 +226,7 @@ export default function VehiclesPage() {
         />
       </Card>
 
+      {statusTarget && <ResourceStatusDialog key={statusTarget.id} target={statusTarget} onClose={() => setStatusTarget(null)} onSuccess={() => void fetchVehicles()} />}
       {/* Add Vehicle Modal */}
       <AddVehicleModal
         isOpen={isAddModalOpen}

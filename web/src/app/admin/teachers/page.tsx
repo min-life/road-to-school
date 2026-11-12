@@ -1,5 +1,10 @@
 'use client';
+import { ResendCredentialsDialog } from '@/components/admin/common/resend-credentials-dialog';
+import type { CreateSchoolAdminResponse } from '@/lib/types';
 
+import { ResourceStatusDialog } from '@/components/admin/common/resource-status-dialog';
+import type { ResourceTarget } from '@/lib/resource-status';
+import { TableActions } from '@/components/admin/common/table-actions';
 import { toast } from '@/stores/toast-store';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -31,6 +36,8 @@ function TeachersPageContent() {
   const { user } = useAuth();
   const schoolId = user?.schoolId;
 
+  const [resendTarget, setResendTarget] = useState<SchoolEmployeeItem | null>(null);
+  const [statusTarget, setStatusTarget] = useState<ResourceTarget | null>(null);
   const [teachers, setTeachers] = useState<SchoolEmployeeItem[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -99,8 +106,10 @@ function TeachersPageContent() {
     setPage(1);
   };
 
-  const handleTeacherAdded = () => {
-    toast.success('Đã tạo tài khoản giáo viên thành công.');
+  const handleTeacherAdded = (result: CreateSchoolAdminResponse) => {
+    if (result.credentialDeliveryStatus === 'FAILED') toast.error('Đã tạo giáo viên nhưng email chưa gửi được. Dùng Cấp lại mật khẩu để bàn giao.');
+    else if (result.credentialDeliveryStatus === 'CONSOLE') toast.info('Đã tạo giáo viên; thông tin bàn giao ở console phát triển.');
+    else toast.success('Đã tạo tài khoản giáo viên và gửi email.');
     fetchTeachers();
 
   };
@@ -271,12 +280,10 @@ function TeachersPageContent() {
                     </td>
 
                     <td className="px-4 py-3 text-right">
-                      <ContextLink
-                        href={`/admin/teachers/${teacher.id}`}
-                        className="text-xs font-medium text-slate-600 hover:text-amber-700 px-2.5 py-1 rounded-lg hover:bg-slate-100 transition-colors"
-                      >
-                        Xem chi tiết
-                      </ContextLink>
+                      <TableActions actions={[{ label: 'Chi tiết', href: `/admin/teachers/${teacher.id}` }]} more={[
+                        ...(teacher.isActive && teacher.email && teacher.role === 'BUS_ATTENDANT' ? [{ label: 'Cấp lại mật khẩu', onClick: () => setResendTarget(teacher) }] : []),
+                        ...(teacher.role === 'BUS_ATTENDANT' ? [{ label: teacher.isActive ? 'Ngừng hoạt động' : 'Kích hoạt', warning: teacher.isActive,
+                          onClick: () => setStatusTarget({ kind: 'employee', schoolId, role: 'BUS_ATTENDANT', id: teacher.id, name: teacher.fullName, isActive: teacher.isActive }) }] : [])]} />
                     </td>
                   </tr>
                 ))
@@ -300,7 +307,9 @@ function TeachersPageContent() {
         />
       </Card>
 
+      {resendTarget && <ResendCredentialsDialog schoolId={schoolId} employee={resendTarget} onClose={() => setResendTarget(null)} />}
       {/* Add Teacher Modal */}
+      {statusTarget && <ResourceStatusDialog key={statusTarget.id} target={statusTarget} onClose={() => setStatusTarget(null)} onSuccess={() => void fetchTeachers()} />}
       <AddTeacherModal
         isOpen={isAddModalOpen}
         schoolId={schoolId}
