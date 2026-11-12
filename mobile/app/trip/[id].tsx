@@ -554,9 +554,7 @@ export default function MobileTripDetailScreen() {
     }
   };
 
-  const tilemapKey =
-    process.env.EXPO_PUBLIC_VIETMAP_TILEMAP_KEY ||
-    "220bb293d40f7226e0c29c91469f1286c6ed486f7a07e745";
+  const tilemapKey = process.env.EXPO_PUBLIC_VIETMAP_TILEMAP_KEY || "";
 
   const mapData = getTripMapSnapshot(trip);
   const mapHtml = useMemo(() => {

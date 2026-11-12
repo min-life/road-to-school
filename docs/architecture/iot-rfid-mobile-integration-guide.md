@@ -293,3 +293,6 @@ Không thêm dependency hoặc framework kiểm thử vào app. Env và output e
 
 Typecheck,3 kiểm tra trạng thái RFID và export Android đã đạt. Đây là kiểm tra source/bundle;
 chưa thay thế nghiệm thu lượt quẹt thật hoặc kiểm tra hiển thị trên mọi thiết bị.
+
+Cấu hình bản đồ: `EXPO_PUBLIC_VIETMAP_TILEMAP_KEY` phải được cấp qua env của môi trường;
+không dùng key fallback hardcode trong màn chuyến. Env mẫu đã có biến này, không commit giá trị thật.
