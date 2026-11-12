@@ -41,6 +41,20 @@ describe('Navigation geometry and independent movement providers (pure only)', (
     ];
     assert.equal(nextGuidance(arrivalSign5, cumulative, 115)!.text, 'Đến điểm dừng');
   });
+  it('preserves trimmed provider guidance and street names', () => {
+    for (const [text, expected] of [
+      ['  rẽ trái vào Đường Số 4  ', 'rẽ trái vào Đường Số 4'],
+      ['đi thẳng vào Đường Số 4', 'đi thẳng vào Đường Số 4'],
+      ['đến điểm dừng', 'đến điểm dừng'],
+      ['Rẽ phải vào Đường Số 4', 'Rẽ phải vào Đường Số 4'],
+    ]) {
+      const instruction = { interval: [0, 1] as [number, number], sign: -2, text, streetName: 'Đường Số 4', distance: 140 };
+      assert.deepEqual(nextGuidance([instruction], [0, 140], 0), {
+        text: expected, streetName: 'Đường Số 4', metres: 140,
+      });
+      assert.equal(instruction.text, text);
+    }
+  });
   it('unknown empty instructions never become invented turns', () => {
     assert.equal(nextGuidance([{ interval: [0, 0], sign: 999, text: '', streetName: '', distance: 0 }], [0], 0), null);
   });

@@ -1,1 +1,75 @@
-No code changes for this task.
+diff --git a/mobile/components/trip-navigation-controls.tsx b/mobile/components/trip-navigation-controls.tsx
+index 18b2620..e2c774f 100644
+--- a/mobile/components/trip-navigation-controls.tsx
++++ b/mobile/components/trip-navigation-controls.tsx
+@@ -46 +46 @@ export function TripNavigationControls(p: Props) {
+-    {p.guidance && <><Text style={styles.guidance}>{p.guidance.text} · {p.guidance.metres} m</Text>
++    {p.guidance && <><Text style={styles.guidance}>{p.guidance.text.charAt(0).toUpperCase() + p.guidance.text.slice(1)} · {p.guidance.metres} m</Text>
+diff --git a/mobile/utils/trip-navigation.ts b/mobile/utils/trip-navigation.ts
+index 18dae5d..5ba0053 100644
+--- a/mobile/utils/trip-navigation.ts
++++ b/mobile/utils/trip-navigation.ts
+@@ -67 +67 @@ export function nextGuidance(instructions: Instruction[], cumulative: number[],
+-  return { text: continues && progress > cumulative[next.interval[0]] + 3 ? 'Tiếp tục đến điểm dừng' : text.charAt(0).toUpperCase() + text.slice(1),
++  return { text: continues && progress > cumulative[next.interval[0]] + 3 ? 'Tiếp tục đến điểm dừng' : text,
+diff --git a/mobile/scripts/trip-navigation.test.ts b/mobile/scripts/trip-navigation.test.ts
+index e2cff5b..df3dae8 100644
+--- a/mobile/scripts/trip-navigation.test.ts
++++ b/mobile/scripts/trip-navigation.test.ts
+@@ -44 +44 @@ describe('Navigation geometry and independent movement providers (pure only)', (
+-  it('capitalizes only the first letter of provider guidance', () => {
++  it('preserves trimmed provider guidance and street names', () => {
+@@ -46,3 +46,3 @@ describe('Navigation geometry and independent movement providers (pure only)', (
+-      ['  rẽ trái vào Đường Số 4  ', 'Rẽ trái vào Đường Số 4'],
+-      ['đi thẳng vào Đường Số 4', 'Đi thẳng vào Đường Số 4'],
+-      ['đến điểm dừng', 'Đến điểm dừng'],
++      ['  rẽ trái vào Đường Số 4  ', 'rẽ trái vào Đường Số 4'],
++      ['đi thẳng vào Đường Số 4', 'đi thẳng vào Đường Số 4'],
++      ['đến điểm dừng', 'đến điểm dừng'],
+diff --git a/mobile/scripts/trip-navigation-controls.test.ts b/mobile/scripts/trip-navigation-controls.test.ts
+new file mode 100644
+--- /dev/null
++++ b/mobile/scripts/trip-navigation-controls.test.ts
+@@ -0,0 +1,42 @@
++import { describe, it } from 'node:test';
++import assert from 'node:assert/strict';
++import { readFileSync } from 'node:fs';
++import { createRequire } from 'node:module';
++import { Script } from 'node:vm';
++import { createElement } from 'react';
++import { renderToStaticMarkup } from 'react-dom/server';
++import ts from 'typescript';
++import { colors } from '../constants/theme.ts';
++
++const require = createRequire(import.meta.url);
++const source = readFileSync(new URL('../components/trip-navigation-controls.tsx', import.meta.url), 'utf8');
++const compiled = ts.transpileModule(source, {
++  compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 },
++}).outputText;
++const exports: Record<string, any> = {};
++new Script(compiled).runInNewContext({
++  exports,
++  require: (id: string) => id === 'react-native' ? require('react-native-web')
++    : id === '../constants/theme' ? { colors } : require(id),
++});
++
++describe('Navigation guidance presentation', () => {
++  it('capitalizes retained guidance at render time without changing its text or distance', () => {
++    for (const [text, expected] of [
++      ['chặng dừng chân 1', 'Chặng dừng chân 1'],
++      ['rẽ trái vào Đường Số 4', 'Rẽ trái vào Đường Số 4'],
++      ['đi thẳng', 'Đi thẳng'],
++      ['đến điểm dừng', 'Đến điểm dừng'],
++      ['Rẽ phải vào Đường Số 4', 'Rẽ phải vào Đường Số 4'],
++    ]) {
++      const guidance = { text, streetName: '', metres: 128 };
++      const html = renderToStaticMarkup(createElement(exports.TripNavigationControls, {
++        canPublish: false, testMode: false, mode: null, message: null,
++        guidance, change: async () => {},
++      }));
++      const renderedText = html.replace(/<[^>]*>/g, '');
++      assert.ok(renderedText.includes(`${expected} · 128 m`), renderedText);
++      assert.deepEqual(guidance, { text, streetName: '', metres: 128 });
++    }
++  });
++});

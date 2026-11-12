@@ -177,6 +177,7 @@ export default function ScheduleScreen() {
               directionLabel={trip.direction === 'TO_SCHOOL' ? 'Chiều đi' : 'Chiều về'}
               actionLabel="Xem bản đồ"
               onOpen={() => router.push({ pathname: '/trip/[id]', params: { id: trip.id } } as any)}
+              canReportLeave={trip.status === 'SCHEDULED'}
               isReportingLeave={isRequesting(trip.id)}
               onReportLeave={() => {
                 triggerQuickLeaveNotice({
