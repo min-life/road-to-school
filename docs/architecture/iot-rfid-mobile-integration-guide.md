@@ -281,3 +281,15 @@ Có sẵn chuyến demo hôm nay TD01-IOT61106 và TV01-IOT61106, mỗi chuyến
 không tự tạo thêm fixture. Để thử nhanh chiều về: phụ xe Ready → mở Điểm danh/Lên xe → Điểm danh RFID →
 ESP online/reader READY → quẹt và xác nhận → Driver Start → phụ xe Xuống xe, quẹt và xác nhận.
 Địa chỉ Expo tại lần chạy này exp://192.168.101.5:8081, cần cùng mạng; IP có thể đổi khi đổi Wi-Fi.
+## 13. Phát hành phần tích hợp Mobile RFID
+
+PO đã cho phép đưa Mobile RFID lên cùng nhánh `phuctd/web/schooladminUI`; chỉ dẫn local-only trong các mốc
+trước là lịch sử và không còn giới hạn đợt phát hành này. Giữ nguyên quyền: phụ xe xác nhận, tài xế xem tiến độ.
+
+Entry thu gọn dùng theme hiện có; panel nằm trong vùng cuộn của Lên xe/Xuống xe, không đổi bản đồ,
+header, QR hay bottom sheet. Các hàng nút được wrap; nút giới hạn chiều ngang100%, nhãn co/xuống dòng
+cho màn hình hẹp hoặc cỡ chữ lớn; trạng thái chọn dùng cùng navigationHighlight của theme.
+Không thêm dependency hoặc framework kiểm thử vào app. Env và output export không đưa lên Git.
+
+Typecheck,3 kiểm tra trạng thái RFID và export Android đã đạt. Đây là kiểm tra source/bundle;
+chưa thay thế nghiệm thu lượt quẹt thật hoặc kiểm tra hiển thị trên mọi thiết bị.

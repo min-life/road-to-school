@@ -1699,3 +1699,11 @@ Account/Trip/phase thay đổi reset identity; không gọi API RFID từ Driver
 Mobile tsc,3 pure protocol state tests và Android bundle đã đạt; chưa nghiệm thu authenticated native UI
 hoặc lượt quẹt thật. Device vẫn OFFLINE ngày09/11, PO cần đưa ESP lên mạng để test các chuyến hiện có.
 Chi tiết file/luồng tại iot-rfid-mobile-integration-guide.md mục12. Giữ các thay đổi Mobile local/unstaged.
+
+### L.16. Phát hành Mobile RFID sau rà soát bố cục
+
+PO cho phép đưa phần Mobile lên nhánh hiện tại, thay yêu cầu giữ local trước đây.
+Giữ bố cục đã duyệt và phân quyền phụ xe/tài xế. Bổ sung maxWidth/flexShrink và căn nhãn nút để giảm
+nguy cơ tràn ngang khi font lớn/màn hẹp; không đổi map/QR/header/bottom sheet hay API.
+Typecheck,3 test trạng thái RFID và export Android đạt; chưa tuyên bố nghiệm thu điểm danh phần cứng.
+Chi tiết hiện hành ở hướng dẫn Mobile mục13. Không đưa env, binary export hoặc cấu hình công cụ ngoài vào app.
