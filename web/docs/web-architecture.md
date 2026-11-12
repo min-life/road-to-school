@@ -47,6 +47,7 @@ kiểm tra import trước khi tạo file style mới. Entry dưới `src/app/ad
 | Nhu cầu / route | Entry và component chính | CSS/helper cần xem |
 | --- | --- | --- |
 | Tổng quan `/admin` | `src/app/admin/page.tsx`, `_components/overview-banner.tsx`, `overview-trips.tsx` cạnh page | `src/app/admin/_components/overview-banner.css`, `src/lib/admin-overview.ts` |
+| Thiết bị IoT `/admin/iot` (SYSTEM_ADMIN) | `src/app/admin/iot/page.tsx`, panels/hooks/Serial trong `_components` cạnh page | `src/lib/iot-api.ts`, `_components/iot.css`; [contract USB/firmware](iot-device-console.md) |
 | Trường `/admin/schools` | `src/app/admin/schools/page.tsx`, `C/schools/admin-schools-guard.tsx` | `src/app/admin/schools/layout.tsx` |
 | Tạo trường | `src/app/admin/schools/_components/add-school-modal.tsx` | CSS cạnh modal; builder, picker và helper dùng chung trong `C/schools/` |
 | Chi tiết/sửa trường | `src/app/admin/schools/[id]/page.tsx`, `_components/edit-school-modal.tsx`, `create-school-admin-modal.tsx` cạnh page | `C/schools/school-status-dialog.tsx`; lịch nhóm theo giờ trong `school-schedule.tsx` |
@@ -57,7 +58,7 @@ kiểm tra import trước khi tạo file style mới. Entry dưới `src/app/ad
 | Học sinh School Admin | `src/app/admin/students/page.tsx`, `[id]/page.tsx`, `_components/add-student-modal.tsx` | Filters/table/routing section/insert modal dùng chung trong `C/students/` |
 | Tài xế `/admin/drivers` | `src/app/admin/drivers/page.tsx`, `_components/add-driver-modal.tsx`; `[id]/page.tsx`, `[id]/_components/driver-schedule.tsx` | CSS detail cạnh schedule; lịch dùng GET trips hiện có |
 | Giáo viên `/admin/teachers` | `src/app/admin/teachers/page.tsx`, `[id]/page.tsx`, `_components/add-teacher-modal.tsx` | SchoolAdminGuard, role/employee scope giữ tại caller |
-| Xe `/admin/vehicles` | `src/app/admin/vehicles/page.tsx`, `_components/add-vehicle-modal.tsx` | Bãi xe dùng dữ liệu một bãi tập trung, không copy multi-depot của reference |
+| Xe `/admin/vehicles` | `src/app/admin/vehicles/page.tsx`, `_components/add-vehicle-modal.tsx`, `vehicle-iot-modal.tsx`, `use-vehicle-iot.ts`, `vehicle-iot-history.tsx` trong `_components` | Bấm biển số/cột IoT mở modal gán/tháo ESP32 của xe cố định; `vehicle-iot-modal.css`, API IoT hiện có; không chuyển sang trang IoT để gán |
 | Phương án/tuyến | `src/app/admin/routes/page.tsx`, `create/page.tsx`, `plans/[id]/page.tsx`, `[id]/page.tsx` | Xem §3; không nhầm route detail với plan detail |
 | Chuyến `/admin/trips` | `src/app/admin/trips/page.tsx`, `[id]/page.tsx`, `C/trips/trips-table.tsx` | Manual generate modal dùng chung trong `C/trips/`; assignment tại `src/app/admin/trips/[id]/_components/trip-assignment-modal.tsx` |
 | Báo nghỉ | `src/app/admin/leave-notices/page.tsx`, `_components/replacement-modal.tsx`, `cancel-trip-modal.tsx` cạnh page | Role/capability API và trạng thái trip; không tự thêm luồng duyệt báo nghỉ |
@@ -184,3 +185,11 @@ Hai workspace System/School dùng chung route-private `_components/route-plan-ca
 ### Bộ lọc học sinh khi lập tuyến — 08/11/2026
 
 Route create dùng GeographyFilter với prop opt-in `popover`: tab đủ/chưa đủ điều kiện → tìm kiếm + Bộ lọc → tóm tắt địa bàn/Xóa khi đang lọc → chọn/bỏ chọn đang hiển thị → danh sách. Tỉnh/phường nằm trong native popover top layer, có đóng bằng Escape/bấm ngoài và giới hạn viewport. Caller khác mặc định giữ hai select inline. CSS bố cục riêng ở `routes/create/_components/route-student-filters.css`; CSS popover ở `components/admin/common/geography-filter.css`. Không đổi query preparation hoặc selectedStudentIds; đổi/xóa địa bàn không xóa học sinh đã chọn ngoài kết quả đang hiển thị.
+
+### Student RFID enrollment
+
+`components/admin/students/student-rfid-card.tsx` và `use-rfid-enrollment.ts` dùng chung hai Student
+profile routes (SYSADMIN ghi qua enrollment, SCHOOL_ADMIN chỉ đọc). API/types ở
+`lib/rfid-enrollment-api.ts`, CSS cạnh component; native dialog không tạo route mới.
+`components/admin/iot/enrollment-recovery.tsx` là shared control cho Vehicle modal để đối soát
+pending session không ghi UID. Không import route-private giữa Students/IoT/Vehicles.

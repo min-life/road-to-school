@@ -74,7 +74,7 @@ export function StatusConfirmModal({
                 <>
                   Học sinh{' '}
                   <strong className="text-slate-900">{student.fullName}</strong> (
-                  {student.code}) sẽ chuyển sang trạng thái <strong>Đã vô hiệu hóa</strong>.
+                  {student.code}) sẽ chuyển sang trạng thái <strong>Đã vô hiệu hóa</strong>. Thẻ RFID sẽ được giải phóng.
                 </>
               ) : (
                 <>

@@ -1,6 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+export class VehicleIotDeviceDto {
+  @ApiProperty() assignmentId: string;
+  @ApiProperty() deviceId: string;
+  @ApiProperty({ format: 'date-time' }) assignedAt: string;
+}
+
 export class VehicleResponseDto {
+  @ApiProperty({ type: VehicleIotDeviceDto, nullable: true, description: 'Mapping PG hiện tại; trạng thái nhận cấu hình xem ở IoT. null khi chưa gán hoặc IoT tắt.' })
+  iotDevice?: VehicleIotDeviceDto | null;
   @ApiProperty({ example: 'uuid-v4' })
   id: string;
 

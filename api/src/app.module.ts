@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConditionalModule, ConfigModule } from '@nestjs/config';
+import { IotModule } from './iot/iot.module.js';
+import { isIotEnabled } from './iot/iot.constants.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { HealthModule } from './health/health.module.js';
 import { AuthModule } from './auth/auth.module.js';
@@ -23,6 +25,7 @@ import { NotificationsModule } from './notifications/notifications.module.js';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    ConditionalModule.registerWhen(IotModule, isIotEnabled, { debug: false }),
     PrismaModule,
     HealthModule,
     AuthModule,

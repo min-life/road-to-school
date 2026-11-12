@@ -7,6 +7,8 @@ import { frozenTripWhere } from '../overview/operations-policy.js';
 import { lockOperations } from '../trips/utils/operations-lock.js';
 import { notifyCancelledTrips, writeNotification } from '../notifications/notification-writer.js';
 import { assertSchoolWritable } from '../schools/school-policy.js';
+import { Optional } from '@nestjs/common';
+import { EnrollmentSessionsService } from '../iot/enrollment/enrollment-sessions.service.js';
 import {
   Injectable,
   Logger,
@@ -107,6 +109,7 @@ export class StudentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cloudinaryService: CloudinaryService,
+    @Optional() private readonly enrollments?: EnrollmentSessionsService,
   ) {}
 
   /**
@@ -547,6 +550,7 @@ export class StudentsService {
       ),
       qrData: student.code,
       parentLinkAudit: student.parentLinkAudit,
+      rfidCardUid: student.rfidCardUid ?? null,
       createdAt: student.createdAt.toISOString(),
       updatedAt: student.updatedAt.toISOString(),
     };
@@ -727,10 +731,16 @@ export class StudentsService {
       // Cascade nguyên tử khi DISABLED
       return this.prisma.$transaction(async (tx) => {
       await lockOperations(tx);
+        // Serialize enrollment confirmation with this status change using the Student row.
+        await tx.$queryRaw`SELECT id FROM students WHERE id=${studentId} FOR UPDATE`;
+        const previous = await tx.student.findUniqueOrThrow({where:{id:studentId}});
+        const nextVersion = new Date(Math.max(Date.now(), previous.updatedAt.getTime()+1));
+        // Disable remains available if Mongo is down. Re-enable below fails closed instead.
+        try { await this.enrollments?.invalidateStudent(studentId, nextVersion.toISOString()); } catch { /* PG status and null UID are authoritative. */ }
         // 1. Cập nhật trạng thái học sinh
         const updated = await tx.student.update({
           where: { id: studentId },
-          data: { status: StudentStatus.DISABLED },
+          data: { status: StudentStatus.DISABLED, rfidCardUid: null, updatedAt: nextVersion },
         });
 
         // 2. Tìm các điểm dừng trên các Route DRAFT hoặc ACTIVE
@@ -947,11 +957,12 @@ export class StudentsService {
       });
     }
 
-    const updated = await this.prisma.student.update({
-      where: { id: studentId },
-      data: {
-        status: dto.status,
-      },
+    const updated = await this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM students WHERE id=${studentId} FOR UPDATE`;
+      const previous=await tx.student.findUniqueOrThrow({where:{id:studentId}});
+      const nextVersion=new Date(Math.max(Date.now(),previous.updatedAt.getTime()+1));
+      if(dto.status==='AVAILABLE' && previous.status==='DISABLED') await this.enrollments?.invalidateStudent(studentId,nextVersion.toISOString());
+      return tx.student.update({where:{id:studentId},data:{status:dto.status,updatedAt:nextVersion,...(dto.status==='DISABLED'?{rfidCardUid:null}:{})}});
     });
 
     return {

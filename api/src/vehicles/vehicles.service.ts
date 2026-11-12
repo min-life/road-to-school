@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, RoutePlanStatus, TripStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { isIotEnabled } from '../iot/iot.constants.js';
 import {
   CreateVehicleDto,
   ListVehiclesQueryDto,
@@ -27,6 +28,20 @@ export class VehiclesService {
   private readonly logger = new Logger(VehiclesService.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  private async iotReferences(vehicleIds: string[]) {
+    if (!isIotEnabled(process.env) || !vehicleIds.length) return new Map<string, { assignmentId: string; deviceId: string; assignedAt: string }>();
+    const rows = await this.prisma.vehicleIotAssignment.findMany({ where: { vehicleId: { in: vehicleIds }, releasedAt: null } });
+    return new Map(rows.map(row => [row.vehicleId, { assignmentId: row.id, deviceId: row.deviceId, assignedAt: row.assignedAt.toISOString() }]));
+  }
+
+  async getVehicle(id: string): Promise<VehicleResponseDto> {
+    const vehicle = await this.prisma.vehicle.findUnique({ where: { id } });
+    if (!vehicle) throw new NotFoundException('Không tìm thấy phương tiện');
+    const references = await this.iotReferences([id]);
+    return { id: vehicle.id, brand: vehicle.brand, seatCount: vehicle.seatCount, licensePlate: vehicle.licensePlate,
+      color: vehicle.color, isActive: vehicle.isActive, createdAt: vehicle.createdAt.toISOString(), updatedAt: vehicle.updatedAt.toISOString(), iotDevice: references.get(id) ?? null };
+  }
 
   /**
    * Tạo mới phương tiện vận tải (Chỉ SYSTEM_ADMIN)
@@ -120,9 +135,11 @@ export class VehiclesService {
     ]);
 
     const totalPages = Math.ceil(total / limit) || 1;
+    const iotReferences = await this.iotReferences(vehicles.map(vehicle => vehicle.id));
 
     return {
       items: vehicles.map((v) => ({
+        iotDevice: iotReferences.get(v.id) ?? null,
         id: v.id,
         brand: v.brand,
         seatCount: v.seatCount,
