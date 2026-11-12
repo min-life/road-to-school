@@ -60,6 +60,7 @@ import { useTripNavigation } from "@/hooks/use-trip-navigation";
 import { TripNavigationControls } from "@/components/trip-navigation-controls";
 import { TripJoystick } from "@/components/trip-joystick";
 import { TripContactCallButton } from "@/components/trip-contact-call-button";
+import { RfidAttendanceEntry } from "@/components/rfid-attendance-entry";
 import {
   loadLocationHistory,
   navigationApi,
@@ -553,9 +554,7 @@ export default function MobileTripDetailScreen() {
     }
   };
 
-  const tilemapKey =
-    process.env.EXPO_PUBLIC_VIETMAP_TILEMAP_KEY ||
-    "220bb293d40f7226e0c29c91469f1286c6ed486f7a07e745";
+  const tilemapKey = process.env.EXPO_PUBLIC_VIETMAP_TILEMAP_KEY || "";
 
   const mapData = getTripMapSnapshot(trip);
   const mapHtml = useMemo(() => {
@@ -2061,6 +2060,16 @@ export default function MobileTripDetailScreen() {
                       style={styles.tabContentScroll}
                       showsVerticalScrollIndicator={false}
                     >
+                      {isBusAttendant && trip && !error && !terminal && (
+                        <RfidAttendanceEntry
+                          key={`${identity}:boarding`}
+                          identity={identity}
+                          tripId={tripId}
+                          phaseFilter="BOARDING"
+                          runMutation={mutate}
+                          onUpdated={() => loadTripDetail()}
+                        />
+                      )}
                       {/* Search Box */}
                       <View style={styles.searchBox}>
                         <Ionicons name="search" size={16} color="#94A3B8" />
@@ -2348,6 +2357,16 @@ export default function MobileTripDetailScreen() {
                       style={styles.tabContentScroll}
                       showsVerticalScrollIndicator={false}
                     >
+                      {isBusAttendant && trip && !error && !terminal && (
+                        <RfidAttendanceEntry
+                          key={`${identity}:alighting`}
+                          identity={identity}
+                          tripId={tripId}
+                          phaseFilter="ALIGHTING"
+                          runMutation={mutate}
+                          onUpdated={() => loadTripDetail()}
+                        />
+                      )}
                       {filteredRoster.filter((s) => s.status === "PRESENT")
                         .length > 0 ? (
                         filteredRoster

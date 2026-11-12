@@ -183,6 +183,7 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {},
     retryCount = 0,
+    responseType: 'json' | 'arrayBuffer' = 'json',
   ): Promise<T> {
     const url = endpoint.startsWith('http')
       ? endpoint
@@ -241,6 +242,7 @@ class ApiClient {
             },
           },
           retryCount + 1,
+          responseType,
         );
       } else {
         throw new ApiError({
@@ -278,7 +280,12 @@ class ApiClient {
       return {} as T;
     }
 
+    if (responseType === 'arrayBuffer') return response.arrayBuffer() as Promise<T>;
     return response.json();
+  }
+
+  async requestBinary(endpoint: string, options: RequestInit = {}): Promise<ArrayBuffer> {
+    return this.request<ArrayBuffer>(endpoint, options, 0, 'arrayBuffer');
   }
 
   // --- 6 Web Authentication APIs ---

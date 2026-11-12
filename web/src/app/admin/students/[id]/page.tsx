@@ -26,6 +26,7 @@ import {
   SpinnerIcon,
   AlertIcon,
 } from '@/components/icons';
+import { StudentRfidCard } from '@/components/admin/students/student-rfid-card';
 import { QRCodeDisplay } from '@/components/common/qr-code';
 import { StatusConfirmModal } from '@/components/admin/students/status-confirm-modal';
 import { EmptyRoutePlanActionModal } from '@/components/admin/students/empty-route-plan-action-modal';
@@ -246,7 +247,7 @@ function StudentDetailPageContent() {
     try {
       setIsUpdatingStatus(true);
       const res = await apiClient.updateStudentStatus(schoolId, student.id, targetStatus);
-      setStudent({ ...student, status: targetStatus });
+      setStudent({ ...student, status: targetStatus, ...(targetStatus === "DISABLED" ? { rfidCardUid: null } : {}) });
       if (res.emptyRoutePlans && res.emptyRoutePlans.length > 0) {
         setEmptyPlanNotice(res.emptyRoutePlans[0]);
         setEmptyRouteActionData({
@@ -588,6 +589,7 @@ function StudentDetailPageContent() {
 
         {/* QR Code Column (1 span) */}
         <div className="space-y-6">
+          <StudentRfidCard student={student} onUpdated={() => undefined} />
           <QRCodeDisplay
             studentCode={student.code}
             studentName={student.fullName}

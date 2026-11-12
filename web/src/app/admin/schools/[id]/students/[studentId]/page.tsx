@@ -14,6 +14,7 @@ import {
   SpinnerIcon,
   AlertIcon,
 } from '@/components/icons';
+import { StudentRfidCard } from '@/components/admin/students/student-rfid-card';
 import { QRCodeDisplay } from '@/components/common/qr-code';
 import { StudentRoutingSection } from '@/components/admin/students/student-routing-section';
 import { Card } from '@/components/ui/card';
@@ -118,11 +119,12 @@ function SystemAdminStudentDetailPageContent() {
         {/* Read-only notice */}
         <div className="text-right">
           <Badge className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
-            Chế độ chỉ xem (System Admin)
+            Hồ sơ học sinh
           </Badge>
         </div>
       </Card>
 
+      <StudentRfidCard student={student} onUpdated={fetchStudent} />
       {/* Main Grid: Info + QR Code */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 space-y-6">

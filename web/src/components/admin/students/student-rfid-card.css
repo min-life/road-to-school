@@ -1,0 +1,63 @@
+.rfid-student-card {
+  padding: 20px;
+  display: grid;
+  gap: 12px;
+  background: var(--brand-surface);
+}
+.rfid-student-card h2 {
+  font-weight: 700;
+}
+.rfid-enrollment-modal {
+  margin: auto;
+  padding: 0;
+  width: min(560px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  border: 1px solid var(--brand-border);
+  border-radius: 16px;
+  color: var(--brand-heading);
+  background: var(--brand-surface);
+}
+.rfid-enrollment-modal::backdrop {
+  background: rgb(15 23 42 / 40%);
+}
+.rfid-enrollment-modal header,
+.rfid-enrollment-modal footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 20px;
+}
+.rfid-enrollment-modal header {
+  border-bottom: 1px solid var(--brand-border);
+}
+.rfid-enrollment-modal h2 {
+  font-size: 16px;
+  font-weight: 700;
+}
+.rfid-enroll-body {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+}
+.rfid-enroll-body label {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+}
+.rfid-enroll-message,
+.rfid-enroll-error {
+  padding: 12px;
+  background: var(--brand-background);
+  border-radius: 8px;
+}
+.rfid-enroll-error {
+  color: var(--color-red-700);
+}
+.rfid-student-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
