@@ -1,149 +1,78 @@
-# AI Review — Viền nhấn trên card chuyến của con
+# AI Review — Kiểm kê màn hình và chuẩn bị sửa luồng nghiệp vụ mobile
 
 ## 1. Task Information
-01/11/2026, Asia/Saigon. IMPLEMENTATION, Mobile presentation/docs. Baseline HEAD5174e6d. Hoàn tất chỉnh style local; chưa commit/push lượt này.
+
+Task cập nhật chi tiết docs mobile theo các màn hình đã triển khai. Ngày 05/11/2026, Asia/Saigon. Scope Documentation, type Analysis và Documentation Implementation, status COMPLETED. Nhánh dongnnp/mobile/refactor-ui tại f075db4cdec5746aa287c29c150238f58d2195ef. Backend đã merge tại 41cf3b072cf1430f0f0071add4b131a1bc0fe6d0. Mốc branch/backend kế thừa bản audit ngay trước task này.
+
+Ngày 13/11/2026, PO yêu cầu commit phần đã hoàn thành. Đã rà diff và phạm vi 12 file docs đang chờ, gồm audit backend, bản đồ màn hình, các chỉ mục và review/history. Commit local dùng thông điệp `docs(mobile): document implemented screens and backend integration flows`.
 
 ## 2. Original Request
-PO yêu cầu chuyển đường line đậm bên trái card Chuyến xe của con ở Trang chủ lên cạnh trên của card.
+
+PO yêu cầu cập nhật docs chi tiết hơn, bao gồm các màn hình đã implement để chuẩn bị sửa luồng nghiệp vụ mobile.
 
 ## 3. Approved Scope
-Chỉ chuyển vị trí viền nhấn trên ParentTripCard theo vị trí PO đã chỉ định; giữ màu trạng thái và các nội dung/hành vi. Không màn hình mới hoặc refactor luồng. Không backend/API/DB/dependency changes.
+
+Đọc source mobile, components/hooks/context/API client và DTO/service liên quan để mô tả implementation hiện tại. Bổ sung screen inventory, đường vào/ra, controls, API/params, form/popup, refresh, nghiệp vụ theo role, khoảng cách với backend và tiêu chí nghiệm thu. Đầu ra là tài liệu local. Các batch sửa mobile được ghi là đề xuất chờ giao task.
 
 ## 4. Analysis & Decisions
-Viền đậm nằm ở styles.card.borderLeftWidth=4. Style nền parentHomeStyles.tripCard có borderWidth=1 và borderRadius20, cardTone.border ghi đè màu theo tag của con sau expanded style. Đổi sang borderTopWidth4 để viền trái trở về1 và cạnh trên thành4, tận dụng màu/bo góc hiện có.
+
+Kiểm kê 40 file TSX trong mobile/app, phân loại 33 entry nghiệp vụ và 7 entry hạ tầng/fallback/mẫu. Entry dùng chung, wrapper và redirect được ghi riêng để tránh hiểu là 33 màn độc lập. Source là căn cứ xác định UI/handler đã có, còn runtime, thiết bị và acceptance đa vai trò được ghi ở mức cần xác minh.
+
+Phân tích Auth/Root, Home ba role, Profile/Notifications, Parent Tracking/Link/Profile/Route/Schedule, Leave history/create/OTP/detail và lối báo nghỉ nhanh, Update information/address/history/detail/OTP, Trip theo role/tab, navigation và incidents. Đọc cả các lời gọi gián tiếp qua component, hook và provider.
+
+Ghi rõ các khác biệt thực tế khi giao task sửa. Picker Báo nghỉ truyền policy riêng, Đổi điểm mặc định AVAILABLE. Quick leave đi trực tiếp OTP sau xác nhận. Update OTP thành công về lịch sử theo con/type. Auth/link/leave/update có TTL/resend khác nhau. Password UI Profile tối thiểu 8 ký tự, auth DTO tối thiểu 6. Một số màn tải bằng mount/effect, lịch sử yêu cầu đã focus-aware. Route kế hoạch và Trip snapshot có nguồn dữ liệu riêng. Các khác biệt này được đưa vào SF-01–SF-07 để PO chốt hoặc UAT khi sửa.
 
 ## 5. Implementation Details
-mobile/components/parent/trip-card.tsx: đúng một dòng borderLeftWidth4→borderTopWidth4. docs/architecture/mobile-parent-home-ui.md bổ sung vị trí viền, nguồn màu và giới hạn kiểm chứng. LATEST.diff chỉ2files so với đầu task. Review trước lưu history/2026-11-01-before-card-top-accent.md/.diff. Không thay công việc trước của PO.
 
-https://github.com/min-life/road-to-school/pull/6/conflict?name=docs%252Fai-review%252FLATEST.md&ancestor_oid=f285bba470a2b805d30feb8ad72151ed152b1549&base_oid=6955ff2f89d34f64cc0f1839d790039a95f50ae5&head_oid=fc6b7e4c01d2f2cc7724d377e558638cec84c7fb## 6. Database Changes
-None. Không đọc/ghi DB, tạo dữ liệu, seed hoặc gọi API mutation.
+No application code changes.
 
-## 7. API & Swagger Changes
-None. Không sửa API client, auth, permissions hoặc contract; Swagger không áp dụng.
+- Tạo [mobile-screen-business-flows.md](../architecture/mobile-screen-business-flows.md) với bảng từng route/source, role, controls, params/API, hành trình xuyên màn, chiều đi/về, 13 nhóm popup/form, refresh matrix, SF-01–SF-07, 6 đợt giao việc liên kết M-01–M-10 và acceptance theo role.
+- Bổ sung bảng ánh xạ screen IDs vào [backend sync](../architecture/mobile-backend-sync-2026-11-05.md), giữ các contract và BE dependencies đã phân tích trước.
+- Cập nhật mục kiểm kê và đường tra cứu trong [UI status](../architecture/mobile-ui-implementation-status.md), [implementation README](../implementation/README.md) và [source map](../implementation/source-map.md).
+- Lưu review trước nguyên bản tại [history MD](history/2026-11-05-before-mobile-screen-flows.md) và [history diff](history/2026-11-05-before-mobile-screen-flows.diff). Cập nhật LATEST.md và [LATEST.diff](LATEST.diff) cho task tài liệu này. Diff gồm đúng 5 tài liệu nội dung, so với snapshot đầu task, bao gồm file audit đang untracked từ task trước.
 
-## 8. UI/UX Changes
-Đường viền4 ở cạnh trên thay cạnh trái; ba cạnh khác viền mảnh1. Màu tag/viền/nền header, avatar, tên/trường/thời gian, thanh hành trình và các nút giữ nguyên. Viền vẫn dùng tone của con khi thu gọn/mở rộng, không thêm animation hoặc vùng tương tác.
-
-## 9. Verification & Testing
-PASS npx --no-install tsc --noEmit exit0. PASS source parity: đảo ngược đúng tên thuộc tính viền thì toàn bộ component giống baseline, không đổi JSX/controllers/styles khác. PASS scoped git diff --check và patch parse. Không thêm tests cho thay đổi style một dòng; không chạy lại export/unit suites vì không có logic hoặc concern mới. NOT_VERIFIED: hiển thị thực tế trên Expo Go iPhone/Android và trình duyệt; không mô tả source/typecheck như nghiệm thu thiết bị.
-
-## 10. Issues & Risks
-Chưa có xác nhận native visual. Không có thay đổi nghiệp vụ hoặc trạng thái bus. Border sử dụng cùng token màu và góc bo sẵn có.
-
-## 11. Reviewer Focus
-Cạnh trên đậm4, cạnh trái mảnh1 ở mọi tone và khi mở/đóng card. Nội dung/callbacks giữ nguyên theo source parity.
-
-## 12. Suggested Next Step
-Reload Expo Go trên iPhone và xem card Chuyến xe của con để xác nhận vị trí viền trên.
-
-## 13. Approval Status
-Implementation theo yêu cầu trực tiếp PO. WAITING FOR USER REVIEW; chưa commit/push task mới này, không suy rộng yêu cầu push ở task trước sang thay đổi hiện tại.
-# AI Review — Master Business Improvement Plan (Sections 3.4 – 3.18 Full Implementation)
-
-## 1. Task Information
-- **Task Name**: Implementation of Master Business Improvement Plan (Sections 3.4 through 3.18).
-- **Date**: 04/11/2026, Asia/Saigon.
-- **Project Scope**: API (`/api`) & Documentation (`/docs`). (Strictly zero changes to `/web` or `/mobile`).
-- **Task Type**: Implementation, Refactor, and Test Verification.
-- **Status**: `COMPLETED`.
-
-## 2. Original Request
-Lệnh `/goal` của Product Owner:
-1. Tiến hành triển khai toàn bộ Master Business Improvement Plan (Mục 3.4 – 3.18).
-2. Tạo 1 file hướng dẫn cho Frontend Dev (`docs/FE_INTEGRATION_GUIDE.md`) để hiểu và dễ gắn API.
-3. Thêm 1 description ngắn gọn ngay trong đoạn chat để FE dev đọc Pull Request có thể nắm được những điểm cần làm với source code BE.
-4. Đảm bảo chỉ chỉnh sửa API và tuân thủ nguyên tắc không làm nở source code hoặc database quá nhiều.
-
-## 3. Approved Scope
-- **Phê duyệt**: PO phê duyệt toàn diện Đề xuất A từ Mục 3.4 đến 3.18 kèm:
-  - D317-02: Giảm ngưỡng cảnh báo đi lệch (50m, 15s) và đến trễ (3 phút, 15s); bổ sung 3 sự cố (`NO_GUARDIAN_AT_STOP`, `TRAFFIC_DELAY`, `GPS_SIGNAL_LOST`) kèm ghi nhận tọa độ GPS.
-  - D310-01: Chặn xuất bến chuyến về (`TO_PARKING`) khi toàn bộ học sinh đều vắng mặt.
-  - D316-02: Phân tách phương án tuyến độc lập theo nhóm học sinh, không gom chung học sinh khác trường.
-- **Phạm vi code**: Chỉ thay đổi trong thư mục `/api` và `/docs`. Không chạm vào `/web` hay `/mobile`.
-- **Test Data Policy**: Tuyệt đối không sinh dữ liệu giả trong PostgreSQL.
-
-## 4. Analysis & Decisions
-1. **Rule G-02 (Frozen Trip Policy)**:
-   - Một chuyến xe được coi là đóng băng (`isTripFrozen`) ngay khi `actualStartTime !== null` hoặc `attendantReadyAt !== null`.
-   - Mọi thao tác sửa đổi phân công thường lệ (`updateTripAssignment`) trên chuyến đã đóng băng sẽ bị từ chối với mã lỗi `409 Conflict`. Mọi thay thế khẩn cấp phải đi qua luồng Xử lý sự cố (`resolveIncident` với `REPLACED`).
-   - Rút đơn xin nghỉ (`cancelNotice`) bị từ chối nếu giáo viên phụ xe đã sẵn sàng đón (`attendantReadyAt !== null`).
-2. **Rule G-01 & Đồng bộ Chuyến xe Chưa đóng băng (`syncUnfrozenTripsForRoute`)**:
-   - Khi phương án tuyến có sự điều chỉnh (thay xe/tài xế/phụ xe mặc định theo D36-02, chèn học sinh giữa kỳ theo D312-01, hoặc tối ưu lại theo yêu cầu đổi địa chỉ D314-01), các chuyến `SCHEDULED` chưa đóng băng sẽ tự động được cập nhật lại `routeSnapshot` và roster học sinh tương ứng.
-3. **Phát hiện sự cố và định vị GPS**:
-   - Mở rộng DTO `CreateIncidentDto` hỗ trợ `latitude`, `longitude`, `studentId`.
-   - Cập nhật bộ phát hiện tự động `IncidentsDetectorService` theo ngưỡng mới và lưu tọa độ tại thời điểm phát hiện vào trường JSON `context`.
-4. **Sửa các lỗi tồn đọng từ baseline**:
-   - Bug B-01: Chuyến `IN_PROGRESS` không còn bị ẩn trong `getHomeTrip` và `getParentHomeCards` bất kể thời gian dự kiến kết thúc.
-   - Bug B-02: Duyệt yêu cầu đổi địa chỉ kiểu `REOPTIMIZED` bắt buộc `previewToken` và `expectedFingerprint`, đồng thời đồng bộ lại snapshot các chuyến unfrozen.
-   - Bug B-03: `resolveIncident` nhánh `REPLACED` sử dụng `assertStaffAvailableForTrip` để kiểm tra toàn diện điều kiện nhân sự thay thế.
-   - Bug B-04: Thêm học sinh giữa kỳ (`confirmStudentInsertion`) đồng bộ tức thì sang snapshot các chuyến unfrozen.
-   - Bug B-06: Hủy phương án tuyến (`cancelRoutePlan`) chỉ áp dụng với các chuyến chưa đóng băng và kiểm tra `expectedFingerprint`.
-
-## 5. Implementation Details
-### Files Tạo mới:
-1. `api/prisma/migrations/20261104081535_add_province_and_incident_types/migration.sql`: Migration PostgreSQL bổ sung `province` cho `School` và `Student`, thêm 3 enum values vào `TripIncidentType`.
-2. `api/src/trips/utils/staff-availability.helper.ts`: Helper kiểm tra tính khả dụng của nhân sự (trạng thái active, vai trò, đơn nghỉ phép, sự cố chưa giải quyết, chuyến xe chồng lấn).
-3. `api/src/trips/utils/trip-sync.helper.ts`: Helper đồng bộ hóa chuyến xe chưa đóng băng (`syncUnfrozenTripsForRoute`).
-4. `docs/FE_INTEGRATION_GUIDE.md`: Cẩm nang hướng dẫn tích hợp API chi tiết cho lập trình viên Frontend Web & Mobile.
-
-### Files Chỉnh sửa:
-1. `api/prisma/schema.prisma`: Thêm `province` vào `School` và `Student`; mở rộng enum `TripIncidentType`.
-2. `api/src/overview/operations-policy.ts`: Thêm `frozenTripWhere` và `isTripFrozen`.
-3. `api/src/trips/trips.service.ts`: Sửa Bug B-01 trong Home Trip; chặn xe/tài xế chạy đồng thời 2 chuyến; cấm đổi phân công trên chuyến đã đóng băng; chặn xuất bến khi 100% học sinh vắng mặt; kiểm soát quy tắc điểm danh 2 giai đoạn.
-4. `api/src/trips/utils/trip-snapshot-resolver.ts`: Bổ sung `'UNFROZEN_TRIP_SYNC'` vào union `snapshotReason`.
-5. `api/src/leave-notices/leave-notices.service.ts`: Chặn rút đơn nghỉ khi phụ xe đã sẵn sàng; kiểm tra nhân sự thay thế qua `assertStaffAvailableForTrip`.
-6. `api/src/incidents/dto/create-incident.dto.ts`: Bổ sung `latitude`, `longitude`, `studentId` với validation decorators.
-7. `api/src/incidents/incidents.service.ts`: Hỗ trợ 3 sự cố mới có tọa độ; kiểm tra nhân sự thay thế trong `resolveIncident` (Bug B-03).
-8. `api/src/incidents/incidents-detector.service.ts`: Cập nhật ngưỡng phát hiện lệch tuyến (50m, 15s) và trễ giờ (3 phút, 15s) kèm ghi nhận tọa độ GPS.
-9. `api/src/routes/routes.service.ts`: Lọc dữ liệu chuẩn bị theo bán kính 50km và tỉnh thành; lan truyền phân công mặc định xuống các chuyến unfrozen; đồng bộ chèn học sinh tức thì (Bug B-04); hủy phương án chỉ áp dụng với chuyến unfrozen (Bug B-06).
-10. `api/src/routes/resource-availability.service.ts`: Chặn unassign tài xế / phụ xe trên phương án đã ACTIVE.
-11. `api/src/student-requests/student-requests.service.ts`: Duyệt đổi địa chỉ `REOPTIMIZED` yêu cầu `previewToken`, `expectedFingerprint` và đồng bộ chuyến xe unfrozen (Bug B-02).
-12. `docs/BUSINESS_IMPROVEMENT_TRACKER.md`: Cập nhật tiến độ hoàn thành các gói 3.4 – 3.18.
-13. `docs/ai-handoff/CURRENT_STATE.md`: Cập nhật snapshot hiện trạng mã nguồn.
+Ghi chú mobile-parent-student-journey.md và các history của task audit backend là thay đổi có sẵn trước lượt này.
 
 ## 6. Database Changes
-- Thêm trường `province String? @db.VarChar(100)` vào bảng `schools` và `students`.
-- Bổ sung 3 giá trị `NO_GUARDIAN_AT_STOP`, `TRAFFIC_DELAY`, `GPS_SIGNAL_LOST` vào enum `TripIncidentType`.
-- Migration `20261104081535_add_province_and_incident_types` đã được áp dụng an toàn trên cơ sở dữ liệu development. Không tạo bảng mới, không làm phình schema.
+
+None.
 
 ## 7. API & Swagger Changes
-- `POST /api/incidents`: Nhận thêm `latitude?: number`, `longitude?: number`, `studentId?: string`, hỗ trợ 3 loại sự cố mới.
-- `POST /api/student-requests/:id/approve`: Với quyết định `REOPTIMIZED`, bắt buộc gửi `previewToken` và `expectedFingerprint`.
-- `POST /api/routes/plans/:id/cancel`: Nhận thêm `expectedFingerprint` chống xung đột thao tác đồng thời.
-- `GET /api/routes/plans/:id/cancellation-impact`: Trả về số lượng `scheduledTripsCount` (chỉ đếm các chuyến unfrozen sẽ bị hủy) và `frozenTripsCount` (các chuyến giữ nguyên).
-- Mã lỗi trả về được chuẩn hóa: `409 Conflict` cho chuyến đã đóng băng và xung đột phiên xem trước; `400 Bad Request` cho lý do vắng mặt bắt buộc và rút đơn nghỉ không hợp lệ.
+
+None. Tài liệu tham chiếu các API hiện có qua client/DTO/service. Runtime API và Swagger được ghi NOT_VERIFIED trong lượt tài liệu này.
 
 ## 8. UI/UX Changes
-- Không can thiệp mã nguồn UI (`/web` và `/mobile`).
-- Đã xuất bản cẩm nang chi tiết [docs/FE_INTEGRATION_GUIDE.md](../FE_INTEGRATION_GUIDE.md) hướng dẫn toàn bộ giao diện Web Admin và Mobile App cách xử lý các trường hợp lỗi, vô hiệu hóa nút bấm và hiển thị cảnh báo.
+
+None. Danh mục mô tả các màn hiện có cùng form/modal và các đặc điểm safe area, keyboard, picker, alert, tab/role. Các đề xuất workflow và acceptance nằm trong backlog. Wireframe cho task code UI tiếp theo cần theo quy tắc phê duyệt của repository.
 
 ## 9. Verification & Testing
-- **TypeScript Static Typecheck**:
-  `cd api; npx tsc --noEmit` -> **PASS** (0 errors).
-- **Unit Tests Verification**:
-  `cd api; npx vitest run src/routes/ src/trips/ src/incidents/ src/leave-notices/ src/student-requests/ src/overview/` -> **PASS** (11/11 test files, 193/193 tests passed).
-  - `src/trips/utils/trip-time.util.spec.ts`: 10 passed.
-  - `src/overview/overview.spec.ts`: 4 passed.
-  - `src/routes/vehicle-availability.spec.ts`: 11 passed.
-  - `src/student-requests/student-requests.service.spec.ts`: 16 passed.
-  - `src/leave-notices/leave-notices.service.spec.ts`: 15 passed.
-  - `src/trips/trip-synchronization.spec.ts`: 31 passed.
-  - `src/trips/trips.service.spec.ts`: 17 passed.
-  - `src/routes/approval-assignment.spec.ts`: 10 passed.
-  - `src/routes/routes.service.spec.ts`: 27 passed.
-  - `src/incidents/incidents.service.spec.ts`: 14 passed.
-  - `src/trips/trip-navigation.spec.ts`: 38 passed.
-- **Test Data Policy Compliance**: Tuyệt đối không tạo fake data, không thêm bản ghi thử nghiệm vào DB.
+
+- PASS kiểm tra trước commit ngày 13/11/2026, `npx --no-install tsc --noEmit` tại mobile exit 0, `git diff --check` với docs trừ các bản diff lưu trữ và parse LATEST.diff. Diff api/mobile/web rỗng, toàn bộ 12 file chờ commit thuộc docs.
+- PASS `npx --no-install tsc --noEmit` tại mobile, exit 0. Đây là kiểm tra kiểu baseline hiện tại.
+- PASS kiểm kê 40/40 file route mobile/app được tham chiếu, 33 mã entry nghiệp vụ duy nhất, 7 entry hỗ trợ và 13 nhóm form/popup.
+- PASS kiểm tra 93 relative links trong các phần docs mới/thay đổi, tất cả đích local tồn tại.
+- PASS SHA256 của 545 tracked files api/mobile/web trùng snapshot đầu task, kiểm soát source/config/dependencies.
+- PASS đối chiếu tĩnh màn hình với navigation/API/hooks/providers, phân biệt wrappers, legacy history render thật và redirect.
+- PASS kiểm tra whitespace trên 5 tài liệu nội dung và LATEST.md, `git diff --check` trên các file tracked liên quan, `git apply --numstat docs/ai-review/LATEST.diff` xác nhận patch hợp lệ với đúng 5 tài liệu. HEAD trùng baseline, review có đủ 13 mục.
+- NOT_VERIFIED hành vi thực tế iPhone/Android, deep links, keyboard/native permissions, OTP delivery/TTL, GPS, Swagger đang chạy và UAT nhiều vai trò. Task này xác minh source và tài liệu.
+- BLOCKED_BY_TEST_DATA_POLICY đối với các ca acceptance cần tạo/chỉnh dữ liệu, gửi OTP hoặc mutation mà chưa được cấp dữ liệu/quyền riêng cho bước kiểm thử. Các ca này được ghi thành checklist cho task sửa sau.
+
+Validator ban đầu đếm lặp các screen IDs ở bảng tham chiếu tiếp theo. Đã giới hạn bộ đếm nghiệp vụ vào bảng inventory và đếm unique support IDs, sau đó chạy lại đạt các số liệu ở trên.
 
 ## 10. Issues & Risks
-- None identified. Các thay đổi hoàn toàn tương thích ngược và có cơ chế bảo vệ chuyến xe đang diễn ra.
+
+Sáu BE dependencies từ bản audit vẫn cần chốt khi tích hợp, đặc biệt incident options/vòng đời, canCancelLeave và capability start khác guard thực thi. Các SF ghi sự khác biệt hoặc nhu cầu kiểm chứng, chưa kết luận tất cả là bug runtime. Mô tả quyền/disabledReason phải tiếp tục dựa response và service thực, tránh đồng nhất policy giữa các form chỉ vì chúng dùng chung UI.
+
+Sáu đợt triển khai là thứ tự đề xuất theo contract và phụ thuộc hiện có. Source tại snapshot xác nhận có handler, mức hoàn thiện thực tế từng flow còn cần UAT trên môi trường được cấp.
 
 ## 11. Reviewer Focus
-- Đảm bảo tính nhất quán của quy tắc đóng băng chuyến xe (`isTripFrozen`) trên tất cả các thao tác (đổi phân công, rút đơn nghỉ, hủy phương án).
-- Xác nhận logic đồng bộ `syncUnfrozenTripsForRoute` đảm bảo dữ liệu chuyến xe luôn cập nhật mà không ảnh hưởng đến các chuyến đã xuất bến.
+
+Kiểm tra độ phủ 40 file route, 33 entry nghiệp vụ gồm wrappers/compatibility, 7 entry hỗ trợ và 13 nhóm form. Rà quick leave khác form đầy đủ, eligibility picker, payload snapshot/challenge khi OTP resend, success destination, refresh mount/focus và privacy theo con. Đối chiếu Trip role/tab, outbound undo trước school-arrival, return boarding trước start, alighting riêng và admin finalization. Các mục đã có/cần sửa/UAT phải tiếp tục phân biệt rõ.
 
 ## 12. Suggested Next Step
-- Chuyển giao tài liệu [docs/FE_INTEGRATION_GUIDE.md](../FE_INTEGRATION_GUIDE.md) cho đội ngũ Frontend để tiến hành tích hợp và cập nhật giao diện người dùng.
+
+Giao đợt 1 M-01 để đồng bộ nhãn, types và fallback sự cố trên Home, Trip và hai màn Sự cố theo contract đọc đã kiểm kê.
 
 ## 13. Approval Status
-- `WAITING FOR USER REVIEW / APPROVAL`.
+
+PO đã yêu cầu commit local ngày 13/11/2026. Các batch sửa source tiếp tục ở trạng thái WAITING FOR USER REVIEW / APPROVAL để PO giao triển khai.

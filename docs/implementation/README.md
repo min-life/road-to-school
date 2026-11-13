@@ -4,6 +4,8 @@ Cập nhật 29/10/2026 (Asia/Saigon), source tham chiếu `db02de6`, nhánh `do
 
 ## Mục lục
 
+- [Mobile đối chiếu backend chuongtv/update-be ngày05/11/2026, contract thực tế và backlog tích hợp](../architecture/mobile-backend-sync-2026-11-05.md)
+- [Mobile đã triển khai theo từng màn hình, role, API, popup/form, luồng và thứ tự sửa nghiệp vụ](../architecture/mobile-screen-business-flows.md)
 - [Kiến trúc, tính năng và luồng nghiệp vụ](features.md)
 - [Thiết lập, kiểm tra và xử lý lỗi local](local-operations.md)
 - [API backend](api-catalog.md)
