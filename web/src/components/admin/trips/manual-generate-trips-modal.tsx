@@ -1,10 +1,15 @@
 'use client';
 
+import { toast } from '@/stores/toast-store';
+
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { SchoolListItem, GenerateTripsResponse } from '@/lib/types';
 import { AlertIcon, InfoIcon, SpinnerIcon } from '@/components/icons';
 import { SchoolSelectFilter } from '@/components/admin/common/school-select-filter';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 interface ManualGenerateTripsModalProps {
   isOpen: boolean;
@@ -119,6 +124,7 @@ export function ManualGenerateTripsModal({
         fromDate,
         toDate,
       });
+      if (res.failedCount > 0) { toast.warning(`Đã tạo ${res.createdCount} chuyến; ${res.failedCount} chuyến chưa thể tạo. Xem chi tiết trong hộp thoại.`); } else { toast.success(`Đã tạo ${res.createdCount} chuyến, bỏ qua ${res.skippedCount} chuyến đã có.`); }
       setResult(res);
       onSuccess();
     } catch (err: any) {
@@ -132,21 +138,21 @@ export function ManualGenerateTripsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in">
-      <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-100 space-y-4 max-h-[90vh] overflow-y-auto">
+      <Card className="ui-dialog-panel bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-100 space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <h3 className="text-base font-bold text-slate-800">Sinh chuyến xe thủ công</h3>
-          <button
+          <Button
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600 text-lg leading-none cursor-pointer"
           >
             ✕
-          </button>
+          </Button>
         </div>
 
         {!result ? (
           <form onSubmit={handleSubmit} className="space-y-4">
             <p className="text-xs text-slate-500 leading-relaxed">
-              Sinh chuyến xe theo khoảng ngày cho các phương án tuyến đang ở trạng thái <strong>ACTIVE</strong> của trường. Hệ thống chỉ sinh chuyến từ ngày học hợp lệ tiếp theo sau ngày kích hoạt và tự động bỏ qua chuyến đã tồn tại.
+              Tạo chuyến theo lịch học của phương án đang hoạt động. Bỏ qua chuyến đã có.
             </p>
 
             {/* School selector */}
@@ -161,13 +167,14 @@ export function ManualGenerateTripsModal({
                 </div>
               ) : (
                 <SchoolSelectFilter
+                  floating
                   value={schoolId}
                   onChange={(sId, item) => {
                     setSchoolId(sId);
                     setSelectedSchool(item || null);
                   }}
                   allowAll={false}
-                  placeholder="-- Bắt buộc chọn đúng một trường --"
+                  placeholder="Chọn trường học"
                 />
               )}
 
@@ -182,9 +189,9 @@ export function ManualGenerateTripsModal({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-700">
-                  Từ ngày (fromDate) <span className="text-rose-500">*</span>:
+                  Từ ngày <span className="text-rose-500">*</span>:
                 </label>
-                <input
+                <Input
                   type="date"
                   value={fromDate}
                   min={contractBounds.start}
@@ -192,15 +199,15 @@ export function ManualGenerateTripsModal({
                   disabled={!schoolId}
                   onChange={(e) => setFromDate(e.target.value)}
                   required
-                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#FFCB56] disabled:bg-slate-50 disabled:opacity-50"
+                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:opacity-50"
                 />
               </div>
 
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-700">
-                  Đến ngày (toDate) <span className="text-rose-500">*</span>:
+                  Đến ngày <span className="text-rose-500">*</span>:
                 </label>
-                <input
+                <Input
                   type="date"
                   value={toDate}
                   min={contractBounds.start}
@@ -208,7 +215,7 @@ export function ManualGenerateTripsModal({
                   disabled={!schoolId}
                   onChange={(e) => setToDate(e.target.value)}
                   required
-                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#FFCB56] disabled:bg-slate-50 disabled:opacity-50"
+                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:opacity-50"
                 />
               </div>
             </div>
@@ -221,22 +228,22 @@ export function ManualGenerateTripsModal({
             )}
 
             <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
-              <button
+              <Button
                 type="button"
                 onClick={onClose}
                 disabled={submitting}
                 className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
               >
-                Hủy bỏ
-              </button>
-              <button
+                Hủy
+              </Button>
+              <Button variant="primary" size="sm"
                 type="submit"
                 disabled={submitting || !isFormValid}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-900 bg-[#FFCB56] hover:bg-[#f5c042] transition-colors flex items-center gap-2 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-900 bg-primary hover:bg-[#f5c042] transition-colors flex items-center gap-2 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 {submitting && <SpinnerIcon className="w-4 h-4 animate-spin text-slate-900" />}
-                <span>Bắt đầu sinh chuyến</span>
-              </button>
+                <span>Sinh chuyến</span>
+              </Button>
             </div>
           </form>
         ) : (
@@ -276,17 +283,17 @@ export function ManualGenerateTripsModal({
             )}
 
             <div className="flex items-center justify-end pt-2 border-t border-slate-100">
-              <button
+              <Button
                 type="button"
                 onClick={onClose}
                 className="px-4 py-2 rounded-xl text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
               >
                 Đóng
-              </button>
+              </Button>
             </div>
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

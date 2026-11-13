@@ -4,6 +4,7 @@ import {
   Post,
   Patch,
   Param,
+  ParseUUIDPipe,
   Body,
   Query,
   UseGuards,
@@ -38,6 +39,17 @@ import {
 @ApiBearerAuth('JWT-auth')
 export class VehiclesController {
   constructor(private readonly vehiclesService: VehiclesService) {}
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Chi tiết xe và thiết bị IoT hiện tại (SYSTEM_ADMIN)' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiResponse({ status: 200, type: VehicleResponseDto })
+  @ApiResponse({ status: 400, description: 'ID không hợp lệ' })
+  @ApiResponse({ status: 401, description: 'Chưa xác thực' })
+  @ApiResponse({ status: 403, description: 'Không có quyền' })
+  @ApiResponse({ status: 404, description: 'Xe không tồn tại' })
+  @ApiResponse({ status: 503, description: 'Dữ liệu chưa sẵn sàng' })
+  detail(@Param('id', new ParseUUIDPipe()) id: string) { return this.vehiclesService.getVehicle(id); }
 
   @Get()
   @ApiOperation({
@@ -96,7 +108,7 @@ export class VehiclesController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Xe có chuyến IN_PROGRESS hoặc thiếu xe thay thế hợp lệ khi còn phân công',
+    description: 'Xe có chuyến Ready, đã điểm danh hoặc IN_PROGRESS hoặc thiếu xe thay thế hợp lệ khi còn phân công',
   })
   @ApiResponse({
     status: 404,

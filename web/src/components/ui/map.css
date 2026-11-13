@@ -1,0 +1,8 @@
+/* Scoped registry styles: keep other MapLibre consumers unchanged. */
+.mapcn-loader { position:absolute; inset:0; z-index:10; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; background:var(--brand-hover); color:var(--brand-muted); font-size:13px; }
+.mapcn-loader svg { color:var(--brand-ring); }
+.rts-map .maplibregl-popup-content { padding:0; border-radius:12px; background:transparent; box-shadow:none; }
+.rts-map .maplibregl-popup-tip { display:none; }
+.rts-map .maplibregl-ctrl-attrib { border:1px solid var(--brand-border); border-radius:6px; background:var(--brand-surface); color:var(--brand-muted); font-family:inherit; font-size:10px; }
+.rts-map .maplibregl-ctrl-attrib a { color:var(--brand-muted); }
+.rts-map .maplibregl-ctrl-attrib a:hover { color:var(--brand-foreground); }

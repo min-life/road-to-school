@@ -1,9 +1,12 @@
+import { GeographyFieldsDto } from '../../schools/dto/geography.dto.js';
 import { ApiProperty } from '@nestjs/swagger';
 import { StudentStatus } from '@prisma/client';
 import { PaginationMetaDto } from '../../schools/dto/school-response.dto.js';
 import { EmptyRoutePlanSummaryDto } from './student-disable-impact.dto.js';
 
-export class StudentItemDto {
+export class StudentItemDto extends GeographyFieldsDto {
+  @ApiProperty({ required: false, nullable: true, type: String, description: 'Tỉnh/thành từ reverse geocoding; null nếu chưa xác định' })
+  province?: string | null;
   @ApiProperty({
     description: 'Mã định danh duy nhất UUID của học sinh',
     example: 's1f8a847-75c1-4b36-a3d5-22e3914a8721',
@@ -124,6 +127,10 @@ export class StudentListResponseDto {
 }
 
 export class StudentDetailResponseDto extends StudentItemDto {
+  @ApiProperty({ required: false, nullable: true, type: [Object], description: 'Lịch sử trường thu hồi liên kết phụ huynh' })
+  parentLinkAudit?: unknown;
+  @ApiProperty({type:String,nullable:true,description:"UID RFID hiện tại; null khi chưa gán hoặc đã giải phóng"})
+  rfidCardUid: string | null;
   @ApiProperty({
     description: 'Tên trường học đối tác',
     example: 'Trường Tiểu học Lê Quý Đôn',

@@ -1,4 +1,5 @@
 import { SchoolLifecycleModule } from '../schools/school-lifecycle.module.js';
+import { SystemSettingsModule } from '../system-settings/system-settings.module.js';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from '../prisma/prisma.module.js';
@@ -9,7 +10,7 @@ import { VietMapVRPService } from './vietmap-vrp.service.js';
 import { ResourceAvailabilityService } from './resource-availability.service.js';
 
 @Module({
-  imports: [SchoolLifecycleModule, PrismaModule, AuthModule, ConfigModule],
+  imports: [SchoolLifecycleModule, SystemSettingsModule, PrismaModule, AuthModule, ConfigModule],
   controllers: [RoutesController],
   providers: [RoutesService, VietMapVRPService, ResourceAvailabilityService],
   exports: [SchoolLifecycleModule, RoutesService, ResourceAvailabilityService, VietMapVRPService],

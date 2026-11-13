@@ -1,3 +1,4 @@
+import { GeographyQueryDto } from '../../schools/dto/geography.dto.js';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type, Transform } from 'class-transformer';
 import {
@@ -12,7 +13,7 @@ import {
 } from 'class-validator';
 import { StudentStatus } from '@prisma/client';
 
-export class ListStudentsQueryDto {
+export class ListStudentsQueryDto extends GeographyQueryDto {
   @ApiPropertyOptional({ enum: ['UNASSIGNED'], description: 'Học sinh chưa thuộc tuyến của phương án DRAFT/ACTIVE.' })
   @IsOptional() @IsIn(['UNASSIGNED']) routingStatus?: 'UNASSIGNED';
   @ApiPropertyOptional({

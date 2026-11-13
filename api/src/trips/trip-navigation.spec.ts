@@ -129,7 +129,16 @@ describe('Navigation control and persisted-position contract (in memory only)', 
   it('uses short ReadCommitted SHARE transaction and appends without updating Trip', async () => {
     trip.navigationState = checkpoint();
     await service.publish('trip', { ...position(), sequence: 1, runId: 'run' }, driver, 'sid');
-    expect(db.$queryRaw.mock.calls[0][0].join('')).toContain('FOR SHARE');
+    const shareCall = db.$queryRaw.mock.calls.find((call: any[]) => {
+      const firstArg = call[0];
+      if (Array.isArray(firstArg)) return firstArg.join('').includes('FOR SHARE');
+      if (firstArg && typeof firstArg === 'object') {
+        const sql = firstArg.sql || (Array.isArray(firstArg.strings) ? firstArg.strings.join('') : '');
+        return sql.includes('FOR SHARE');
+      }
+      return false;
+    });
+    expect(shareCall).toBeDefined();
     expect(db.$transaction.mock.calls[0][1]).toMatchObject({ isolationLevel: 'ReadCommitted', timeout: 3500 });
     expect(db.trip.update).not.toHaveBeenCalled();
     expect(Object.keys(db.tripLocationPoint.create.mock.calls[0][0].data).sort()).toEqual(['latitude', 'longitude', 'runId', 'sequence', 'tripId']);

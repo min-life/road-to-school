@@ -1,20 +1,25 @@
 'use client';
+import { ResendCredentialsDialog } from '@/components/admin/common/resend-credentials-dialog';
+import { ResourceStatusDialog } from '@/components/admin/common/resource-status-dialog';
+import { Button } from '@/components/ui/button';
+import { BackLink } from '@/components/admin/common/context-navigation';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/components/auth/auth-provider';
 import { SchoolAdminGuard } from '@/components/admin/school-admin-guard';
 import { apiClient } from '@/lib/api-client';
 import type { SchoolEmployeeDetail } from '@/lib/types';
 import {
-  ArrowLeftIcon,
   TeacherIcon,
   SchoolIcon,
   PhoneIcon,
   SpinnerIcon,
   AlertIcon,
 } from '@/components/icons';
+import { Card } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
+import { Badge } from '@/components/ui/badge';
 
 function TeacherDetailPageContent() {
   const params = useParams();
@@ -22,6 +27,8 @@ function TeacherDetailPageContent() {
   const { user } = useAuth();
   const schoolId = user?.schoolId;
 
+  const [resendOpen, setResendOpen] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(false);
   const [teacher, setTeacher] = useState<SchoolEmployeeDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -59,13 +66,7 @@ function TeacherDetailPageContent() {
   if (errorMessage || !teacher) {
     return (
       <div className="p-6 max-w-2xl mx-auto space-y-4">
-        <Link
-          href="/admin/teachers"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
-        >
-          <ArrowLeftIcon className="w-4 h-4" />
-          <span>Quay lại danh sách giáo viên</span>
-        </Link>
+        <BackLink fallback="/admin/teachers" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors" />
         <div className="p-6 bg-red-50 border border-red-200 rounded-xl text-red-800 text-center">
           <AlertIcon className="w-8 h-8 text-red-600 mx-auto mb-2" />
           <h2 className="text-base font-bold">Không thể tải thông tin giáo viên</h2>
@@ -81,49 +82,47 @@ function TeacherDetailPageContent() {
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       {/* Back button */}
       <div>
-        <Link
-          href="/admin/teachers"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
-        >
-          <ArrowLeftIcon className="w-4 h-4" />
-          <span>Quay lại danh sách giáo viên</span>
-        </Link>
+        <BackLink fallback="/admin/teachers" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors" />
       </div>
 
       {/* Header Card */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex items-center justify-between">
+      <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-full bg-blue-100 text-blue-800 font-bold text-xl flex items-center justify-center border-2 border-blue-200">
             {teacher.fullName.charAt(0).toUpperCase()}
           </div>
-          <div>
+          <PageHeader>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-slate-900">{teacher.fullName}</h1>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+              <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
                 Giáo viên
-              </span>
+              </Badge>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
               Vai trò kỹ thuật: <span className="font-mono text-slate-600">BUS_ATTENDANT</span>
             </p>
-          </div>
+            {schoolId && teacher.role === 'BUS_ATTENDANT' && teacher.isActive && teacher.email && <Button variant="outline" size="sm" onClick={() => setResendOpen(true)}>Cấp lại mật khẩu</Button>}
+            {schoolId && teacher.role === 'BUS_ATTENDANT' && <Button variant="outline" size="sm" onClick={() => setStatusOpen(true)}>{teacher.isActive ? 'Ngừng hoạt động' : 'Kích hoạt'}</Button>}
+          </PageHeader>
         </div>
 
         <div>
           {isActive ? (
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <Badge className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
               Đang hoạt động
-            </span>
+            </Badge>
           ) : (
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-300">
+            <Badge className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-300">
               Ngừng hoạt động
-            </span>
+            </Badge>
           )}
         </div>
-      </div>
+      </Card>
 
+      {resendOpen && schoolId && <ResendCredentialsDialog schoolId={schoolId} employee={teacher} onClose={() => setResendOpen(false)} />}
+      {statusOpen && schoolId && <ResourceStatusDialog target={{ kind: 'employee', id: teacher.id, name: teacher.fullName, isActive: teacher.isActive, schoolId, role: 'BUS_ATTENDANT' }} onClose={() => setStatusOpen(false)} onSuccess={() => void fetchTeacher()} />}
       {/* Information Card */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
+      <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
         <h2 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-3 flex items-center gap-2">
           <TeacherIcon className="w-4 h-4 text-amber-500" />
           Thông tin chi tiết giáo viên
@@ -184,7 +183,7 @@ function TeacherDetailPageContent() {
             </dd>
           </div>
         </dl>
-      </div>
+      </Card>
     </div>
   );
 }

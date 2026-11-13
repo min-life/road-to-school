@@ -1,0 +1,4 @@
+.route-student-filter-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; min-width: 0; }
+.route-student-filter-toolbar > .relative { min-width: 0; }
+.route-student-filter-toolbar input { min-height: 44px; }
+.route-workspace-selection .route-workspace-picker > .route-student-eligibility-tabs { position: static; flex-wrap: nowrap; gap: 6px; padding: 4px; background: var(--brand-hover); }

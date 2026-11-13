@@ -135,7 +135,7 @@ export class ApproveAddressRequestDto {
   previewToken?: string;
 
   @ApiPropertyOptional({
-    description: 'Fingerprint kỳ vọng chống xung đột',
+    description: 'Bắt buộc khi REOPTIMIZED (kể cả mặc định khi đã có tuyến); thiếu trả 400, sai/hết hạn/nguồn đổi trả 409',
   })
   @IsOptional()
   @IsString()

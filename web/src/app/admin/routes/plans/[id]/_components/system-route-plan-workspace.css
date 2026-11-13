@@ -1,0 +1,101 @@
+.system-route-plan-workspace .saved-plan-heading { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.system-route-plan-workspace .saved-plan-status { padding: 5px 10px; border-radius: 8px; color: #047857; background: #ecfdf5; font-size: 12px; white-space: nowrap; }
+.system-route-plan-workspace .saved-plan-heading-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 100%; }
+.system-route-plan-workspace .saved-plan-assignment-progress { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid #a7f3d0; border-radius: 8px; background: #ecfdf5; color: #065f46; font-size: 12px; font-weight: 600; }
+.system-route-plan-workspace .saved-plan-assignment-progress svg { flex-shrink: 0; }
+.system-route-plan-workspace .saved-plan-assignment-progress[data-pending=true] { border-color: #fcd34d; background: #fffbeb; color: #92400e; }
+.system-route-plan-workspace .saved-plan-heading-actions > button { flex-shrink: 0; }
+.system-route-plan-workspace .saved-plan-assignments .assignment-group-status { display: inline-flex; align-items: center; padding: 4px 8px; border: 1px solid #a7f3d0; border-radius: 6px; color: #065f46; background: #ecfdf5; font-size: 12px; font-weight: 600; }
+.system-route-plan-workspace .saved-plan-assignments .assignment-group-status[data-pending=true] { border-color: #fcd34d; background: #fffbeb; color: #92400e; }
+.system-route-plan-workspace .saved-plan-assignments .assignment-group:focus { outline: 2px solid var(--brand-info); outline-offset: -2px; }
+.system-route-plan-workspace .saved-plan-panel-heading { padding: 16px; border-bottom: 1px solid var(--brand-border); }
+.system-route-plan-workspace .saved-plan-panel-heading h2 { font-weight: 700; font-size: 16px; }
+.system-route-plan-workspace .saved-plan-panel-heading p { margin-top: 4px; color: var(--brand-muted); font-size: 13px; }
+.system-route-plan-workspace .saved-plan-assignments > .ui-card { border: 0; box-shadow: none; background: transparent; overflow: visible; }
+.system-route-plan-workspace .saved-plan-assignments .assignment-heading { padding: 0 0 12px; background: transparent; border: 0; }
+.system-route-plan-workspace .saved-plan-assignments .assignment-heading > span { display: none; }
+.system-route-plan-workspace .saved-plan-assignments .assignment-group { padding: 16px; margin-bottom: 12px; border: 1px solid var(--brand-border); border-radius: 12px; background: white; overflow-wrap: anywhere; }
+.system-route-plan-workspace .saved-plan-assignments .assignment-fields { flex-direction: column; align-items: stretch; }
+.system-route-plan-workspace .saved-plan-assignments .assignment-fields > div { min-width: 0; }
+.system-route-plan-workspace .saved-plan-error { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 12px; margin-bottom: 12px; color: #be123c; background: #fff1f2; border-radius: 10px; font-size: 13px; }
+.system-route-plan-workspace .saved-plan-map-error { position: absolute; bottom: 58px; left: 12px; right: 12px; display: flex; align-items: center; gap: 8px; padding: 12px; border-radius: 10px; background: white; color: #be123c; font-size: 13px; }
+.system-route-plan-workspace.saved-plan-page .route-workspace-map > .saved-plan-map-error { height: auto; }
+/* Only the System Admin saved-plan workspace opts into these styles. */
+.system-route-plan-workspace.saved-plan-page .route-workspace-without-footer { grid-template-rows: minmax(0, 1fr); }
+.system-route-plan-workspace .saved-plan-heading > .saved-plan-heading-title { flex: 1 1 520px; min-width: 0; }
+.system-route-plan-workspace .saved-plan-heading h1 { overflow-wrap: anywhere; }
+.system-route-plan-workspace .saved-plan-heading-title > p { font-size: 13px; color: var(--brand-muted); margin-top: 4px; }
+.system-route-plan-workspace .saved-plan-status[data-status=DRAFT] { color: #92400e; background: #fffbeb; }
+.system-route-plan-workspace .saved-plan-status[data-status=CANCELLED], .system-route-plan-workspace .saved-plan-status[data-status=EXPIRED] { color: #475569; background: #f1f5f9; }
+.system-route-plan-workspace .saved-plan-cancel-button { flex-shrink: 0; white-space: nowrap; }
+.system-route-plan-workspace .saved-plan-readiness { padding: 12px; margin-bottom: 12px; background: #f8fafc; border: 1px solid var(--brand-border); border-radius: 10px; font-size: 12px; overflow-wrap: anywhere; }
+.system-route-plan-workspace .saved-plan-readiness summary { cursor: pointer; font-weight: 600; }
+.system-route-plan-workspace .saved-plan-readiness p, .system-route-plan-workspace .saved-plan-readiness ul { margin-top: 8px; color: var(--brand-muted); }
+.system-route-plan-workspace .saved-plan-readiness ul { padding-left: 16px; list-style: disc; }
+.system-route-plan-workspace .saved-plan-readiness li + li { margin-top: 6px; }
+.system-route-plan-workspace .saved-plan-stops-title { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+.system-route-plan-workspace .saved-plan-stops { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.system-route-plan-workspace .saved-plan-stops button { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 12px; border: 1px solid var(--brand-border); border-radius: 10px; text-align: left; cursor: pointer; background: white; }
+.system-route-plan-workspace .saved-plan-stops button:hover { background: var(--brand-hover); }
+.system-route-plan-workspace .saved-plan-stop-number { display: grid; place-items: center; flex-shrink: 0; width: 24px; height: 24px; background: var(--brand-navy); color: white; border-radius: 50%; font-size: 11px; }
+.system-route-plan-workspace .saved-plan-stops button > span:nth-child(2) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.system-route-plan-workspace .saved-plan-stops strong { font-size: 12px; display: block; }
+.system-route-plan-workspace .saved-plan-stops small { font-size: 11px; color: var(--brand-muted); display: block; margin-top: 4px; }
+.system-route-plan-workspace .saved-plan-stops time { flex-shrink: 0; font-size: 11px; color: #047857; }
+.system-route-plan-workspace .saved-plan-notice { padding: 10px 14px; background: #fffbeb; border-radius: 10px; font-size: 13px; color: #92400e; }
+.system-route-plan-workspace .saved-plan-assignments .assignment-heading { display: none; }
+.system-route-plan-workspace .saved-plan-assignments .assignment-action-button { min-height: 34px; padding-inline: 11px; white-space: nowrap; font-size: 12px; font-weight: 650; }
+.system-route-plan-workspace .saved-plan-assignments .assignment-fields > div > div:first-child { justify-content: space-between; }
+.system-route-plan-workspace.saved-plan-page .route-workspace-map { container-type: inline-size; container-name: saved-plan-map; }
+.system-route-plan-workspace .saved-plan-route-list i { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+.system-route-plan-workspace .saved-plan-route-list button > span { min-width: 0; overflow-wrap: anywhere; }
+.system-route-plan-workspace .saved-plan-route-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.system-route-plan-workspace .saved-plan-route-list button { display: flex; gap: 8px; padding: 10px 12px; border: 1px solid var(--brand-border); border-radius: 10px; text-align: left; background: white; cursor: pointer; }
+.system-route-plan-workspace .saved-plan-route-list button[aria-pressed=true] { border-color: var(--brand-info); background: #f5f9ff; }
+.system-route-plan-workspace .saved-plan-route-list strong { display: block; font-size: 12px; font-weight: 600; }
+.system-route-plan-workspace .saved-plan-route-list small { display: block; margin-top: 3px; font-size: 11px; color: var(--brand-muted); }
+@container saved-plan-map (max-width: 440px) {
+  .system-route-plan-workspace.saved-plan-page .route-workspace-map > .route-map-visibility { top: 60px; }
+}
+
+.system-route-plan-workspace .saved-plan-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 16px; }
+.system-route-plan-workspace .saved-plan-heading-actions { display: grid; justify-items: end; gap: 8px; max-width: 460px; }
+.system-route-plan-workspace .saved-plan-heading-statuses, .system-route-plan-workspace .saved-plan-heading-buttons { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.system-route-plan-workspace .saved-plan-heading-buttons .saved-plan-cancel-button { margin-left: 8px; }
+.system-route-plan-workspace .saved-plan-routes-content { display: flex; flex-direction: column; overflow: hidden; scrollbar-gutter: auto; }
+.system-route-plan-workspace .saved-plan-routes-content > .saved-plan-readiness { flex-shrink: 0; margin: 10px 0 0; }
+.system-route-plan-workspace .saved-plan-routes-content > .saved-plan-readiness[open] { flex-shrink: 1; max-height: 35%; overflow-y: auto; }
+.system-route-plan-workspace .saved-plan-routes-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.system-route-plan-workspace .saved-plan-direction-tabs { flex-shrink: 0; margin-bottom: 10px; }
+.system-route-plan-workspace .saved-plan-direction-tabs .route-workspace-tabs { padding: 4px; border: 0; border-radius: 10px; background: #f1f5f9; }
+.system-route-plan-workspace .saved-plan-direction-tabs .route-workspace-tabs button { padding: 6px 8px; font-size: 12px; }
+.system-route-plan-workspace .saved-plan-direction-tabs .route-workspace-tabs [aria-selected=true] { background: var(--brand-surface); color: var(--brand-heading); box-shadow: var(--brand-shadow); }
+.system-route-plan-workspace .saved-plan-direction-panel { display: grid; grid-template-rows: fit-content(40%) minmax(0, 1fr); gap: 12px; flex: 1; min-height: 0; }
+.system-route-plan-workspace .saved-plan-route-list { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; margin: 0; padding: 2px 2px 6px; }
+.system-route-plan-workspace .saved-plan-route-list button { flex-shrink: 0; }
+.system-route-plan-workspace .saved-plan-route-list button > span { flex: 1; }
+.system-route-plan-workspace .saved-plan-route-vehicle { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-top: 5px; font-size: 12px; color: var(--brand-muted); }
+.system-route-plan-workspace .saved-plan-route-schedule { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.system-route-plan-workspace .saved-plan-route-schedule > span { display: inline-flex; flex-wrap: wrap; gap: 4px 8px; padding: 4px 6px; border-radius: 6px; background: var(--brand-hover); font-size: 11px; }
+.system-route-plan-workspace .saved-plan-route-schedule b { color: var(--brand-muted); font-weight: 500; }
+.system-route-plan-workspace .saved-plan-route-schedule time { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.system-route-plan-workspace .saved-plan-stops-section { display: flex; flex-direction: column; min-height: 0; border-top: 1px solid var(--brand-border); padding-top: 12px; }
+.system-route-plan-workspace .saved-plan-stops-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; flex-shrink: 0; }
+.system-route-plan-workspace .saved-plan-stops-heading h2 { font-size: 13px; font-weight: 600; }
+.system-route-plan-workspace .saved-plan-stops-heading a { color: var(--brand-info); font-size: 11px; white-space: nowrap; }
+.system-route-plan-workspace .saved-plan-active-route { font-size: 11px; margin: 5px 0 10px; color: var(--brand-muted); overflow-wrap: anywhere; flex-shrink: 0; }
+.system-route-plan-workspace .saved-plan-stops { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; margin: 0; padding: 2px 2px 6px; }
+.system-route-plan-workspace .saved-plan-route-list:focus-visible, .system-route-plan-workspace .saved-plan-stops:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: -2px; border-radius: 8px; }
+@media (max-width: 1100px) {
+  .system-route-plan-workspace .saved-plan-heading { grid-template-columns: minmax(0, 1fr); }
+  .system-route-plan-workspace .saved-plan-heading-actions { justify-items: start; max-width: none; }
+  .system-route-plan-workspace .saved-plan-heading-statuses, .system-route-plan-workspace .saved-plan-heading-buttons { justify-content: flex-start; }
+}
+@media (max-width: 1199px), (max-height: 700px) {
+  .system-route-plan-workspace .saved-plan-routes-content { overflow: visible; }
+  .system-route-plan-workspace .saved-plan-routes-panel { flex: none; }
+  .system-route-plan-workspace .saved-plan-direction-panel { display: flex; flex-direction: column; flex: none; }
+  .system-route-plan-workspace .saved-plan-route-list { max-height: 340px; }
+  .system-route-plan-workspace .saved-plan-stops { max-height: 420px; }
+  .system-route-plan-workspace .saved-plan-routes-content > .saved-plan-readiness[open] { max-height: 300px; }
+}

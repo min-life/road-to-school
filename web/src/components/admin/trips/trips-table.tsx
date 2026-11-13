@@ -1,10 +1,14 @@
 'use client';
+import { Button } from '@/components/ui/button';
+import { getTripStatusLabel } from '@/lib/status-labels';
+import { TableActions } from '@/components/admin/common/table-actions';
+
+import { Badge } from '@/components/ui/badge';
 
 import { useRouteQuery } from '@/hooks/use-route-query';
 
 
 import React, { useState, useEffect, useMemo } from 'react';
-import Link from 'next/link';
 import { useVisibleRefresh } from '@/hooks/use-visible-refresh';
 import type { RefreshContext } from '@/lib/refresh-loop';
 import { useAuth } from '@/components/auth/auth-provider';
@@ -13,19 +17,23 @@ import { TripItem, Role } from '@/lib/types';
 import { RouteIcon, SpinnerIcon, AlertIcon, BusIcon } from '@/components/icons';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
 import { SchoolSelectFilter } from '@/components/admin/common/school-select-filter';
+import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Card } from '@/components/ui/card';
+import { Table } from '@/components/ui/table';
+import './trips-table.css';
 
 interface TripsTableProps {
   fixedSchoolId?: string;
   refreshKey?: number;
   currentUserRole: Role | null;
-  onOpenManualGenerate?: () => void;
 }
 
 export function TripsTable({
   fixedSchoolId,
   refreshKey = 0,
   currentUserRole,
-  onOpenManualGenerate,
 }: TripsTableProps) {
   const { user } = useAuth();
   const isSystemAdmin = currentUserRole === 'SYSTEM_ADMIN';
@@ -44,7 +52,17 @@ export function TripsTable({
   const [limit, setLimit] = useState<number>(10);
 
   // Contract dates for selected school (Requirement 08)
+  const [contractError, setContractError] = useState('');
+  const [contractRevision, setContractRevision] = useState(0);
   const [contractBounds, setContractBounds] = useState<{ start?: string; end?: string }>({});
+
+  // Reset to the initial date window, respecting a fixed school's contract bounds.
+  const clampDefaultDate = (date: string) => fixedSchoolId
+    ? (contractBounds.start && date < contractBounds.start ? contractBounds.start
+      : contractBounds.end && date > contractBounds.end ? contractBounds.end : date)
+    : date;
+  const defaultFromDate = clampDefaultDate(formatDateStr(today));
+  const defaultToDate = clampDefaultDate(formatDateStr(nextWeek));
 
   // Data state
   const [trips, setTrips] = useState<TripItem[]>([]);
@@ -65,9 +83,10 @@ export function TripsTable({
   // When activeSchoolId changes, fetch school contract dates
   useEffect(() => {
     let current = true;
-    if (activeSchoolId) {
-      apiClient
-        .getSchoolDetail(activeSchoolId)
+    if (activeSchoolId && currentUserRole) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Drop the previous school's bounds before loading the new scope.
+      setContractError(''); setContractBounds({});
+      (currentUserRole === 'SCHOOL_ADMIN' ? apiClient.getSchoolOperatingSettings(activeSchoolId) : apiClient.getSchoolDetail(activeSchoolId))
         .then((school) => {
           if (!current) return;
           if (school?.contractStartDate && school?.contractEndDate) {
@@ -89,16 +108,17 @@ export function TripsTable({
             });
           }
         })
-        .catch(() => {
+        .catch(cause => {
           if (!current) return;
           setContractBounds({});
+          setContractError(cause instanceof Error ? cause.message : 'Không thể tải giới hạn hợp đồng.');
         });
     } else {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Remove bounds from the previously selected school.
       setContractBounds({});
     }
     return () => { current = false; };
-  }, [activeSchoolId]);
+  }, [activeSchoolId, currentUserRole, contractRevision]);
 
   // Load trips
   const fetchTrips = async ({ isCurrent }: RefreshContext) => {
@@ -179,50 +199,56 @@ export function TripsTable({
   const renderStatusBadge = (trip: TripItem) => {
     if (trip.isVirtual || (trip.status as string) === 'NOT_CREATED') {
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+        <Badge className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
           Chưa tạo (Dự kiến)
-        </span>
+        </Badge>
       );
     }
     switch (trip.status) {
       case 'SCHEDULED':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-            Lập lịch
-          </span>
+          <Badge className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+            {getTripStatusLabel(trip.status)}
+          </Badge>
         );
       case 'IN_PROGRESS':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 animate-pulse">
-            Đang chạy
-          </span>
+          <Badge className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 animate-pulse">
+            {getTripStatusLabel(trip.status)}
+          </Badge>
         );
       case 'COMPLETED':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            Hoàn thành
-          </span>
+          <Badge className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            {getTripStatusLabel(trip.status)}
+          </Badge>
         );
       case 'CANCELLED':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-            Hủy
-          </span>
+          <Badge className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+            {getTripStatusLabel(trip.status)}
+          </Badge>
         );
       default:
-        return <span>{trip.status}</span>;
+        return <span>{getTripStatusLabel(trip.status)}</span>;
     }
   };
 
   return (
     <div className="space-y-4">
       {/* Filter Toolbar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3 text-xs">
-          {/* Date range */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-slate-500 font-semibold">Từ:</span>
-            <input
+      <FilterToolbar
+        hasActiveFilters={Boolean(selectedStatus || (!fixedSchoolId && selectedSchoolId) || fromDate !== defaultFromDate || toDate !== defaultToDate)}
+        onReset={() => {
+          setSelectedSchoolId(effectiveSchoolId);
+          setSelectedStatus('');
+          setFromDate(defaultFromDate);
+          setToDate(defaultToDate);
+          handleFilterChange();
+        }}
+      >
+        <FilterField label="Từ ngày">
+          <Input
               type="date"
               value={fromDate}
               min={contractBounds.start}
@@ -231,13 +257,12 @@ export function TripsTable({
                 setFromDate(e.target.value);
                 handleFilterChange();
               }}
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#FFCB56]"
+              className="w-full"
             />
-          </div>
+        </FilterField>
 
-          <div className="flex items-center gap-1.5">
-            <span className="text-slate-500 font-semibold">Đến:</span>
-            <input
+        <FilterField label="Đến ngày">
+          <Input
               type="date"
               value={toDate}
               min={contractBounds.start}
@@ -246,15 +271,12 @@ export function TripsTable({
                 setToDate(e.target.value);
                 handleFilterChange();
               }}
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#FFCB56]"
+              className="w-full"
             />
-          </div>
+        </FilterField>
 
-          {/* School filter (System Admin only and not on School Detail) */}
-          {!fixedSchoolId && isSystemAdmin && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-slate-500 font-semibold">Trường:</span>
-              <SchoolSelectFilter
+        {!fixedSchoolId && isSystemAdmin && (<FilterField label="Trường học">
+          <SchoolSelectFilter
                 value={selectedSchoolId}
                 onChange={(schoolId) => {
                   setSelectedSchoolId(schoolId);
@@ -262,60 +284,43 @@ export function TripsTable({
                 }}
                 allowAll={true}
                 allLabel="Tất cả trường"
-                className="w-48"
+                className="w-full"
               />
-            </div>
-          )}
-
-          {/* Status filter */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-slate-500 font-semibold">Trạng thái:</span>
-            <select
+        </FilterField>
+        )}
+        <FilterField label="Trạng thái">
+          <Select
               value={selectedStatus}
               onChange={(e) => {
                 setSelectedStatus(e.target.value);
                 handleFilterChange();
               }}
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#FFCB56] cursor-pointer"
+              className="w-full"
             >
               <option value="">Tất cả trạng thái</option>
-              <option value="SCHEDULED">Lập lịch</option>
+              <option value="SCHEDULED">Đã lên lịch</option>
               <option value="IN_PROGRESS">Đang chạy</option>
-              <option value="COMPLETED">Hoàn thành</option>
-              <option value="CANCELLED">Hủy</option>
+              <option value="COMPLETED">Đã hoàn thành</option>
+              <option value="CANCELLED">Đã hủy</option>
               <option value="NOT_CREATED">Chưa tạo (Dự kiến)</option>
-            </select>
-          </div>
+            </Select>
+        </FilterField>
 
-          {contractBounds.start && contractBounds.end && (
-            <span className="text-[11px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200/60 font-medium">
-              Hợp đồng: {contractBounds.start} – {contractBounds.end}
-            </span>
-          )}
-        </div>
-
-        {/* Action: Manual Generation (System Admin only) */}
-        {isSystemAdmin && onOpenManualGenerate && (
-          <button
-            onClick={onOpenManualGenerate}
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-900 bg-[#FFCB56] hover:bg-[#f5c042] transition-colors cursor-pointer shadow-xs shrink-0"
-          >
-            <BusIcon className="w-4 h-4 text-slate-900" />
-            <span>Sinh chuyến thủ công</span>
-          </button>
-        )}
-      </div>
+        {contractError && <div role="alert" className="w-full text-sm text-rose-700">{contractError} <Button variant="outline" size="sm" onClick={() => setContractRevision(v => v + 1)}>Thử lại giới hạn ngày</Button></div>}
+          {contractBounds.start && contractBounds.end && (<Badge className="ui-filter-meta">Hợp đồng: {contractBounds.start} – {contractBounds.end}</Badge>)}
+      </FilterToolbar>
 
       {/* Main Trips Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+      <Card className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+        <div className="trips-table-scroll overflow-x-auto" tabIndex={0} role="region" aria-label="Bảng chuyến xe, cuộn ngang để xem thêm cột">
+          <Table className="trips-table w-full text-left text-xs" minWidth={1765}>
+            <colgroup><col style={{ width: 125 }} /><col style={{ width: 240 }} /><col style={{ width: 210 }} /><col style={{ width: 115 }} /><col style={{ width: 160 }} /><col style={{ width: 150 }} /><col style={{ width: 190 }} /><col /><col style={{ width: 100 }} /><col style={{ width: 170 }} /><col style={{ width: 115 }} /></colgroup>
             <thead>
               <tr className="border-b border-slate-200/80 bg-slate-50/70 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
-                <th className="py-3 px-4 w-32">Thứ / Ngày</th>
-                <th className="py-3 px-4">Tuyến xe</th>
-                <th className="py-3 px-4">Trường học</th>
-                <th className="py-3 px-4">Chiều</th>
+                <th className="trip-pin trip-pin-date py-3 px-4" scope="col">Thứ / Ngày</th>
+                <th className="trip-pin trip-pin-route py-3 px-4" scope="col">Tuyến xe</th>
+                <th className="trip-pin trip-pin-school py-3 px-4" scope="col">Trường học</th>
+                <th className="trip-pin trip-pin-direction py-3 px-4" scope="col">Chiều</th>
                 <th className="py-3 px-4 text-center">Khung giờ</th>
                 <th className="py-3 px-4">Xe phân công</th>
                 <th className="py-3 px-4">Tài xế</th>
@@ -330,7 +335,7 @@ export function TripsTable({
               {loading ? (
                 <tr>
                   <td colSpan={11} className="py-16 text-center text-slate-400">
-                    <SpinnerIcon className="w-6 h-6 animate-spin text-[#FFCB56] mx-auto mb-2" />
+                    <SpinnerIcon className="w-6 h-6 animate-spin text-primary mx-auto mb-2" />
                     <span>Đang tải danh sách chuyến xe...</span>
                   </td>
                 </tr>
@@ -347,7 +352,7 @@ export function TripsTable({
                     <BusIcon className="w-8 h-8 mx-auto mb-2 text-slate-300" />
                     <p className="font-semibold text-slate-600">Không tìm thấy chuyến xe nào</p>
                     <p className="text-[11px] text-slate-400 mt-1">
-                      Thử thay đổi khoảng ngày lọc hoặc sinh chuyến xe mới cho các phương án ACTIVE
+                  Thử thay đổi khoảng ngày lọc hoặc sinh chuyến xe mới cho các phương án đang hoạt động
                     </p>
                   </td>
                 </tr>
@@ -368,7 +373,7 @@ export function TripsTable({
                       {isFirstOfDay && (
                         <td
                           rowSpan={span}
-                          className="py-3 px-4 font-bold text-slate-800 bg-slate-50/40 border-r border-slate-100 align-top"
+                          className="trip-pin trip-pin-date py-3 px-4 font-bold text-slate-800 border-r border-slate-100 align-top"
                         >
                           <div className="sticky top-0">
                             <span className="text-blue-700 font-extrabold block text-xs">
@@ -381,19 +386,19 @@ export function TripsTable({
                         </td>
                       )}
 
-                      <td className="py-3 px-4 font-semibold text-slate-800">
+                      <td className="trip-pin trip-pin-route py-3 px-4 font-semibold text-slate-800">
                         <div className="flex items-center gap-1.5">
                           <RouteIcon className="w-4 h-4 text-slate-400 shrink-0" />
                           <span className="font-medium">{trip.routeName}</span>
                         </div>
                       </td>
 
-                      <td className="py-3 px-4 text-slate-600 max-w-[140px] truncate">
+                      <td className="trip-pin trip-pin-school py-3 px-4 text-slate-600 truncate" title={trip.schoolName}>
                         {trip.schoolName}
                       </td>
 
-                      <td className="py-3 px-4">
-                        <span
+                      <td className="trip-pin trip-pin-direction py-3 px-4">
+                        <Badge
                           className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${
                             trip.direction === 'TO_SCHOOL'
                               ? 'bg-blue-50 text-blue-700'
@@ -401,7 +406,7 @@ export function TripsTable({
                           }`}
                         >
                           {trip.direction === 'TO_SCHOOL' ? 'Chiều đi' : 'Chiều về'}
-                        </span>
+                        </Badge>
                       </td>
 
                       <td className="py-3 px-4 text-center font-mono font-semibold text-slate-800 whitespace-nowrap">
@@ -440,12 +445,7 @@ export function TripsTable({
 
                       <td className="py-3 px-4 text-right whitespace-nowrap">
                         {!trip.isVirtual ? (
-                          <Link
-                            href={`/admin/trips/${trip.id}`}
-                            className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-[#FFCB56] hover:text-slate-900 transition-colors"
-                          >
-                            Chi tiết
-                          </Link>
+                          <TableActions actions={[{ label: 'Chi tiết', href: `/admin/trips/${trip.id}` }]} />
                         ) : (
                           <span
                             title="Chuyến này chưa được tạo trong cơ sở dữ liệu"
@@ -460,7 +460,7 @@ export function TripsTable({
                 })
               )}
             </tbody>
-          </table>
+          </Table>
         </div>
 
         {/* Pagination Footer */}
@@ -476,7 +476,7 @@ export function TripsTable({
           }}
           loading={loading}
         />
-      </div>
+      </Card>
     </div>
   );
 }

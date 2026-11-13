@@ -1,10 +1,15 @@
 'use client';
+import { BusIcon } from '@/components/icons';
+import { Button } from '@/components/ui/button';
 
 import React, { useState } from 'react';
 import { TripsTable } from '@/components/admin/trips/trips-table';
 import { ManualGenerateTripsModal } from '@/components/admin/trips/manual-generate-trips-modal';
 import { useAuth } from '@/components/auth/auth-provider';
-import { BusIcon } from '@/components/icons';
+
+import { PageHeader } from '@/components/ui/page-header';
+import { AdminFinalizationsPanel } from './_components/admin-finalizations-panel';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 
 export default function AdminTripsPage() {
   const { user } = useAuth();
@@ -12,30 +17,26 @@ export default function AdminTripsPage() {
   const currentUserSchoolId = user?.role === 'SCHOOL_ADMIN' ? user.schoolId || undefined : undefined;
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const query = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const finalizationsOpen = currentUserRole === 'SYSTEM_ADMIN' && query.get('tab') === 'finalizations';
+  const selectTab = (tab: string) => { const next = new URLSearchParams(query.toString()); next.set('tab', tab); router.replace(`${pathname}?${next}`, { scroll: false }); };
 
 
   return (
-    <div className="space-y-6">
+    <div className="ui-list-page">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-            <BusIcon className="w-6 h-6 text-slate-700" />
-            <span>Quản lý chuyến xe</span>
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Lịch trình điều phối xe đưa đón theo ngày, bao gồm các chuyến đã lập lịch và lịch trình dự kiến
-          </p>
-        </div>
-      </div>
+      <PageHeader title="Chuyến xe" actions={currentUserRole === 'SYSTEM_ADMIN' && <Button type="button" variant="primary" onClick={() => setIsManualModalOpen(true)}><BusIcon className="w-4 h-4" aria-hidden="true" />Sinh chuyến thủ công</Button>} />
 
       {/* Trips Table */}
+      {currentUserRole === 'SYSTEM_ADMIN' && <div className="flex flex-wrap gap-2"><Button type="button" variant={!finalizationsOpen ? 'primary' : 'outline'} onClick={() => selectTab('trips')}>Danh sách chuyến</Button><Button type="button" variant={finalizationsOpen ? 'primary' : 'outline'} onClick={() => selectTab('finalizations')}>Cần xử lý hành chính</Button></div>}
+      {finalizationsOpen ? <AdminFinalizationsPanel key={query.get('schoolId') || 'operator'} schoolId={query.get('schoolId') || undefined} onUpdated={() => setRefreshKey(value => value + 1)} /> :
       <TripsTable
         refreshKey={refreshKey}
         fixedSchoolId={currentUserSchoolId}
         currentUserRole={currentUserRole}
-        onOpenManualGenerate={() => setIsManualModalOpen(true)}
-      />
+      />}
 
       {/* Manual Generation Modal (System Admin only) */}
       <ManualGenerateTripsModal

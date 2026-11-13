@@ -1,3 +1,5 @@
+> Cập nhật triển khai 06/11/2026: API tạo DRIVER/SCHOOL_ADMIN/BUS_ATTENDANT đã yêu cầu cả email và phone theo chốt mới. Không backfill account cũ. Luồng email/console/cấp lại không thu hồi phiên giữ nguyên. Source đã cập nhật; chưa UAT runtime, không chạy test scripts.
+
 # Kế hoạch cải thiện API — Mục 3.1
 
 > Cập nhật 30/10/2026: PO đã yêu cầu triển khai và chốt các câu hỏi nhạy cảm trong task implementation. Hợp đồng hiệu lực: email required trên API cũ; status SENT/FAILED/CONSOLE cho create/resend; resend cả khi đang có chuyến; lưu mật khẩu trước gửi, email lỗi giữ hash mới; giữ toàn bộ Session/push token. Dùng chung AUTH_EMAIL_MODE/AUTH_SMS_MODE hiện có, không thêm PERSONNEL_EMAIL_MODE. `.env` thật được PO cho phép sửa, chỉ thêm key eSMS còn thiếu để trống. Không chạy script test. Chi tiết source/bằng chứng/giới hạn ở LATEST.md và docs/architecture/auth-technical-design.md. Các đoạn WAITING_APPROVAL/đề xuất ngược phía dưới là lịch sử kế hoạch, không phải trạng thái implementation mới nhất.
@@ -11,7 +13,7 @@ Chỉ lập kế hoạch, chưa triển khai application code. Quyết định n
 |---|---|
 | SMS OTP | eSMS, mẫu test gửi SMS thật với Brandname thử nghiệm của nền tảng; không đăng ký Brandname riêng |
 | Development | Giữ mode console để không phát sinh chi phí gửi |
-| Tạo nhân sự | Email bắt buộc ngay trên hai API cũ; PO chấp nhận request chỉ có phone bị từ chối |
+| Tạo nhân sự | PO bổ sung 06/11/2026: cả email và số điện thoại bắt buộc cho DRIVER/SCHOOL_ADMIN/BUS_ATTENDANT khi tạo. Thay thế yêu cầu phone optional trước đây. Source chưa cập nhật phone required; tài khoản cũ thiếu phone cần chốt chính sách riêng. |
 | Bàn giao nhân sự | Mật khẩu gửi chỉ qua email; không gửi SMS |
 | Email lỗi sau tạo | Giữ User, có thao tác gửi mật khẩu mới qua email |
 | Vai trò | Một role/User, tài khoản riêng; không thay unique email/phone |
@@ -42,7 +44,7 @@ Các field `isConsole` đang được gán cứng trong LeaveNoticesService ph�
 ### 3.2. POST /api/v1/drivers
 
 - Actor: SYSTEM_ADMIN; vai trò tạo ra DRIVER.
-- Request giữ `fullName`, `email`, `phone`; email chuyển từ optional sang required; phone vẫn optional và giữ validation hiện có phù hợp.
+- Request giữ `fullName`, `email`, `phone`; cả email và phone required theo quyết định PO bổ sung 06/11/2026. Giữ validation định dạng hiện hành phù hợp.
 - Email thiếu/rỗng/sai trả 400 trước khi tạo User. Trùng email/phone trả 409 như cũ. 401/403 giữ theo đăng nhập/vai trò.
 - Thành công tạo User một lần, gửi mật khẩu tới email và trả 201 với toàn bộ field CreateDriverResponseDto hiện có, không trả mật khẩu trong HTTP.
 - Nếu User đã tạo nhưng mail lỗi: vẫn coi tạo User thành công theo quyết định PO; response phải cho biết chưa bàn giao được. Không trả một lỗi tạo chung khiến FE tưởng chưa tạo và gửi POST tạo lại.
@@ -50,7 +52,7 @@ Các field `isConsole` đang được gán cứng trong LeaveNoticesService ph�
 ### 3.3. POST /api/v1/schools/:id/employees
 
 - SYSTEM_ADMIN tạo SCHOOL_ADMIN; SCHOOL_ADMIN tạo BUS_ATTENDANT của trường mình. Không cho client chọn role mới.
-- Request giữ `fullName`, `email`, `phone`; email required, phone optional.
+- Request giữ `fullName`, `email`, `phone`; cả email và phone required theo quyết định PO bổ sung 06/11/2026.
 - Kiểm tra trường, quyền, trạng thái hoạt động hiện có; trùng định danh 409; input thiếu email 400 trước ghi.
 - Response thành công giữ 201 và các field cũ. Quy tắc mail lỗi giống tạo tài xế.
 
@@ -90,7 +92,7 @@ Không có field persistence mới theo kế hoạch hiện tại. Trạng thái
 
 ### 4.2. Tạo nhân sự và email
 
-1. Validate email required, quyền, trường/role và trùng định danh.
+1. Validate email và phone required, quyền, trường/role và trùng định danh theo quyết định PO bổ sung 06/11/2026.
 2. Sinh mật khẩu tạm theo cơ chế hiện có, lưu hash cùng User.
 3. Sau commit User, gửi email tới địa chỉ đã xác nhận trong request; nội dung gồm định danh và mật khẩu tạm, không gửi SMS.
 4. SMTP accepted: trả creation response cũ + trạng thái additive nếu duyệt. SMTP thất bại: giữ User và trả creation response mô tả mail chưa gửi; sử dụng API resend theo quy tắc đã duyệt.

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 --- a/mobile/components/app-loading-splash.tsx
 +++ b/mobile/components/app-loading-splash.tsx
 @@ -1,3 +1,4 @@
@@ -829,3 +830,6 @@ da5Jd$l(y|VTOU?1B9bEL=_745w94xb{|{Sp?8X29
 literal 0
 HcmV?d00001
 
+=======
+No code changes for this task.
+>>>>>>> 5abe4f6f2e360b809563caffdc33ef86810dd213

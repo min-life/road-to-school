@@ -1,3 +1,4 @@
+import { lockOperations } from '../trips/utils/operations-lock.js';
 import { assertSchoolWritable } from '../schools/school-policy.js';
 import {
   Injectable,
@@ -6,7 +7,7 @@ import {
   BadRequestException,
   ConflictException,
 } from '@nestjs/common';
-import { StudentStatus } from '@prisma/client';
+import { OtpPurpose, StudentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { OtpService } from '../auth/otp.service.js';
 import {
@@ -221,21 +222,14 @@ export class ParentsService {
     parentId: string,
     dto: VerifyLinkOtpDto,
   ): Promise<VerifyLinkOtpResponseDto> {
-    // 1. Xác thực và tiêu thụ OTP
-    const challenge =
-      await this.otpService.verifyAndConsumeParentStudentChallenge(
-        dto.challengeId,
-        parentId,
-        dto.otp,
-      );
-
-    const studentId = challenge.studentId;
-    if (!studentId) {
-      throw new BadRequestException('Thử thách OTP không chứa thông tin học sinh');
-    }
-
-    // 2. Thực hiện kiểm tra và tạo liên kết trong transaction
-    return this.prisma.$transaction(async (tx) => {
+    return this.otpService.withVerifiedChallenge({
+      challengeId: dto.challengeId,
+      purpose: OtpPurpose.PARENT_STUDENT_LINKING,
+      userId: parentId,
+      otp: dto.otp,
+    }, async (tx, challenge) => {
+      const studentId = challenge.studentId;
+      if (!studentId) throw new BadRequestException('Mã OTP không có học sinh');
       const student = await tx.student.findUnique({
         where: { id: studentId },
         include: {
@@ -298,7 +292,9 @@ export class ParentsService {
     parentId: string,
     studentId: string,
   ): Promise<{ message: string }> {
-    const link = await this.prisma.parentStudentLink.findUnique({
+    return this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
+    const link = await tx.parentStudentLink.findUnique({
       where: {
         parentId_studentId: {
           parentId,
@@ -313,7 +309,7 @@ export class ParentsService {
       );
     }
 
-    await this.prisma.parentStudentLink.delete({
+    await tx.parentStudentLink.delete({
       where: {
         parentId_studentId: {
           parentId,
@@ -325,5 +321,6 @@ export class ParentsService {
     return {
       message: 'Hủy liên kết học sinh thành công',
     };
+    });
   }
 }

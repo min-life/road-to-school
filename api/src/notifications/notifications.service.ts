@@ -57,7 +57,7 @@ export class NotificationsService {
   }
   async register(user: User, sessionId: string, token: string | null) {
     await this.prisma.$transaction(async tx => {
-      if (token) await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${token}))`;
+      if (token) await tx.$queryRaw`SELECT 1::integer AS locked FROM pg_advisory_xact_lock(hashtext(${token}))`;
       // Revocation/logout of this Session races safely with registration; it never revives a Session.
       await tx.$queryRaw`SELECT id FROM sessions WHERE id = ${sessionId} FOR UPDATE`;
       const session = await tx.session.findUnique({ where: { id: sessionId } });

@@ -1,0 +1,21 @@
+.ui-table { width:100%; min-width:var(--table-min-width, 0px); border-collapse:collapse; text-align:left; font-size:14px; color:var(--brand-foreground); background:var(--brand-surface); }
+.ui-table thead, .ui-table thead tr { background:var(--brand-hover); }
+.ui-table th { height:42px; padding:9px 12px; border-bottom:1px solid var(--brand-border); color:var(--brand-muted); font-size:13px; font-weight:600; line-height:20px; letter-spacing:normal; text-transform:none; vertical-align:middle; white-space:nowrap; }
+.ui-table td { height:52px; padding:8px 12px; border-bottom:1px solid var(--brand-border); font-size:14px; line-height:20px; vertical-align:middle; }
+.ui-table th, .ui-table td { overflow-wrap:anywhere; }
+.ui-table td[rowspan] { vertical-align:top; }
+.ui-table-comparison { table-layout:fixed; }
+.ui-table-comparison th { white-space:normal; }
+.ui-table-comparison td { vertical-align:top; }
+.ui-table tbody tr:last-child td { border-bottom:0; }
+.ui-table td[colspan] { padding-block:40px; }
+.ui-table:has(> tbody > tr:only-child > td:only-child[colspan]) { min-width:0; table-layout:fixed; }
+.ui-table:has(> tbody > tr:only-child > td:only-child[colspan]) > colgroup { display:none; }
+.ui-table tbody tr:hover { background:var(--brand-row-hover); }
+.ui-table .ui-badge { display:inline-flex; align-items:center; gap:6px; min-height:26px; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:500; line-height:18px; white-space:nowrap; }
+.ui-table td:last-child :where(button, a) { white-space:nowrap; }
+.ui-table :where(button, a):focus-visible { outline:2px solid var(--brand-ring); outline-offset:2px; }
+@media (max-width:700px) {
+  .ui-table:has(> tbody > tr:only-child > td:only-child[colspan]) > thead { display:none; }
+  .ui-table td:last-child :where(button, a) { min-height:40px; }
+}

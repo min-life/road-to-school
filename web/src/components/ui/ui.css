@@ -1,0 +1,33 @@
+/* Shared presentation. Keep layout utilities and domain state colors at callers. */
+.ui-button { font-family: inherit; border-radius: 8px; transition: background-color .16s, border-color .16s, color .16s; }
+.ui-button[data-variant] { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 8px 16px; border: 1px solid transparent; font-size: 14px; font-weight: 600; line-height: 20px; box-shadow: none; }
+.ui-button[data-variant="primary"] { background: var(--brand-primary); border-color: var(--brand-primary); color: var(--brand-heading); }
+.ui-button[data-variant="outline"] { background: var(--brand-surface); border-color: var(--brand-input-border); color: var(--brand-foreground); }
+.ui-button[data-variant="ghost"] { background: transparent; color: var(--brand-muted); }
+.ui-button[data-variant="danger"] { background: var(--brand-danger-surface); border-color: var(--brand-danger-border); color: var(--brand-danger); }
+.ui-button[data-size="sm"][data-variant] { min-height: 32px; padding: 5px 12px; font-size: 13px; }
+.ui-button[data-size="icon"][data-variant] { width: 36px; min-height: 36px; padding: 0; }
+.ui-button:disabled { cursor: not-allowed; }
+.ui-button[data-variant]:disabled { opacity: .5; }
+@media (hover: hover) {
+  .ui-button[data-variant="primary"]:where(button:enabled, a[href]):not([aria-disabled="true"]):hover { background: var(--brand-primary-hover); border-color: var(--brand-primary-hover); }
+  .ui-button[data-variant="outline"]:where(button:enabled, a[href]):not([aria-disabled="true"]):hover,
+  .ui-button[data-variant="ghost"]:where(button:enabled, a[href]):not([aria-disabled="true"]):hover { background: var(--brand-hover); }
+  .ui-button[data-variant="danger"]:where(button:enabled, a[href]):not([aria-disabled="true"]):hover { background: var(--brand-danger-border); }
+}
+.ui-input:where(:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"])),
+.ui-select, .ui-textarea { min-width: 0; border-color: var(--brand-input-border); border-radius: 8px; color: var(--brand-foreground); font-size: 14px; transition: border-color .16s, box-shadow .16s; }
+.ui-input:where(:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"])), .ui-select { min-height: 40px; }
+.ui-input::placeholder, .ui-textarea::placeholder { color: var(--brand-muted); opacity: .8; }
+.ui-input:focus-visible, .ui-select:focus-visible, .ui-textarea:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: 2px; }
+.ui-input[type="checkbox"], .ui-input[type="radio"] { accent-color: var(--brand-primary); }
+.ui-card { min-width: 0; border-color: var(--brand-border); border-radius: var(--brand-radius); background: var(--brand-surface); box-shadow: var(--brand-shadow); }
+.ui-badge { border-radius: 999px; font-size: 12px; font-weight: 500; line-height: 18px; }
+.ui-page-header { min-width: 0; }
+.ui-page-header h1, .admin-content h1 { color: var(--brand-heading); font-size: clamp(22px, 1.8vw, 28px); font-weight: 700; line-height: 1.35; letter-spacing: -.04em; }
+.ui-dialog-panel { min-width: 0; max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; }
+.ui-dialog-panel.ui-dialog-panel-body { display: flex; flex-direction: column; overflow: hidden; }
+.ui-dialog-panel-body > * { flex-shrink: 0; }
+.ui-dialog-panel-body > .ui-dialog-body { min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; }
+.admin-content { color: var(--brand-foreground); }
+.admin-content :where(h2, h3) { letter-spacing: -.02em; }

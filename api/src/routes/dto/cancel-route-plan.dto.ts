@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
 export class CancelRoutePlanDto {
   @ApiProperty({
@@ -12,10 +12,10 @@ export class CancelRoutePlanDto {
   reason: string;
 
   @ApiProperty({
-    description: 'Fingerprint trạng thái phương án để chống xung đột (tùy chọn)',
-    required: false,
+    description: 'Fingerprint trạng thái phương án để chống xung đột (bắt buộc)',
+    required: true,
   })
-  @IsOptional()
+  @IsNotEmpty({ message: 'expectedFingerprint là bắt buộc' })
   @IsString({ message: 'Fingerprint trạng thái phải là chuỗi ký tự' })
   expectedFingerprint?: string;
 }

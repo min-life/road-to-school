@@ -1,4 +1,5 @@
 'use client';
+import { TableActions } from '@/components/admin/common/table-actions';
 
 import { useRouteQuery } from '@/hooks/use-route-query';
 
@@ -14,10 +15,16 @@ import {
   MapPinIcon,
   StudentIcon,
   CalendarIcon,
-  EyeIcon,
 } from '@/components/icons';
-import { RequestDetailModal } from './request-detail-modal';
+import { RequestDetailModal } from '@/components/admin/requests/request-detail-modal';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
+import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/ui/page-header';
+import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Card } from '@/components/ui/card';
+import { Table } from '@/components/ui/table';
 
 export default function AdminRequestsPage() {
   const { user } = useAuth();
@@ -109,22 +116,24 @@ export default function AdminRequestsPage() {
     switch (status) {
       case 'PENDING':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+          <Badge className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
             Chờ duyệt
-          </span>
+          </Badge>
         );
       case 'APPROVED':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <Badge className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
             Đã duyệt
-          </span>
+          </Badge>
         );
       case 'REJECTED':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+          <Badge className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
             Đã từ chối
-          </span>
+          </Badge>
         );
+      case 'CANCELLED':
+        return <Badge className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-300">Phụ huynh đã hủy</Badge>;
       default:
         return null;
     }
@@ -133,85 +142,79 @@ export default function AdminRequestsPage() {
   const getTypeBadge = (type: RequestType) => {
     if (type === 'ADDRESS_UPDATE') {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+        <Badge className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
           <MapPinIcon className="w-3 h-3" />
           Cập nhật địa chỉ
-        </span>
+        </Badge>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+      <Badge className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
         <StudentIcon className="w-3 h-3" />
         Cập nhật thông tin
-      </span>
+      </Badge>
     );
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="ui-list-page">
       {actionableOnly && <button type="button" onClick={() => setActionableOnly(false)} className="text-xs font-semibold text-amber-800">Chỉ yêu cầu cần xử lý ×</button>}
       {filterSchool && <button type="button" onClick={() => setFilterSchool('')} className="text-xs font-semibold text-slate-500">Đang lọc theo trường từ Tổng quan ×</button>}
       {/* Page Title & Scope Notice */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Quản lý yêu cầu cập nhật</h1>
-          <p className="text-xs text-slate-500 mt-1">
-            {isSystemAdmin
-              ? 'Xử lý các yêu cầu cập nhật địa chỉ đón trả học sinh trên toàn hệ thống'
-              : 'Xử lý yêu cầu thay đổi thông tin và địa chỉ đón trả của học sinh thuộc trường'}
-          </p>
-        </div>
-      </div>
+      <PageHeader title="Yêu cầu" />
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row gap-3">
-        {/* Search */}
-        <div className="relative flex-1">
-          <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
+      <FilterToolbar
+        hasActiveFilters={Boolean(search || statusFilter || (!isSystemAdmin && typeFilter))}
+        onReset={() => {
+          setSearch('');
+          setStatusFilter('');
+          setTypeFilter('');
+          setPage(1);
+        }}
+      >
+        <FilterField label="Tìm kiếm" grow icon={<SearchIcon />}>
+          <Input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Tìm theo tên học sinh hoặc mã học sinh..."
-            className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-amber-400 bg-slate-50/50"
+            className="w-full"
           />
-        </div>
+        </FilterField>
 
-        {/* Status Filter */}
-        <div className="w-full md:w-44">
-          <select
+        <FilterField label="Trạng thái">
+          <Select
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value as RequestStatus | '');
               setPage(1);
             }}
-            className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-amber-400 bg-slate-50/50 text-slate-700"
+            className="w-full"
           >
             <option value="">Tất cả trạng thái</option>
             <option value="PENDING">Chờ duyệt</option>
             <option value="APPROVED">Đã duyệt</option>
             <option value="REJECTED">Đã từ chối</option>
-          </select>
-        </div>
+          </Select>
+        </FilterField>
 
-        {/* Type Filter (School Admin only) */}
-        {!isSystemAdmin && (
-          <div className="w-full md:w-44">
-            <select
+        {!isSystemAdmin && (<FilterField label="Loại yêu cầu">
+          <Select
               value={typeFilter}
               onChange={(e) => {
                 setTypeFilter(e.target.value as RequestType | '');
                 setPage(1);
               }}
-              className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-amber-400 bg-slate-50/50 text-slate-700"
+              className="w-full"
             >
               <option value="">Tất cả loại yêu cầu</option>
               <option value="INFORMATION_UPDATE">Cập nhật thông tin</option>
               <option value="ADDRESS_UPDATE">Cập nhật địa chỉ</option>
-            </select>
-          </div>
+            </Select>
+        </FilterField>
         )}
-      </div>
+      </FilterToolbar>
 
       {/* Error alert */}
       {error && (
@@ -222,9 +225,10 @@ export default function AdminRequestsPage() {
       )}
 
       {/* Requests Table */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+      <Card className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+          <Table className="w-full text-left border-collapse text-xs" minWidth={1065}>
+            <colgroup><col /><col style={{ width: 190 }} /><col style={{ width: 150 }} /><col style={{ width: 170 }} /><col style={{ width: 170 }} /><col style={{ width: 145 }} /></colgroup>
             <thead>
               <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                 <th className="p-3.5 pl-5">Học sinh</th>
@@ -295,22 +299,12 @@ export default function AdminRequestsPage() {
                         : '—'}
                     </td>
                     <td className="p-3.5 pr-5 text-right">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenDetail(req.id);
-                        }}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium transition-colors cursor-pointer"
-                      >
-                        <EyeIcon className="w-3.5 h-3.5" />
-                        <span>Xem chi tiết</span>
-                      </button>
+                      <TableActions actions={[{ label: 'Chi tiết', onClick: () => handleOpenDetail(req.id) }]} />
                     </td>
                   </tr>
                 ))}
             </tbody>
-          </table>
+          </Table>
         </div>
 
         {/* Pagination Footer */}
@@ -326,7 +320,7 @@ export default function AdminRequestsPage() {
             setPage(1);
           }}
         />
-      </div>
+      </Card>
 
       {/* Shared Detail Modal */}
       {user && (

@@ -1,11 +1,16 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { apiClient } from '@/lib/api-client';
 import { SchoolListItem } from '@/lib/types';
 import { SpinnerIcon, ChevronLeftIcon } from '@/components/icons';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 
 interface SchoolSelectFilterProps {
+  id?: string;
   value: string;
   onChange: (schoolId: string, selectedSchool?: SchoolListItem) => void;
   allowAll?: boolean;
@@ -14,9 +19,11 @@ interface SchoolSelectFilterProps {
   placeholder?: string;
   className?: string;
   required?: boolean;
+  floating?: boolean;
 }
 
 export function SchoolSelectFilter({
+  id,
   value,
   onChange,
   allowAll = true,
@@ -25,6 +32,7 @@ export function SchoolSelectFilter({
   placeholder = 'Chọn trường học...',
   className = '',
   required = false,
+  floating = false,
 }: SchoolSelectFilterProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -34,6 +42,41 @@ export function SchoolSelectFilter({
   const [selectedSchool, setSelectedSchool] = useState<SchoolListItem | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [placement, setPlacement] = useState<React.CSSProperties>({});
+
+  const positionPopover = useCallback(() => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const below = window.innerHeight - rect.bottom - 16;
+    const above = rect.top - 16;
+    const opensAbove = below < 260 && above > below;
+    setPlacement({
+      position: 'fixed',
+      left: Math.max(8, Math.min(rect.left, window.innerWidth - rect.width - 8)),
+      width: Math.min(rect.width, window.innerWidth - 16),
+      maxHeight: Math.max(0, Math.min(280, opensAbove ? above : below)),
+      ...(opensAbove ? { bottom: window.innerHeight - rect.top + 6 } : { top: rect.bottom + 6 }),
+      margin: 0,
+      zIndex: 100,
+      display: 'flex',
+      flexDirection: 'column',
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!floating || !isOpen) return;
+    window.addEventListener('resize', positionPopover);
+    const reposition = (event: Event) => {
+      if (event.target instanceof Node && popoverRef.current?.contains(event.target)) return;
+      positionPopover();
+    };
+    window.addEventListener('scroll', reposition, true);
+    return () => {
+      window.removeEventListener('resize', positionPopover);
+      window.removeEventListener('scroll', reposition, true);
+    };
+  }, [floating, isOpen, positionPopover]);
 
   // Debounce search input
   useEffect(() => {
@@ -92,7 +135,7 @@ export function SchoolSelectFilter({
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node) && !popoverRef.current?.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
@@ -105,6 +148,7 @@ export function SchoolSelectFilter({
     setSelectedSchool(item || null);
     setIsOpen(false);
     setSearch('');
+    if (floating) containerRef.current?.querySelector('button')?.focus();
   };
 
   const displayText = value
@@ -113,38 +157,54 @@ export function SchoolSelectFilter({
     ? allLabel
     : placeholder;
 
+  const renderPopover = (content: React.ReactNode) => floating ? createPortal(content, document.body) : content;
+
   return (
-    <div ref={containerRef} className={`relative ${className}`}>
+    <div ref={containerRef} className={`relative ${className}`}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && isOpen) {
+          event.stopPropagation();
+          setIsOpen(false);
+          containerRef.current?.querySelector('button')?.focus();
+        }
+      }}>
       {/* Trigger Button */}
-      <button
+      <Button variant="outline" size="sm"
+        id={id}
         type="button"
         disabled={disabled}
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full text-left px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white hover:bg-slate-50 focus:outline-none focus:ring-1 focus:ring-[#FFCB56] text-slate-700 flex items-center justify-between gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+        aria-expanded={isOpen}
+        onClick={() => {
+          if (floating && !isOpen) positionPopover();
+          setIsOpen(!isOpen);
+        }}
+        style={floating ? { justifyContent: 'space-between', minHeight: 40 } : undefined}
+        className="w-full text-left px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white hover:bg-slate-50 focus:outline-none focus:ring-1 focus:ring-primary text-slate-700 flex items-center justify-between gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
       >
         <span className="truncate font-medium">{displayText}</span>
         <span className="text-slate-400 text-[10px]">▼</span>
-      </button>
+      </Button>
 
       {/* Dropdown Popover */}
-      {isOpen && (
-        <div className="absolute left-0 mt-1.5 w-64 max-w-[90vw] z-50 bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden text-xs animate-in fade-in zoom-in-95">
+      {isOpen && renderPopover(
+        <Card ref={popoverRef} style={floating ? placement : undefined} className="absolute left-0 mt-1.5 w-64 max-w-[90vw] z-50 bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden text-xs animate-in fade-in zoom-in-95">
           {/* Search Input */}
-          <div className="p-2 border-b border-slate-100 bg-slate-50/50">
-            <input
+          <div className="p-2 shrink-0 border-b border-slate-100 bg-slate-50/50">
+            <Input
               type="text"
               autoFocus
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Tìm theo tên trường..."
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-[#FFCB56]"
+              aria-label="Tìm trường học theo tên"
+              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-primary"
             />
           </div>
 
           {/* Options List */}
-          <div className="max-h-52 overflow-y-auto divide-y divide-slate-50">
+          <div className="min-h-0 max-h-52 overflow-y-auto overscroll-contain divide-y divide-slate-50">
             {allowAll && (
-              <button
+              <Button
                 type="button"
                 onClick={() => handleSelect('', undefined)}
                 className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors flex items-center justify-between cursor-pointer ${
@@ -153,12 +213,12 @@ export function SchoolSelectFilter({
               >
                 <span>{allLabel}</span>
                 {!value && <span className="text-amber-600">✓</span>}
-              </button>
+              </Button>
             )}
 
             {loading ? (
               <div className="p-4 text-center text-slate-400 flex items-center justify-center gap-2">
-                <SpinnerIcon className="w-4 h-4 animate-spin text-[#FFCB56]" />
+                <SpinnerIcon className="w-4 h-4 animate-spin text-primary" />
                 <span>Đang tìm trường...</span>
               </div>
             ) : schools.length === 0 ? (
@@ -167,7 +227,7 @@ export function SchoolSelectFilter({
               schools.map((item) => {
                 const isSelected = item.id === value;
                 return (
-                  <button
+                  <Button
                     key={item.id}
                     type="button"
                     onClick={() => handleSelect(item.id, item)}
@@ -182,12 +242,12 @@ export function SchoolSelectFilter({
                       )}
                     </div>
                     {isSelected && <span className="text-amber-600 shrink-0">✓</span>}
-                  </button>
+                  </Button>
                 );
               })
             )}
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );

@@ -9,12 +9,18 @@ import {
 import type { Role } from '../../lib/types.ts';
 
 describe('Admin Navigation Configuration & Role Filtering', () => {
-  it('SYSTEM_ADMIN phải nhìn thấy đầy đủ 10 mục điều hướng: Tổng quan, Trường học, Tài xế, Phương tiện, Phương án tuyến, Chuyến xe, Báo nghỉ, Sự cố, Yêu cầu, Cài đặt', () => {
+  it('SYSTEM_ADMIN phải nhìn thấy 11 mục điều hướng, gồm IoT; lịch nghỉ nhà xe nằm trong Cài đặt', () => {
     const items = getVisibleNavItems('SYSTEM_ADMIN');
     const ids = items.map((item) => item.id);
 
-    assert.equal(items.length, 10);
-    assert.deepEqual(ids, ['overview', 'schools', 'drivers', 'vehicles', 'routes', 'trips', 'leave-notices', 'incidents', 'requests', 'settings']);
+    assert.equal(items.length, 11);
+    assert.deepEqual(ids, ['overview', 'schools', 'drivers', 'vehicles', 'iot', 'routes', 'trips', 'leave-notices', 'incidents', 'requests', 'settings']);
+
+    const iotItem = items.find((item) => item.id === 'iot');
+    assert.ok(iotItem, 'Mục Thiết bị IoT phải tồn tại cho SYSTEM_ADMIN');
+    assert.equal(iotItem.href, '/admin/iot');
+    assert.deepEqual(iotItem.allowedRoles, ['SYSTEM_ADMIN']);
+    assert.equal(ids.includes('calendar'), false, 'Lịch vận hành riêng chỉ dành cho SCHOOL_ADMIN');
 
     const schoolsItem = items.find((i) => i.id === 'schools');
     assert.ok(schoolsItem, 'Mục Trường học phải tồn tại cho SYSTEM_ADMIN');
@@ -49,12 +55,12 @@ describe('Admin Navigation Configuration & Role Filtering', () => {
     assert.equal(incidentsItem?.label, 'Sự cố');
   });
 
-  it('SCHOOL_ADMIN phải nhìn thấy 9 mục điều hướng: Tổng quan, Phương án tuyến, Chuyến xe, Báo nghỉ, Sự cố, Học sinh, Giáo viên, Yêu cầu, Cài đặt; TUYỆT ĐỐI KHÔNG THẤY Trường học, Tài xế hay Phương tiện', () => {
+  it('SCHOOL_ADMIN phải nhìn thấy 10 mục điều hướng: Tổng quan, Phương án tuyến, Chuyến xe, Báo nghỉ, Sự cố, Học sinh, Giáo viên, Yêu cầu, Lịch vận hành, Cài đặt; TUYỆT ĐỐI KHÔNG THẤY Trường học, Tài xế hay Phương tiện', () => {
     const items = getVisibleNavItems('SCHOOL_ADMIN');
     const ids = items.map((item) => item.id);
 
-    assert.equal(items.length, 9);
-    assert.deepEqual(ids, ['overview', 'routes', 'trips', 'leave-notices', 'incidents', 'students', 'teachers', 'requests', 'settings']);
+    assert.equal(items.length, 10);
+    assert.deepEqual(ids, ['overview', 'routes', 'trips', 'leave-notices', 'incidents', 'students', 'teachers', 'requests', 'calendar', 'settings']);
 
     const routesItem = items.find((i) => i.id === 'routes');
     assert.ok(routesItem, 'Mục Phương án tuyến phải tồn tại cho SCHOOL_ADMIN');
@@ -79,6 +85,9 @@ describe('Admin Navigation Configuration & Role Filtering', () => {
 
     const hasVehicles = items.some((i) => i.id === 'vehicles');
     assert.equal(hasVehicles, false, 'SCHOOL_ADMIN tuyệt đối không được nhìn thấy mục Phương tiện');
+
+    const hasIot = items.some((item) => item.id === 'iot');
+    assert.equal(hasIot, false, 'SCHOOL_ADMIN không có quyền quản lý Thiết bị IoT');
   });
 
   it('Các vai trò ngoài quản trị (PARENT, DRIVER, BUS_ATTENDANT) không có quyền xem bất kỳ menu quản trị nào', () => {

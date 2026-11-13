@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  BusLogo,
   ArrowLeftIcon,
   EyeIcon,
   EyeOffIcon,
@@ -13,6 +12,10 @@ import {
   CheckIcon,
 } from '@/components/icons';
 import { apiClient, ApiError } from '@/lib/api-client';
+import { AuthPageShell } from '@/components/auth/auth-page-shell';
+import { PageHeader } from '@/components/ui/page-header';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 export default function ForgotPasswordPage() {
   const [step, setStep] = useState<1 | 2>(1);
@@ -140,17 +143,11 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#FFFDF6] px-4 py-8">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 sm:p-10">
+    <AuthPageShell>
+      <div>
         {/* Header Logo */}
-        <div className="flex flex-col items-center text-center mb-6">
-          <Link href="/login" className="flex items-center gap-3 mb-3 hover:opacity-80 transition-opacity">
-            <BusLogo className="w-10 h-10" />
-            <span className="text-2xl font-bold tracking-tight text-[#1E293B]">
-              RoadToSchool
-            </span>
-          </Link>
-          <h1 className="text-xl font-bold text-[#1E293B]">
+        <PageHeader className="auth-heading">
+          <h1 className="text-xl font-bold text-foreground">
             {step === 1 ? 'Quên mật khẩu' : 'Đặt lại mật khẩu'}
           </h1>
           <p className="text-sm text-slate-500 mt-1">
@@ -158,7 +155,7 @@ export default function ForgotPasswordPage() {
               ? 'Nhập thông tin tài khoản để nhận mã xác minh OTP'
               : `Nhập mã 6 số gửi đến ${identifier}`}
           </p>
-        </div>
+        </PageHeader>
 
         {/* Thông báo Thành công */}
         {success ? (
@@ -166,15 +163,15 @@ export default function ForgotPasswordPage() {
             <div className="mx-auto w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 mb-4">
               <CheckIcon className="w-6 h-6" />
             </div>
-            <h2 className="text-lg font-bold text-[#1E293B] mb-2">
+            <h2 className="text-lg font-bold text-foreground mb-2">
               Đặt lại mật khẩu thành công!
             </h2>
             <p className="text-sm text-slate-600 mb-6">
               Mật khẩu mới đã được cập nhật. Đang chuyển hướng về trang đăng nhập...
             </p>
-            <Link
+            <Link data-variant="primary" data-size="default"
               href="/login"
-              className="inline-flex items-center justify-center h-10 px-6 rounded-xl bg-[#FFCB56] hover:bg-[#FBBF24] text-[#1E293B] font-bold text-sm shadow-sm transition-all"
+              className="ui-button inline-flex items-center justify-center h-10 px-6 rounded-xl bg-primary hover:bg-[var(--brand-primary-hover)] text-foreground font-bold text-sm shadow-sm transition-all"
             >
               Đăng nhập ngay
             </Link>
@@ -208,11 +205,11 @@ export default function ForgotPasswordPage() {
                 <div>
                   <label
                     htmlFor="identifier"
-                    className="block text-sm font-semibold text-[#1E293B] mb-1.5"
+                    className="block text-sm font-semibold text-foreground mb-1.5"
                   >
                     Email hoặc Số điện thoại
                   </label>
-                  <input
+                  <Input
                     id="identifier"
                     name="identifier"
                     type="text"
@@ -225,24 +222,24 @@ export default function ForgotPasswordPage() {
                       if (error) setError(null);
                     }}
                     placeholder="admin@r2s.com"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-[#1E293B] placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCB56] focus:border-transparent transition-all disabled:bg-slate-50"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-foreground placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:bg-slate-50"
                   />
                 </div>
 
-                <button
+                <Button variant="primary" size="default"
                   type="submit"
                   disabled={isSubmitting || !identifier.trim()}
-                  className="w-full mt-2 h-11 flex items-center justify-center gap-2 rounded-xl bg-[#FFCB56] hover:bg-[#FBBF24] active:bg-[#F59E0B] text-[#1E293B] font-bold text-sm shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FFCB56] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  className="w-full mt-2 h-11 flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-[var(--brand-primary-hover)] active:bg-[var(--brand-primary-hover)] text-foreground font-bold text-sm shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {isSubmitting ? (
                     <>
-                      <SpinnerIcon className="w-4 h-4 text-[#1E293B]" />
+                      <SpinnerIcon className="w-4 h-4 text-foreground" />
                       <span>Đang xử lý...</span>
                     </>
                   ) : (
                     <span>Gửi mã</span>
                   )}
-                </button>
+                </Button>
               </form>
             )}
 
@@ -254,7 +251,7 @@ export default function ForgotPasswordPage() {
                   <div className="flex items-center justify-between mb-1.5">
                     <label
                       htmlFor="otp"
-                      className="block text-sm font-semibold text-[#1E293B]"
+                      className="block text-sm font-semibold text-foreground"
                     >
                       Mã xác thực OTP
                     </label>
@@ -262,18 +259,18 @@ export default function ForgotPasswordPage() {
                       {countdown > 0 ? (
                         `Hết hạn: ${formatCountdown(countdown)}`
                       ) : (
-                        <button
+                        <Button
                           type="button"
                           onClick={handleResendOtp}
                           disabled={isSubmitting}
                           className="text-amber-700 font-semibold hover:underline"
                         >
                           Gửi lại mã
-                        </button>
+                        </Button>
                       )}
                     </span>
                   </div>
-                  <input
+                  <Input
                     id="otp"
                     name="otp"
                     type="text"
@@ -287,7 +284,7 @@ export default function ForgotPasswordPage() {
                       if (error) setError(null);
                     }}
                     placeholder="Nhập mã 6 chữ số"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-[#1E293B] placeholder-slate-400 text-sm tracking-widest text-center font-mono font-bold focus:outline-none focus:ring-2 focus:ring-[#FFCB56] focus:border-transparent transition-all disabled:bg-slate-50"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-foreground placeholder-slate-400 text-sm tracking-widest text-center font-mono font-bold focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:bg-slate-50"
                   />
                 </div>
 
@@ -295,12 +292,12 @@ export default function ForgotPasswordPage() {
                 <div>
                   <label
                     htmlFor="newPassword"
-                    className="block text-sm font-semibold text-[#1E293B] mb-1.5"
+                    className="block text-sm font-semibold text-foreground mb-1.5"
                   >
                     Mật khẩu mới
                   </label>
                   <div className="relative">
-                    <input
+                    <Input
                       id="newPassword"
                       name="newPassword"
                       type={showNewPassword ? 'text' : 'password'}
@@ -312,9 +309,9 @@ export default function ForgotPasswordPage() {
                         if (error) setError(null);
                       }}
                       placeholder="Tối thiểu 6 ký tự"
-                      className="w-full px-3.5 py-2.5 pr-11 rounded-xl border border-slate-300 bg-white text-[#1E293B] placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCB56] focus:border-transparent transition-all disabled:bg-slate-50"
+                      className="w-full px-3.5 py-2.5 pr-11 rounded-xl border border-slate-300 bg-white text-foreground placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:bg-slate-50"
                     />
-                    <button
+                    <Button
                       type="button"
                       onClick={() => setShowNewPassword(!showNewPassword)}
                       tabIndex={-1}
@@ -325,7 +322,7 @@ export default function ForgotPasswordPage() {
                       ) : (
                         <EyeIcon className="w-5 h-5" />
                       )}
-                    </button>
+                    </Button>
                   </div>
                 </div>
 
@@ -333,12 +330,12 @@ export default function ForgotPasswordPage() {
                 <div>
                   <label
                     htmlFor="confirmPassword"
-                    className="block text-sm font-semibold text-[#1E293B] mb-1.5"
+                    className="block text-sm font-semibold text-foreground mb-1.5"
                   >
                     Xác nhận mật khẩu mới
                   </label>
                   <div className="relative">
-                    <input
+                    <Input
                       id="confirmPassword"
                       name="confirmPassword"
                       type={showConfirmPassword ? 'text' : 'password'}
@@ -350,9 +347,9 @@ export default function ForgotPasswordPage() {
                         if (error) setError(null);
                       }}
                       placeholder="Nhập lại mật khẩu mới"
-                      className="w-full px-3.5 py-2.5 pr-11 rounded-xl border border-slate-300 bg-white text-[#1E293B] placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-[#FFCB56] focus:border-transparent transition-all disabled:bg-slate-50"
+                      className="w-full px-3.5 py-2.5 pr-11 rounded-xl border border-slate-300 bg-white text-foreground placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:bg-slate-50"
                     />
-                    <button
+                    <Button
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                       tabIndex={-1}
@@ -363,12 +360,12 @@ export default function ForgotPasswordPage() {
                       ) : (
                         <EyeIcon className="w-5 h-5" />
                       )}
-                    </button>
+                    </Button>
                   </div>
                 </div>
 
                 {/* Nút Hoàn tất */}
-                <button
+                <Button variant="primary" size="default"
                   type="submit"
                   disabled={
                     isSubmitting ||
@@ -376,17 +373,17 @@ export default function ForgotPasswordPage() {
                     newPassword.length < 6 ||
                     confirmPassword.length < 6
                   }
-                  className="w-full mt-2 h-11 flex items-center justify-center gap-2 rounded-xl bg-[#FFCB56] hover:bg-[#FBBF24] active:bg-[#F59E0B] text-[#1E293B] font-bold text-sm shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FFCB56] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  className="w-full mt-2 h-11 flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-[var(--brand-primary-hover)] active:bg-[var(--brand-primary-hover)] text-foreground font-bold text-sm shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {isSubmitting ? (
                     <>
-                      <SpinnerIcon className="w-4 h-4 text-[#1E293B]" />
+                      <SpinnerIcon className="w-4 h-4 text-foreground" />
                       <span>Đang cập nhật...</span>
                     </>
                   ) : (
                     <span>Hoàn tất</span>
                   )}
-                </button>
+                </Button>
               </form>
             )}
 
@@ -394,7 +391,7 @@ export default function ForgotPasswordPage() {
             <div className="mt-6 text-center">
               <Link
                 href="/login"
-                className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-[#1E293B] transition-colors"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-foreground transition-colors"
               >
                 <ArrowLeftIcon className="w-4 h-4" />
                 <span>Quay lại đăng nhập</span>
@@ -404,9 +401,9 @@ export default function ForgotPasswordPage() {
         )}
       </div>
 
-      <footer className="mt-8 text-center text-xs text-slate-400">
+      <footer className="auth-footer">
         © 2026 RoadToSchool. Nền tảng quản lý xe buýt học sinh an toàn.
       </footer>
-    </div>
+    </AuthPageShell>
   );
 }

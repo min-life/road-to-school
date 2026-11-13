@@ -1,3 +1,6 @@
+import { closeCancelledTripTasks } from '../trips/utils/close-cancelled-trip-tasks.js';
+import { recordAssignmentOverride } from '../trips/utils/trip-assignment-audit.js';
+import { lockOperations } from '../trips/utils/operations-lock.js';
 import { assertTripPolicy } from '../schools/school-policy.js';
 import { assertResourcesNotAwaitingAdmin } from '../schools/contract-resource-policy.js';
 import { notifyLeave } from '../notifications/notification-events.js';
@@ -13,6 +16,7 @@ import {
 } from '@nestjs/common';
 import {
   AttendanceStatus,
+  OtpPurpose,
   DeliveryChannel,
   LeaveNotice,
   LeaveNoticeKind,
@@ -183,7 +187,7 @@ export class LeaveNoticesService {
       }
 
       // 3. Rào cản chiều đi TO_SCHOOL: Giáo viên phụ xe không được báo nghỉ sau khi đã Ready
-      if (canReport && t.direction === RouteDirection.TO_SCHOOL && kind === LeaveNoticeKind.BUS_ATTENDANT && t.attendantReadyAt !== null) {
+      if (canReport && t.direction === RouteDirection.TO_SCHOOL && (kind === LeaveNoticeKind.BUS_ATTENDANT || kind === LeaveNoticeKind.STUDENT) && t.attendantReadyAt !== null) {
         canReport = false;
         disabledReason = 'Bạn đã xác nhận sẵn sàng, không thể báo nghỉ';
       }
@@ -324,7 +328,7 @@ export class LeaveNoticesService {
     }
 
     // Rào cản chiều đi TO_SCHOOL: Giáo viên phụ xe không được báo nghỉ sau khi đã Ready
-    if (trip.direction === RouteDirection.TO_SCHOOL && kind === LeaveNoticeKind.BUS_ATTENDANT && trip.attendantReadyAt !== null) {
+    if (trip.direction === RouteDirection.TO_SCHOOL && (kind === LeaveNoticeKind.BUS_ATTENDANT || kind === LeaveNoticeKind.STUDENT) && trip.attendantReadyAt !== null) {
       throw new BadRequestException('Bạn đã xác nhận sẵn sàng, không thể tạo báo nghỉ');
     }
 
@@ -351,18 +355,17 @@ export class LeaveNoticesService {
     const kind = this.resolveKind(user.role);
     const expectedPayloadHash = this.buildPayloadHash(dto.tripId, dto.studentId ?? null, user.id, kind);
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.otpService.withVerifiedChallenge({
+      challengeId: dto.challengeId, purpose: OtpPurpose.LEAVE_NOTICE,
+      userId: user.id, studentId: dto.studentId, otp: dto.otp, payloadHash: expectedPayloadHash,
+    }, async (tx, challenge) => {
+      await lockOperations(tx);
       if (typeof (tx as any).$queryRaw === 'function') {
         await (tx as any).$queryRaw(Prisma.sql`SELECT id FROM trips WHERE id = ${dto.tripId} FOR UPDATE`);
       }
       await assertTripPolicy(tx, dto.tripId);
       // 1. Xác thực và tiêu thụ OTP
-      const challenge = await this.otpService.verifyAndConsumeLeaveNoticeChallenge(
-        tx,
-        dto.challengeId,
-        dto.otp,
-        expectedPayloadHash,
-      );
+
 
       // 2. Tái kiểm tra chuyến xe dưới khóa giao dịch
       const trip = await tx.trip.findUnique({
@@ -388,7 +391,7 @@ export class LeaveNoticesService {
       }
 
       // Rào cản TO_SCHOOL: Giáo viên không thể báo nghỉ sau khi đã Ready
-      if (trip.direction === RouteDirection.TO_SCHOOL && kind === LeaveNoticeKind.BUS_ATTENDANT && trip.attendantReadyAt !== null) {
+      if (trip.direction === RouteDirection.TO_SCHOOL && (kind === LeaveNoticeKind.BUS_ATTENDANT || kind === LeaveNoticeKind.STUDENT) && trip.attendantReadyAt !== null) {
         throw new ConflictException('Bạn đã xác nhận sẵn sàng, không thể báo nghỉ');
       }
 
@@ -430,8 +433,10 @@ export class LeaveNoticesService {
           throw new ConflictException('Học sinh đã được điểm danh trên xe');
         }
 
+        const appliedMarkedAt = new Date();
         // Lưu snapshot trạng thái điểm danh trước khi cập nhật
         attendanceBefore = {
+          appliedMarkedAt: appliedMarkedAt.getTime(),
           status: att.status,
           absenceReason: att.absenceReason,
           markedById: att.markedById,
@@ -446,7 +451,7 @@ export class LeaveNoticesService {
             status: AttendanceStatus.ABSENT,
             absenceReason: 'Phụ huynh xin nghỉ',
             markedById: user.id,
-            markedAt: new Date(),
+            markedAt: appliedMarkedAt,
           },
         });
       } else {
@@ -483,6 +488,7 @@ export class LeaveNoticesService {
    */
   async cancelNotice(user: User, id: string): Promise<LeaveNoticeResponseDto> {
     return this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
       const notice = await tx.leaveNotice.findUnique({
         where: { id },
         include: {
@@ -556,7 +562,7 @@ export class LeaveNoticesService {
         });
 
         // Chỉ khôi phục nếu hiện tại vẫn là do phụ huynh xin nghỉ (tránh ghi đè thay đổi thủ công hợp lệ mới hơn)
-        if (currentAtt && currentAtt.absenceReason === 'Phụ huynh xin nghỉ') {
+        if (currentAtt && currentAtt.status === AttendanceStatus.ABSENT && currentAtt.markedById === notice.reportedById && ((snap.appliedMarkedAt !== undefined && currentAtt.markedAt?.getTime() === snap.appliedMarkedAt) || (snap.appliedMarkedAt === undefined && currentAtt.markedAt !== null && currentAtt.markedAt <= notice.createdAt)) && currentAtt.absenceReason === 'Phụ huynh xin nghỉ') {
           await tx.tripAttendance.update({
             where: { id: currentAtt.id },
             data: {
@@ -782,6 +788,7 @@ export class LeaveNoticesService {
    */
   async assignReplacement(user: User, noticeId: string, dto: AssignReplacementDto): Promise<LeaveNoticeResponseDto> {
     return this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
       const notice = await tx.leaveNotice.findUnique({
         where: { id: noticeId },
         include: { trip: true },
@@ -862,6 +869,8 @@ export class LeaveNoticesService {
         data: tripUpdateData,
       });
 
+      await recordAssignmentOverride(tx, trip.id,
+        [notice.kind === LeaveNoticeKind.DRIVER ? 'assignedDriverId' : 'assignedBusAttendantId'], user.id);
       // Cập nhật trạng thái đơn báo nghỉ sang REPLACED
       const updatedNotice = await tx.leaveNotice.update({
         where: { id: notice.id },
@@ -895,6 +904,7 @@ export class LeaveNoticesService {
       throw new BadRequestException('Lý do hủy chuyến không được để trống');
     }
     return this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
       const notice = await tx.leaveNotice.findUnique({
         where: { id: noticeId },
         include: { trip: true },
@@ -970,6 +980,7 @@ export class LeaveNoticesService {
         },
       });
 
+      await closeCancelledTripTasks(tx, [trip.id]);
       await notifyCancelledTrips(tx, [trip.id], `leave:${notice.id}`, user.id);
       this.logger.log(`Trip ${trip.id} CANCELLED from LeaveNotice ${notice.id} by Admin ${user.id}`);
       return this.mapNoticeResponse(updated!, user);
@@ -1063,7 +1074,7 @@ export class LeaveNoticesService {
 
     if (isCreator && (isRecorded || isPending)) {
       if (isTripScheduled) {
-        if (notice.kind === LeaveNoticeKind.BUS_ATTENDANT && trip.attendantReadyAt !== null) {
+        if (trip.attendantReadyAt !== null) {
           canCancelLeave = false;
           disabledReason = 'Giáo viên đã xác nhận sẵn sàng';
         } else {

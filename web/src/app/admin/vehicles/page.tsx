@@ -1,21 +1,36 @@
 'use client';
 
+import { ResourceStatusDialog } from '@/components/admin/common/resource-status-dialog';
+import type { ResourceTarget } from '@/lib/resource-status';
+import { Select } from '@/components/ui/select';
+import { TableActions } from '@/components/admin/common/table-actions';
+import { toast } from '@/stores/toast-store';
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { apiClient } from '@/lib/api-client';
 import { Vehicle } from '@/lib/types';
-import { AddVehicleModal } from '@/components/admin/vehicles/add-vehicle-modal';
+import { AddVehicleModal } from './_components/add-vehicle-modal';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
 import {
   VehicleIcon,
   SpinnerIcon,
   SearchIcon,
-  CheckIcon,
   AlertIcon,
 } from '@/components/icons';
+import { Card } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
+import { Button } from '@/components/ui/button';
+import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
+import { Input } from '@/components/ui/input';
+import { Table } from '@/components/ui/table';
+import { VehicleIotModal } from './_components/vehicle-iot-modal';
+import { Badge } from '@/components/ui/badge';
 
 export default function VehiclesPage() {
   const { user } = useAuth();
+  const [statusTarget, setStatusTarget] = useState<ResourceTarget | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -25,8 +40,9 @@ export default function VehiclesPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [iotVehicle, setIotVehicle] = useState<Vehicle | null>(null);
 
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -49,6 +65,7 @@ export default function VehiclesPage() {
         page,
         limit,
         search: debouncedSearch,
+        status: statusFilter,
       });
       setVehicles(data.items || []);
       setTotalItems(data.total || 0);
@@ -58,7 +75,7 @@ export default function VehiclesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user, page, limit, debouncedSearch]);
+  }, [user, page, limit, debouncedSearch, statusFilter]);
 
   useEffect(() => {
     fetchVehicles();
@@ -66,51 +83,26 @@ export default function VehiclesPage() {
 
   if (!user || user.role !== 'SYSTEM_ADMIN') {
     return (
-      <div className="p-8 text-center bg-white rounded-2xl border border-slate-200">
+      <Card className="p-8 text-center bg-white rounded-2xl border border-slate-200">
         <h2 className="text-base font-bold text-red-600 mb-1">Truy cập bị từ chối</h2>
         <p className="text-xs text-slate-500">Chỉ Quản trị viên hệ thống mới có quyền quản lý phương tiện.</p>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="ui-list-page">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 pb-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1E293B]">
-            Phương tiện vận tải
-          </h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Quản lý đội xe đưa đón học sinh và năng lực chuyên chở
-          </p>
-        </div>
-
-        <button
+      <PageHeader title="Phương tiện" actions={<Button variant="primary" size="default"
           type="button"
           onClick={() => setIsAddModalOpen(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#FFCB56] hover:bg-amber-400 text-sm font-bold text-[#1E293B] transition-colors cursor-pointer shadow-xs self-start sm:self-auto"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary hover:bg-amber-400 text-sm font-bold text-foreground transition-colors cursor-pointer shadow-xs self-start sm:self-auto"
         >
           <span>+ Thêm phương tiện</span>
-        </button>
-      </div>
+        </Button>} />
 
       {/* Success / Error Feedback */}
-      {successMessage && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CheckIcon className="w-5 h-5 text-emerald-600 shrink-0" />
-            <span>{successMessage}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setSuccessMessage(null)}
-            className="text-emerald-600 hover:text-emerald-800 text-xs font-semibold cursor-pointer"
-          >
-            Đóng
-          </button>
-        </div>
-      )}
+
 
       {errorMessage && (
         <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-center justify-between">
@@ -118,38 +110,53 @@ export default function VehiclesPage() {
             <AlertIcon className="w-5 h-5 text-red-600 shrink-0" />
             <span>{errorMessage}</span>
           </div>
-          <button
+          <Button
             type="button"
             onClick={() => setErrorMessage(null)}
             className="text-red-600 hover:text-red-800 text-xs font-semibold cursor-pointer"
           >
             Đóng
-          </button>
+          </Button>
         </div>
       )}
 
       {/* Search Bar & Total */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="relative w-full sm:w-80">
-          <input
+      <FilterToolbar
+        hasActiveFilters={Boolean(search || statusFilter !== 'ALL')}
+        onReset={() => {
+          handleSearchChange(''); setStatusFilter('ALL');
+        }}
+      >
+        <FilterField label="Tìm kiếm" grow icon={<SearchIcon />}>
+          <Input
             type="text"
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Tìm theo hãng xe, biển số..."
-            className="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#FFCB56]"
+            className="w-full"
           />
-          <SearchIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-        </div>
+        </FilterField>
 
-        <div className="text-xs text-slate-500 font-medium self-end sm:self-auto">
+<FilterField label="Trạng thái"><Select value={statusFilter} onChange={event => { setStatusFilter(event.target.value as typeof statusFilter); setPage(1); }}><option value="ALL">Tất cả trạng thái</option><option value="ACTIVE">Đang hoạt động</option><option value="INACTIVE">Ngừng hoạt động</option></Select></FilterField>
+<div className="ui-filter-meta">
           Tổng số phương tiện: <strong className="text-slate-800">{totalItems}</strong>
         </div>
-      </div>
+      </FilterToolbar>
 
       {/* Vehicle Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-xs">
+      <Card className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <Table className="w-full text-left text-sm" minWidth={1490}>
+            <colgroup>
+              <col />
+              <col style={{ width: 180 }} />
+              <col style={{ width: 180 }} />
+              <col style={{ width: 150 }} />
+              <col style={{ width: 180 }} />
+              <col style={{ width: 240 }} />
+              <col style={{ width: 180 }} />
+              <col style={{ width: 190 }} />
+            </colgroup>
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-xs uppercase tracking-wider">
               <tr>
                 <th className="py-3.5 px-4">Hãng xe</th>
@@ -164,19 +171,22 @@ export default function VehiclesPage() {
                 </th>
                 <th className="py-3.5 px-4">Màu sắc</th>
                 <th className="py-3.5 px-4">Ngày đăng ký</th>
+                <th className="px-4 py-3 text-left">Thiết bị IoT</th>
+                <th>Trạng thái</th>
+                <th className="text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-slate-400">
+                  <td colSpan={8} className="py-12 text-center text-slate-400">
                     <SpinnerIcon className="w-6 h-6 animate-spin mx-auto text-amber-500 mb-2" />
                     <span className="text-xs">Đang tải dữ liệu phương tiện...</span>
                   </td>
                 </tr>
               ) : vehicles.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-slate-400">
+                  <td colSpan={8} className="py-12 text-center text-slate-400">
                     <VehicleIcon className="w-10 h-10 mx-auto text-slate-300 mb-2" />
                     <p className="text-sm font-semibold text-slate-600">Không tìm thấy phương tiện nào</p>
                     <p className="text-xs text-slate-400 mt-1">
@@ -191,14 +201,14 @@ export default function VehiclesPage() {
                       {v.brand}
                     </td>
                     <td className="py-3.5 px-4 font-mono font-bold text-slate-700">
-                      <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200">
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setIotVehicle(v)} aria-label={`Quản lý thiết bị IoT xe ${v.licensePlate}`}>
                         {v.licensePlate}
-                      </span>
+                      </Button>
                     </td>
                     <td className="py-3.5 px-4">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                      <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
                         {v.seatCount} chỗ học sinh
-                      </span>
+                      </Badge>
                     </td>
                     <td className="py-3.5 px-4 text-slate-600">
                       {v.color}
@@ -206,11 +216,14 @@ export default function VehiclesPage() {
                     <td className="py-3.5 px-4 text-xs text-slate-500">
                       {new Date(v.createdAt).toLocaleDateString('vi-VN')}
                     </td>
+                    <td className="py-3.5 px-4 text-xs"><Button type="button" variant="ghost" size="sm" onClick={() => setIotVehicle(v)}>{v.iotDevice?.deviceId || 'Gán thiết bị IoT'}</Button></td>
+                    <td><Badge className={v.isActive ? 'text-emerald-700 bg-emerald-50' : 'text-slate-600 bg-slate-100'}>{v.isActive ? 'Đang hoạt động' : 'Ngừng hoạt động'}</Badge></td>
+                    <td><TableActions actions={[{ label: v.isActive ? 'Ngừng hoạt động' : 'Kích hoạt', warning: v.isActive, onClick: () => setStatusTarget({ kind: 'vehicle', id: v.id, name: v.licensePlate, isActive: v.isActive }) }]} /></td>
                   </tr>
                 ))
               )}
             </tbody>
-          </table>
+          </Table>
         </div>
 
         {/* Pagination Footer */}
@@ -226,14 +239,16 @@ export default function VehiclesPage() {
             setPage(1);
           }}
         />
-      </div>
+      </Card>
 
+      {statusTarget && <ResourceStatusDialog key={statusTarget.id} target={statusTarget} onClose={() => setStatusTarget(null)} onSuccess={() => void fetchVehicles()} />}
       {/* Add Vehicle Modal */}
+      {iotVehicle && <VehicleIotModal key={iotVehicle.id} vehicle={iotVehicle} onClose={() => setIotVehicle(null)} onUpdated={fetchVehicles} />}
       <AddVehicleModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onSuccess={() => {
-          setSuccessMessage('Thêm phương tiện mới thành công');
+          toast.success('Thêm phương tiện mới thành công');
           fetchVehicles();
         }}
       />

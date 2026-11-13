@@ -115,6 +115,8 @@ export class SystemRequestsController {
     return this.studentRequestsService.previewAddressRouting(requestId, dto);
   }
 
+  @ApiResponse({ status: 400, description: 'REOPTIMIZED thiếu expectedFingerprint hoặc previewToken' })
+  @ApiResponse({ status: 409, description: 'Preview hết hạn, dữ liệu nguồn thay đổi hoặc điểm đón ngoài phạm vi phục vụ' })
   @Post(':requestId/approve')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

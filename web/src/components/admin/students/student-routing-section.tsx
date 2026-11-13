@@ -1,10 +1,14 @@
 'use client';
+import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
 
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { StudentRoutingDetail } from '@/lib/types';
 import { RouteIcon, SpinnerIcon, InfoIcon, MapPinIcon } from '@/components/icons';
 import { RouteMap, MapPoint } from '@/components/admin/routes/route-map';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
 interface StudentRoutingSectionProps {
   studentId: string;
@@ -17,31 +21,37 @@ export function StudentRoutingSection({
 }: StudentRoutingSectionProps) {
   const [detail, setDetail] = useState<StudentRoutingDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [revision, setRevision] = useState(0);
   const [activeDirection, setActiveDirection] = useState<'OUTBOUND' | 'RETURN'>('OUTBOUND');
 
   useEffect(() => {
+    let current = true;
     async function loadRouting() {
       try {
-        setLoading(true);
+        setLoading(true); setError('');
         const data = await apiClient.getStudentRoutingDetail(studentId);
-        setDetail(data);
+        if (current) setDetail(data);
       } catch (err) {
-        console.error('Lỗi tải thông tin tuyến học sinh:', err);
+        if (current) setError(err instanceof Error ? err.message : 'Không thể tải thông tin tuyến.');
       } finally {
-        setLoading(false);
+        if (current) setLoading(false);
       }
     }
     loadRouting();
-  }, [studentId]);
+    return () => { current = false; };
+  }, [studentId, revision]);
 
   if (loading) {
     return (
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex items-center justify-center py-10 text-slate-400">
-        <SpinnerIcon className="w-6 h-6 animate-spin text-[#FFCB56] mr-2" />
+      <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex items-center justify-center py-10 text-slate-400">
+        <SpinnerIcon className="w-6 h-6 animate-spin text-primary mr-2" />
         <span className="text-xs">Đang kiểm tra tuyến đường đưa đón...</span>
-      </div>
+      </Card>
     );
   }
+
+  if (error) return <Card className="border bg-white p-5 space-y-3"><h2 className="font-semibold">Tuyến đường đưa đón</h2><p role="alert" className="text-sm text-rose-700">{error}</p><Button variant="outline" onClick={() => setRevision(value => value + 1)}>Thử lại</Button></Card>;
 
   if (!detail || detail.routingStatus !== 'ASSIGNED_DRAFT') {
     let message = 'Học sinh chưa được phân tuyến đưa đón.';
@@ -54,7 +64,7 @@ export function StudentRoutingSection({
     }
 
     return (
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-3">
+      <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-3">
         <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
           <RouteIcon className="w-4 h-4 text-slate-400" />
           <span>Tuyến đường đưa đón</span>
@@ -63,7 +73,7 @@ export function StudentRoutingSection({
           <InfoIcon className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
           <p className="text-xs text-slate-600 leading-relaxed">{message}</p>
         </div>
-      </div>
+      </Card>
     );
   }
 
@@ -97,7 +107,7 @@ export function StudentRoutingSection({
     : [];
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-5">
+    <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
         <div>
@@ -106,9 +116,9 @@ export function StudentRoutingSection({
               <RouteIcon className="w-4 h-4 text-blue-600" />
               <span>Tuyến đường đưa đón</span>
             </h2>
-            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-              Đã phân tuyến (DRAFT)
-            </span>
+            <Badge className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+              Đã phân tuyến ({getRoutePlanStatusLabel('DRAFT')})
+            </Badge>
           </div>
           <p className="text-xs text-slate-500 mt-1">
             Phương án: <span className="font-semibold text-slate-700">{detail.routePlanName}</span> • Tuyến dự kiến — Chưa kích hoạt chuyến đi chính thức
@@ -117,7 +127,7 @@ export function StudentRoutingSection({
 
         {/* Direction Switcher */}
         <div className="flex items-center bg-slate-100 p-1 rounded-xl">
-          <button
+          <Button
             type="button"
             onClick={() => setActiveDirection('OUTBOUND')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
@@ -127,8 +137,8 @@ export function StudentRoutingSection({
             }`}
           >
             Chiều đi (Đón tới trường)
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={() => setActiveDirection('RETURN')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
@@ -138,7 +148,7 @@ export function StudentRoutingSection({
             }`}
           >
             Chiều về (Trả về nhà)
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -204,6 +214,6 @@ export function StudentRoutingSection({
       ) : (
         <p className="text-xs text-slate-400 italic">Chưa có thông tin chiều di chuyển này</p>
       )}
-    </div>
+    </Card>
   );
 }

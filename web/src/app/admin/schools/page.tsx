@@ -1,7 +1,14 @@
 'use client';
+import { GeographyFilter } from '@/components/admin/common/geography-filter';
+import type { GeographyQuery } from '@/lib/types';
+import type { UpdateSchoolStatusResponse } from '@/lib/types';
+import { displayDate } from '@/lib/school-lifecycle';
+import { TableActions } from '@/components/admin/common/table-actions';
+
+import { toast } from '@/stores/toast-store';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import Link from 'next/link';
+import { ContextLink } from '@/components/admin/common/context-navigation';
 import { apiClient } from '@/lib/api-client';
 import type { SchoolListItem, PaginationMeta } from '@/lib/types';
 import {
@@ -10,11 +17,18 @@ import {
   SpinnerIcon,
   SchoolIcon,
   AlertIcon,
-  CheckIcon,
 } from '@/components/icons';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
-import { AddSchoolModal } from '@/components/admin/schools/add-school-modal';
+import { AddSchoolModal } from './_components/add-school-modal';
 import { SchoolStatusDialog } from '@/components/admin/schools/school-status-dialog';
+import { PageHeader } from '@/components/ui/page-header';
+import { Button } from '@/components/ui/button';
+import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Card } from '@/components/ui/card';
+import { Table } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 
 function formatDate(dateStr: string): string {
   if (!dateStr) return '';
@@ -35,6 +49,8 @@ export default function AdminSchoolsPage() {
     totalPages: 1,
   });
 
+  const [geography, setGeography] = useState<GeographyQuery>({});
+  const requestRevision = useRef(0);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ACTIVE' | 'INACTIVE' | ''>('');
   const [page, setPage] = useState(1);
@@ -42,7 +58,7 @@ export default function AdminSchoolsPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
+
 
   // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -52,29 +68,33 @@ export default function AdminSchoolsPage() {
 
   const fetchSchools = useCallback(
     async (targetPage = page, targetLimit = limit, targetSearch = search, targetStatus = statusFilter) => {
+      const requestId = ++requestRevision.current;
       try {
         setIsLoading(true);
         setErrorMessage(null);
 
         const response = await apiClient.getSchools({
+          ...geography,
           page: targetPage,
           limit: targetLimit,
           search: targetSearch || undefined,
           status: targetStatus || undefined,
         });
 
+        if (requestId !== requestRevision.current) return;
         setSchools(response.items);
         setMeta(response.meta);
       } catch (err: any) {
+        if (requestId !== requestRevision.current) return;
         setErrorMessage(
           err?.message ||
             'Không thể tải danh sách trường học. Vui lòng kiểm tra lại kết nối.',
         );
       } finally {
-        setIsLoading(false);
+        if (requestId === requestRevision.current) setIsLoading(false);
       }
     },
-    [page, limit, search, statusFilter],
+    [page, limit, search, statusFilter, geography],
   );
 
   useEffect(() => {
@@ -95,85 +115,70 @@ export default function AdminSchoolsPage() {
   };
 
   const handleAddSuccess = () => {
-    setSuccessToast('Đã tạo trường học mới thành công.');
+    toast.success('Đã tạo trường học mới thành công.');
     fetchSchools(1, limit, search, statusFilter);
-    setTimeout(() => {
-      setSuccessToast(null);
-    }, 4000);
+
   };
 
-  const handleStatusSuccess = (newStatus: boolean) => {
-    setSuccessToast(
-      newStatus
-        ? 'Đã kích hoạt lại trường học thành công.'
-        : 'Đã chuyển trường học sang trạng thái ngừng hoạt động.',
+  const handleStatusSuccess = (result: UpdateSchoolStatusResponse) => {
+    toast.success(
+      result.changeStatus === 'PENDING' && result.effectiveDate
+        ? `Đã hẹn ngừng hoạt động từ ${displayDate(result.effectiveDate)}.`
+        : result.message || 'Đã cập nhật trạng thái trường học.',
     );
     fetchSchools(page, limit, search, statusFilter);
-    setTimeout(() => {
-      setSuccessToast(null);
-    }, 4000);
+
   };
 
   return (
-    <div className="space-y-6">
+    <div className="ui-list-page">
       {/* Toast thông báo */}
-      {successToast && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2 font-medium animate-in fade-in-0 duration-200">
-          <CheckIcon className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span>{successToast}</span>
-        </div>
-      )}
+
 
       {/* 6.1 Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1E293B]">
-            Trường học
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Quản lý danh sách trường, định vị địa lý VietMap và nhân sự trực thuộc
-          </p>
-        </div>
-
-        <div>
-          <button
+      <PageHeader title="Trường học" actions={<div>
+          <Button variant="primary" size="sm"
             type="button"
             onClick={() => setIsAddModalOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#FFCB56] hover:bg-[#e6b74d] text-[#1E293B] text-xs sm:text-sm font-bold transition-colors cursor-pointer shadow-xs"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary hover:bg-[#e6b74d] text-foreground text-xs sm:text-sm font-bold transition-colors cursor-pointer shadow-xs"
           >
             <PlusIcon className="w-4 h-4" />
             <span>Thêm trường</span>
-          </button>
-        </div>
-      </div>
+          </Button>
+        </div>} />
 
       {/* 6.2 Search & Filter Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs">
-        <div className="flex flex-wrap items-center gap-3 flex-1">
-          {/* Search Box */}
-          <div className="relative min-w-[220px] sm:w-80">
-            <input
+      <FilterToolbar
+        hasActiveFilters={Boolean(search || statusFilter || geography.provinceId || geography.wardId)}
+        onReset={() => {
+          setGeography({});
+          handleSearchChange('');
+          handleStatusFilterChange('');
+        }}
+      >
+        <FilterField label="Tìm kiếm" grow icon={<SearchIcon />}>
+          <Input
               type="text"
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Tìm theo tên trường học..."
-              className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+              className="w-full"
             />
-            <SearchIcon className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-          </div>
+        </FilterField>
 
-          {/* Status Filter Dropdown */}
-          <select
+        <FilterField label="Trạng thái">
+          <Select
             value={statusFilter}
             onChange={(e) => handleStatusFilterChange(e.target.value)}
-            className="px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+            className="w-full"
           >
             <option value="">Tất cả trạng thái</option>
             <option value="ACTIVE">Đang hoạt động</option>
             <option value="INACTIVE">Ngừng hoạt động</option>
-          </select>
-        </div>
-      </div>
+          </Select>
+        </FilterField>
+        <GeographyFilter value={geography} onChange={value => { setGeography(value); setPage(1); }} />
+      </FilterToolbar>
 
       {/* Error State */}
       {errorMessage && (
@@ -182,20 +187,21 @@ export default function AdminSchoolsPage() {
             <AlertIcon className="w-4 h-4 text-red-600 shrink-0" />
             <span>{errorMessage}</span>
           </div>
-          <button
+          <Button
             type="button"
             onClick={() => fetchSchools()}
             className="px-3 py-1 rounded-lg bg-red-100 hover:bg-red-200 text-red-800 text-xs font-semibold cursor-pointer"
           >
             Thử lại
-          </button>
+          </Button>
         </div>
       )}
 
       {/* 6.3 School Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-2xs">
+      <Card className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-2xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <Table className="w-full text-left border-collapse" minWidth={1240}>
+            <colgroup><col style={{ width: 300 }} /><col style={{ width: 260 }} /><col style={{ width: 240 }} /><col style={{ width: 180 }} /><col style={{ width: 260 }} /></colgroup>
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 <th className="py-3.5 px-4">Tên trường</th>
@@ -250,12 +256,12 @@ export default function AdminSchoolsPage() {
                           )}
                         </div>
                         <div>
-                          <Link
+                          <ContextLink
                             href={`/admin/schools/${school.id}`}
                             className="font-bold text-slate-800 hover:text-amber-600 transition-colors cursor-pointer"
                           >
                             {school.name}
-                          </Link>
+                          </ContextLink>
                           {typeof school.employeeCount === 'number' && (
                             <p className="text-[11px] text-slate-400 mt-0.5">
                               {school.employeeCount} nhân viên
@@ -277,7 +283,7 @@ export default function AdminSchoolsPage() {
 
                     {/* Trạng thái */}
                     <td className="py-3.5 px-4 whitespace-nowrap">
-                      <span
+                      <Badge
                         className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
                           school.isActive
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
@@ -290,36 +296,20 @@ export default function AdminSchoolsPage() {
                           }`}
                         />
                         {school.isActive ? 'Đang hoạt động' : 'Ngừng hoạt động'}
-                      </span>
+                      </Badge>
                     </td>
 
                     {/* Thao tác */}
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                      <div className="inline-flex items-center gap-2">
-                        <Link
-                          href={`/admin/schools/${school.id}`}
-                          className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 font-semibold text-xs transition-colors cursor-pointer"
-                        >
-                          Xem chi tiết
-                        </Link>
-                        <button
-                          type="button"
-                          onClick={() => setStatusModalSchool(school)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer border ${
-                            school.isActive
-                              ? 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100'
-                              : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                          }`}
-                        >
-                          {school.isActive ? 'Ngừng hoạt động' : 'Kích hoạt lại'}
-                        </button>
-                      </div>
+                      <TableActions actions={[{ label: 'Chi tiết', href: `/admin/schools/${school.id}` }]}
+                        label={`Thao tác với ${school.name}`}
+                        more={[{ label: school.isActive ? 'Ngừng hoạt động' : 'Kích hoạt lại', warning: school.isActive, onClick: () => setStatusModalSchool(school) }]} />
                     </td>
                   </tr>
                 ))
               )}
             </tbody>
-          </table>
+          </Table>
         </div>
 
         {/* 6.4 Pagination */}
@@ -335,7 +325,7 @@ export default function AdminSchoolsPage() {
             setPage(1);
           }}
         />
-      </div>
+      </Card>
 
       {/* Add School Modal */}
       <AddSchoolModal
@@ -351,6 +341,7 @@ export default function AdminSchoolsPage() {
           schoolId={statusModalSchool.id}
           schoolName={statusModalSchool.name}
           currentIsActive={statusModalSchool.isActive}
+          contractEndDate={statusModalSchool.contractEndDate}
           onClose={() => setStatusModalSchool(null)}
           onSuccess={handleStatusSuccess}
         />

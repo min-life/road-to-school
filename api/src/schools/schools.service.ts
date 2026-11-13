@@ -1,3 +1,7 @@
+import { effectiveSchoolLocations, matchesGeography, locationOptions } from './geography.js';
+import { administrativeLocationForCoordinates } from './location-province.js';
+import { assertInactiveHandover } from '../trips/utils/staff-availability.helper.js';
+import { lockOperations } from '../trips/utils/operations-lock.js';
 import { assertSchoolWritable, effectiveSchool } from './school-policy.js';
 import { ScheduledChangesService } from './scheduled-changes.service.js';
 import { ContractLifecycleService } from './contract-lifecycle.service.js';
@@ -157,6 +161,7 @@ export class SchoolsService {
     // 4. Lưu bản ghi trường học vào PostgreSQL qua Prisma
     const school = await this.prisma.school.create({
       data: {
+        ...await administrativeLocationForCoordinates(dto.latitude, dto.longitude),
         name: dto.name,
         addressText: dto.addressText,
         latitude: dto.latitude,
@@ -174,6 +179,10 @@ export class SchoolsService {
       id: school.id,
       name: school.name,
       addressText: school.addressText,
+      province: school.province,
+      provinceId: school.provinceId,
+      wardId: school.wardId,
+      ward: school.ward,
       latitude: school.latitude,
       longitude: school.longitude,
       imageUrl: school.imageUrl,
@@ -196,12 +205,20 @@ export class SchoolsService {
    * Truy vấn tối ưu: phân trang tại Database, tính toán số lượng nhân viên qua _count
    * (chỉ đếm SCHOOL_ADMIN và BUS_ATTENDANT), loại trừ triệt để N+1 query.
    */
+  async getLocationOptions(provinceId?: string) {
+    return locationOptions(await effectiveSchoolLocations(this.prisma), provinceId);
+  }
+
   async findAll(query: ListSchoolsQueryDto): Promise<SchoolListResponseDto> {
     const page = query.page && query.page > 0 ? query.page : 1;
     const limit = query.limit && query.limit > 0 ? query.limit : 10;
     const skip = (page - 1) * limit;
 
     const where: Prisma.SchoolWhereInput = {};
+    if (query.provinceId || query.wardId) {
+      const locations = await effectiveSchoolLocations(this.prisma);
+      where.id = { in: locations.filter(row => matchesGeography(row, query)).map(row => row.id) };
+    }
 
     // Tìm kiếm theo tên trường (không phân biệt chữ hoa/thường)
     if (query.search && query.search.trim().length > 0) {
@@ -249,6 +266,10 @@ export class SchoolsService {
       id: school.id,
       name: school.name,
       addressText: school.addressText,
+      province: school.province,
+      provinceId: school.provinceId,
+      wardId: school.wardId,
+      ward: school.ward,
       latitude: school.latitude,
       longitude: school.longitude,
       imageUrl: school.imageUrl,
@@ -304,6 +325,10 @@ export class SchoolsService {
       id: school.id,
       name: school.name,
       addressText: school.addressText,
+      province: school.province,
+      provinceId: school.provinceId,
+      wardId: school.wardId,
+      ward: school.ward,
       latitude: school.latitude,
       longitude: school.longitude,
       imageUrl: school.imageUrl,
@@ -564,6 +589,10 @@ export class SchoolsService {
     }
 
     let phone: string | null = null;
+    if (!dto.phone || !dto.phone.trim()) {
+      throw new BadRequestException('Số điện thoại nhân sự là bắt buộc');
+    }
+
     if (dto.phone && dto.phone.trim().length > 0) {
       let cleanPhone = dto.phone.trim().replace(/[\s\-().]/g, '');
       if (cleanPhone.startsWith('+84')) {
@@ -672,6 +701,10 @@ export class SchoolsService {
       id: school.id,
       name: school.name,
       addressText: school.addressText,
+      province: school.province,
+      provinceId: school.provinceId,
+      wardId: school.wardId,
+      ward: school.ward,
       latitude: school.latitude,
       longitude: school.longitude,
       imageUrl: school.imageUrl,
@@ -790,6 +823,7 @@ export class SchoolsService {
   async updateContract(schoolId: string, dto: UpdateSchoolContractDto, currentUser: User) {
     if (currentUser.role !== Role.SYSTEM_ADMIN) throw new ForbiddenException('Chỉ nhà xe được cập nhật hợp đồng');
     return this.prisma.$transaction(async tx => {
+      await lockOperations(tx);
       await tx.$queryRaw(Prisma.sql`SELECT id FROM schools WHERE id = ${schoolId} FOR UPDATE`);
       const school = await tx.school.findUnique({ where: { id: schoolId } });
       if (!school) throw new NotFoundException('Không tìm thấy trường học');
@@ -1014,6 +1048,8 @@ export class SchoolsService {
       }
 
       await this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
+      await assertInactiveHandover(tx, 'assignedBusAttendantId', employeeId, dto.replacementUserId);
         await tx.route.updateMany({
           where: {
             defaultBusAttendantId: employeeId,
@@ -1050,6 +1086,8 @@ export class SchoolsService {
 
     // Không có phân công -> Vô hiệu hóa và thu hồi session
     await this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
+      await assertInactiveHandover(tx, 'assignedBusAttendantId', employeeId);
       await tx.session.updateMany({
         where: { userId: employeeId, revokedAt: null },
         data: { revokedAt: new Date(), pushToken: null },

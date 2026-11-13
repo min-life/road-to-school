@@ -39,13 +39,14 @@ export async function notifyTrip(db: Prisma.TransactionClient, tripId: string, t
     READY: 'Giáo viên đã sẵn sàng', STARTED: 'Chuyến xe đã bắt đầu', ARRIVED: 'Xe đã đến trường',
     COMPLETED: 'Chuyến xe đã hoàn thành', BOARDING: 'Con đã lên xe', ALIGHTING: 'Con đã xuống xe',
     ATTENDANCE_CHANGED: 'Trạng thái điểm danh đã thay đổi',
+    ATTENDANCE_CORRECTION: 'Điểm danh của con đã được đính chính', REOPENED: 'Chuyến xe đã được mở lại',
   };
   const parents = trip.attendances.filter(attendance => (!studentId || attendance.studentId === studentId) && (type !== 'STARTED' || attendance.status !== 'ABSENT'))
     .flatMap(attendance => attendance.student.parentLinks.map(link => link.parentId));
-  const userIds = type === 'READY' ? [trip.assignedDriverId] : studentId ? parents : [...parents, trip.assignedBusAttendantId];
+  const userIds = type === 'READY' ? [trip.assignedDriverId] : studentId ? parents : [...parents, trip.assignedBusAttendantId, ...(type === 'REOPENED' ? [trip.assignedDriverId] : [])];
   await writeNotification(db, { eventKey: `trip:${tripId}:${type}:${studentId ?? ''}:${transitionKey ?? ''}`, type: `TRIP_${type}`,
     title: titles[type] ?? 'Chuyến xe đã cập nhật', body: `${trip.route.name} · ${trip.serviceDate.toISOString().slice(0, 10)}`,
-    targetType: 'TRIP', targetId: tripId, userIds, actorId, push: ['READY', 'STARTED', 'ALIGHTING'].includes(type), context: { tripId, schoolId: trip.schoolId, ...(studentId ? { studentId } : {}) } });
+    targetType: 'TRIP', targetId: tripId, userIds, actorId, push: ['READY', 'STARTED', 'ALIGHTING', 'REOPENED', 'ATTENDANCE_CORRECTION'].includes(type), context: { tripId, schoolId: trip.schoolId, ...(studentId ? { studentId } : {}) } });
 }
 
 export async function notifyAssignment(db: Prisma.TransactionClient, tripId: string, oldUserId: string, newUserId: string, eventKey: string, actorId?: string): Promise<void> {

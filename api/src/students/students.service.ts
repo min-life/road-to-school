@@ -1,4 +1,14 @@
-import { notifyCancelledTrips } from '../notifications/notification-writer.js';
+import { locationOptions } from '../schools/geography.js';
+import { closeCancelledTripTasks } from '../trips/utils/close-cancelled-trip-tasks.js';
+import { captureTripSnapshots } from '../trips/utils/capture-trip-snapshots.js';
+import { administrativeLocationForCoordinates } from '../schools/location-province.js';
+import { vietnamToday } from '../schools/school-effective-state.js';
+import { frozenTripWhere } from '../overview/operations-policy.js';
+import { lockOperations } from '../trips/utils/operations-lock.js';
+import { notifyCancelledTrips, writeNotification } from '../notifications/notification-writer.js';
+import { assertSchoolWritable } from '../schools/school-policy.js';
+import { Optional } from '@nestjs/common';
+import { EnrollmentSessionsService } from '../iot/enrollment/enrollment-sessions.service.js';
 import {
   Injectable,
   Logger,
@@ -35,9 +45,71 @@ import {
 export class StudentsService {
   private readonly logger = new Logger(StudentsService.name);
 
+  async revokeParentLink(
+    schoolId: string,
+    studentId: string,
+    parentId: string,
+    reason: string,
+    actor: User,
+  ) {
+    if (actor.role !== Role.SCHOOL_ADMIN || actor.schoolId !== schoolId) {
+      throw new ForbiddenException(
+        'Chỉ quản trị viên đúng trường được thu hồi liên kết',
+      );
+    }
+    return this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
+      await assertSchoolWritable(tx, schoolId);
+      const student = await tx.student.findFirst({
+        where: { id: studentId, schoolId },
+      });
+      if (!student)
+        throw new NotFoundException('Không tìm thấy học sinh trong trường');
+      const link = await tx.parentStudentLink.findUnique({
+        where: { parentId_studentId: { parentId, studentId } },
+      });
+      if (!link) throw new NotFoundException('Liên kết không còn tồn tại');
+      const now = new Date();
+      await tx.student.update({
+        where: { id: studentId },
+        data: {
+          parentLinkAudit: [
+            ...(Array.isArray(student.parentLinkAudit)
+              ? student.parentLinkAudit
+              : []),
+            {
+              action: 'REVOKED',
+              parentId,
+              reason,
+              actorId: actor.id,
+              occurredAt: now.toISOString(),
+            },
+          ] as Prisma.InputJsonArray,
+        },
+      });
+      await tx.parentStudentLink.delete({
+        where: { parentId_studentId: { parentId, studentId } },
+      });
+      await writeNotification(tx, {
+        eventKey:
+          'parent-link:' + studentId + ':' + parentId + ':' + now.toISOString(),
+        type: 'PARENT_LINK_REVOKED',
+        title: 'Liên kết học sinh đã được trường thu hồi',
+        body: reason,
+        targetType: 'SCHEDULE',
+        targetId: 'current',
+        userIds: [parentId],
+        actorId: actor.id,
+        push: true,
+      });
+      return { message: 'Đã thu hồi liên kết và lưu lý do' };
+    });
+  }
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly cloudinaryService: CloudinaryService,
+    @Optional() private readonly enrollments?: EnrollmentSessionsService,
   ) {}
 
   /**
@@ -93,6 +165,17 @@ export class StudentsService {
    * Lấy danh sách học sinh theo trường học.
    * Hỗ trợ tìm kiếm, 2 bộ lọc độc lập (status và hasAddress) và phân trang Server-side.
    */
+  async getLocationOptions(schoolId: string, actor: User, provinceId?: string) {
+    if (actor.role !== Role.SYSTEM_ADMIN && (actor.role !== Role.SCHOOL_ADMIN || actor.schoolId !== schoolId)) {
+      throw new ForbiddenException('Không có quyền xem học sinh trường khác');
+    }
+    if (!await this.prisma.school.findUnique({ where: { id: schoolId }, select: { id: true } })) {
+      throw new NotFoundException('Không tìm thấy trường học');
+    }
+    const students = await this.prisma.student.findMany({ where: { schoolId }, select: { provinceId: true, province: true, wardId: true, ward: true } });
+    return locationOptions(students, provinceId);
+  }
+
   async listStudents(
     schoolId: string,
     query: ListStudentsQueryDto,
@@ -127,6 +210,8 @@ export class StudentsService {
     };
 
     if (query.routingStatus === 'UNASSIGNED') where.routeStops = { none: { route: { routePlan: { status: { in: ['DRAFT', 'ACTIVE'] } } } } };
+    if (query.provinceId) where.provinceId = query.provinceId;
+    if (query.wardId) where.wardId = query.wardId;
     // Bộ lọc 1: Trạng thái học sinh (AVAILABLE hoặc DISABLED)
     if (query.status) {
       where.status = query.status;
@@ -186,6 +271,10 @@ export class StudentsService {
         guardianPhone: s.guardianPhone,
         avatarUrl: s.avatarUrl,
         addressText: s.addressText,
+        province: s.province,
+        provinceId: s.provinceId,
+        wardId: s.wardId,
+        ward: s.ward,
         latitude: s.latitude,
         longitude: s.longitude,
         status: s.status,
@@ -329,12 +418,14 @@ export class StudentsService {
     // 6. Sinh Student Code duy nhất với vòng lặp thử lại nếu collision
     let createdStudent: any = null;
     const maxRetries = 5;
+    const geography = await administrativeLocationForCoordinates(dto.latitude, dto.longitude);
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       const code = generateStudentCode();
       try {
         createdStudent = await this.prisma.student.create({
           data: {
+            ...geography,
             code,
             schoolId,
             fullName: dto.fullName.trim(),
@@ -378,6 +469,10 @@ export class StudentsService {
       guardianPhone: createdStudent.guardianPhone,
       avatarUrl: createdStudent.avatarUrl,
       addressText: createdStudent.addressText,
+      province: createdStudent.province,
+      provinceId: createdStudent.provinceId,
+      wardId: createdStudent.wardId,
+      ward: createdStudent.ward,
       latitude: createdStudent.latitude,
       longitude: createdStudent.longitude,
       status: createdStudent.status,
@@ -441,6 +536,10 @@ export class StudentsService {
       guardianPhone: student.guardianPhone,
       avatarUrl: student.avatarUrl,
       addressText: student.addressText,
+      province: student.province,
+      provinceId: student.provinceId,
+      wardId: student.wardId,
+      ward: student.ward,
       latitude: student.latitude,
       longitude: student.longitude,
       status: student.status,
@@ -450,6 +549,8 @@ export class StudentsService {
         student.longitude,
       ),
       qrData: student.code,
+      parentLinkAudit: student.parentLinkAudit,
+      rfidCardUid: student.rfidCardUid ?? null,
       createdAt: student.createdAt.toISOString(),
       updatedAt: student.updatedAt.toISOString(),
     };
@@ -541,6 +642,8 @@ export class StudentsService {
           status: TripStatus.SCHEDULED,
           actualStartTime: null,
           attendantReadyAt: null,
+                NOT: frozenTripWhere,
+                serviceDate: { gte: new Date(vietnamToday()) },
           attendances: {
             some: { studentId, excludedAt: null },
           },
@@ -627,10 +730,17 @@ export class StudentsService {
     if (dto.status === StudentStatus.DISABLED && student.status !== StudentStatus.DISABLED) {
       // Cascade nguyên tử khi DISABLED
       return this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
+        // Serialize enrollment confirmation with this status change using the Student row.
+        await tx.$queryRaw`SELECT id FROM students WHERE id=${studentId} FOR UPDATE`;
+        const previous = await tx.student.findUniqueOrThrow({where:{id:studentId}});
+        const nextVersion = new Date(Math.max(Date.now(), previous.updatedAt.getTime()+1));
+        // Disable remains available if Mongo is down. Re-enable below fails closed instead.
+        try { await this.enrollments?.invalidateStudent(studentId, nextVersion.toISOString()); } catch { /* PG status and null UID are authoritative. */ }
         // 1. Cập nhật trạng thái học sinh
         const updated = await tx.student.update({
           where: { id: studentId },
-          data: { status: StudentStatus.DISABLED },
+          data: { status: StudentStatus.DISABLED, rfidCardUid: null, updatedAt: nextVersion },
         });
 
         // 2. Tìm các điểm dừng trên các Route DRAFT hoặc ACTIVE
@@ -682,6 +792,7 @@ export class StudentsService {
         const routeIds = Array.from(new Set(studentStops.map((s) => s.routeId)));
 
         if (routeIds.length > 0) {
+        await captureTripSnapshots(tx, routeIds);
           // Xóa điểm dừng của học sinh khỏi các Route
           await tx.routeStop.deleteMany({
             where: {
@@ -714,6 +825,8 @@ export class StudentsService {
               status: TripStatus.SCHEDULED,
               actualStartTime: null,
               attendantReadyAt: null,
+              NOT: frozenTripWhere,
+              serviceDate: { gte: new Date(vietnamToday()) },
             },
             include: {
               attendances: true,
@@ -788,7 +901,8 @@ export class StudentsService {
                 },
               });
 
-              await notifyCancelledTrips(tx, [trip.id], 'student-removal:' + studentId + ':' + trip.id, currentUser?.id);
+              await closeCancelledTripTasks(tx, [trip.id]);
+      await notifyCancelledTrips(tx, [trip.id], 'student-removal:' + studentId + ':' + trip.id, currentUser?.id);
             }
           }
         }
@@ -843,11 +957,12 @@ export class StudentsService {
       });
     }
 
-    const updated = await this.prisma.student.update({
-      where: { id: studentId },
-      data: {
-        status: dto.status,
-      },
+    const updated = await this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM students WHERE id=${studentId} FOR UPDATE`;
+      const previous=await tx.student.findUniqueOrThrow({where:{id:studentId}});
+      const nextVersion=new Date(Math.max(Date.now(),previous.updatedAt.getTime()+1));
+      if(dto.status==='AVAILABLE' && previous.status==='DISABLED') await this.enrollments?.invalidateStudent(studentId,nextVersion.toISOString());
+      return tx.student.update({where:{id:studentId},data:{status:dto.status,updatedAt:nextVersion,...(dto.status==='DISABLED'?{rfidCardUid:null}:{})}});
     });
 
     return {

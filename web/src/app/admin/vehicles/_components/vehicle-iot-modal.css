@@ -1,0 +1,14 @@
+.vehicle-iot-modal { margin: auto; padding: 0; width: min(560px, calc(100% - 32px)); max-height: calc(100dvh - 32px); color: var(--brand-heading); background: var(--brand-surface); border: 1px solid var(--brand-border); border-radius: 16px; overflow: auto; }
+.vehicle-iot-modal::backdrop { background: rgb(15 23 42 / 40%); }
+.vehicle-iot-header, .vehicle-iot-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 16px 20px; }
+.vehicle-iot-header { border-bottom: 1px solid var(--brand-border); }
+.vehicle-iot-header h2 { margin: 0; font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
+.vehicle-iot-body { display: grid; gap: 16px; padding: 20px; }
+.vehicle-iot-body label { display: grid; gap: 8px; font-size: 14px; font-weight: 500; }
+.vehicle-iot-current { display: grid; gap: 6px; margin: 0; }
+.vehicle-iot-current dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.vehicle-iot-current dt, .vehicle-iot-muted { color: var(--brand-muted); font-size: 13px; }
+.vehicle-iot-footer { border-top: 1px solid var(--brand-border); }
+.vehicle-iot-error, .vehicle-iot-notice { padding: 12px; border-radius: 8px; background: var(--brand-background); font-size: 14px; }
+.vehicle-iot-error { color: var(--color-red-700); }
+.vehicle-iot-history-scroll { overflow-x: auto; margin-top: 12px; }

@@ -1,3 +1,4 @@
+import { pendingResourceTrips } from '../schools/contract-resource-policy.js';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, Role, type User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -67,6 +68,15 @@ export class OverviewService {
       { kind: 'REQUEST', label: 'Yêu cầu cần xử lý', count: requests, href: link('/admin/requests', { schoolId, status: 'PENDING', actionable: 'true' }) },
       { kind: 'PLAN', label: system ? 'Chờ trường duyệt' : 'Phương án cần duyệt', count: planCount('DRAFT'), href: link('/admin/routes', { schoolId, status: 'DRAFT' }) },
     ];
+    if (system) {
+      const pending = await pendingResourceTrips(this.prisma, schoolId);
+      tasks.push({ kind: 'ADMIN_FINALIZATION', label: 'Chuyến cần chốt hành chính', count: pending.length,
+        href: link('/admin/trips/admin-finalizations', { schoolId }) });
+      const reoptimization = await this.prisma.routePlan.count({ where: { ...scope,
+        status: { in: ['DRAFT', 'ACTIVE'] }, needsReoptimization: true } });
+      tasks.push({ kind: 'REOPTIMIZATION', label: 'Phương án cần tối ưu lại', count: reoptimization,
+        href: link('/admin/routes', { schoolId, needsReoptimization: 'true' }) });
+    }
     const inventory = [
       { key: 'activePlans', label: 'Phương án đang hoạt động', count: planCount('ACTIVE'), href: link('/admin/routes', { schoolId, status: 'ACTIVE' }), scope: 'SCOPE' as const },
     ];
