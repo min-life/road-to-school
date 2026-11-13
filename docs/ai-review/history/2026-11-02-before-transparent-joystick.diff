@@ -1,0 +1,208 @@
+diff --git a/mobile/app/trip/[id].tsx b/mobile/app/trip/[id].tsx
+index ca73352..32c5995 100644
+--- a/mobile/app/trip/[id].tsx
++++ b/mobile/app/trip/[id].tsx
+@@ -48,0 +49 @@ import { TripNavigationControls } from '@/components/trip-navigation-controls';
++import { TripJoystick } from '@/components/trip-joystick';
+@@ -913 +914 @@ export default function MobileTripDetailScreen() {
+-          message={engine.message} change={engine.change} joystick={engine.joystick}
++          message={engine.message} change={engine.change}
+@@ -1064,0 +1066,6 @@ export default function MobileTripDetailScreen() {
++      {isDriver && navigation?.testMode && engine.mode === 'TEST_JOYSTICK' && !terminal && !isExpanded && (
++        <Animated.View style={{ position: 'absolute', right: 12, bottom: Animated.add(sheetHeightAnim, bottomActionOffset + 16) }}>
++          <TripJoystick onMove={engine.joystick} />
++        </Animated.View>
++      )}
++
+diff --git a/mobile/components/trip-navigation-controls.tsx b/mobile/components/trip-navigation-controls.tsx
+index d7bc5b3..3049552 100644
+--- a/mobile/components/trip-navigation-controls.tsx
++++ b/mobile/components/trip-navigation-controls.tsx
+@@ -13 +12,0 @@ interface Props {
+-  joystick: (bearing: number, speed: number) => void;
+@@ -80,9 +78,0 @@ export function TripNavigationControls(p: Props) {
+-    {p.mode === 'TEST_JOYSTICK' && <View style={styles.row}>
+-      {[[0, '↑'], [270, '←'], [180, '↓'], [90, '→']].map(([bearing, label]) => <Pressable key={bearing}
+-        accessibilityLabel={`Lái ${label}`} hitSlop={8}
+-        onPressIn={() => p.joystick(Number(bearing), 8)}
+-        onPressOut={() => p.joystick(Number(bearing), 0)}
+-        onResponderTerminate={() => p.joystick(Number(bearing), 0)}
+-        style={styles.direction}>
+-        <Text style={styles.guidance}>{label}</Text></Pressable>)}
+-    </View>}
+@@ -98 +88 @@ const styles = StyleSheet.create({
+-  selected: { backgroundColor: colors.primary }, direction: { backgroundColor: colors.primary, paddingHorizontal: 18, paddingVertical: 5, borderRadius: 8 },
++  selected: { backgroundColor: colors.primary },
+diff --git a/mobile/hooks/use-trip-navigation.ts b/mobile/hooks/use-trip-navigation.ts
+index c5d3c56..ac55720 100644
+--- a/mobile/hooks/use-trip-navigation.ts
++++ b/mobile/hooks/use-trip-navigation.ts
+@@ -648,0 +649 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
++        if (control.current.speed === 0) control.current.pressStartedAt = now;
+@@ -651 +651,0 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
+-        control.current.pressStartedAt = now;
+diff --git a/mobile/components/trip-joystick.tsx b/mobile/components/trip-joystick.tsx
+new file mode 100644
+--- /dev/null
++++ b/mobile/components/trip-joystick.tsx
+@@ -0,0 +1,108 @@
++import { useEffect, useMemo, useRef, useState } from 'react';
++import { AppState, PanResponder, StyleSheet, View } from 'react-native';
++import Ionicons from '@expo/vector-icons/Ionicons';
++import { colors } from '../constants/theme';
++import { JOYSTICK_SIZE, joystickInput } from '../utils/trip-joystick';
++
++export function TripJoystick({ onMove }: { onMove: (bearing: number, speed: number) => void }) {
++  const [thumb, setThumb] = useState({ x: 0, y: 0 });
++  const callback = useRef(onMove);
++  callback.current = onMove;
++  const start = useRef({ x: 0, y: 0 });
++  const pulse = useRef<ReturnType<typeof setTimeout> | null>(null);
++
++  const stop = () => {
++    if (pulse.current) clearTimeout(pulse.current);
++    pulse.current = null;
++    setThumb({ x: 0, y: 0 });
++    callback.current(0, 0);
++  };
++  const move = (x: number, y: number) => {
++    const input = joystickInput(x, y);
++    setThumb({ x: input.x, y: input.y });
++    callback.current(input.bearing, input.speed);
++  };
++  const responder = useMemo(() => PanResponder.create({
++    onStartShouldSetPanResponder: () => true,
++    onMoveShouldSetPanResponder: () => true,
++    onPanResponderGrant: event => {
++      if (pulse.current) clearTimeout(pulse.current);
++      start.current = {
++        x: event.nativeEvent.locationX - JOYSTICK_SIZE / 2,
++        y: event.nativeEvent.locationY - JOYSTICK_SIZE / 2,
++      };
++      move(start.current.x, start.current.y);
++    },
++    onPanResponderMove: (_, gesture) => {
++      if (gesture.numberActiveTouches !== 1) stop();
++      else move(start.current.x + gesture.dx, start.current.y + gesture.dy);
++    },
++    onPanResponderRelease: stop,
++    onPanResponderTerminate: stop,
++    onPanResponderTerminationRequest: () => true,
++    onShouldBlockNativeResponder: () => true,
++  }), []);
++
++  useEffect(() => {
++    const subscription = AppState.addEventListener('change', state => {
++      if (state !== 'active') stop();
++    });
++    return () => {
++      subscription.remove();
++      if (pulse.current) clearTimeout(pulse.current);
++      callback.current(0, 0);
++    };
++  }, []);
++
++  return (
++    <View
++      {...responder.panHandlers}
++      style={styles.base}
++      accessible
++      accessibilityRole="button"
++      accessibilityLabel="Joystick lái thủ công"
++      accessibilityHint="Kéo để di chuyển xe, thả tay để dừng"
++      accessibilityActions={[
++        { name: 'north', label: 'Lái hướng Bắc' }, { name: 'east', label: 'Lái hướng Đông' },
++        { name: 'south', label: 'Lái hướng Nam' }, { name: 'west', label: 'Lái hướng Tây' },
++      ]}
++      onAccessibilityAction={event => {
++        stop();
++        const directions: Record<string, [number, number]> = {
++          north: [0, -38], east: [38, 0], south: [0, 38], west: [-38, 0],
++        };
++        const direction = directions[event.nativeEvent.actionName];
++        if (direction) {
++          move(...direction);
++          pulse.current = setTimeout(stop, 200);
++        }
++      }}
++    >
++      <View pointerEvents="none" style={styles.face}>
++        <Ionicons name="chevron-up" size={14} color={colors.navigationActive} style={styles.north} />
++        <Ionicons name="chevron-forward" size={14} color={colors.navigationActive} style={styles.east} />
++        <Ionicons name="chevron-down" size={14} color={colors.navigationActive} style={styles.south} />
++        <Ionicons name="chevron-back" size={14} color={colors.navigationActive} style={styles.west} />
++        <View style={[styles.thumb, { transform: [{ translateX: thumb.x }, { translateY: thumb.y }] }]}>
++          <Ionicons name="move" size={24} color={colors.foreground} />
++        </View>
++      </View>
++    </View>
++  );
++}
++
++const styles = StyleSheet.create({
++  base: {
++    width: JOYSTICK_SIZE, height: JOYSTICK_SIZE, borderRadius: JOYSTICK_SIZE / 2,
++    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
++    shadowColor: colors.navigationShadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15,
++    shadowRadius: 6, elevation: 4,
++  },
++  face: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center' },
++  thumb: {
++    width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary,
++    alignItems: 'center', justifyContent: 'center',
++  },
++  north: { position: 'absolute', top: 6 }, east: { position: 'absolute', right: 6 },
++  south: { position: 'absolute', bottom: 6 }, west: { position: 'absolute', left: 6 },
++});
+diff --git a/mobile/utils/trip-joystick.ts b/mobile/utils/trip-joystick.ts
+new file mode 100644
+--- /dev/null
++++ b/mobile/utils/trip-joystick.ts
+@@ -0,0 +1,16 @@
++export const JOYSTICK_SIZE = 120;
++const RADIUS = 38;
++const DEAD_ZONE = 8;
++
++export function joystickInput(dx: number, dy: number) {
++  const distance = Math.hypot(dx, dy);
++  if (distance <= DEAD_ZONE) return { x: 0, y: 0, bearing: 0, speed: 0 };
++  const scale = Math.min(1, RADIUS / distance);
++  return {
++    x: dx * scale,
++    y: dy * scale,
++    bearing: (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360,
++    // The navigation engine applies the selected km/h; this value enables movement.
++    speed: 8,
++  };
++}
+diff --git a/mobile/scripts/trip-joystick.test.ts b/mobile/scripts/trip-joystick.test.ts
+new file mode 100644
+--- /dev/null
++++ b/mobile/scripts/trip-joystick.test.ts
+@@ -0,0 +1,26 @@
++import { describe, it } from 'node:test';
++import assert from 'node:assert/strict';
++import { joystickInput } from '../utils/trip-joystick.ts';
++
++describe('Manual joystick input', () => {
++  it('stays stopped inside the centre dead zone', () => {
++    for (const [x, y] of [[0, 0], [3, 4], [0, 8]]) {
++      assert.deepEqual(joystickInput(x, y), { x: 0, y: 0, bearing: 0, speed: 0 });
++    }
++  });
++  it('converts screen directions to geographic bearings', () => {
++    for (const [x, y, bearing] of [[0, -30, 0], [30, 0, 90], [0, 30, 180], [-30, 0, 270], [30, -30, 45], [-30, 30, 225]]) {
++      const input = joystickInput(x, y);
++      assert.equal(input.bearing, bearing);
++      assert.equal(input.speed, 8);
++    }
++  });
++  it('clamps the thumb to the circle without changing its direction', () => {
++    const input = joystickInput(300, -400);
++    assert.ok(Math.abs(Math.hypot(input.x, input.y) - 38) < 0.001);
++    assert.ok(Math.abs(input.x / input.y + 0.75) < 0.001);
++    const inside = joystickInput(10, -10);
++    assert.equal(inside.x, 10);
++    assert.equal(inside.y, -10);
++  });
++});

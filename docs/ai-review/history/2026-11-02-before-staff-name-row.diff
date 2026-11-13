@@ -1,0 +1,73 @@
+diff --git a/mobile/components/staff/staff-trip-card.tsx b/mobile/components/staff/staff-trip-card.tsx
+index 2059bf1..6216d4e 100644
+--- a/mobile/components/staff/staff-trip-card.tsx
++++ b/mobile/components/staff/staff-trip-card.tsx
+@@ -5,0 +6 @@ import { parentHomeStyles } from '@/components/parent/home-styles';
++import { ParentTripCard } from '@/components/parent/trip-card';
+@@ -31,15 +32,9 @@ export function StaffTripCard({
+-    <View style={[parentHomeStyles.tripCard, styles.card]}>
+-      <View style={styles.summary}>
+-        <View style={styles.summaryRow}>
+-          <View style={styles.busIcon}>
+-            <Ionicons name="bus-outline" size={25} color={colors.foreground} accessible={false} />
+-          </View>
+-          <View style={parentHomeStyles.identity}>
+-            <View style={styles.titleRow}>
+-              <Text accessibilityRole="header" style={styles.routeName}>{trip.routeName}</Text>
+-              <View style={[parentHomeStyles.statusPill, { backgroundColor: statusBadge.bg }]}>
+-                <Text style={[parentHomeStyles.statusPillText, { color: statusBadge.text }]}>{statusBadge.label}</Text>
+-              </View>
+-            </View>
+-            <Text style={styles.schoolName}>{trip.schoolName}</Text>
+-          </View>
++    <ParentTripCard
++      key={trip.id}
++      studentName={trip.routeName}
++      schoolName={trip.schoolName}
++      status={statusBadge}
++      accessibilityLabel={`${trip.routeName}, ${trip.schoolName}, ${statusBadge.label}, ${trip.direction === 'TO_SCHOOL' ? 'Đến trường' : 'Về trạm'}, ${trip.scheduledTime}`}
++      leading={
++        <View style={styles.busIcon}>
++          <Ionicons name="bus-outline" size={25} color={colors.foreground} accessible={false} />
+@@ -46,0 +42,2 @@ export function StaffTripCard({
++      }
++      summaryContent={
+@@ -60,2 +57,2 @@ export function StaffTripCard({
+-      </View>
+-
++      }
++    >
+@@ -146 +143 @@ export function StaffTripCard({
+-    </View>
++    </ParentTripCard>
+@@ -151,4 +147,0 @@ const styles = StyleSheet.create({
+-  card: { padding: 0, gap: 0, borderLeftWidth: 4, borderColor: journeyTones.warning.border },
+-  summary: { padding: 16, gap: 14, backgroundColor: journeyTones.warning.bg, borderTopLeftRadius: 16, borderTopRightRadius: 19,
+-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: journeyTones.warning.border },
+-  summaryRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+@@ -156,3 +148,0 @@ const styles = StyleSheet.create({
+-  titleRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+-  routeName: { flexShrink: 1, fontSize: 16, lineHeight: 24, fontWeight: '700', color: colors.foreground },
+-  schoolName: { marginTop: 6, fontSize: 12, lineHeight: 19, color: colors.mutedText },
+@@ -165 +155 @@ const styles = StyleSheet.create({
+-  body: { padding: 16, gap: 17 },
++  body: { gap: 17 },
+diff --git a/mobile/components/parent/trip-card.tsx b/mobile/components/parent/trip-card.tsx
+index f279cf1..fee4e1e 100644
+--- a/mobile/components/parent/trip-card.tsx
++++ b/mobile/components/parent/trip-card.tsx
+@@ -13,0 +14,3 @@ type Props = {
++  leading?: ReactNode;
++  summaryContent?: ReactNode;
++  accessibilityLabel?: string;
+@@ -26 +29 @@ type Props = {
+-export function ParentTripCard({ studentName, avatarUrl, schoolName, status, children, journey, studentStatus, readiness, hasIncident, attention, stale }: Props) {
++export function ParentTripCard({ studentName, avatarUrl, leading, summaryContent, accessibilityLabel, schoolName, status, children, journey, studentStatus, readiness, hasIncident, attention, stale }: Props) {
+@@ -56 +59 @@ export function ParentTripCard({ studentName, avatarUrl, schoolName, status, chi
+-        accessibilityLabel={`${studentName}, ${schoolName}, ${status.label}${studentStatus ? ', ' + studentStatus.label : ''}${readiness ? ', ' + readiness.label : ''}${hasIncident ? ', Chuyến có sự cố' : ''}${stale ? ', Chưa cập nhật đầy đủ' : ''}`}
++        accessibilityLabel={accessibilityLabel ?? `${studentName}, ${schoolName}, ${status.label}${studentStatus ? ', ' + studentStatus.label : ''}${readiness ? ', ' + readiness.label : ''}${hasIncident ? ', Chuyến có sự cố' : ''}${stale ? ', Chưa cập nhật đầy đủ' : ''}`}
+@@ -64 +67 @@ export function ParentTripCard({ studentName, avatarUrl, schoolName, status, chi
+-        <UserAvatar avatarUrl={avatarUrl} fullName={studentName} size={48} />
++        {leading ?? <UserAvatar avatarUrl={avatarUrl} fullName={studentName} size={48} />}
+@@ -81,0 +85 @@ export function ParentTripCard({ studentName, avatarUrl, schoolName, status, chi
++          {summaryContent}
