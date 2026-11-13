@@ -74,6 +74,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const currentUser = await mobileApiClient.getMe();
       setUser(currentUser);
       setIsNetworkError(false);
+      if (currentUser.role === 'PARENT') {
+        setSplashRole('PARENT');
+      }
     } catch (err: any) {
       if (err instanceof ApiError && err.statusCode === 0) {
         // Lỗi mạng tạm thời: Giữ nguyên Token trong SecureStore, hiển thị trạng thái kết nối
