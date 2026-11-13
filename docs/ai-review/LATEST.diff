@@ -1,83 +1,279 @@
-diff --git a/mobile/utils/trip-navigation.ts b/mobile/utils/trip-navigation.ts
-index 6b710ce..499190c 100644
---- a/mobile/utils/trip-navigation.ts
-+++ b/mobile/utils/trip-navigation.ts
-@@ -2,0 +3,4 @@ import type { Instruction, LocationPoint, LocationSource, Position } from '../se
-+export function isAutoStudentStop(source: LocationSource | null, stopType: string | undefined) {
-+  return source === 'TEST_AUTO' && (stopType === 'PICKUP' || stopType === 'DROPOFF');
-+}
-+
-@@ -4,2 +8 @@ export function shouldHandOffToManual(source: LocationSource | null, stopType: s
--  return source === 'TEST_AUTO' && (stopType === 'PICKUP' || stopType === 'DROPOFF')
--    && metres >= 0 && metres <= 100;
-+  return isAutoStudentStop(source, stopType) && metres >= 0 && metres <= 10;
-@@ -72 +75 @@ export function nextGuidance(instructions: Instruction[], cumulative: number[],
--export function nextStopEstimate(instructions: Instruction[], cumulative: number[], progress: number, secondsPerMetre: number) {
-+export function nextStopProgress(instructions: Instruction[], cumulative: number[]) {
-@@ -74 +77,5 @@ export function nextStopEstimate(instructions: Instruction[], cumulative: number
--  const end = stop ? cumulative[stop.interval[0]] : undefined;
-+  return stop ? cumulative[stop.interval[0]] : undefined;
-+}
-+
-+export function nextStopEstimate(instructions: Instruction[], cumulative: number[], progress: number, secondsPerMetre: number) {
-+  const end = nextStopProgress(instructions, cumulative);
-diff --git a/mobile/hooks/use-trip-navigation.ts b/mobile/hooks/use-trip-navigation.ts
-index 552db11..5290f91 100644
---- a/mobile/hooks/use-trip-navigation.ts
-+++ b/mobile/hooks/use-trip-navigation.ts
-@@ -6 +6 @@ import { navigationApi, type Checkpoint, type LocationSource, type NavigationSeg
--import { autoPosition, coordinate, cumulativeDistances, distance, joystickPosition, nextGuidance, nextStopEstimate, projectProgress, shouldHandOffToManual, splitSegment, type Coordinate } from '../utils/trip-navigation';
-+import { autoPosition, coordinate, cumulativeDistances, distance, isAutoStudentStop, joystickPosition, nextGuidance, nextStopEstimate, nextStopProgress, projectProgress, shouldHandOffToManual, splitSegment, type Coordinate } from '../utils/trip-navigation';
-@@ -242 +242 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
--  function accept(position: PositionSample, token: number) {
-+  function accept(position: PositionSample, token: number, atAutoStop = false) {
-@@ -259,0 +260 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
-+    const waitForManual = isAutoStudentStop(cp.current.activeSource, target?.stopType);
-@@ -271 +272 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
--      if (target && first?.id === target.id && distance(p, coordinate(target)) <= 20) {
-+      if (target && !waitForManual && first?.id === target.id && distance(p, coordinate(target)) <= 20) {
-@@ -299 +300 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
--        if (target) {
-+        if (target && !waitForManual) {
-@@ -326 +327 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
--          message: null,
-+          message: atAutoStop ? 'Chọn Lái thủ công để đến điểm dừng' : null,
-@@ -386 +387,3 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
--      if (cp.current?.activeSource === 'TEST_AUTO') {
-+      const checkpoint = cp.current;
-+      let atAutoStop = false;
-+      if (checkpoint?.activeSource === 'TEST_AUTO') {
-@@ -388 +391,8 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
--          current.travelled = Math.min(current.cumulative.at(-1) ?? 0, current.travelled + seconds * speedMps);
-+          const target = stopsRef.current.find(s => s.id === checkpoint.targetStopId);
-+          const stopAt = target && isAutoStudentStop(checkpoint.activeSource, target.stopType)
-+            ? nextStopProgress(current.instructions, current.cumulative)
-+              ?? projectProgress(current.coords, current.cumulative, coordinate(target), 0, Infinity).progress
-+            : undefined;
-+          const end = stopAt ?? current.cumulative.at(-1) ?? 0;
-+          current.travelled = Math.max(current.travelled, Math.min(end, current.travelled + seconds * speedMps));
-+          atAutoStop = stopAt !== undefined && current.travelled >= stopAt;
-@@ -407 +417 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
--      accept({ latitude: p[0], longitude: p[1], capturedAt: new Date().toISOString() }, token);
-+      accept({ latitude: p[0], longitude: p[1], capturedAt: new Date().toISOString() }, token, atAutoStop);
-diff --git a/mobile/scripts/auto-manual-handoff.test.ts b/mobile/scripts/auto-manual-handoff.test.ts
-index 8c7df5e..cf14d12 100644
---- a/mobile/scripts/auto-manual-handoff.test.ts
-+++ b/mobile/scripts/auto-manual-handoff.test.ts
-@@ -6 +6 @@ describe('Automatic driving hands off near student stops', () => {
--  it('hands off at 100 m or closer for pickup and dropoff', () => {
-+  it('hands off at 10 m or closer for pickup and dropoff', () => {
-@@ -8 +8 @@ describe('Automatic driving hands off near student stops', () => {
--      for (const metres of [100, 99.9, 30, 0]) {
-+      for (const metres of [10, 9.9, 0]) {
-@@ -11 +11,3 @@ describe('Automatic driving hands off near student stops', () => {
--      assert.equal(shouldHandOffToManual('TEST_AUTO', stopType, 100.1), false);
-+      for (const metres of [10.1, 30, 100]) {
-+        assert.equal(shouldHandOffToManual('TEST_AUTO', stopType, metres), false);
-+      }
-@@ -16 +18 @@ describe('Automatic driving hands off near student stops', () => {
--      assert.equal(shouldHandOffToManual(source, 'PICKUP', 20), false);
-+      assert.equal(shouldHandOffToManual(source, 'PICKUP', 5), false);
-@@ -21 +23 @@ describe('Automatic driving hands off near student stops', () => {
--      assert.equal(shouldHandOffToManual('TEST_AUTO', type, 20), false);
-+      assert.equal(shouldHandOffToManual('TEST_AUTO', type, 5), false);
+diff --git a/mobile/assets/driver/login-splash.png b/mobile/assets/driver/login-splash.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..9a4a1d58acef20bf4d4b2046a5f807efe0b629b6
+GIT binary patch
+literal 12105
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/mobile/assets/driver/login-splash.svg b/mobile/assets/driver/login-splash.svg
+new file mode 100644
+index 0000000..6a26f3f
+--- /dev/null
++++ b/mobile/assets/driver/login-splash.svg
+@@ -0,0 +1,4 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="66.4 65.1 1116.2 1116.2" width="1254" height="1254" role="img" aria-label="RoadToSchool tai_xe">
++<path fill="#0C3159" fill-rule="evenodd" d="M420 194L383 219L364 235L350 249L331 273L322 289L317 303L315 314L315 331L320 352L327 367L340 386L356 402L371 413L374 451L377 464L376 469L363 475L353 482L345 490L337 501L331 513L327 525L325 536L325 557L328 572L332 583L340 598L349 609L358 617L373 626L392 632L406 633L417 655L426 669L442 689L455 702L466 711L466 713L464 715L431 727L411 737L380 756L359 772L321 808L299 834L278 864L265 886L245 928L237 951L231 976L229 992L230 1017L236 1040L243 1055L253 1069L265 1081L279 1091L297 1100L322 1107L329 1108L591 1108L591 1041L575 1029L550 1001L543 998L482 998L476 996L476 992L482 981L485 969L485 948L483 942L483 936L491 934L514 934L515 935L570 934L586 924L599 919L614 916L640 916L663 922L686 935L696 934L765 935L768 934L771 936L768 949L768 968L771 981L777 992L777 996L772 998L742 997L741 998L710 998L705 1000L674 1033L663 1041L662 1044L662 1060L663 1061L662 1108L927 1108L953 1102L977 1090L993 1077L1009 1056L1016 1041L1022 1012L1021 984L1015 955L1001 916L990 893L969 857L949 829L928 804L905 781L874 756L854 743L823 727L789 715L787 713L787 711L810 690L823 674L838 650L844 636L847 633L860 632L873 628L892 617L906 603L912 594L921 573L924 557L924 535L919 513L912 499L904 488L893 478L876 469L875 464L879 443L881 414L892 405L911 386L917 378L928 359L934 342L936 332L936 310L932 294L924 277L909 256L887 233L857 209L827 190L798 175L766 162L723 149L688 142L652 138L605 138L556 144L517 153L483 164L450 178Z M846 903L862 900L872 900L884 902L903 910L913 917L926 930L936 945L942 958L948 984L948 1001L943 1023L939 1032L931 1044L917 1057L901 1065L892 1067L880 1067L870 1064L865 1061L858 1054L854 1047L852 1040L852 1032L838 1030L831 1026L822 1017L818 1008L818 993L820 988L811 984L803 976L800 970L798 962L798 953L801 943L809 929L823 915L832 909Z M399 901L412 905L424 911L443 928L453 945L455 953L454 967L449 977L443 983L433 988L435 996L435 1006L430 1018L423 1025L414 1030L401 1032L401 1038L396 1052L386 1062L372 1067L360 1067L343 1062L329 1053L316 1039L309 1026L303 1004L303 983L307 964L312 951L322 934L341 915L354 907L372 901L381 900Z M417 872L435 848L462 821L490 800L523 782L552 771L579 764L609 760L646 760L670 763L696 769L722 778L749 791L774 807L796 825L825 856L835 870L836 874L811 886L799 895L791 904L788 904L774 886L758 870L739 855L723 845L707 837L686 829L671 825L646 821L599 822L572 828L547 837L529 846L505 862L484 881L465 904L462 904L455 896L445 888L425 877L418 875Z M363 540L367 526L371 519L380 510L389 505L395 503L411 503L423 508L429 513L432 512L457 450L468 428L504 434L539 438L579 440L580 441L607 441L608 442L649 442L650 441L680 441L681 440L709 439L738 436L787 428L789 430L822 514L833 506L841 503L857 503L865 506L877 516L883 526L886 535L887 551L885 561L880 573L875 580L863 590L849 595L835 595L821 591L812 615L804 631L795 645L782 661L769 674L746 691L717 706L679 718L644 723L608 723L574 718L546 710L517 697L498 685L485 675L465 655L456 643L439 612L432 591L417 595L402 595L386 589L372 576L365 562L363 553Z M563 598L564 608L579 624L598 635L619 640L643 639L662 633L677 624L689 612L693 605L693 598L691 593L686 588L679 586L671 588L663 597L654 604L646 608L635 611L620 611L612 609L599 602L587 589L578 586L569 589L565 593Z M709 486L699 490L692 498L688 511L688 524L692 536L700 545L708 548L714 548L723 544L729 537L733 527L734 512L731 501L727 494L717 487Z M545 486L535 490L528 498L524 510L524 524L527 535L536 545L544 548L550 548L559 544L566 536L570 524L570 510L565 497L560 491L553 487Z M389 375L394 362L407 348L436 331L459 321L482 313L512 305L564 296L599 294L600 293L657 293L698 297L733 303L768 312L808 327L838 343L854 356L862 370L864 387L862 396L857 403L853 403L845 399L807 386L753 373L715 367L684 364L645 363L644 362L611 362L610 363L588 363L587 364L552 366L498 374L447 386L416 396L400 403L395 403L392 400L389 391Z M622 182L632 182L641 184L653 190L666 204L671 215L673 226L671 241L664 255L651 267L641 272L631 274L613 272L601 266L592 258L587 251L581 234L582 217L587 205L592 198L604 188L610 185Z"/>
++<path fill="#35B7F3" fill-rule="evenodd" d="M483 937L486 948L486 969L483 981L476 995L482 997L543 997L550 1000L575 1028L592 1041L592 1108L661 1109L661 1067L662 1066L661 1044L665 1038L674 1032L707 998L710 997L741 997L742 996L772 997L777 995L770 981L767 968L767 949L770 940L770 936L768 935L765 936L755 935L686 936L675 929L655 920L640 917L614 917L599 920L588 924L570 935L523 935L522 936L491 935Z M418 872L418 874L425 876L445 887L464 904L483 881L505 861L529 845L547 836L572 827L599 821L646 820L661 822L686 828L707 836L723 844L739 854L758 869L775 886L789 904L799 894L811 885L828 876L835 874L834 870L824 856L796 826L774 808L749 792L722 779L696 770L670 764L646 761L609 761L579 765L552 772L523 783L490 801L462 822L436 848Z M390 375L390 391L392 398L395 402L400 402L416 395L447 385L498 373L552 365L587 363L588 362L610 362L611 361L644 361L645 362L684 363L715 366L753 372L807 385L845 398L853 402L858 401L861 396L863 387L861 370L853 356L838 344L808 328L768 313L733 304L698 298L657 294L600 294L599 295L564 297L512 306L482 314L449 326L416 343L407 349L397 359L392 368Z"/>
++</svg>
+\ No newline at end of file
+diff --git a/mobile/components/RoleSplash.tsx b/mobile/components/RoleSplash.tsx
+index 05022fe..8b884e8 100644
+--- a/mobile/components/RoleSplash.tsx
++++ b/mobile/components/RoleSplash.tsx
+@@ -58,8 +58,8 @@ export function RoleSplash({
+         <View style={styles.iconCircle}>
+           {role === 'DRIVER' ? (
+             <Image
+-              source={require('@/assets/driver/Bus.png')}
+-              style={styles.busIcon}
++              source={require('@/assets/driver/login-splash.png')}
++              style={styles.driverIcon}
+               resizeMode="contain"
+             />
+           ) : (
+@@ -109,9 +109,9 @@ const styles = StyleSheet.create({
+   iconText: {
+     fontSize: 40,
+   },
+-  busIcon: {
+-    width: 50,
+-    height: 50,
++  driverIcon: {
++    width: 72,
++    height: 72,
+   },
+   roleTitle: {
+     fontSize: 22,

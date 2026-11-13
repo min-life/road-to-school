@@ -1,27 +1,27 @@
-# RoadToSchool — Bán kính chuyển sang lái thủ công
+# RoadToSchool — Gắn splash cho Tài xế
 
 ## 1. Task Information
 
-Ngày 12/11/2026, giờ Việt Nam. Đã triển khai ngưỡng 10 m trong Mobile.
+13/11/2026, giờ Việt Nam. Mobile. Triển khai. Trạng thái `COMPLETED`.
 
 ## 2. Original Request
 
-Người dùng yêu cầu hạ ngưỡng tự chuyển từ tự động di chuyển sang lái thủ công từ 100 m xuống 10 m.
+Người dùng yêu cầu thực hiện cách gắn SVG đã trao đổi ở lượt trước.
 
 ## 3. Approved Scope
 
-Áp dụng bán kính 10 m tính từ vị trí xe đến tọa độ của điểm đón hoặc trả đang được nhắm tới trong TEST_AUTO.
+Dùng biểu tượng người lái xe từ SVG người dùng cung cấp ở màn chào sau khi tài khoản Tài xế đăng nhập thành công.
 
 ## 4. Analysis & Decisions
 
-Nhánh chuyển điểm điều hướng hiện có thể chạy ở 30 m. Giữ điểm đón hoặc trả hiện tại trong TEST_AUTO để xe có thể vào bán kính 10 m trước khi bàn giao. Nếu tuyến không đi vào bán kính này, xe mô phỏng dừng tại mốc trên tuyến để tài xế có thể dùng chế độ lái thủ công. Dùng mốc điểm dừng đã có trong chỉ dẫn, hoặc phép chiếu tọa độ điểm lên tuyến khi thiếu mốc.
+Màn chào đã chọn ảnh dựa vào vai trò. Dùng asset riêng cho splash vì màn chi tiết chuyến cũng dùng `Bus.png`. Xuất PNG trong suốt 288 × 288 từ SVG gốc bằng Sharp đã có trong workspace.
 
 ## 5. Implementation Details
 
-- `mobile/utils/trip-navigation.ts` dùng ngưỡng 10 m và chia sẻ điều kiện áp dụng theo loại điểm cùng cách lấy mốc điểm dừng.
-- `mobile/hooks/use-trip-navigation.ts` giữ điểm đón/trả cho đến khi chọn hoặc tự chuyển sang lái thủ công. Bước di chuyển tự động được giới hạn ở mốc trên tuyến và giữ vị trí nếu người dùng bật tự động sau khi đã đi qua mốc.
-- `mobile/scripts/auto-manual-handoff.test.ts` kiểm tra 10 m, 10,1 m, các loại điểm và chế độ.
-- Báo cáo và diff màu chữ trước đó được lưu tại `docs/ai-review/history/2026-11-12-next-stop-summary-color.md` và `.diff`.
+- [RoleSplash.tsx](../../mobile/components/RoleSplash.tsx) dùng ảnh mới cho nhánh `DRIVER`.
+- [login-splash.svg](../../mobile/assets/driver/login-splash.svg) lưu đúng tệp thiết kế đã cung cấp.
+- [login-splash.png](../../mobile/assets/driver/login-splash.png) là ảnh runtime, 12.105 byte.
+- Bản phân tích trước triển khai nằm ở [history](history/2026-11-13-driver-login-splash-analysis.md).
 
 ## 6. Database Changes
 
@@ -33,28 +33,27 @@ None.
 
 ## 8. UI/UX Changes
 
-Khi xe mô phỏng tới mốc trên tuyến mà chưa vào bán kính 10 m, khung chỉ dẫn hiện “Chọn Lái thủ công để đến điểm dừng”.
+Biểu tượng 72 × 72 nằm giữa vòng tròn hiện có phía trên nhãn “Tài xế”. Màn chào hiện trong 1,2 giây sau đăng nhập thủ công rồi vào Trang chủ. Phạm vi bố cục đã được mô tả ở lượt trao đổi trước khi người dùng yêu cầu triển khai.
 
 ## 9. Verification & Testing
 
-- Ca kiểm tra 10,1 m thất bại trước khi sửa ngưỡng.
-- PASS `node --test scripts/auto-manual-handoff.test.ts scripts/trip-navigation.test.ts`, 43/43.
-- PASS `npx --no-install tsc --noEmit --incremental false` trong Mobile.
-- PASS kiểm tra callback thật với dữ liệu hình học thuần. Chỉ đổi ngưỡng khiến luồng cũ gọi ADVANCE sớm. Sau sửa, mô phỏng đón và trả chuyển sang lái thủ công trong 10 m, dừng ở mốc nếu tọa độ lệch khỏi đường, giữ vị trí nếu xe đã qua mốc và vẫn chuyển điểm ở chế độ thủ công hoặc khi tới trường.
-- PASS `git diff --check` và kiểm tra cấu trúc diff task bằng `git apply --numstat --unidiff-zero`.
-- NOT_VERIFIED trên điện thoại với chuyến đang chạy.
+- PASS `tsc --noEmit --incremental false` trong Mobile.
+- PASS `expo export --platform android --platform ios --dump-assetmap`. Hai gói cùng trỏ tới ảnh mới và nội dung PNG trong gói trùng với asset.
+- PASS đối chiếu SVG với tệp người dùng gửi và kiểm tra PNG có vùng trong suốt.
+- PASS `git diff --check` và kiểm tra phạm vi diff.
+- NOT_VERIFIED đăng nhập và hiển thị trên điện thoại.
 
 ## 10. Issues & Risks
 
-Bán kính hẹp có thể nằm ngoài hình học đường do tọa độ bị đưa về đường đi được. Khi đó tài xế cần chọn Lái thủ công ở mốc xe dừng.
+Cần kiểm tra ảnh và thời điểm chuyển màn khi đăng nhập bằng thiết bị thật.
 
 ## 11. Reviewer Focus
 
-Xác nhận điểm đón/trả hiện tại được giữ khi xe còn cách hơn 10 m và ca đổi chế độ tại 10 m.
+Xác nhận ảnh xuất hiện ở nhánh `DRIVER` và thời lượng màn chào là 1,2 giây.
 
 ## 12. Suggested Next Step
 
-Quan sát xe tự động đi tới điểm đón hoặc trả kế tiếp trên thiết bị.
+Đăng nhập bằng tài khoản Tài xế trên điện thoại để xem splash.
 
 ## 13. Approval Status
 

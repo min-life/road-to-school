@@ -58,8 +58,8 @@ export function RoleSplash({
         <View style={styles.iconCircle}>
           {role === 'DRIVER' ? (
             <Image
-              source={require('@/assets/driver/Bus.png')}
-              style={styles.busIcon}
+              source={require('@/assets/driver/login-splash.png')}
+              style={styles.driverIcon}
               resizeMode="contain"
             />
           ) : (
@@ -109,9 +109,9 @@ const styles = StyleSheet.create({
   iconText: {
     fontSize: 40,
   },
-  busIcon: {
-    width: 50,
-    height: 50,
+  driverIcon: {
+    width: 72,
+    height: 72,
   },
   roleTitle: {
     fontSize: 22,
