@@ -1,0 +1,49 @@
+{
+  "version": "1.4.0-poc",
+  "protocolVersion": 1,
+  "chip": "ESP32",
+  "board": "esp32doit-devkit-v1",
+  "flashOffset": 0,
+  "size": 1021008,
+  "sha256": "69de7a57e2d9b54e939f1627cc649042bdc8dec1840003c2bddbe2ac78db55e9",
+  "segments": [
+    {
+      "offset": 4096,
+      "file": "bootloader.bin",
+      "sha256": "3d234a7471f67b013686dabd4dee7c1fa915c9928463616a94bc9297acf1abf8"
+    },
+    {
+      "offset": 32768,
+      "file": "partitions.bin",
+      "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1"
+    },
+    {
+      "offset": 57344,
+      "file": "boot_app0.bin",
+      "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+    },
+    {
+      "offset": 65536,
+      "file": "firmware.bin",
+      "sha256": "67c92499b9d0dcdd3014a4373024d45c238faf9f5a515ae6df731393462490b9"
+    }
+  ],
+  "sourceHashes": {
+    "include/config.h": "28d3a8c6ceeb51b97f781591bc1ef50234ac7cbe90036a8068033b82fa04b4e0",
+    "include/device_settings.h": "67abb96f2f0e7efd37501c50b2407f2412d611d0a2a45189be54d497983ecef4",
+    "include/rfid_reader.h": "210ff0ee2fa3657b39a64da345c4056d11c772161d5ec80285dbfe73bc5fdb24",
+    "include/runtime_config.h": "d0d43fe39d3bca9d94b76588bba33c9f564d8aaccad789ef4cc8eb81579ae7e8",
+    "include/scan_sender.h": "e49bbc1c89511fe1712215d995eb7d92fe45b68477496737c596d5bc3c5ec128",
+    "include/serial_protocol.h": "24e0278dd907db46241ec8c348051819f1ffb72820bf22cf6f3f5e06de39c042",
+    "include/trusted-ca.example.h": "84e8141a75a5372d93a9524442d12d1bb2baae26e79e75dbd758bcfcf4933cea",
+    "include/wifi_manager.h": "135422a271b433b64b63dfe4ae21b304285df252f9f269e99fbd35e20e83ffef",
+    "platformio.ini": "e9f640ddcd3c55a83494906d229efc6295057a00889fe6cf01ae89a8210a23e6",
+    "src/device_settings.cpp": "b809ca656c545666be9aa28336a801ef9eafa4022fae1ba1f8a50354b3d84e2c",
+    "src/main.cpp": "d81e5e77faa5446ddc5abe0cebf08a7a01e31e0ad0f8bff6a59346bb42cd8fef",
+    "src/rfid_reader.cpp": "453ab451ed675affde3812a8b1d35149dc4818f55147103cf73a1ca51445b319",
+    "src/runtime_config.cpp": "396f7b99a96b33a7d91dd46412e13c15d1a1cbf7ec9a7cbdeb772763656311b4",
+    "src/scan_sender.cpp": "e63f6cb784837a328ad1bf2f5c3a49521a4d2c99ed5eaa878b306edeeab6a5bc",
+    "src/serial_protocol.cpp": "75af24ec97bfd5c477ec3c38f9f15b9f707c78b6e6c956084ba5d8b00871d4fa",
+    "src/wifi_manager.cpp": "e07c964fc0a08525872420d700189083651b6dd24b7f3b0ed7fb8b00691d2643"
+  }
+}

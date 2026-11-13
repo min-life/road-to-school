@@ -4,3 +4,6 @@ include/trusted-ca.h
 *.bin
 *.elf
 *.map
+
+# Publish only verified merged release images; keep intermediate binaries ignored.
+!releases/*/firmware.bin

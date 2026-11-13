@@ -50,13 +50,21 @@ E:\ChatGPT\road-to-school-iot\artifacts\firmware-manifest.json
 bootloader0x1000, partitions0x8000, boot_app0 0xE000, app0x10000. Build script dùng
 esptool merge_bin chính thức, kiểm tra chip ID/layout/partition bounds rồi mới thay
 artifact cuối. Manifest ghi version/protocol, kích thước, SHA-256 và source hashes.
-Không dùng artifact cũ nếu build mới thất bại. Không commit toolchain/binaries.
+Không dùng artifact cũ nếu build mới thất bại. Không commit toolchain hoặc build cache. Binary phát hành đã kiểm tra được lưu trong `releases/<version>/` theo yêu cầu PO.
 
 Để Backend phục vụ file qua API có xác thực, người vận hành cấu hình api/.env:
 
 ```dotenv
-IOT_FIRMWARE_PATH=E:/ChatGPT/road-to-school-iot/artifacts/firmware.bin
+IOT_FIRMWARE_PATH=../firmware/esp32-rfid-node/releases/1.4.0-poc/firmware.bin
 ```
+
+Đường dẫn trên tính từ working directory `api/` (chạy `npm run dev` trong `api/`).
+Bản phát hành `releases/1.4.0-poc/` gồm merged binary và manifest SHA-256;
+người nhận clone/pull repo sẽ có sẵn file, không cần thư mục E:\ChatGPT của người build.
+Manifest source hashes được tính trên file LF lúc build; checkout CRLF cần chuẩn hóa LF khi đối chiếu.
+Khi dùng container, copy/mount cả thư mục firmware vào đường dẫn tương ứng hoặc cấu hình path tuyệt đối.
+Khi cập nhật source, build lại, kiểm tra checksum/source hashes rồi phát hành binary mới cùng manifest.
+Không đóng gói Wi-Fi, device key hoặc NVS của thiết bị vào bản phát hành.
 
 Đây là hướng dẫn, script không sửa .env. Backend cần IOT_ENABLED=true, MongoDB riêng,
 hai khóa IoT riêng theo README api/src/iot. Không chép binary vào public URL không
