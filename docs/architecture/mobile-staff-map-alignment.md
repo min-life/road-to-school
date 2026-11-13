@@ -1,5 +1,19 @@
 # Staff map alignment — preserve Parent
 
+## Hiện hành 12/11/2026 — Ước tính điểm kế tiếp khi Driver thu gọn sheet
+
+PO duyệt thay header thu gọn của Driver đang chạy bằng thời gian còn lại và khoảng cách đến điểm tiếp theo, dạng `3 phút · 850 m`. Kéo lên giữ nguyên header chuyến và toàn bộ nội dung/tab; phần chỉ dẫn trên bản đồ và footer vàng không đổi. Parent, Bus Attendant và chuyến chưa chạy/đã kết thúc giữ header cũ.
+
+`TripNextStopSummary` chỉ hiển thị khi Driver + IN_PROGRESS + !isExpanded. `nextStopEstimate` dùng mốc waypoint đầu tiên (sign 5; sign 4 cho điểm cuối) trong geometry của đoạn định tuyến hiện có, trừ progress để lấy quãng đường còn lại. TEST tính thời gian theo tốc độ km/h đang chọn; LIVE dùng tỷ lệ durationSeconds/distanceMeters của tuyến VietMap nên là ước tính theo tốc độ trung bình tuyến, chưa có thời gian chi tiết từng đoạn. Không sửa API hoặc thêm request/poller. Thiếu tuyến/vị trí mới, lỗi điều hướng hoặc target không khớp thì hiện Chưa có ước tính. Gesture và đo chiều cao header hiện có tiếp tục được dùng.
+
+50 tests, TypeScript và kiểm tra source parity PASS. Đã kéo lên/xuống trên Samsung với dữ liệu hiện có: thu gọn hiện `1 phút · 138 m`, mở rộng trả lại mã chuyến, giờ, tab và ba thẻ thông tin; footer vàng giữ nguyên. Chưa kiểm chứng GPS ngoài đường và VoiceOver/TalkBack.
+
+## Hiện hành 12/11/2026 — Một nguồn icon trường và xe
+
+PO xác nhận giữ `P` cho bãi đỗ, chỉ đồng bộ icon trường và xe theo Parent. `mobile/utils/trip-map-icons.ts` chứa HTML 🏫/🚌 và CSS gốc Parent; cả bản đồ chuyến `/trip/[id]` (Parent, Driver, Bus Attendant) và bản đồ tuyến dự kiến của Parent import trực tiếp. Kích thước, anchor và marker học sinh giữ nguyên.
+
+`P` là điểm `PARKING_START`/`PARKING_END`, không biểu thị vị trí xe. Marker 🚌 chỉ được tạo khi navigation có vị trí; trạng thái “Chưa có vị trí” không tự đặt xe tại bãi đỗ. Đối chiếu sau khi khai triển các hằng dùng chung xác nhận markup/CSS và phần code còn lại giống bản trước task; TypeScript PASS. Chưa kiểm tra lại trên thiết bị.
+
 ## Hiện hành02/11/2026 — Hé tab Sự cố
 
 PO yêu cầu giữ spacing vừa đủ để nhận ra tab Sự cố còn phía sau. Staff tab paddingHorizontal4 và row gap4 (trước12/8), giữ icon gap6/minHeight44/font12/single-line. Preview390px thấy icon và18.25px đầu chữ Sự cố, vuốt hiện đầy đủ;320px cuộn/chọn vẫn được. Gesture/JSX/handlers nguyên trạng, chỉ2styles đổi. Typecheck/source parity/web preview PASS; native chưa nghiệm thu.

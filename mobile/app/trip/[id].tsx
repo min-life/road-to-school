@@ -28,6 +28,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { WebView } from "react-native-webview";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import * as Location from "expo-location";
+import { incidentStatusLabel, incidentTypeLabels } from "@/utils/trip-incident-label";
 import { colors } from "@/constants/theme";
 import { parentHomeStyles } from "@/components/parent/home-styles";
 import { useAuth } from "@/context/auth-context";
@@ -37,6 +39,7 @@ import {
   MobileTripDetailStop,
   OperationalStateResponse,
   TripAttendanceStudentItem,
+  TripAttendanceListResponse,
   VerifyQrResponse,
   AttendanceStatus,
   TripIncident,
@@ -44,9 +47,11 @@ import {
   TripIncidentStatus,
   IncidentOptionsResponse,
 } from "@/services/api-client";
+import { canCancelAllAbsent, canCorrectAttendance, tripBlockLabel } from "@/utils/trip-operation";
 import { useActiveRefresh } from "@/hooks/use-active-refresh";
 import type { RefreshContext } from "@/utils/refresh-loop";
 import { getTripMapSnapshot } from "@/utils/trip-map-data";
+import { tripMapIconCss, schoolMapIconHtml, busMapIconHtml } from "@/utils/trip-map-icons";
 import {
   childMapPinCss,
   childMapPinScript,
@@ -58,6 +63,7 @@ import { useParentMapAvatars } from "@/hooks/use-parent-map-avatars";
 import { decodePolyline } from "@/utils/polyline";
 import { useTripNavigation } from "@/hooks/use-trip-navigation";
 import { TripNavigationControls } from "@/components/trip-navigation-controls";
+import { TripNextStopSummary } from "@/components/trip-next-stop-summary";
 import { TripJoystick } from "@/components/trip-joystick";
 import { TripContactCallButton } from "@/components/trip-contact-call-button";
 import { RfidAttendanceEntry } from "@/components/rfid-attendance-entry";
@@ -91,9 +97,9 @@ export default function MobileTripDetailScreen() {
   const [trip, setTrip] = useState<MobileTripDetail | null>(null);
   const [operationalState, setOperationalState] =
     useState<OperationalStateResponse | null>(null);
-  const [attendanceRoster, setAttendanceRoster] = useState<
-    TripAttendanceStudentItem[]
-  >([]);
+  const [attendance, setAttendance] = useState<TripAttendanceListResponse | null>(null);
+  const attendanceRef = useRef<TripAttendanceListResponse | null>(null);
+  const attendanceRoster = attendance?.students ?? [];
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -106,12 +112,19 @@ export default function MobileTripDetailScreen() {
     title: string;
     message: string;
     confirmText: string;
+    studentId?: string;
     onConfirm: () => void;
   } | null>(null);
 
-  const [absenceModalStudent, setAbsenceModalStudent] =
-    useState<TripAttendanceStudentItem | null>(null);
-  const [absenceReasonText, setAbsenceReasonText] = useState("");
+  const [reasonAction, setReasonAction] = useState<
+    | { kind: "absence"; student: TripAttendanceStudentItem }
+    | { kind: "correction"; student: TripAttendanceStudentItem; status: "PRESENT" | "ABSENT" }
+    | { kind: "cancel" }
+    | null
+  >(null);
+  const [reasonText, setReasonText] = useState("");
+  const [submittingReason, setSubmittingReason] = useState(false);
+  const reasonRequest = useRef(false);
 
   // QR Modal
   const [qrModalVisible, setQrModalVisible] = useState(false);
@@ -140,6 +153,7 @@ export default function MobileTripDetailScreen() {
   const isBusAttendant = user?.role === "BUS_ATTENDANT";
   const isDriver = user?.role === "DRIVER";
   const isParent = user?.role === "PARENT";
+  const showNextStopSummary = isDriver && !isExpanded && operationalState?.status === "IN_PROGRESS";
   const showTripAction = hasTripAction(user?.role, operationalState?.status);
   const bottomActionOffset = showTripAction ? bottomActionHeight : 0;
   const sheetBottomPadding = showTripAction ? 10 : insets.bottom + 10;
@@ -160,7 +174,10 @@ export default function MobileTripDetailScreen() {
   const [incidentOptions, setIncidentOptions] =
     useState<IncidentOptionsResponse | null>(null);
   const [tripIncidents, setTripIncidents] = useState<TripIncident[]>([]);
-  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [incidentReport, setIncidentReport] = useState<{
+    type: TripIncidentType;
+    student?: TripAttendanceStudentItem;
+  } | null>(null);
   const [reportingIncident, setReportingIncident] = useState(false);
   const [incidentNote, setIncidentNote] = useState("");
   const [dismissedPendingIncidentIds, setDismissedPendingIncidentIds] =
@@ -308,12 +325,17 @@ export default function MobileTripDetailScreen() {
   useEffect(() => {
     setTrip(null);
     setOperationalState(null);
-    setAttendanceRoster([]);
+    attendanceRef.current = null;
+    setAttendance(null);
     setLoading(true);
     setConfirmModal(null);
-    setAbsenceModalStudent(null);
+    setReasonAction(null);
     setQrModalVisible(false);
     setVerifiedStudent(null);
+    setIncidentReport(null);
+    setIncidentNote("");
+    setIncidentOptions(null);
+    setTripIncidents([]);
     metadataAt.current = 0;
     accessAllowed.current = true;
     setNavigation(null);
@@ -348,13 +370,20 @@ export default function MobileTripDetailScreen() {
         ]);
       if (!isCurrent()) return;
       setOperationalState(state);
-      if (roster) setAttendanceRoster(roster.students || []);
+      attendanceRef.current = roster;
+      setAttendance(roster);
+      if (roster) {
+        const includes = (studentId: string) => roster.students.some((student) => student.studentId === studentId);
+        setVerifiedStudent((current) => current && !includes(current.studentId) ? null : current);
+        setConfirmModal((current) => current?.studentId && !includes(current.studentId) ? null : current);
+        setReasonAction((current) => current && "student" in current && !includes(current.student.studentId) ? null : current);
+      }
       if (detail) {
         setTrip(detail);
         metadataAt.current = Date.now();
       }
       if (incidents) setTripIncidents(incidents);
-      if (options) setIncidentOptions(options);
+      setIncidentOptions(options);
       if (location) {
         setNavigation(location);
         void engine.observe(location);
@@ -391,11 +420,13 @@ export default function MobileTripDetailScreen() {
         engine.clear();
         setTrip(null);
         setOperationalState(null);
-        setAttendanceRoster([]);
+        attendanceRef.current = null;
+        setAttendance(null);
         setConfirmModal(null);
-        setAbsenceModalStudent(null);
+        setReasonAction(null);
         setQrModalVisible(false);
         setVerifiedStudent(null);
+        setIncidentReport(null);
         setError(err.message);
         return false;
       }
@@ -418,6 +449,7 @@ export default function MobileTripDetailScreen() {
     qrGeneration.current++;
     setQrScanning(false);
     if (operationalState?.isSchoolArrived) {
+      setReasonAction((current) => current?.kind === "absence" ? null : current);
       setQrModalVisible(false);
       setVerifiedStudent(null);
     }
@@ -426,9 +458,10 @@ export default function MobileTripDetailScreen() {
       operationalState?.status === "CANCELLED"
     ) {
       setConfirmModal(null);
-      setAbsenceModalStudent(null);
+      setReasonAction(null);
       setQrModalVisible(false);
       setVerifiedStudent(null);
+      setIncidentReport(null);
     }
   }, [
     operationalState?.status,
@@ -499,26 +532,51 @@ export default function MobileTripDetailScreen() {
   ]);
 
   const handleReportIncident = async () => {
-    const reportType =
-      incidentOptions?.availableTypes?.[0] ||
-      (isDriver ? "ATTENDANT_MISSING" : "DRIVER_MISSING");
-    if (!tripId || !reportType) return;
+    if (!tripId || !incidentReport || reportingIncident) return;
+    const { type, student } = incidentReport;
+    const missingStaff = type === "ATTENDANT_MISSING" || type === "DRIVER_MISSING";
+    if (missingStaff ? !incidentOptions?.canReport : operationalState?.status !== "IN_PROGRESS") {
+      setIncidentReport(null);
+      Alert.alert("Không thể báo sự cố", "Trạng thái chuyến đã thay đổi");
+      return;
+    }
+
     try {
       setReportingIncident(true);
-      await mobileApiClient.createManualIncident({
-        tripId,
-        type: reportType,
-        note: incidentNote.trim() || undefined,
+      const reported = await mutate(async () => {
+        const coords = navigation?.testMode ? undefined : (await Location.getLastKnownPositionAsync({
+          maxAge: 30_000,
+          requiredAccuracy: 100,
+        }).catch(() => null))?.coords;
+        if (identityRef.current !== identity || !accessAllowed.current) {
+          throw new Error("Chuyến xe đã thay đổi");
+        }
+        if (student) {
+          const current = assertActiveStudent(student.studentId);
+          if (current.status !== "PRESENT" || current.isAlighted || current.alightedAt) {
+            throw new Error("Học sinh không còn trên xe");
+          }
+        }
+        return mobileApiClient.createManualIncident({
+          tripId,
+          type,
+          note: incidentNote.trim() || undefined,
+          studentId: student?.studentId,
+          expectedAssigneeId: missingStaff ? incidentOptions?.expectedAssignee?.id : undefined,
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        });
       });
-      Alert.alert("Thành công", "Đã ghi nhận báo cáo sự cố vận hành.");
-      setReportModalVisible(false);
+      if (identityRef.current !== identity) return;
+      setIncidentReport(null);
       setIncidentNote("");
-      loadTripDetail();
+      if (student && (reported.contextData?.studentId ?? reported.context?.studentId) !== student.studentId) {
+        Alert.alert("Đã có báo cáo", "Chuyến này đã có báo cáo không có người đón cho học sinh khác.");
+        return;
+      }
+      Alert.alert("Đã ghi nhận", "Báo cáo sự cố đã được ghi nhận.");
     } catch (err: any) {
-      Alert.alert(
-        "Lỗi",
-        err?.message || "Không thể báo sự cố. Vui lòng thử lại.",
-      );
+      Alert.alert("Lỗi", err?.message || "Không thể báo sự cố. Vui lòng thử lại.");
     } finally {
       setReportingIncident(false);
     }
@@ -576,7 +634,7 @@ export default function MobileTripDetailScreen() {
         <style>
           body, html, #map { margin: 0; padding: 0; height: 100%; width: 100%; background: #F8FAFC; }
           .depot-marker { background: #2563EB; color: white; border: 2px solid white; border-radius: 50%; font-weight: bold; width: 28px; height: 28px; line-height: 24px; text-align: center; font-size: 13px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
-          .school-marker { background: #FFCB56; color: #1E293B; border: 2px solid white; border-radius: 50%; font-weight: bold; width: 30px; height: 30px; line-height: 26px; text-align: center; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+          ${tripMapIconCss}
           .student-marker { background: #059669; color: white; border: 2px solid white; border-radius: 50%; font-weight: bold; width: 26px; height: 26px; line-height: 22px; text-align: center; font-size: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
           ${childMapPinCss}
         </style>
@@ -602,7 +660,7 @@ export default function MobileTripDetailScreen() {
             if (s.type === 'PARKING_START' || s.type === 'PARKING_END') {
               iconHtml = '<div class="depot-marker">P</div>';
             } else if (s.type === 'SCHOOL_ARRIVAL' || s.type === 'SCHOOL_DEPARTURE') {
-              iconHtml = '<div class="school-marker">🏫</div>';
+              iconHtml = '${schoolMapIconHtml}';
             } else if (ownChildPin) {
               iconHtml = window.createChildMapPin(s.studentId, s.name);
             } else if (staffStopPin) {
@@ -643,7 +701,7 @@ export default function MobileTripDetailScreen() {
           });
           window.setNavigation = function(n) {
             if (n.position) {
-              if (!vehicle) vehicle = L.marker(n.position, {icon: L.divIcon({className:'',html:'<div class="school-marker">🚌</div>',iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
+              if (!vehicle) vehicle = L.marker(n.position, {icon: L.divIcon({className:'',html:'${busMapIconHtml}',iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
               else vehicle.setLatLng(n.position);
               if (n.centerOnStart) {
                 map.setView(n.position, Math.max(map.getZoom(), 16));
@@ -897,9 +955,9 @@ export default function MobileTripDetailScreen() {
   };
 
   const handleCompleteTrip = () => {
-    const present = operationalState?.presentCount || 0;
-    const absent = operationalState?.absentCount || 0;
-    const alighted = operationalState?.alightedCount || 0;
+    const present = attendance?.presentCount || 0;
+    const absent = attendance?.absentCount || 0;
+    const alighted = attendance?.alightedCount || 0;
     setConfirmModal({
       visible: true,
       title: "Hoàn thành chuyến xe",
@@ -916,15 +974,28 @@ export default function MobileTripDetailScreen() {
     });
   };
 
+  const assertActiveStudent = (studentId: string) => {
+    const student = attendanceRef.current?.students.find((item) => item.studentId === studentId);
+    if (!student) throw new Error("Học sinh không còn trong danh sách phục vụ của chuyến");
+    return student;
+  };
+
+  const mutateStudent = <T,>(studentId: string, operation: () => Promise<T>) =>
+    mutate(() => {
+      assertActiveStudent(studentId);
+      return operation();
+    });
+
   const handleMarkPresent = (student: TripAttendanceStudentItem) => {
     setConfirmModal({
       visible: true,
       title: "Điểm danh có mặt",
       message: `Xác nhận học sinh ${student.fullName} (${student.studentCode}) có mặt trên xe?`,
       confirmText: "Có mặt",
+      studentId: student.studentId,
       onConfirm: async () => {
         try {
-          await mutate(() =>
+          await mutateStudent(student.studentId, () =>
             mobileApiClient.updateAttendance(
               tripId,
               student.studentId,
@@ -940,34 +1011,45 @@ export default function MobileTripDetailScreen() {
   };
 
   const handleOpenAbsenceModal = (student: TripAttendanceStudentItem) => {
-    setAbsenceModalStudent(student);
-    setAbsenceReasonText(student.absenceReason || "");
+    setReasonAction({ kind: "absence", student });
+    setReasonText(student.absenceReason || "");
   };
 
-  const handleSubmitAbsence = async () => {
-    if (!absenceModalStudent) return;
-    const trimmedReason = absenceReasonText.trim();
-    if (!trimmedReason) {
-      Alert.alert(
-        "Yêu cầu bắt buộc",
-        "Vui lòng nhập lý do vắng mặt cho học sinh",
-      );
-      return;
-    }
+  const handleSubmitReason = async () => {
+    const reason = reasonText.trim();
+    if (!isBusAttendant || !reasonAction || !reason || reasonRequest.current) return;
 
+    reasonRequest.current = true;
+    setSubmittingReason(true);
     try {
-      await mutate(() =>
-        mobileApiClient.updateAttendance(
-          tripId,
-          absenceModalStudent.studentId,
-          "ABSENT",
-          trimmedReason,
-        ),
-      );
-      setAbsenceModalStudent(null);
-      setAbsenceReasonText("");
+      if (reasonAction.kind === "cancel") {
+        if (!canCancelAllAbsent(trip?.direction, operationalState, attendanceRef.current?.students ?? [])) {
+          throw new Error("Chuyến không còn đủ điều kiện hủy vì tất cả học sinh vắng");
+        }
+        await mutate(() => mobileApiClient.cancelAllAbsent(tripId, reason));
+      } else {
+        const { student } = reasonAction;
+        if (reasonAction.kind === "correction" &&
+          !canCorrectAttendance(trip?.direction, operationalState, assertActiveStudent(student.studentId))) {
+          throw new Error("Học sinh hoặc chuyến không còn đủ điều kiện đính chính");
+        }
+        await mutateStudent(student.studentId, () =>
+          reasonAction.kind === "correction"
+            ? mobileApiClient.correctAttendance(tripId, student.studentId, {
+                status: reasonAction.status,
+                expectedStatus: student.status,
+                reason,
+              })
+            : mobileApiClient.updateAttendance(tripId, student.studentId, "ABSENT", reason),
+        );
+      }
+      setReasonAction(null);
+      setReasonText("");
     } catch (err: any) {
-      Alert.alert("Lỗi", err?.message || "Không thể cập nhật vắng mặt");
+      Alert.alert("Lỗi", err?.message || "Không thể lưu thao tác");
+    } finally {
+      reasonRequest.current = false;
+      setSubmittingReason(false);
     }
   };
 
@@ -977,9 +1059,10 @@ export default function MobileTripDetailScreen() {
       title: "Hoàn tác điểm danh",
       message: `Đưa trạng thái điểm danh của học sinh ${student.fullName} về Chưa điểm danh?`,
       confirmText: "Hoàn tác",
+      studentId: student.studentId,
       onConfirm: async () => {
         try {
-          await mutate(() =>
+          await mutateStudent(student.studentId, () =>
             mobileApiClient.updateAttendance(
               tripId,
               student.studentId,
@@ -1005,9 +1088,10 @@ export default function MobileTripDetailScreen() {
         ? `Xác nhận học sinh ${student.fullName} (${student.studentCode}) đã xuống xe an toàn?`
         : `Đưa trạng thái của học sinh ${student.fullName} về Chưa xuống xe?`,
       confirmText: isAlighted ? "Đã xuống xe" : "Hoàn tác",
+      studentId: student.studentId,
       onConfirm: async () => {
         try {
-          await mutate(() =>
+          await mutateStudent(student.studentId, () =>
             mobileApiClient.updateAlighting(
               tripId,
               student.studentId,
@@ -1039,6 +1123,7 @@ export default function MobileTripDetailScreen() {
         qrGeneration.current !== requestGeneration
       )
         return;
+      assertActiveStudent(res.studentId);
       setVerifiedStudent(res);
     } catch (err: any) {
       Alert.alert(
@@ -1052,9 +1137,9 @@ export default function MobileTripDetailScreen() {
   };
 
   const handleConfirmVerifiedQr = async () => {
-    if (!verifiedStudent) return;
+    if (!verifiedStudent || !canScanQr) return;
     try {
-      await mutate(() =>
+      await mutateStudent(verifiedStudent.studentId, () =>
         mobileApiClient.updateAttendance(
           tripId,
           verifiedStudent.studentId,
@@ -1133,6 +1218,8 @@ export default function MobileTripDetailScreen() {
       : stop;
   });
   const isToSchool = trip.direction === "TO_SCHOOL";
+  const correctingAttendance = isToSchool && operationalState?.isSchoolArrived && operationalState.status === "IN_PROGRESS";
+  const showCancelAllAbsent = isBusAttendant && canCancelAllAbsent(trip.direction, operationalState, attendanceRoster);
   const canScanQr =
     isBusAttendant &&
     (isToSchool
@@ -1171,7 +1258,7 @@ export default function MobileTripDetailScreen() {
       ? "Đã xác nhận sẵn sàng"
       : readyReason === "TOO_EARLY"
         ? "Chưa đến giờ sẵn sàng (Mở trước 15p)"
-        : "Chưa đến giờ sẵn sàng";
+        : tripBlockLabel(readyReason) || "Chưa thể xác nhận sẵn sàng";
 
   const startDisabledText =
     startReason === "WAITING_FOR_ATTENDANT"
@@ -1179,28 +1266,28 @@ export default function MobileTripDetailScreen() {
       : startReason === "EMPTY_ROSTER"
         ? "Chuyến xe chưa có học sinh"
         : startReason === "PENDING_BOARDING"
-          ? `Còn ${operationalState?.unmarkedCount || 0} học sinh chưa lên xe`
+          ? `Còn ${attendance?.unmarkedCount || 0} học sinh chưa lên xe`
           : startReason === "TOO_EARLY"
             ? "Chưa đến giờ bắt đầu (Mở trước 5p)"
-            : "Chưa thể bắt đầu";
+            : tripBlockLabel(startReason) || "Chưa thể bắt đầu";
 
   const arriveDisabledText =
     arriveReason === "PENDING_BOARDING"
-      ? `Còn ${operationalState?.unmarkedCount || 0} học sinh chưa điểm danh`
+      ? `Còn ${attendance?.unmarkedCount || 0} học sinh chưa điểm danh`
       : arriveReason === "EMPTY_ROSTER"
         ? "Chuyến xe chưa có học sinh"
-        : "Chưa thể đến trường";
+        : tripBlockLabel(arriveReason) || "Chưa thể đến trường";
 
   const completeDisabledText =
     completeReason === "EMPTY_ROSTER"
       ? "Chuyến xe chưa có học sinh"
       : completeReason === "PENDING_ATTENDANCE"
-        ? `Còn ${operationalState?.unmarkedCount || 0} học sinh chưa điểm danh`
+        ? `Còn ${attendance?.unmarkedCount || 0} học sinh chưa điểm danh`
         : completeReason === "NOT_ARRIVED_AT_SCHOOL"
           ? "Xe chưa xác nhận đến trường"
           : completeReason === "STUDENTS_NOT_ALIGHTED"
-            ? `Còn ${operationalState?.pendingAlightCount || 0} học sinh chưa xuống xe`
-            : "Chưa thể hoàn thành";
+            ? `Còn ${attendance?.pendingAlightCount || 0} học sinh chưa xuống xe`
+            : tripBlockLabel(completeReason) || "Chưa thể hoàn thành";
 
   return (
     <View style={styles.container}>
@@ -1450,7 +1537,7 @@ export default function MobileTripDetailScreen() {
               : undefined
           }
           style={styles.sheetHandleArea}
-          accessible={true}
+          accessible={!showNextStopSummary}
           accessibilityRole="button"
           accessibilityLabel={
             isExpanded ? "Thu gọn chi tiết" : "Mở rộng chi tiết"
@@ -1460,6 +1547,10 @@ export default function MobileTripDetailScreen() {
 
           <View style={styles.collapsedHeader}>
             <View style={{ flex: 1 }}>
+              {showNextStopSummary ? (
+                <TripNextStopSummary estimate={engine.nextStopEstimate} />
+              ) : (
+              <>
               <View style={styles.titleRow}>
                 <Text style={styles.sheetRouteName} numberOfLines={1}>
                   {trip.routeName}
@@ -1522,10 +1613,17 @@ export default function MobileTripDetailScreen() {
                   >
                     <Ionicons name="warning" size={12} color="#DC2626" />
                     <Text style={styles.incidentHeaderBadgeText}>
-                      {tripIncidents.length} sự cố
+                      {tripIncidents.some((incident) => incident.type === "GPS_SIGNAL_LOST" && incident.status === "WAITING_ASSIGNMENT")
+                        ? "Mất GPS"
+                        : tripIncidents.length + " sự cố"}
                     </Text>
                   </TouchableOpacity>
                 ) : null}
+                {isDriverOrAttendant && operationalState?.status === "CANCELLED" && (
+                  <TouchableOpacity accessibilityRole="button" style={styles.incidentHeaderBadge} onPress={loadTripDetail}>
+                    <Text style={styles.incidentHeaderBadgeText}>Tải lại chuyến</Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
               <Text style={styles.sheetTimeText}>
@@ -1540,10 +1638,14 @@ export default function MobileTripDetailScreen() {
                   }[operationalState?.status || trip.status]
                 }
               </Text>
+              </>
+              )}
             </View>
 
             <TouchableOpacity
               onPress={toggleSheet}
+              accessibilityRole="button"
+              accessibilityLabel={isExpanded ? "Thu gọn chi tiết" : "Mở rộng chi tiết"}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               activeOpacity={0.7}
             >
@@ -1730,8 +1832,8 @@ export default function MobileTripDetailScreen() {
                           styles.tabButtonTextActive,
                       ]}
                     >
-                      Điểm danh ({operationalState?.markedCount || 0}/
-                      {operationalState?.totalStudents || 0})
+                      Điểm danh ({attendance?.markedCount || 0}/
+                      {attendance?.totalStudents || 0})
                     </Text>
                   </TouchableOpacity>
 
@@ -1966,8 +2068,8 @@ export default function MobileTripDetailScreen() {
                           styles.subTabButtonTextActive,
                       ]}
                     >
-                      Lên xe ({operationalState?.markedCount || 0}/
-                      {operationalState?.totalStudents || 0})
+                      Lên xe ({attendance?.markedCount || 0}/
+                      {attendance?.totalStudents || 0})
                     </Text>
                   </TouchableOpacity>
 
@@ -1987,8 +2089,8 @@ export default function MobileTripDetailScreen() {
                           styles.subTabButtonTextActive,
                       ]}
                     >
-                      Xuống xe ({operationalState?.alightedCount || 0}/
-                      {operationalState?.presentCount || 0})
+                      Xuống xe ({attendance?.alightedCount || 0}/
+                      {attendance?.presentCount || 0})
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -2000,8 +2102,8 @@ export default function MobileTripDetailScreen() {
                     <View style={styles.attendanceHeaderBar}>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.attendanceProgressText}>
-                          Tiến độ lên xe: {operationalState?.markedCount || 0}/
-                          {operationalState?.totalStudents || 0} học sinh
+                          Tiến độ lên xe: {attendance?.markedCount || 0}/
+                          {attendance?.totalStudents || 0} học sinh
                         </Text>
                         <View style={styles.progressBarBg}>
                           <View
@@ -2009,10 +2111,10 @@ export default function MobileTripDetailScreen() {
                               styles.progressBarFill,
                               {
                                 width: `${
-                                  operationalState?.totalStudents
+                                  attendance?.totalStudents
                                     ? Math.round(
-                                        ((operationalState.markedCount || 0) /
-                                          operationalState.totalStudents) *
+                                        ((attendance.markedCount || 0) /
+                                          attendance.totalStudents) *
                                           100,
                                       )
                                     : 0
@@ -2096,7 +2198,7 @@ export default function MobileTripDetailScreen() {
                           const isPresent = student.status === "PRESENT";
                           const isAbsent = student.status === "ABSENT";
                           const canBoard = isToSchool
-                            ? operationalState?.status === "IN_PROGRESS"
+                            ? operationalState?.status === "IN_PROGRESS" && !operationalState.isSchoolArrived
                             : (operationalState?.status === "SCHEDULED" &&
                                 operationalState?.isAttendantReady) ||
                               operationalState?.status === "IN_PROGRESS";
@@ -2174,7 +2276,23 @@ export default function MobileTripDetailScreen() {
                               ) : null}
 
                               {/* Mutation Buttons (Bus Attendant only) */}
-                              {isBusAttendant && (
+                              {isBusAttendant && canCorrectAttendance(trip.direction, operationalState, student) && (
+                                <TouchableOpacity
+                                  accessibilityRole="button"
+                                  style={[styles.actionBtnSwitch, styles.standaloneTripAction]}
+                                  onPress={() => {
+                                    setReasonText("");
+                                    setReasonAction({
+                                      kind: "correction",
+                                      student,
+                                      status: student.status === "PRESENT" ? "ABSENT" : "PRESENT",
+                                    });
+                                  }}
+                                >
+                                  <Text style={styles.actionBtnTextDark}>Đính chính điểm danh</Text>
+                                </TouchableOpacity>
+                              )}
+                              {isBusAttendant && !correctingAttendance && (
                                 <View style={styles.rosterActionRow}>
                                   {isUnmarked ? (
                                     <>
@@ -2312,8 +2430,8 @@ export default function MobileTripDetailScreen() {
                       <View style={{ flex: 1 }}>
                         <Text style={styles.attendanceProgressText}>
                           Tiến độ xuống xe:{" "}
-                          {operationalState?.alightedCount || 0}/
-                          {operationalState?.presentCount || 0} học sinh có mặt
+                          {attendance?.alightedCount || 0}/
+                          {attendance?.presentCount || 0} học sinh có mặt
                         </Text>
                         <View style={styles.progressBarBg}>
                           <View
@@ -2322,10 +2440,10 @@ export default function MobileTripDetailScreen() {
                               {
                                 backgroundColor: "#0284C7",
                                 width: `${
-                                  operationalState?.presentCount
+                                  attendance?.presentCount
                                     ? Math.round(
-                                        ((operationalState.alightedCount || 0) /
-                                          operationalState.presentCount) *
+                                        ((attendance.alightedCount || 0) /
+                                          attendance.presentCount) *
                                           100,
                                       )
                                     : 0
@@ -2462,6 +2580,18 @@ export default function MobileTripDetailScreen() {
                                         </Text>
                                       </TouchableOpacity>
                                     )}
+                                    {!isToSchool && canAlight && !isAlighted && !student.alightedAt && (
+                                      <TouchableOpacity
+                                        accessibilityRole="button"
+                                        style={[styles.actionBtnSwitch, styles.reportStudentAction]}
+                                        onPress={() => {
+                                          setIncidentNote("");
+                                          setIncidentReport({ type: "NO_GUARDIAN_AT_STOP", student });
+                                        }}
+                                      >
+                                        <Text style={styles.actionBtnTextDark}>Báo không có người đón</Text>
+                                      </TouchableOpacity>
+                                    )}
                                   </View>
                                 )}
                               </View>
@@ -2485,9 +2615,7 @@ export default function MobileTripDetailScreen() {
                 showsVerticalScrollIndicator={false}
               >
                 {/* Báo sự cố */}
-                {isDriverOrAttendant &&
-                  (trip?.status === "SCHEDULED" ||
-                    incidentOptions?.canReport) && (
+                {isDriverOrAttendant && operationalState?.status === "SCHEDULED" && (
                     <TouchableOpacity
                       style={[
                         styles.reportIncidentButton,
@@ -2496,11 +2624,16 @@ export default function MobileTripDetailScreen() {
                           styles.reportIncidentButtonDisabled,
                       ]}
                       onPress={() => {
-                        if (incidentOptions && !incidentOptions.canReport) {
+                        if (!incidentOptions) {
+                          loadTripDetail();
+                          Alert.alert("Chưa tải được điều kiện báo sự cố", "Vui lòng thử lại.");
+                          return;
+                        }
+                        if (!incidentOptions.canReport) {
                           const reasonMap: Record<string, string> = {
                             ATTENDANT_ALREADY_READY:
                               "Giáo viên phụ xe đã xác nhận sẵn sàng khởi hành.",
-                            INCIDENT_ALREADY_OPEN:
+                            ALREADY_REPORTED:
                               "Đang có báo cáo sự cố chưa được xử lý.",
                             TRIP_NOT_SCHEDULED:
                               "Chuyến xe đã bắt đầu hoặc không ở trạng thái chờ khởi hành.",
@@ -2530,7 +2663,8 @@ export default function MobileTripDetailScreen() {
                           );
                           return;
                         }
-                        setReportModalVisible(true);
+                        setIncidentNote("");
+                        setIncidentReport({ type: isDriver ? "ATTENDANT_MISSING" : "DRIVER_MISSING" });
                       }}
                       activeOpacity={0.85}
                     >
@@ -2544,6 +2678,19 @@ export default function MobileTripDetailScreen() {
                       </Text>
                     </TouchableOpacity>
                   )}
+                {isDriverOrAttendant && operationalState?.status === "IN_PROGRESS" && (
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    style={styles.reportIncidentButton}
+                    onPress={() => {
+                      setIncidentNote("");
+                      setIncidentReport({ type: "TRAFFIC_DELAY" });
+                    }}
+                  >
+                    <Ionicons name="warning" size={15} color={colors.foreground} />
+                    <Text style={styles.reportIncidentButtonText}>Báo tắc đường</Text>
+                  </TouchableOpacity>
+                )}
                 {tripIncidents.length === 0 ? (
                   <View style={styles.emptyIncidentsBox}>
                     <Ionicons
@@ -2560,21 +2707,9 @@ export default function MobileTripDetailScreen() {
                   </View>
                 ) : (
                   tripIncidents.map((incident) => {
-                    const isAttendantMissing =
-                      incident.type === "ATTENDANT_MISSING";
-                    const isDriverMissing = incident.type === "DRIVER_MISSING";
                     const isOffRoute = incident.type === "OFF_ROUTE";
                     const isLateStop = incident.type === "LATE_STOP";
-
-                    const typeBadgeText = isAttendantMissing
-                      ? "Vắng phụ xe"
-                      : isDriverMissing
-                        ? "Vắng tài xế"
-                        : isOffRoute
-                          ? "Lệch tuyến"
-                          : isLateStop
-                            ? "Trễ đón/trả"
-                            : incident.type;
+                    const typeBadgeText = incidentTypeLabels[incident.type] ?? incident.type;
 
                     const typeBadgeBg = isOffRoute
                       ? "#FEE2E2"
@@ -2590,23 +2725,7 @@ export default function MobileTripDetailScreen() {
                     const isPendingConfirmation =
                       incident.status === "WAITING_CONFIRMATION" ||
                       incident.status === ("PENDING_CONFIRMATION" as any);
-                    const isClosed =
-                      incident.status === "CLOSED" ||
-                      incident.status ===
-                        ("CLOSED_WITHOUT_CONFIRMATION" as any);
-
-                    const statusBadgeText =
-                      incident.status === "WAITING_ASSIGNMENT"
-                        ? "Chờ phân công"
-                        : isPendingConfirmation
-                          ? "Chờ xác nhận"
-                          : incident.status === "RESOLVED"
-                            ? "Đã giải quyết"
-                            : incident.status === "CONFIRMED"
-                              ? "Đã xác nhận"
-                              : isClosed
-                                ? "Đóng tự động"
-                                : incident.status;
+                    const statusBadgeText = incidentStatusLabel(incident);
 
                     const statusBadgeBg =
                       incident.status === "WAITING_ASSIGNMENT"
@@ -2773,11 +2892,23 @@ export default function MobileTripDetailScreen() {
             /* BUS ATTENDANT ACTION */
             operationalState?.status === "SCHEDULED" ? (
               operationalState.isAttendantReady ? (
-                <View style={styles.readyBadgeRow}>
-                  <Ionicons name="checkmark-circle" size={20} color="#059669" />
-                  <Text style={styles.readyBadgeText}>
-                    Bạn đã xác nhận sẵn sàng khởi hành
-                  </Text>
+                <View style={styles.readyActions}>
+                  <View style={styles.readyBadgeRow}>
+                    <Ionicons name="checkmark-circle" size={20} color="#059669" />
+                    <Text style={styles.readyBadgeText}>Đã xác nhận sẵn sàng</Text>
+                  </View>
+                  {showCancelAllAbsent && (
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      style={[styles.actionBtnSwitch, styles.standaloneTripAction]}
+                      onPress={() => {
+                        setReasonText("");
+                        setReasonAction({ kind: "cancel" });
+                      }}
+                    >
+                      <Text style={styles.actionBtnTextDark}>Hủy chuyến vì tất cả vắng</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               ) : (
                 <TouchableOpacity
@@ -2894,50 +3025,63 @@ export default function MobileTripDetailScreen() {
         </Modal>
       )}
 
-      {/* Absence Reason Modal */}
-      {absenceModalStudent && (
-        <Modal
-          transparent
-          animationType="fade"
-          visible={Boolean(absenceModalStudent)}
-        >
+      {reasonAction && (
+        <Modal transparent animationType="fade" visible onRequestClose={() => { if (!submittingReason) setReasonAction(null); }}>
           <KeyboardScrollView
-            style={[
-              styles.modalOverlay,
-              { alignItems: undefined, justifyContent: undefined },
-            ]}
+            style={[styles.modalOverlay, { alignItems: undefined, justifyContent: undefined }]}
             contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}
           >
             <View style={styles.modalCard}>
-              <Text style={styles.modalTitle}>Lý do vắng mặt</Text>
-              <Text style={styles.modalSubtitle}>
-                Học sinh: {absenceModalStudent.fullName} (
-                {absenceModalStudent.studentCode})
+              <Text style={styles.modalTitle}>
+                {reasonAction.kind === "cancel" ? "Hủy chuyến" :
+                  reasonAction.kind === "correction" ? "Đính chính điểm danh" : "Lý do vắng mặt"}
               </Text>
+              {"student" in reasonAction && (
+                <Text style={styles.modalSubtitle}>{reasonAction.student.fullName}</Text>
+              )}
+              {reasonAction.kind === "correction" && (
+                <View style={styles.rosterActionRow}>
+                  {(["PRESENT", "ABSENT"] as const).map((status) => (
+                    <TouchableOpacity
+                      key={status}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: status === reasonAction.status, disabled: submittingReason || status === reasonAction.student.status }}
+                      style={[styles.actionBtnSwitch, status === reasonAction.student.status && styles.btnDisabled]}
+                      disabled={submittingReason || status === reasonAction.student.status}
+                      onPress={() => setReasonAction({ ...reasonAction, status })}
+                    >
+                      <Text style={styles.actionBtnTextDark}>
+                        {status === reasonAction.status ? "✓ " : ""}{status === "PRESENT" ? "Có mặt" : "Vắng mặt"}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
               <TextInput
                 style={styles.absenceInput}
-                placeholder="Nhập lý do vắng mặt (VD: Phụ huynh báo ốm)..."
+                placeholder="Nhập lý do"
+                accessibilityLabel="Lý do"
                 placeholderTextColor="#94A3B8"
                 multiline
-                numberOfLines={3}
-                value={absenceReasonText}
-                onChangeText={setAbsenceReasonText}
+                maxLength={500}
+                editable={!submittingReason}
+                value={reasonText}
+                onChangeText={setReasonText}
               />
               <View style={styles.modalBtnRow}>
                 <TouchableOpacity
-                  style={styles.modalConfirmBtn}
-                  onPress={handleSubmitAbsence}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: submittingReason || !reasonText.trim(), busy: submittingReason }}
+                  disabled={submittingReason || !reasonText.trim()}
+                  style={[styles.modalConfirmBtn, (submittingReason || !reasonText.trim()) && styles.btnDisabled]}
+                  onPress={handleSubmitReason}
                 >
-                  <Text style={styles.modalConfirmBtnText}>Xác nhận vắng</Text>
+                  <Text style={styles.modalConfirmBtnText}>
+                    {submittingReason ? "Đang lưu…" : reasonAction.kind === "cancel" ? "Xác nhận hủy" : "Xác nhận"}
+                  </Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.modalCancelBtn}
-                  onPress={() => {
-                    setAbsenceModalStudent(null);
-                    setAbsenceReasonText("");
-                  }}
-                >
-                  <Text style={styles.modalCancelBtnText}>Hủy</Text>
+                <TouchableOpacity accessibilityRole="button" disabled={submittingReason} style={styles.modalCancelBtn} onPress={() => setReasonAction(null)}>
+                  <Text style={styles.modalCancelBtnText}>Đóng</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -3041,10 +3185,10 @@ export default function MobileTripDetailScreen() {
       <Modal
         transparent
         animationType="fade"
-        visible={reportModalVisible}
+        visible={Boolean(incidentReport)}
         onRequestClose={() => {
           Keyboard.dismiss();
-          setReportModalVisible(false);
+          setIncidentReport(null);
           setIncidentNote("");
         }}
       >
@@ -3070,7 +3214,7 @@ export default function MobileTripDetailScreen() {
               <TouchableOpacity
                 onPress={() => {
                   Keyboard.dismiss();
-                  setReportModalVisible(false);
+                  setIncidentReport(null);
                   setIncidentNote("");
                 }}
                 disabled={reportingIncident}
@@ -3095,10 +3239,14 @@ export default function MobileTripDetailScreen() {
                 Loại sự cố báo cáo:
               </Text>
               <Text style={styles.incidentTargetValue}>
-                {isDriver ? "Vắng phụ xe (Giáo viên)" : "Vắng tài xế"}
+                {incidentReport && incidentTypeLabels[incidentReport.type]}
               </Text>
-              {(incidentOptions?.expectedAssignee ||
-                (isDriver ? trip?.busAttendantName : trip?.driverName)) && (
+              {incidentReport?.student && (
+                <Text style={styles.incidentTargetSub}>{incidentReport.student.fullName}</Text>
+              )}
+              {(incidentReport?.type === "ATTENDANT_MISSING" || incidentReport?.type === "DRIVER_MISSING") &&
+                (incidentOptions?.expectedAssignee ||
+                  (isDriver ? trip?.busAttendantName : trip?.driverName)) && (
                 <Text style={styles.incidentTargetSub}>
                   Nhân sự dự kiến:{" "}
                   {incidentOptions?.expectedAssignee?.fullName ||
@@ -3137,6 +3285,7 @@ export default function MobileTripDetailScreen() {
               placeholderTextColor="#94A3B8"
               multiline
               numberOfLines={3}
+              maxLength={500}
               value={incidentNote}
               onChangeText={setIncidentNote}
             />
@@ -3161,7 +3310,7 @@ export default function MobileTripDetailScreen() {
                 style={styles.modalCancelBtn}
                 onPress={() => {
                   Keyboard.dismiss();
-                  setReportModalVisible(false);
+                  setIncidentReport(null);
                   setIncidentNote("");
                 }}
                 disabled={reportingIncident}
@@ -4081,6 +4230,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 24,
   },
+  standaloneTripAction: { flex: 0, minHeight: 44, paddingHorizontal: 12 },
+  reportStudentAction: { minHeight: 44, paddingHorizontal: 8 },
   actionBtnReset: {
     width: 80,
     alignItems: "center",
@@ -4182,6 +4333,7 @@ const styles = StyleSheet.create({
     color: "#D97706",
   },
   primaryActionBtnText: parentHomeStyles.primaryBtnText,
+  readyActions: { gap: 8 },
   readyBadgeRow: {
     flexDirection: "row",
     alignItems: "center",

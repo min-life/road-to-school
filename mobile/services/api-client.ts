@@ -696,6 +696,24 @@ class MobileApiClient {
     });
   }
 
+  async correctAttendance(tripId: string, studentId: string, body: {
+    status: 'PRESENT' | 'ABSENT';
+    expectedStatus: AttendanceStatus;
+    reason: string;
+  }): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/trips/${tripId}/attendance/${studentId}/correction`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async cancelAllAbsent(tripId: string, reason: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/trips/${tripId}/cancel-all-absent`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
   async verifyQrAttendance(tripId: string, qrData: string): Promise<VerifyQrResponse> {
     return this.request<VerifyQrResponse>(`/trips/${tripId}/attendance/verify-qr`, {
       method: 'POST',
@@ -813,12 +831,20 @@ class MobileApiClient {
     tripId: string;
     type: TripIncidentType;
     note?: string;
+    studentId?: string;
+    expectedAssigneeId?: string;
+    latitude?: number;
+    longitude?: number;
   }): Promise<TripIncident> {
     return this.request<TripIncident>(`/trips/${body.tripId}/incidents`, {
       method: 'POST',
       body: JSON.stringify({
         type: body.type,
         description: body.note,
+        studentId: body.studentId,
+        expectedAssigneeId: body.expectedAssigneeId,
+        latitude: body.latitude,
+        longitude: body.longitude,
       }),
     });
   }
@@ -871,7 +897,10 @@ export type TripIncidentType =
   | 'ATTENDANT_MISSING'
   | 'DRIVER_MISSING'
   | 'OFF_ROUTE'
-  | 'LATE_STOP';
+  | 'LATE_STOP'
+  | 'TRAFFIC_DELAY'
+  | 'GPS_SIGNAL_LOST'
+  | 'NO_GUARDIAN_AT_STOP';
 
 export type TripIncidentStatus =
   | 'WAITING_ASSIGNMENT'

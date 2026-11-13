@@ -3,7 +3,7 @@ import { AppState } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import * as Location from 'expo-location';
 import { navigationApi, type Checkpoint, type LocationSource, type NavigationSegment, type NavigationState, type PositionSample } from '../services/trip-navigation';
-import { autoPosition, coordinate, cumulativeDistances, distance, joystickPosition, nextGuidance, projectProgress, shouldHandOffToManual, splitSegment, type Coordinate } from '../utils/trip-navigation';
+import { autoPosition, coordinate, cumulativeDistances, distance, isAutoStudentStop, joystickPosition, nextGuidance, nextStopEstimate, nextStopProgress, projectProgress, shouldHandOffToManual, splitSegment, type Coordinate } from '../utils/trip-navigation';
 import { decodePolyline } from '../utils/polyline';
 import type { MobileTripDetailStop } from '../services/api-client';
 import { navigationResumeStorage } from '../services/navigation-resume-storage';
@@ -239,7 +239,7 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
     }
   }
 
-  function accept(position: PositionSample, token: number) {
+  function accept(position: PositionSample, token: number, atAutoStop = false) {
     if (token !== generation.current || !foreground.current || !cp.current) return;
     const age = Date.now() - Date.parse(position.capturedAt);
     if (!Number.isFinite(age) || age > 10000 || age < -5000) return;
@@ -257,6 +257,7 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
     const p = coordinate(position);
     const current = leg.current;
     const target = stopsRef.current.find(s => s.id === cp.current?.targetStopId);
+    const waitForManual = isAutoStudentStop(cp.current.activeSource, target?.stopType);
     if (!busy.current && !routeBusy.current && shouldHandOffToManual(
       cp.current.activeSource, target?.stopType, target ? distance(p, coordinate(target)) : Infinity,
     )) {
@@ -268,7 +269,7 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
     if (!current) {
       setView(v => ({ ...v, position: p, guidance: null }));
       const first = stopsRef.current[0];
-      if (target && first?.id === target.id && distance(p, coordinate(target)) <= 20) {
+      if (target && !waitForManual && first?.id === target.id && distance(p, coordinate(target)) <= 20) {
         if (!arrivedSince.current) arrivedSince.current = Date.now();
         else if (Date.now() - arrivedSince.current >= 2500) {
           arrivedSince.current = null;
@@ -296,7 +297,7 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
         const { traveled, remaining } = splitSegment(current.coords, current.cumulative, current.progress);
         const fullTraveled = [...accumulatedTraveled.current, ...traveled];
         let shouldAdvance = false;
-        if (target) {
+        if (target && !waitForManual) {
           const targetCoord = coordinate(target);
           const distToTarget = distance(p, targetCoord);
           const targetProg = projectProgress(current.coords, current.cumulative, targetCoord, 0, Infinity).progress;
@@ -323,7 +324,7 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
           traveled: fullTraveled,
           remaining,
           guidance: nextGuidance(current.instructions, current.cumulative, current.progress),
-          message: null,
+          message: atAutoStop ? 'Chọn Lái thủ công để đến điểm dừng' : null,
         }));
       }
     } else {
@@ -383,9 +384,18 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
       const now = performance.now(), seconds = Math.min(0.5, (now - lastTick) / 1000); lastTick = now;
       const current = leg.current;
       const speedMps = speedKmhRef.current / 3.6;
-      if (cp.current?.activeSource === 'TEST_AUTO') {
+      const checkpoint = cp.current;
+      let atAutoStop = false;
+      if (checkpoint?.activeSource === 'TEST_AUTO') {
         if (current && !routeBusy.current) {
-          current.travelled = Math.min(current.cumulative.at(-1) ?? 0, current.travelled + seconds * speedMps);
+          const target = stopsRef.current.find(s => s.id === checkpoint.targetStopId);
+          const stopAt = target && isAutoStudentStop(checkpoint.activeSource, target.stopType)
+            ? nextStopProgress(current.instructions, current.cumulative)
+              ?? projectProgress(current.coords, current.cumulative, coordinate(target), 0, Infinity).progress
+            : undefined;
+          const end = stopAt ?? current.cumulative.at(-1) ?? 0;
+          current.travelled = Math.max(current.travelled, Math.min(end, current.travelled + seconds * speedMps));
+          atAutoStop = stopAt !== undefined && current.travelled >= stopAt;
           p = autoPosition(current.coords, current.cumulative, current.travelled);
         }
       } else {
@@ -404,7 +414,7 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
           p = joystickPosition(p, moveBearing, moveSpeed, moveSeconds);
         }
       }
-      accept({ latitude: p[0], longitude: p[1], capturedAt: new Date().toISOString() }, token);
+      accept({ latitude: p[0], longitude: p[1], capturedAt: new Date().toISOString() }, token, atAutoStop);
     }, 100);
   }
 
@@ -641,8 +651,19 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
     return () => { foreground.current = false; sub.remove(); suspend(); };
   }, [identity, suspend]));
 
+  const currentLeg = leg.current;
+  const freshPosition = view.position && (remote.current?.testMode
+    || (sample.current && Date.now() - Date.parse(sample.current.capturedAt) <= 10000));
+  // shortcut: LIVE ETA uses route-average speed until the API exposes per-instruction travel times.
+  const secondsPerMetre = remote.current?.testMode ? 3.6 / speedKmh
+    : currentLeg ? currentLeg.durationSeconds / currentLeg.distanceMeters : NaN;
+  const arrivalEstimate = currentLeg && freshPosition && !view.message
+    && remote.current?.status === 'IN_PROGRESS' && currentLeg.targetStopId === view.targetStopId
+    ? nextStopEstimate(currentLeg.instructions, currentLeg.cumulative, currentLeg.progress, secondsPerMetre) : null;
+
   return {
     ...view,
+    nextStopEstimate: arrivalEstimate,
     speedKmh,
     increaseSpeed,
     decreaseSpeed,

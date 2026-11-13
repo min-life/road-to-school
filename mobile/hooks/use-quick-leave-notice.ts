@@ -1,5 +1,5 @@
 import { AppAlert as Alert } from '@/services/app-alert';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 import { useRouter } from 'expo-router';
 import { mobileApiClient } from '@/services/api-client';
@@ -16,6 +16,7 @@ export interface TriggerQuickLeaveNoticeParams {
 
 export function useQuickLeaveNotice() {
   const router = useRouter();
+  const requesting = useRef(false);
   const [requestingTripId, setRequestingTripId] = useState<string | null>(null);
 
   const isRequesting = (tripId?: string): boolean => {
@@ -47,9 +48,19 @@ export function useQuickLeaveNotice() {
           {
             text: 'Xác nhận',
             onPress: async () => {
-              if (requestingTripId) return;
+              if (requesting.current) return;
+              requesting.current = true;
               try {
                 setRequestingTripId(tripId);
+                if (!studentId) {
+                  const options = await mobileApiClient.getLeaveNoticeOptions({ serviceDate, direction });
+                  const option = options.trips.find((trip) => trip.tripId === tripId);
+                  if (!option?.canReport) {
+                    Alert.alert('Không thể báo nghỉ', option?.disabledReason || 'Chuyến này hiện không thể báo nghỉ.');
+                    onSuccess?.();
+                    return;
+                  }
+                }
                 const res = await mobileApiClient.requestLeaveNoticeOtp({
                   tripId,
                   studentId: studentId || undefined,
@@ -79,6 +90,7 @@ export function useQuickLeaveNotice() {
                   err?.message || 'Có lỗi xảy ra khi yêu cầu mã xác thực. Vui lòng thử lại.'
                 );
               } finally {
+                requesting.current = false;
                 setRequestingTripId(null);
               }
             },

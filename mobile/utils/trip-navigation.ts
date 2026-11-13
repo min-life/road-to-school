@@ -1,8 +1,11 @@
 import type { Instruction, LocationPoint, LocationSource, Position } from '../services/trip-navigation';
 
+export function isAutoStudentStop(source: LocationSource | null, stopType: string | undefined) {
+  return source === 'TEST_AUTO' && (stopType === 'PICKUP' || stopType === 'DROPOFF');
+}
+
 export function shouldHandOffToManual(source: LocationSource | null, stopType: string | undefined, metres: number) {
-  return source === 'TEST_AUTO' && (stopType === 'PICKUP' || stopType === 'DROPOFF')
-    && metres >= 0 && metres <= 100;
+  return isAutoStudentStop(source, stopType) && metres >= 0 && metres <= 10;
 }
 
 export type Coordinate = [number, number];
@@ -67,6 +70,19 @@ export function nextGuidance(instructions: Instruction[], cumulative: number[], 
   return { text: continues && progress > cumulative[next.interval[0]] + 3 ? 'Tiếp tục đến điểm dừng' : text,
     streetName: next.streetName,
     metres: Math.max(0, Math.round((continues ? cumulative.at(-1) ?? 0 : cumulative[next.interval[0]]) - progress)) };
+}
+
+export function nextStopProgress(instructions: Instruction[], cumulative: number[]) {
+  const stop = instructions.find(i => i.sign === 5 || i.sign === 4);
+  return stop ? cumulative[stop.interval[0]] : undefined;
+}
+
+export function nextStopEstimate(instructions: Instruction[], cumulative: number[], progress: number, secondsPerMetre: number) {
+  const end = nextStopProgress(instructions, cumulative);
+  if (end === undefined || !Number.isFinite(end) || !Number.isFinite(progress)
+      || !Number.isFinite(secondsPerMetre) || secondsPerMetre <= 0) return null;
+  const metres = Math.max(0, end - Math.max(0, progress));
+  return { metres, seconds: Math.round(metres * secondsPerMetre) };
 }
 
 export function recordedParts(points: LocationPoint[]) {

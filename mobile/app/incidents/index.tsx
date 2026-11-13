@@ -1,3 +1,4 @@
+import { incidentStatusLabel, incidentTypeLabels } from "@/utils/trip-incident-label";
 import { AppHeader } from '@/components/navigation/app-header';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -26,15 +27,18 @@ const TYPE_OPTIONS: { label: string; value: string }[] = [
   { label: 'Vắng tài xế', value: 'DRIVER_MISSING' },
   { label: 'Lệch tuyến', value: 'OFF_ROUTE' },
   { label: 'Trễ đón/trả', value: 'LATE_STOP' },
+  { label: incidentTypeLabels.TRAFFIC_DELAY, value: 'TRAFFIC_DELAY' },
+  { label: incidentTypeLabels.GPS_SIGNAL_LOST, value: 'GPS_SIGNAL_LOST' },
+  { label: incidentTypeLabels.NO_GUARDIAN_AT_STOP, value: 'NO_GUARDIAN_AT_STOP' },
 ];
 
 const STATUS_OPTIONS: { label: string; value: string }[] = [
   { label: 'Tất cả trạng thái', value: 'ALL' },
-  { label: 'Chờ phân công', value: 'WAITING_ASSIGNMENT' },
+  { label: 'Chờ xử lý', value: 'WAITING_ASSIGNMENT' },
   { label: 'Chờ xác nhận', value: 'WAITING_CONFIRMATION' },
   { label: 'Đã giải quyết', value: 'RESOLVED' },
   { label: 'Đã xác nhận', value: 'CONFIRMED' },
-  { label: 'Đóng tự động', value: 'CLOSED' },
+  { label: 'Đã đóng', value: 'CLOSED' },
 ];
 
 export default function IncidentsHistoryScreen() {
@@ -84,7 +88,7 @@ export default function IncidentsHistoryScreen() {
       case 'LATE_STOP':
         return { label: 'Trễ đón/trả', bg: '#FFEDD5', text: '#C2410C', icon: 'time-outline' };
       default:
-        return { label: type, bg: '#F1F5F9', text: '#475569', icon: 'alert-circle-outline' };
+        return { label: incidentTypeLabels[type] ?? type, bg: '#F1F5F9', text: '#475569', icon: 'alert-circle-outline' };
     }
   };
 
@@ -203,7 +207,7 @@ export default function IncidentsHistoryScreen() {
 
                   <View style={[styles.badge, { backgroundColor: statusBadge.bg }]}>
                     <Text style={[styles.badgeText, { color: statusBadge.text }]}>
-                      {statusBadge.label}
+                      {incidentStatusLabel(incident)}
                     </Text>
                   </View>
                 </View>
