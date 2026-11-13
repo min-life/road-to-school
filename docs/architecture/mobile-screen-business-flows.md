@@ -98,6 +98,7 @@ G-06/G-07 nằm trong source và được ghi nhận ở nhóm mẫu. Các form/
 
 ```text
 G-01 startup → đọc token + onboarding → A-01 hoặc A-02 hoặc tabs
+Phiên PARENT được GET /auth/me xác thực → RoleSplash phụ huynh → tabs
 A-01 hoàn tất/tiếp tục khi lỗi lưu → root quyết định A-02
 A-02 login → AuthContext/token pair → RoleSplash → H-01
 A-03 request OTP → A-04 verify → lưu phiên → tabs
@@ -114,7 +115,7 @@ DRIVER có navigation đang hợp lệ khi foreground → mở lại T-01
 | A-04/A-06 | Countdown hiện cố định 300s, resend bị khóa theo counter | Cần tách TTL/chờ resend khi contract BE cung cấp. Đây là hành vi đang có, M-09 sẽ rà lại |
 | G-01 | GET /auth/me, POST /auth/refresh, token storage và unauthorized listener qua AuthContext | Kiểm thử trường inactive/reactivated, thu hồi tài khoản/phiên và resume navigation đúng user |
 
-Auth Request/Verify dùng AuthContext, API client và token storage. Các key nhạy cảm ở bảng là tên params source, tài liệu chỉ ghi cấu trúc. [AuthContext](../../mobile/context/auth-context.tsx), [API client](../../mobile/services/api-client.ts), [Navigation restore](../../mobile/hooks/use-navigation-reopen.ts), [Auth DTO](../../api/src/auth/dto/auth.dto.ts)
+Auth Request/Verify dùng AuthContext, API client và token storage. Các key nhạy cảm ở bảng là tên params source, tài liệu chỉ ghi cấu trúc. Từ 13/11/2026, PARENT có hình splash riêng sau đăng nhập thủ công và sau xác thực phiên khởi động thành công, qua RoleSplash 1.200 ms. [AuthContext](../../mobile/context/auth-context.tsx), [API client](../../mobile/services/api-client.ts), [Navigation restore](../../mobile/hooks/use-navigation-reopen.ts), [Auth DTO](../../api/src/auth/dto/auth.dto.ts), [Splash phụ huynh](mobile-parent-splash.md)
 
 ## Hành trình phụ huynh từ liên kết tới theo dõi
 

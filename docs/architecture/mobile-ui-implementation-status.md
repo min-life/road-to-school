@@ -2,6 +2,10 @@
 
 Ngày cập nhật: **29/10/2026 (Asia/Saigon)**. Commit `db02de6` là mốc Phase1 trên nhánh `dongnnp/mobile/refactor-ui`; các cập nhật local được ghi riêng bên dưới. Tài liệu này ghi nhận phần đã triển khai trong đợt chuyển phong cách V1 sang V2; không phải phê duyệt toàn bộ kế hoạch chuyển giao diện hoặc chứng nhận nghiệm thu thiết bị.
 
+## Splash dành riêng cho phụ huynh — 13/11/2026
+
+ParentLoginSplash dùng SVG phụ huynh do PO cung cấp, bundle PNG trong suốt 720 × 720, frame vuông tối đa 240 dp giữa nền kem. AppLoadingSplash thêm illustration tùy chọn để dùng chung safe area/cuộn/loading. PARENT thấy hình sau đăng nhập thủ công và sau GET me khôi phục phiên thành công. Giai đoạn chờ xác định vai trò dùng splash chung. RoleSplash tiếp tục quản lý thời gian 1.200 ms. Typecheck, Expo export iOS/Android/Web/server và Chromium isolated preview nhiều kích thước PASS. Native iPhone/Android và auth/restore thật NOT_VERIFIED. [Contract, vòng đời và kiểm chứng](mobile-parent-splash.md)
+
 ## Kiểm kê màn hình và luồng nghiệp vụ — 05/11/2026
 
 Đã kiểm kê 40 file entry trong mobile/app, gồm 33 entry nghiệp vụ và 7 entry hạ tầng/fallback/mẫu. Danh mục có source từng route, role/params/controls/API/refresh, các component dùng chung/entry tương thích, 13 nhóm form/popup, flow liên màn, gap SF-01–SF-07 và 6 đợt sửa gắn M-01–M-10. Trạng thái “đã có” được xác định theo UI/handler source, phần sửa/UAT được ghi riêng. [Bản đồ màn hình và luồng chi tiết](mobile-screen-business-flows.md)
