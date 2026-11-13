@@ -1,0 +1,6 @@
+.pio/
+__pycache__/
+include/trusted-ca.h
+*.bin
+*.elf
+*.map

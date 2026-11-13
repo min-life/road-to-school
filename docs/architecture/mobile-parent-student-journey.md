@@ -2,6 +2,10 @@
 
 Cập nhật **01/11/2026**, local, chưa commit/push. Đây là spec hiện hành của **Chuyến xe của con** trong [HomeScreen](<../../mobile/app/(tabs)/index.tsx>), thay thế mapping ngày30/10 (nhịp điểm danh1600ms, chiều về hai mốc và bong bóng đếm phút theo lịch).
 
+## Đối chiếu backend 05/11/2026
+
+Backend41cf3b0 đã sửa chọn card Home để giữ IN_PROGRESS dù quá scheduledEndAt. SCHEDULED vẫn bị lọc khi quá giờ kết thúc, COMPLETED/CANCELLED vẫn ra khỏi danh sách. Ba loại sự cố NO_GUARDIAN_AT_STOP/TRAFFIC_DELAY/GPS_SIGNAL_LOST đã có trong schema nhưng union và journeyIncidentLabel của mobile còn thiếu. GET detail có thêm adminFinalization, cần phân biệt audit chốt hành chính với xác nhận từng con xuống xe khi sửa UI tiếp. Các mapping đi/về bên dưới tiếp tục là baseline mobile đã triển khai. [Gap mobile, contract và điểm cần BE chốt](mobile-backend-sync-2026-11-05.md)
+
 ## Nguồn nghiệp vụ và phạm vi
 
 Theo quyết định mới nhất của PO:

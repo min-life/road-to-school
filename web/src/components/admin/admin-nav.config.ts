@@ -34,6 +34,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     href: '/admin/vehicles',
     allowedRoles: ['SYSTEM_ADMIN'],
   },
+  { id: 'iot', label: 'Thiết bị IoT', href: '/admin/iot', allowedRoles: ['SYSTEM_ADMIN'] },
   {
     id: 'routes',
     label: 'Phương án tuyến',

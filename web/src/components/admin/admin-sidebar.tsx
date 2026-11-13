@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { Cpu } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -56,6 +57,8 @@ export function AdminSidebar({
         return <DriverIcon className={iconClass} />;
       case 'vehicles':
         return <VehicleIcon className={iconClass} />;
+      case 'iot':
+        return <Cpu className={iconClass} aria-hidden="true" />;
       case 'routes':
         return <RouteIcon className={iconClass} />;
       case 'trips':

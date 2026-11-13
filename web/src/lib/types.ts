@@ -146,6 +146,7 @@ export interface StudentListResponse {
 
 export interface StudentDetail extends GeographyFields {
   parentLinkAudit?: unknown;
+  rfidCardUid?: string | null;
   id: string;
   code: string;
   schoolId: string;
@@ -214,6 +215,7 @@ export interface SchoolEmployeeDetail {
 
 export interface Vehicle {
   isActive: boolean;
+  iotDevice?: { assignmentId: string; deviceId: string; assignedAt: string } | null;
   id: string;
   brand: string;
   seatCount: number; // Số ghế khả dụng cho học sinh

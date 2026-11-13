@@ -1,3 +1,11 @@
+# Cập nhật 13/11/2026 — Migrate database local của phiên này
+
+- Theo yêu cầu PO, đã apply 8 migrations còn thiếu bằng Prisma migrate deploy vào roadtoschool/public tại 127.0.0.1:5433, PostgreSQL 18.6. Hiện đủ 22/22 migrations, không có migration thất bại.
+- Public có 22 bảng nghiệp vụ/hệ thống ứng dụng, không tính _prisma_migrations. Ba bảng mới school_scheduled_changes, service_calendar_entries và vehicle_iot_assignments đều trống. Số bản ghi của 19 bảng cũ giữ nguyên giữa hai snapshot read-only.
+- Prisma Client 6.19.3 đã generate, schema validate và API typecheck đạt. Source/schema/migration/env/lockfiles giữ nguyên nội dung, kiểm tra 787 tracked files.
+- Prisma migrate diff còn báo ba tên FK của vehicle_iot_assignments khác tên mặc định trong Prisma schema. Định nghĩa quan hệ đúng theo migration, chi tiết ở LATEST. Chưa chuẩn hóa tên trong lượt migrate này.
+- Prisma kết nối trực tiếp thành công. GET http://127.0.0.1:3000/api/v1/health/db bị ECONNREFUSED, chưa xác minh health backend runtime. Báo cáo và danh sách 8 migrations tại docs/ai-review/LATEST.md.
+
 # Cập nhật 07/11/2026 — Đồng bộ hướng dẫn FE theo API hiện hành
 
 - PO yêu cầu ưu tiên tài liệu FE khớp API, các bug còn lại triển khai sau. FE_INTEGRATION_GUIDE đã sửa URL Home, response OTP, TTL/purpose và mô tả rõ contract đọc Mobile/báo nghỉ.

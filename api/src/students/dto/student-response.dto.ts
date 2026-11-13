@@ -129,6 +129,8 @@ export class StudentListResponseDto {
 export class StudentDetailResponseDto extends StudentItemDto {
   @ApiProperty({ required: false, nullable: true, type: [Object], description: 'Lịch sử trường thu hồi liên kết phụ huynh' })
   parentLinkAudit?: unknown;
+  @ApiProperty({type:String,nullable:true,description:"UID RFID hiện tại; null khi chưa gán hoặc đã giải phóng"})
+  rfidCardUid: string | null;
   @ApiProperty({
     description: 'Tên trường học đối tác',
     example: 'Trường Tiểu học Lê Quý Đôn',

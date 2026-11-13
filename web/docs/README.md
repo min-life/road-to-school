@@ -18,6 +18,8 @@
 ## Vai trò của từng tài liệu
 
 - [business-improvements-usage.md](business-improvements-usage.md): dời bãi theo ngày hiệu lực, tối ưu lại phương án, ngừng/kích hoạt và bàn giao tài nguyên, khóa phân công và sự cố mới.
+- [iot-device-console.md](iot-device-console.md): trang IoT cho System Admin, contract Serial v1,
+  định dạng firmware merged và giới hạn kiểm chứng USB/Wi-Fi/realtime.
 
 - [school-lifecycle-usage.md](school-lifecycle-usage.md): màn hình, quyền, cách hẹn thay đổi trường,
   ngày nghỉ/học bù, hiệu lực phương án và xử lý hành chính chuyến; kèm giới hạn tích hợp.
