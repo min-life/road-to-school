@@ -1,24 +1,28 @@
 import { TouchableOpacity, View, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
-import { colors } from '@/constants/theme';
+import { colors, getStaffTheme } from '@/constants/theme';
+import { useAuth } from '@/context/auth-context';
 import { useNotifications } from '@/context/notifications-context';
 import { navigationMetrics } from '@/constants/navigation';
 
 export function NotificationBell({ style }: { style?: StyleProp<ViewStyle> }) {
   const { summary } = useNotifications();
+  const { user } = useAuth();
   const router = useRouter();
+  const staffTheme = getStaffTheme(user?.role);
+  const buttons = staffTheme?.buttons;
 
   return (
     <TouchableOpacity
       accessibilityRole="button"
       accessibilityLabel={`Thông báo${summary ? `, ${summary.unreadCount} chưa đọc` : ''}`}
       onPress={() => router.push('/notifications')}
-      style={[styles.button, style]}
+      style={[styles.button, buttons?.secondary, style]}
       activeOpacity={0.7}
     >
       <View style={styles.iconContainer}>
-        <Ionicons name="notifications-outline" size={23} color={colors.foreground} />
+        <Ionicons name="notifications-outline" size={23} color={staffTheme?.colors.primary ?? colors.foreground} />
         {!!summary?.unreadCount && <View style={styles.dot} />}
       </View>
     </TouchableOpacity>

@@ -15,7 +15,8 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { colors } from "@/constants/theme";
+import { colors, getStaffTheme } from "@/constants/theme";
+import { useAuth } from "@/context/auth-context";
 import { mobileApiClient, MaskedContactChannel } from "@/services/api-client";
 import { OtpRequestSummary } from "@/components/auth/otp-request-summary";
 import {
@@ -27,6 +28,9 @@ import {
 export default function LeaveNoticeOtpScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
+  const staffTheme = getStaffTheme(user?.role);
+  const buttons = staffTheme?.buttons;
   const params = useLocalSearchParams<{
     challengeId: string;
     maskedChannels: string;
@@ -261,9 +265,9 @@ export default function LeaveNoticeOtpScreen() {
               disabled={resending}
             >
               {resending ? (
-                <ActivityIndicator size="small" color="#D97706" />
+                <ActivityIndicator size="small" color={staffTheme?.colors.primary ?? "#D97706"} />
               ) : (
-                <Text style={styles.resendBtnText}>Gửi lại mã OTP</Text>
+                <Text style={[styles.resendBtnText, buttons?.secondaryText]}>Gửi lại mã OTP</Text>
               )}
             </TouchableOpacity>
           )}
@@ -273,16 +277,18 @@ export default function LeaveNoticeOtpScreen() {
         <TouchableOpacity
           style={[
             styles.submitBtn,
-            (otp.length !== 6 || submitting) && styles.submitBtnDisabled,
+            buttons?.primary,
+            (otp.length !== 6 || submitting) && (buttons?.disabled ?? styles.submitBtnDisabled),
           ]}
           onPress={handleConfirm}
           disabled={otp.length !== 6 || submitting}
           activeOpacity={0.85}
         >
           {submitting ? (
-            <ActivityIndicator size="small" color="#1E293B" />
+            <ActivityIndicator size="small" color={staffTheme?.colors.disabledText ?? colors.foreground} />
           ) : (
-            <Text style={styles.submitBtnText}>Xác nhận báo nghỉ</Text>
+            <Text style={[styles.submitBtnText, otp.length !== 6
+              ? buttons?.disabledText : buttons?.primaryText]}>Xác nhận báo nghỉ</Text>
           )}
         </TouchableOpacity>
       </KeyboardScrollView>

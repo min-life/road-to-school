@@ -12,12 +12,15 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { colors } from '@/constants/theme';
+import { colors, getStaffTheme } from '@/constants/theme';
+import { useAuth } from '@/context/auth-context';
 import { mobileApiClient, LeaveNoticeItemDto, LeaveNoticeStatus } from '@/services/api-client';
 
 export default function LeaveNoticeDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+  const buttons = getStaffTheme(user?.role)?.buttons;
   const params = useLocalSearchParams<{ id: string }>();
   const noticeId = params.id;
 
@@ -148,8 +151,8 @@ export default function LeaveNoticeDetailScreen() {
           <Ionicons name="alert-circle-outline" size={48} color="#DC2626" />
           <Text style={styles.errorTitle}>Không tìm thấy đơn báo nghỉ</Text>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={fetchDetail}>
-            <Text style={styles.retryBtnText}>Thử lại</Text>
+          <TouchableOpacity style={[styles.retryBtn, buttons?.primary]} onPress={fetchDetail}>
+            <Text style={[styles.retryBtnText, buttons?.primaryText]}>Thử lại</Text>
           </TouchableOpacity>
         </View>
       </View>

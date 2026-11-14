@@ -12,5 +12,29 @@ export const colors = {
   error: '#EF4444',
 } as const;
 
+function createStaffTheme(primary: string, secondary: string, disabled: string, disabledText: string) {
+  return {
+    colors: { primary, secondary, disabled, disabledText },
+    buttons: {
+      primary: { backgroundColor: primary },
+      primaryText: { color: colors.surface },
+      secondary: { backgroundColor: secondary },
+      secondaryText: { color: primary },
+      selected: { backgroundColor: secondary, borderColor: primary },
+      disabled: { backgroundColor: disabled },
+      disabledText: { color: disabledText },
+    },
+  };
+}
+
+const driverTheme = createStaffTheme('#2563A6', '#EFF6FC', '#E7EDF3', '#51677B');
+export const attendantTheme = createStaffTheme('#7956C2', '#F3EEFC', '#EDE8F3', '#635A72');
+export type StaffTheme = ReturnType<typeof createStaffTheme>;
+
+export function getStaffTheme(role?: string): StaffTheme | undefined {
+  if (role === 'DRIVER') return driverTheme;
+  if (role === 'BUS_ATTENDANT') return attendantTheme;
+}
+
 export type ThemeColors = typeof colors;
 export default colors;

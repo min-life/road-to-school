@@ -30,7 +30,7 @@ import { WebView } from "react-native-webview";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Location from "expo-location";
 import { incidentStatusLabel, incidentTypeLabels } from "@/utils/trip-incident-label";
-import { colors } from "@/constants/theme";
+import { attendantTheme, colors, getStaffTheme } from "@/constants/theme";
 import { parentHomeStyles } from "@/components/parent/home-styles";
 import { useAuth } from "@/context/auth-context";
 import {
@@ -153,6 +153,18 @@ export default function MobileTripDetailScreen() {
   const isBusAttendant = user?.role === "BUS_ATTENDANT";
   const isDriver = user?.role === "DRIVER";
   const isParent = user?.role === "PARENT";
+  const staffTheme = getStaffTheme(user?.role);
+  const buttons = staffTheme?.buttons;
+  const staffAccent = staffTheme?.colors.primary;
+  const staffTabColor = staffAccent ?? "#D97706";
+  const staffTabBorder = staffAccent ? { borderBottomColor: staffAccent } : styles.tabButtonActive;
+  const staffTabText = buttons ? [styles.tabButtonTextActive, buttons.secondaryText] : styles.tabButtonTextActive;
+  const incidentTabColor = staffAccent ?? "#DC2626";
+  const attendanceTabBackground = buttons?.secondary ?? styles.subTabButtonActive;
+  const mapActionBackground = staffTheme?.colors.secondary ?? colors.surface;
+  const mapActionColor = staffAccent ?? colors.foreground;
+  const attendantButtons = attendantTheme.buttons;
+  const reasonDisabled = submittingReason || !reasonText.trim();
   const showNextStopSummary = isDriver && !isExpanded && operationalState?.status === "IN_PROGRESS";
   const showTripAction = hasTripAction(user?.role, operationalState?.status);
   const bottomActionOffset = showTripAction ? bottomActionHeight : 0;
@@ -186,6 +198,7 @@ export default function MobileTripDetailScreen() {
     useState<TripIncident | null>(null);
   const [confirmReason, setConfirmReason] = useState("");
   const [confirmingIncident, setConfirmingIncident] = useState(false);
+  const autoConfirmDisabled = confirmingIncident || confirmReason.trim().length < 3;
   const hasAutoPromptedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -1187,6 +1200,7 @@ export default function MobileTripDetailScreen() {
             style={[
               styles.retryButton,
               isDriverOrAttendant && parentHomeStyles.primaryBtn,
+              buttons?.primary,
             ]}
             onPress={loadTripDetail}
           >
@@ -1194,6 +1208,7 @@ export default function MobileTripDetailScreen() {
               style={[
                 styles.retryButtonText,
                 isDriverOrAttendant && parentHomeStyles.primaryBtnText,
+                buttons?.primaryText,
               ]}
             >
               Thử lại
@@ -1319,6 +1334,8 @@ export default function MobileTripDetailScreen() {
         }}
       >
         <TripNavigationControls
+          staffTheme={staffTheme}
+          isDriver={isDriver}
           canPublish={
             isDriver &&
             (!!navigation?.canPublish ||
@@ -1370,19 +1387,20 @@ export default function MobileTripDetailScreen() {
               accessibilityLabel={
                 showPlanned ? "Ẩn tuyến dự kiến" : "Xem tuyến dự kiến"
               }
+              accessibilityState={{ selected: showPlanned }}
               onPress={() => setShowPlanned((s) => !s)}
               style={{
-                backgroundColor: showPlanned ? colors.primary : colors.surface,
+                backgroundColor: showPlanned && !staffTheme ? colors.primary : mapActionBackground,
                 paddingVertical: 8,
                 paddingHorizontal: 12,
                 borderRadius: 12,
                 borderWidth: 1,
-                borderColor: showPlanned ? colors.primary : colors.border,
+                borderColor: showPlanned ? (staffAccent ?? colors.primary) : colors.border,
               }}
             >
               <Text
                 style={{
-                  color: colors.foreground,
+                  color: mapActionColor,
                   fontWeight: "600",
                   fontSize: 12,
                 }}
@@ -1400,7 +1418,7 @@ export default function MobileTripDetailScreen() {
               )
             }
             style={{
-              backgroundColor: colors.surface,
+              backgroundColor: mapActionBackground,
               paddingVertical: 8,
               paddingHorizontal: 12,
               borderRadius: 12,
@@ -1410,7 +1428,7 @@ export default function MobileTripDetailScreen() {
           >
             <Text
               style={{
-                color: colors.foreground,
+                color: mapActionColor,
                 fontWeight: "600",
                 fontSize: 12,
               }}
@@ -1421,23 +1439,24 @@ export default function MobileTripDetailScreen() {
           <TouchableOpacity
             accessibilityRole="button"
             accessibilityLabel={following ? "Hủy bám xe" : "Bám theo xe"}
+            accessibilityState={{ selected: following }}
             onPress={() =>
               webView.current?.injectJavaScript(
                 "window.toggleFollow && window.toggleFollow(); true;",
               )
             }
             style={{
-              backgroundColor: following ? colors.primary : colors.surface,
+              backgroundColor: following && !staffTheme ? colors.primary : mapActionBackground,
               paddingVertical: 8,
               paddingHorizontal: 12,
               borderRadius: 12,
               borderWidth: 1,
-              borderColor: following ? colors.primary : colors.border,
+              borderColor: following ? (staffAccent ?? colors.primary) : colors.border,
             }}
           >
             <Text
               style={{
-                color: colors.foreground,
+                color: mapActionColor,
                 fontWeight: "600",
                 fontSize: 12,
               }}
@@ -1463,6 +1482,7 @@ export default function MobileTripDetailScreen() {
         <HeaderAction
           icon="arrow-back"
           label="Quay lại"
+          staffTheme={staffTheme}
           onPress={() => router.back()}
         />
       </View>
@@ -1756,17 +1776,19 @@ export default function MobileTripDetailScreen() {
                 >
                   <TouchableOpacity
                     onPress={() => setActiveTab("INFO")}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: activeTab === "INFO" }}
                     style={[
                       styles.tabButton,
                       styles.tabButtonParent,
                       styles.tabButtonStaff,
-                      activeTab === "INFO" && styles.tabButtonActive,
+                      activeTab === "INFO" && staffTabBorder,
                     ]}
                   >
                     <Ionicons
                       name="information-circle-outline"
                       size={15}
-                      color={activeTab === "INFO" ? "#D97706" : "#64748B"}
+                      color={activeTab === "INFO" ? staffTabColor : colors.mutedText}
                     />
                     <Text
                       numberOfLines={1}
@@ -1774,7 +1796,7 @@ export default function MobileTripDetailScreen() {
                         styles.tabButtonText,
                         styles.tabButtonTextParent,
                         styles.tabButtonTextStaff,
-                        activeTab === "INFO" && styles.tabButtonTextActive,
+                        activeTab === "INFO" && staffTabText,
                       ]}
                     >
                       Thông tin
@@ -1783,17 +1805,19 @@ export default function MobileTripDetailScreen() {
 
                   <TouchableOpacity
                     onPress={() => setActiveTab("STOPS")}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: activeTab === "STOPS" }}
                     style={[
                       styles.tabButton,
                       styles.tabButtonParent,
                       styles.tabButtonStaff,
-                      activeTab === "STOPS" && styles.tabButtonActive,
+                      activeTab === "STOPS" && staffTabBorder,
                     ]}
                   >
                     <Ionicons
                       name="location-outline"
                       size={15}
-                      color={activeTab === "STOPS" ? "#D97706" : "#64748B"}
+                      color={activeTab === "STOPS" ? staffTabColor : colors.mutedText}
                     />
                     <Text
                       numberOfLines={1}
@@ -1801,7 +1825,7 @@ export default function MobileTripDetailScreen() {
                         styles.tabButtonText,
                         styles.tabButtonTextParent,
                         styles.tabButtonTextStaff,
-                        activeTab === "STOPS" && styles.tabButtonTextActive,
+                        activeTab === "STOPS" && staffTabText,
                       ]}
                     >
                       Điểm đón ({trip.stops?.length || 0})
@@ -1810,17 +1834,19 @@ export default function MobileTripDetailScreen() {
 
                   <TouchableOpacity
                     onPress={() => setActiveTab("ATTENDANCE")}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: activeTab === "ATTENDANCE" }}
                     style={[
                       styles.tabButton,
                       styles.tabButtonParent,
                       styles.tabButtonStaff,
-                      activeTab === "ATTENDANCE" && styles.tabButtonActive,
+                      activeTab === "ATTENDANCE" && staffTabBorder,
                     ]}
                   >
                     <Ionicons
                       name="checkbox-outline"
                       size={15}
-                      color={activeTab === "ATTENDANCE" ? "#D97706" : "#64748B"}
+                      color={activeTab === "ATTENDANCE" ? staffTabColor : colors.mutedText}
                     />
                     <Text
                       numberOfLines={1}
@@ -1828,8 +1854,7 @@ export default function MobileTripDetailScreen() {
                         styles.tabButtonText,
                         styles.tabButtonTextParent,
                         styles.tabButtonTextStaff,
-                        activeTab === "ATTENDANCE" &&
-                          styles.tabButtonTextActive,
+                        activeTab === "ATTENDANCE" && staffTabText,
                       ]}
                     >
                       Điểm danh ({attendance?.markedCount || 0}/
@@ -1839,18 +1864,20 @@ export default function MobileTripDetailScreen() {
 
                   <TouchableOpacity
                     onPress={() => setActiveTab("INCIDENTS")}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: activeTab === "INCIDENTS" }}
                     style={[
                       styles.tabButton,
                       styles.tabButtonParent,
                       styles.tabButtonStaff,
                       activeTab === "INCIDENTS" &&
-                        styles.tabButtonActiveIncident,
+                        (staffTheme ? staffTabBorder : styles.tabButtonActiveIncident),
                     ]}
                   >
                     <Ionicons
                       name="warning-outline"
                       size={15}
-                      color={activeTab === "INCIDENTS" ? "#DC2626" : "#64748B"}
+                      color={activeTab === "INCIDENTS" ? incidentTabColor : colors.mutedText}
                     />
                     <Text
                       numberOfLines={1}
@@ -1858,8 +1885,8 @@ export default function MobileTripDetailScreen() {
                         styles.tabButtonText,
                         styles.tabButtonTextParent,
                         styles.tabButtonTextStaff,
-                        activeTab === "INCIDENTS" && styles.tabButtonTextActive,
-                        activeTab === "INCIDENTS" && { color: "#DC2626" },
+                        activeTab === "INCIDENTS" && staffTabText,
+                        activeTab === "INCIDENTS" && !staffTheme && { color: "#DC2626" },
                       ]}
                     >
                       Sự cố ({tripIncidents.length})
@@ -1879,7 +1906,7 @@ export default function MobileTripDetailScreen() {
                 <View style={styles.infoCard}>
                   <View style={styles.infoIconCircle}>
                     {isDriverOrAttendant ? (
-                      <Ionicons name="bus-outline" size={24} color="#D97706" />
+                      <Ionicons name="bus-outline" size={24} color={staffTabColor} />
                     ) : (
                       <Image
                         source={require("@/assets/driver/Bus.png")}
@@ -1913,6 +1940,7 @@ export default function MobileTripDetailScreen() {
                   <TripContactCallButton
                     phone={trip.driverPhone}
                     contactLabel="tài xế phụ trách"
+                    staffTheme={staffTheme}
                   />
                 </View>
 
@@ -1930,6 +1958,7 @@ export default function MobileTripDetailScreen() {
                   <TripContactCallButton
                     phone={trip.busAttendantPhone}
                     contactLabel="giáo viên phụ xe"
+                    staffTheme={staffTheme}
                   />
                 </View>
               </ScrollView>
@@ -2056,7 +2085,7 @@ export default function MobileTripDetailScreen() {
                     style={[
                       styles.subTabButton,
                       attendanceSubTab === "boarding" &&
-                        styles.subTabButtonActive,
+                        attendanceTabBackground,
                     ]}
                     onPress={() => setAttendanceSubTab("boarding")}
                     activeOpacity={0.8}
@@ -2066,6 +2095,7 @@ export default function MobileTripDetailScreen() {
                         styles.subTabButtonText,
                         attendanceSubTab === "boarding" &&
                           styles.subTabButtonTextActive,
+                        attendanceSubTab === "boarding" && buttons?.secondaryText,
                       ]}
                     >
                       Lên xe ({attendance?.markedCount || 0}/
@@ -2077,7 +2107,7 @@ export default function MobileTripDetailScreen() {
                     style={[
                       styles.subTabButton,
                       attendanceSubTab === "alighting" &&
-                        styles.subTabButtonActive,
+                        attendanceTabBackground,
                     ]}
                     onPress={() => setAttendanceSubTab("alighting")}
                     activeOpacity={0.8}
@@ -2087,6 +2117,7 @@ export default function MobileTripDetailScreen() {
                         styles.subTabButtonText,
                         attendanceSubTab === "alighting" &&
                           styles.subTabButtonTextActive,
+                        attendanceSubTab === "alighting" && buttons?.secondaryText,
                       ]}
                     >
                       Xuống xe ({attendance?.alightedCount || 0}/
@@ -2109,6 +2140,7 @@ export default function MobileTripDetailScreen() {
                           <View
                             style={[
                               styles.progressBarFill,
+                              isBusAttendant && attendantButtons.primary,
                               {
                                 width: `${
                                   attendance?.totalStudents
@@ -2128,9 +2160,11 @@ export default function MobileTripDetailScreen() {
                       {/* QR Scan Button (Bus Attendant only) */}
                       {isBusAttendant && (
                         <TouchableOpacity
+                          accessibilityRole="button"
                           style={[
                             styles.qrHeaderBtn,
-                            !canScanQr && styles.btnDisabled,
+                            canScanQr ? attendantButtons.selected : attendantButtons.disabled,
+                            !canScanQr && { borderColor: attendantTheme.colors.disabled },
                           ]}
                           disabled={!canScanQr}
                           onPress={async () => {
@@ -2150,9 +2184,10 @@ export default function MobileTripDetailScreen() {
                           <Ionicons
                             name="qr-code-outline"
                             size={16}
-                            color="#1E293B"
+                            color={canScanQr ? attendantTheme.colors.primary : attendantTheme.colors.disabledText}
                           />
-                          <Text style={styles.qrHeaderBtnText}>Quét QR</Text>
+                          <Text style={[styles.qrHeaderBtnText,
+                            canScanQr ? attendantButtons.secondaryText : attendantButtons.disabledText]}>Quét QR</Text>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -2289,7 +2324,7 @@ export default function MobileTripDetailScreen() {
                                     });
                                   }}
                                 >
-                                  <Text style={styles.actionBtnTextDark}>Đính chính điểm danh</Text>
+                                  <Text style={[styles.actionBtnTextDark, attendantButtons.secondaryText]}>Đính chính điểm danh</Text>
                                 </TouchableOpacity>
                               )}
                               {isBusAttendant && !correctingAttendance && (
@@ -2299,7 +2334,7 @@ export default function MobileTripDetailScreen() {
                                       <TouchableOpacity
                                         style={[
                                           styles.actionBtnAbsent,
-                                          !canBoard && styles.btnDisabled,
+                                          !canBoard && attendantButtons.disabled,
                                         ]}
                                         disabled={!canBoard}
                                         onPress={() =>
@@ -2309,9 +2344,10 @@ export default function MobileTripDetailScreen() {
                                         <Ionicons
                                           name="close"
                                           size={14}
-                                          color={colors.foreground}
+                                          color={canBoard ? attendantTheme.colors.primary : attendantTheme.colors.disabledText}
                                         />
-                                        <Text style={styles.actionBtnTextLight}>
+                                        <Text style={[styles.actionBtnTextLight,
+                                          canBoard ? attendantButtons.secondaryText : attendantButtons.disabledText]}>
                                           Vắng mặt
                                         </Text>
                                       </TouchableOpacity>
@@ -2319,7 +2355,7 @@ export default function MobileTripDetailScreen() {
                                       <TouchableOpacity
                                         style={[
                                           styles.actionBtnPresent,
-                                          !canBoard && styles.btnDisabled,
+                                          !canBoard && attendantButtons.disabled,
                                         ]}
                                         disabled={!canBoard}
                                         onPress={() =>
@@ -2329,9 +2365,10 @@ export default function MobileTripDetailScreen() {
                                         <Ionicons
                                           name="checkmark"
                                           size={14}
-                                          color={colors.foreground}
+                                          color={canBoard ? colors.surface : attendantTheme.colors.disabledText}
                                         />
-                                        <Text style={styles.actionBtnTextLight}>
+                                        <Text style={[styles.actionBtnTextLight,
+                                          canBoard ? attendantButtons.primaryText : attendantButtons.disabledText]}>
                                           Có mặt
                                         </Text>
                                       </TouchableOpacity>
@@ -2341,9 +2378,7 @@ export default function MobileTripDetailScreen() {
                                       <TouchableOpacity
                                         style={[
                                           styles.actionBtnSwitch,
-                                          (!canBoard ||
-                                            Boolean(student.isAlighted)) &&
-                                            styles.btnDisabled,
+                                          (!canBoard || student.isAlighted) && attendantButtons.disabled,
                                         ]}
                                         disabled={
                                           !canBoard ||
@@ -2353,7 +2388,8 @@ export default function MobileTripDetailScreen() {
                                           handleOpenAbsenceModal(student)
                                         }
                                       >
-                                        <Text style={styles.actionBtnTextDark}>
+                                        <Text style={[styles.actionBtnTextDark,
+                                          canBoard && !student.isAlighted ? attendantButtons.secondaryText : attendantButtons.disabledText]}>
                                           Đổi vắng
                                         </Text>
                                       </TouchableOpacity>
@@ -2361,15 +2397,15 @@ export default function MobileTripDetailScreen() {
                                       <TouchableOpacity
                                         style={[
                                           styles.actionBtnReset,
-                                          (!canBoard || !canReset) &&
-                                            styles.btnDisabled,
+                                          (!canBoard || !canReset) && styles.attendantOutlineDisabled,
                                         ]}
                                         disabled={!canBoard || !canReset}
                                         onPress={() =>
                                           handleResetUnmarked(student)
                                         }
                                       >
-                                        <Text style={styles.actionBtnTextDark}>
+                                        <Text style={[styles.actionBtnTextDark,
+                                          canBoard && canReset ? attendantButtons.secondaryText : attendantButtons.disabledText]}>
                                           Hoàn tác
                                         </Text>
                                       </TouchableOpacity>
@@ -2379,14 +2415,14 @@ export default function MobileTripDetailScreen() {
                                       <TouchableOpacity
                                         style={[
                                           styles.actionBtnSwitch,
-                                          !canBoard && styles.btnDisabled,
+                                          !canBoard && attendantButtons.disabled,
                                         ]}
                                         disabled={!canBoard}
                                         onPress={() =>
                                           handleMarkPresent(student)
                                         }
                                       >
-                                        <Text style={styles.actionBtnTextDark}>
+                                        <Text style={[styles.actionBtnTextDark, canBoard ? attendantButtons.secondaryText : attendantButtons.disabledText]}>
                                           Đổi có mặt
                                         </Text>
                                       </TouchableOpacity>
@@ -2394,15 +2430,15 @@ export default function MobileTripDetailScreen() {
                                       <TouchableOpacity
                                         style={[
                                           styles.actionBtnReset,
-                                          (!canBoard || !canReset) &&
-                                            styles.btnDisabled,
+                                          (!canBoard || !canReset) && styles.attendantOutlineDisabled,
                                         ]}
                                         disabled={!canBoard || !canReset}
                                         onPress={() =>
                                           handleResetUnmarked(student)
                                         }
                                       >
-                                        <Text style={styles.actionBtnTextDark}>
+                                        <Text style={[styles.actionBtnTextDark,
+                                          canBoard && canReset ? attendantButtons.secondaryText : attendantButtons.disabledText]}>
                                           Hoàn tác
                                         </Text>
                                       </TouchableOpacity>
@@ -2437,6 +2473,7 @@ export default function MobileTripDetailScreen() {
                           <View
                             style={[
                               styles.progressBarFill,
+                              isBusAttendant && attendantButtons.primary,
                               {
                                 backgroundColor: "#0284C7",
                                 width: `${
@@ -2546,7 +2583,7 @@ export default function MobileTripDetailScreen() {
                                       <TouchableOpacity
                                         style={[
                                           styles.actionBtnAlight,
-                                          !canAlight && styles.btnDisabled,
+                                          !canAlight && attendantButtons.disabled,
                                         ]}
                                         disabled={!canAlight}
                                         onPress={() =>
@@ -2557,9 +2594,10 @@ export default function MobileTripDetailScreen() {
                                         <Ionicons
                                           name="walk-outline"
                                           size={15}
-                                          color={colors.foreground}
+                                          color={canAlight ? colors.surface : attendantTheme.colors.disabledText}
                                         />
-                                        <Text style={styles.actionBtnTextLight}>
+                                        <Text style={[styles.actionBtnTextLight,
+                                          canAlight ? attendantButtons.primaryText : attendantButtons.disabledText]}>
                                           Xác nhận xuống xe
                                         </Text>
                                       </TouchableOpacity>
@@ -2567,7 +2605,7 @@ export default function MobileTripDetailScreen() {
                                       <TouchableOpacity
                                         style={[
                                           styles.actionBtnReset,
-                                          !canAlight && styles.btnDisabled,
+                                          !canAlight && styles.attendantOutlineDisabled,
                                         ]}
                                         disabled={!canAlight}
                                         onPress={() =>
@@ -2575,7 +2613,7 @@ export default function MobileTripDetailScreen() {
                                         }
                                         activeOpacity={0.85}
                                       >
-                                        <Text style={styles.actionBtnTextDark}>
+                                        <Text style={[styles.actionBtnTextDark, canAlight ? attendantButtons.secondaryText : attendantButtons.disabledText]}>
                                           Hoàn tác
                                         </Text>
                                       </TouchableOpacity>
@@ -2589,7 +2627,7 @@ export default function MobileTripDetailScreen() {
                                           setIncidentReport({ type: "NO_GUARDIAN_AT_STOP", student });
                                         }}
                                       >
-                                        <Text style={styles.actionBtnTextDark}>Báo không có người đón</Text>
+                                        <Text style={[styles.actionBtnTextDark, attendantButtons.secondaryText]}>Báo không có người đón</Text>
                                       </TouchableOpacity>
                                     )}
                                   </View>
@@ -2619,9 +2657,10 @@ export default function MobileTripDetailScreen() {
                     <TouchableOpacity
                       style={[
                         styles.reportIncidentButton,
+                        buttons?.secondary,
                         incidentOptions &&
                           !incidentOptions.canReport &&
-                          styles.reportIncidentButtonDisabled,
+                          (buttons?.disabled ?? styles.reportIncidentButtonDisabled),
                       ]}
                       onPress={() => {
                         if (!incidentOptions) {
@@ -2671,9 +2710,9 @@ export default function MobileTripDetailScreen() {
                       <Ionicons
                         name="warning"
                         size={15}
-                        color={colors.foreground}
+                        color={mapActionColor}
                       />
-                      <Text style={styles.reportIncidentButtonText}>
+                      <Text style={[styles.reportIncidentButtonText, buttons?.secondaryText]}>
                         Báo sự cố
                       </Text>
                     </TouchableOpacity>
@@ -2681,14 +2720,16 @@ export default function MobileTripDetailScreen() {
                 {isDriverOrAttendant && operationalState?.status === "IN_PROGRESS" && (
                   <TouchableOpacity
                     accessibilityRole="button"
-                    style={styles.reportIncidentButton}
+                    style={[styles.reportIncidentButton, buttons?.secondary]}
                     onPress={() => {
                       setIncidentNote("");
                       setIncidentReport({ type: "TRAFFIC_DELAY" });
                     }}
                   >
-                    <Ionicons name="warning" size={15} color={colors.foreground} />
-                    <Text style={styles.reportIncidentButtonText}>Báo tắc đường</Text>
+                    <Ionicons name="warning" size={15} color={mapActionColor} />
+                    <Text style={[styles.reportIncidentButtonText, buttons?.secondaryText]}>
+                      Báo tắc đường
+                    </Text>
                   </TouchableOpacity>
                 )}
                 {tripIncidents.length === 0 ? (
@@ -2906,15 +2947,17 @@ export default function MobileTripDetailScreen() {
                         setReasonAction({ kind: "cancel" });
                       }}
                     >
-                      <Text style={styles.actionBtnTextDark}>Hủy chuyến vì tất cả vắng</Text>
+                      <Text style={[styles.actionBtnTextDark, attendantButtons.secondaryText]}>Hủy chuyến vì tất cả vắng</Text>
                     </TouchableOpacity>
                   )}
                 </View>
               ) : (
                 <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !canReady }}
                   style={[
                     styles.primaryActionBtn,
-                    !canReady && styles.btnDisabled,
+                    canReady ? attendantButtons.primary : attendantButtons.disabled,
                   ]}
                   disabled={!canReady}
                   onPress={handleMarkReady}
@@ -2923,9 +2966,10 @@ export default function MobileTripDetailScreen() {
                   <Ionicons
                     name="hand-right-outline"
                     size={18}
-                    color={colors.foreground}
+                    color={canReady ? colors.surface : attendantTheme.colors.disabledText}
                   />
-                  <Text style={styles.primaryActionBtnText}>
+                  <Text style={[styles.primaryActionBtnText,
+                    canReady ? attendantButtons.primaryText : attendantButtons.disabledText]}>
                     {canReady ? "Xác nhận sẵn sàng" : readyDisabledText}
                   </Text>
                 </TouchableOpacity>
@@ -2935,25 +2979,29 @@ export default function MobileTripDetailScreen() {
             /* DRIVER ACTION */
             operationalState?.status === "SCHEDULED" ? (
               <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !canStart }}
                 style={[
                   styles.primaryActionBtn,
-                  !canStart && styles.btnDisabled,
+                  canStart ? buttons?.primary : buttons?.disabled,
                 ]}
                 disabled={!canStart}
                 onPress={handleStartTrip}
                 activeOpacity={0.85}
               >
-                <Ionicons name="play" size={18} color={colors.foreground} />
-                <Text style={styles.primaryActionBtnText}>
+                <Ionicons name="play" size={18} color={canStart ? colors.surface : staffTheme?.colors.disabledText} />
+                <Text style={[styles.primaryActionBtnText, canStart ? buttons?.primaryText : buttons?.disabledText]}>
                   {canStart ? "Bắt đầu chuyến xe" : startDisabledText}
                 </Text>
               </TouchableOpacity>
             ) : operationalState?.status === "IN_PROGRESS" ? (
               isToSchool && !operationalState?.isSchoolArrived ? (
                 <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !canArriveAtSchool }}
                   style={[
                     styles.primaryActionBtn,
-                    !canArriveAtSchool && styles.btnDisabled,
+                    canArriveAtSchool ? buttons?.primary : buttons?.disabled,
                   ]}
                   disabled={!canArriveAtSchool}
                   onPress={handleArriveAtSchool}
@@ -2962,9 +3010,9 @@ export default function MobileTripDetailScreen() {
                   <Ionicons
                     name="school-outline"
                     size={18}
-                    color={colors.foreground}
+                    color={canArriveAtSchool ? colors.surface : staffTheme?.colors.disabledText}
                   />
-                  <Text style={styles.primaryActionBtnText}>
+                  <Text style={[styles.primaryActionBtnText, canArriveAtSchool ? buttons?.primaryText : buttons?.disabledText]}>
                     {canArriveAtSchool
                       ? "Xác nhận đến trường"
                       : arriveDisabledText}
@@ -2972,9 +3020,11 @@ export default function MobileTripDetailScreen() {
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !canComplete }}
                   style={[
                     styles.primaryActionBtn,
-                    !canComplete && styles.btnDisabled,
+                    canComplete ? buttons?.primary : buttons?.disabled,
                   ]}
                   disabled={!canComplete}
                   onPress={handleCompleteTrip}
@@ -2983,9 +3033,9 @@ export default function MobileTripDetailScreen() {
                   <Ionicons
                     name="flag-outline"
                     size={18}
-                    color={colors.foreground}
+                    color={canComplete ? colors.surface : staffTheme?.colors.disabledText}
                   />
-                  <Text style={styles.primaryActionBtnText}>
+                  <Text style={[styles.primaryActionBtnText, canComplete ? buttons?.primaryText : buttons?.disabledText]}>
                     {canComplete
                       ? "Hoàn thành chuyến xe"
                       : completeDisabledText}
@@ -3006,18 +3056,18 @@ export default function MobileTripDetailScreen() {
               <Text style={styles.modalMessage}>{confirmModal.message}</Text>
               <View style={styles.modalBtnRow}>
                 <TouchableOpacity
-                  style={styles.modalConfirmBtn}
+                  style={[styles.modalConfirmBtn, buttons?.primary]}
                   onPress={confirmModal.onConfirm}
                 >
-                  <Text style={styles.modalConfirmBtnText}>
+                  <Text style={[styles.modalConfirmBtnText, buttons?.primaryText]}>
                     {confirmModal.confirmText}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.modalCancelBtn}
+                  style={[styles.modalCancelBtn, buttons?.secondary]}
                   onPress={() => setConfirmModal(null)}
                 >
-                  <Text style={styles.modalCancelBtnText}>Hủy bỏ</Text>
+                  <Text style={[styles.modalCancelBtnText, buttons?.secondaryText]}>Hủy bỏ</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -3046,11 +3096,14 @@ export default function MobileTripDetailScreen() {
                       key={status}
                       accessibilityRole="button"
                       accessibilityState={{ selected: status === reasonAction.status, disabled: submittingReason || status === reasonAction.student.status }}
-                      style={[styles.actionBtnSwitch, status === reasonAction.student.status && styles.btnDisabled]}
+                      style={[styles.actionBtnSwitch,
+                        submittingReason || status === reasonAction.student.status ? attendantButtons.disabled :
+                          status === reasonAction.status ? attendantButtons.selected : attendantButtons.secondary]}
                       disabled={submittingReason || status === reasonAction.student.status}
                       onPress={() => setReasonAction({ ...reasonAction, status })}
                     >
-                      <Text style={styles.actionBtnTextDark}>
+                      <Text style={[styles.actionBtnTextDark, submittingReason || status === reasonAction.student.status
+                        ? attendantButtons.disabledText : attendantButtons.secondaryText]}>
                         {status === reasonAction.status ? "✓ " : ""}{status === "PRESENT" ? "Có mặt" : "Vắng mặt"}
                       </Text>
                     </TouchableOpacity>
@@ -3071,17 +3124,19 @@ export default function MobileTripDetailScreen() {
               <View style={styles.modalBtnRow}>
                 <TouchableOpacity
                   accessibilityRole="button"
-                  accessibilityState={{ disabled: submittingReason || !reasonText.trim(), busy: submittingReason }}
-                  disabled={submittingReason || !reasonText.trim()}
-                  style={[styles.modalConfirmBtn, (submittingReason || !reasonText.trim()) && styles.btnDisabled]}
+                  accessibilityState={{ disabled: reasonDisabled, busy: submittingReason }}
+                  disabled={reasonDisabled}
+                  style={[styles.modalConfirmBtn, reasonDisabled ? attendantButtons.disabled : attendantButtons.primary,
+                    reasonAction.kind === "cancel" && !reasonDisabled && styles.cancelTripConfirmBtn]}
                   onPress={handleSubmitReason}
                 >
-                  <Text style={styles.modalConfirmBtnText}>
+                  <Text style={[styles.modalConfirmBtnText, reasonDisabled ? attendantButtons.disabledText : attendantButtons.primaryText]}>
                     {submittingReason ? "Đang lưu…" : reasonAction.kind === "cancel" ? "Xác nhận hủy" : "Xác nhận"}
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity accessibilityRole="button" disabled={submittingReason} style={styles.modalCancelBtn} onPress={() => setReasonAction(null)}>
-                  <Text style={styles.modalCancelBtnText}>Đóng</Text>
+                <TouchableOpacity accessibilityRole="button" disabled={submittingReason} style={[styles.modalCancelBtn, submittingReason ? attendantButtons.disabled : attendantButtons.secondary]}
+                  onPress={() => setReasonAction(null)}>
+                  <Text style={[styles.modalCancelBtnText, submittingReason ? attendantButtons.disabledText : attendantButtons.secondaryText]}>Đóng</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -3267,14 +3322,14 @@ export default function MobileTripDetailScreen() {
               <TouchableOpacity
                 onPress={Keyboard.dismiss}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={styles.keyboardDismissBtn}
+                style={[styles.keyboardDismissBtn, buttons?.secondary]}
               >
                 <Ionicons
                   name="chevron-down-outline"
                   size={13}
-                  color="#64748B"
+                  color={staffAccent ?? colors.mutedText}
                 />
-                <Text style={styles.keyboardDismissBtnText}>Ẩn phím</Text>
+                <Text style={[styles.keyboardDismissBtnText, buttons?.secondaryText]}>Ẩn phím</Text>
               </TouchableOpacity>
             </View>
 
@@ -3292,7 +3347,8 @@ export default function MobileTripDetailScreen() {
 
             <View style={styles.modalBtnRow}>
               <TouchableOpacity
-                style={styles.modalConfirmBtn}
+                style={[styles.modalConfirmBtn,
+                  reportingIncident ? buttons?.disabled : buttons?.primary]}
                 onPress={() => {
                   Keyboard.dismiss();
                   handleReportIncident();
@@ -3300,14 +3356,14 @@ export default function MobileTripDetailScreen() {
                 disabled={reportingIncident}
               >
                 {reportingIncident ? (
-                  <ActivityIndicator size="small" color={colors.foreground} />
+                  <ActivityIndicator size="small" color={staffTheme?.colors.disabledText ?? colors.foreground} />
                 ) : (
-                  <Text style={styles.modalConfirmBtnText}>Gửi báo cáo</Text>
+                  <Text style={[styles.modalConfirmBtnText, buttons?.primaryText]}>Gửi báo cáo</Text>
                 )}
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.modalCancelBtn}
+                style={[styles.modalCancelBtn, buttons?.secondary]}
                 onPress={() => {
                   Keyboard.dismiss();
                   setIncidentReport(null);
@@ -3315,7 +3371,7 @@ export default function MobileTripDetailScreen() {
                 }}
                 disabled={reportingIncident}
               >
-                <Text style={styles.modalCancelBtnText}>Hủy bỏ</Text>
+                <Text style={[styles.modalCancelBtnText, buttons?.secondaryText]}>Hủy bỏ</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -3413,28 +3469,25 @@ export default function MobileTripDetailScreen() {
               <TouchableOpacity
                 style={[
                   styles.modalConfirmBtn,
-                  (!confirmReason.trim() || confirmReason.trim().length < 3) &&
-                    styles.btnDisabled,
+                  autoConfirmDisabled ? attendantButtons.disabled : attendantButtons.primary,
                 ]}
                 onPress={() => {
                   Keyboard.dismiss();
                   handleConfirmAutoIncident();
                 }}
-                disabled={
-                  confirmingIncident ||
-                  !confirmReason.trim() ||
-                  confirmReason.trim().length < 3
-                }
+                disabled={autoConfirmDisabled}
               >
                 {confirmingIncident ? (
-                  <ActivityIndicator size="small" color={colors.foreground} />
+                  <ActivityIndicator size="small" color={attendantTheme.colors.disabledText} />
                 ) : (
-                  <Text style={styles.modalConfirmBtnText}>Xác nhận & Gửi</Text>
+                  <Text style={[styles.modalConfirmBtnText, autoConfirmDisabled ? attendantButtons.disabledText : attendantButtons.primaryText]}>
+                    Xác nhận & Gửi
+                  </Text>
                 )}
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.modalLaterBtn}
+                style={[styles.modalLaterBtn, confirmingIncident ? attendantButtons.disabled : attendantButtons.secondary]}
                 onPress={() => {
                   Keyboard.dismiss();
                   if (activeConfirmIncident) {
@@ -3447,7 +3500,7 @@ export default function MobileTripDetailScreen() {
                 }}
                 disabled={confirmingIncident}
               >
-                <Text style={styles.modalLaterBtnText}>Để sau</Text>
+                <Text style={[styles.modalLaterBtnText, confirmingIncident ? attendantButtons.disabledText : attendantButtons.secondaryText]}>Để sau</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -3667,7 +3720,7 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
   },
   incidentConfirmSmallBtn: {
-    backgroundColor: colors.primary,
+    ...attendantTheme.buttons.secondary,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 24,
@@ -3675,7 +3728,7 @@ const styles = StyleSheet.create({
   incidentConfirmSmallBtnText: {
     fontSize: 11,
     fontWeight: "700",
-    color: colors.foreground,
+    ...attendantTheme.buttons.secondaryText,
   },
   modalHeaderRow: {
     flexDirection: "row",
@@ -4084,12 +4137,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: colors.primary,
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: colors.primary,
   },
   qrHeaderBtnText: {
     fontSize: 12,
@@ -4208,7 +4259,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 4,
-    backgroundColor: colors.primary,
+    ...attendantTheme.buttons.primary,
     paddingVertical: 6,
     borderRadius: 24,
   },
@@ -4218,7 +4269,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 4,
-    backgroundColor: colors.navigationHighlight,
+    ...attendantTheme.buttons.secondary,
     paddingVertical: 6,
     borderRadius: 24,
   },
@@ -4226,7 +4277,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.navigationHighlight,
+    ...attendantTheme.buttons.secondary,
     paddingVertical: 6,
     borderRadius: 24,
   },
@@ -4236,11 +4287,10 @@ const styles = StyleSheet.create({
     width: 80,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.navigationHighlight,
+    ...attendantTheme.buttons.selected,
     paddingVertical: 6,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: colors.primary,
   },
   actionBtnTextLight: {
     color: colors.foreground,
@@ -4252,9 +4302,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
-  btnDisabled: {
-    opacity: 0.5,
-  },
+  attendantOutlineDisabled: { ...attendantTheme.buttons.disabled, borderColor: attendantTheme.colors.disabled },
   fixedBottomActionContainer: {
     position: "absolute",
     bottom: 0,
@@ -4275,7 +4323,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 4,
-    backgroundColor: colors.primary,
+    ...attendantTheme.buttons.primary,
     paddingVertical: 6,
     borderRadius: 24,
   },
@@ -4386,6 +4434,7 @@ const styles = StyleSheet.create({
   modalCancelBtn: parentHomeStyles.secondaryBtn,
   modalCancelBtnText: parentHomeStyles.secondaryBtnText,
   modalConfirmBtn: parentHomeStyles.primaryBtn,
+  cancelTripConfirmBtn: { backgroundColor: "#B91C1C" },
   modalConfirmBtnText: parentHomeStyles.primaryBtnText,
   absenceInput: {
     backgroundColor: "#F8FAFC",
@@ -4464,14 +4513,14 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   qrManualSubmitBtn: {
-    backgroundColor: colors.primary,
+    ...attendantTheme.buttons.primary,
     paddingHorizontal: 16,
     borderRadius: 24,
     justifyContent: "center",
     alignItems: "center",
   },
   qrManualSubmitText: {
-    color: colors.foreground,
+    ...attendantTheme.buttons.primaryText,
     fontSize: 13,
     fontWeight: "700",
   },
@@ -4510,9 +4559,9 @@ const styles = StyleSheet.create({
     marginTop: 20,
     width: "100%",
   },
-  qrVerifyRetryBtn: { ...parentHomeStyles.secondaryBtn, flex: 1 },
-  qrVerifyRetryText: parentHomeStyles.secondaryBtnText,
-  qrVerifyConfirmBtn: { ...parentHomeStyles.primaryBtn, flex: 1 },
-  qrVerifyConfirmText: parentHomeStyles.primaryBtnText,
+  qrVerifyRetryBtn: { ...parentHomeStyles.secondaryBtn, ...attendantTheme.buttons.secondary, flex: 1 },
+  qrVerifyRetryText: { ...parentHomeStyles.secondaryBtnText, ...attendantTheme.buttons.secondaryText },
+  qrVerifyConfirmBtn: { ...parentHomeStyles.primaryBtn, ...attendantTheme.buttons.primary, flex: 1 },
+  qrVerifyConfirmText: { ...parentHomeStyles.primaryBtnText, ...attendantTheme.buttons.primaryText },
 });
 import { AppHeader, HeaderAction } from "@/components/navigation/app-header";

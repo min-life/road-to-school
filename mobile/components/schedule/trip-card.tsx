@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import type { StaffTheme } from '@/constants/theme';
 import type { MobileScheduleItem } from '@/services/api-client';
 import { getScheduleStatusLabel } from '@/utils/trip-status-label';
 import { scheduleStyles as styles } from './schedule-styles';
 
 interface Props {
+  staffTheme?: StaffTheme;
   trip: MobileScheduleItem;
   directionLabel: string;
   actionLabel: string;
@@ -16,9 +18,11 @@ interface Props {
   children?: ReactNode;
 }
 
-export function ScheduleTripCard({ trip, directionLabel, actionLabel, onOpen, onReportLeave, isReportingLeave, canReportLeave = trip.canReportLeave, children }: Props) {
+export function ScheduleTripCard({ trip, directionLabel, actionLabel, onOpen, onReportLeave, isReportingLeave, canReportLeave = trip.canReportLeave, children, staffTheme }: Props) {
+  const buttons = staffTheme?.buttons;
   const isToSchool = trip.direction === 'TO_SCHOOL';
   const isClickable = !trip.isVirtual;
+  const leaveColor = staffTheme?.colors.primary ?? '#D97706';
   return (
     <TouchableOpacity
       disabled={!isClickable}
@@ -80,7 +84,7 @@ export function ScheduleTripCard({ trip, directionLabel, actionLabel, onOpen, on
         <View style={styles.footerActions}>
           {canReportLeave && !trip.isVirtual && (
             <TouchableOpacity
-              style={styles.leaveNoticeBtn}
+              style={[styles.leaveNoticeBtn, isReportingLeave ? buttons?.disabled : buttons?.secondary]}
               disabled={isReportingLeave}
               onPress={(e) => {
                 e.stopPropagation?.();
@@ -89,11 +93,11 @@ export function ScheduleTripCard({ trip, directionLabel, actionLabel, onOpen, on
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               {isReportingLeave ? (
-                <ActivityIndicator size="small" color="#D97706" />
+                <ActivityIndicator size="small" color={leaveColor} />
               ) : (
                 <>
-                  <Ionicons name="calendar-outline" size={13} color="#D97706" />
-                  <Text style={styles.leaveNoticeBtnText}>Báo nghỉ</Text>
+                  <Ionicons name="calendar-outline" size={13} color={leaveColor} />
+                  <Text style={[styles.leaveNoticeBtnText, buttons?.secondaryText]}>Báo nghỉ</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -101,8 +105,8 @@ export function ScheduleTripCard({ trip, directionLabel, actionLabel, onOpen, on
 
           {isClickable ? (
             <View style={styles.actionLink}>
-              <Text style={styles.actionText}>{actionLabel}</Text>
-              <Ionicons name="chevron-forward" size={14} color="#2563EB" />
+              <Text style={[styles.actionText, buttons?.secondaryText]}>{actionLabel}</Text>
+              <Ionicons name="chevron-forward" size={14} color={staffTheme?.colors.primary ?? '#2563EB'} />
             </View>
           ) : (
             <Text style={styles.virtualNotice}>Chưa tạo chuyến</Text>

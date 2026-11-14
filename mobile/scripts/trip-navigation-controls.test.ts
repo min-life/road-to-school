@@ -6,7 +6,7 @@ import { Script } from 'node:vm';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
-import { colors } from '../constants/theme.ts';
+import * as theme from '../constants/theme.ts';
 
 const require = createRequire(import.meta.url);
 function loadComponent(file: string) {
@@ -18,12 +18,40 @@ function loadComponent(file: string) {
   new Script(compiled).runInNewContext({
     exports,
     require: (id: string) => id === 'react-native' ? require('react-native-web')
-      : id === '../constants/theme' ? { colors } : require(id),
+      : id === '../constants/theme' ? theme : require(id),
   });
   return exports;
 }
 const { TripNavigationControls } = loadComponent('../components/trip-navigation-controls.tsx');
 const { TripNextStopSummary } = loadComponent('../components/trip-next-stop-summary.tsx');
+
+it('applies the Driver palette and keeps the default navigation controls', () => {
+  const render = (isDriver: boolean) => renderToStaticMarkup(createElement(TripNavigationControls, {
+    isDriver, staffTheme: theme.getStaffTheme(isDriver ? 'DRIVER' : 'PARENT'),
+    canPublish: true, testMode: true, mode: 'TEST_JOYSTICK', message: null,
+    speedKmh: 10, guidance: null, change: async () => {},
+  }));
+  const driver = render(true);
+  const defaultControls = render(false);
+  assert.ok(driver.includes('background-color:rgba(239,246,252,1.00)'));
+  assert.ok(driver.includes('border-bottom-color:rgba(37,99,166,1.00)'));
+  assert.ok(driver.includes('background-color:rgba(231,237,243,1.00)'));
+  assert.match(driver, /<button aria-disabled="true"[^>]+aria-label="Giảm tốc độ"/);
+  assert.doesNotMatch(defaultControls, /rgba\((239,246,252|37,99,166|231,237,243),|aria-disabled="true"/);
+});
+
+it('uses the attendant palette for trip history and leaves the parent view on its default colors', () => {
+  const renderHistory = (role: string) => renderToStaticMarkup(createElement(TripNavigationControls, {
+    staffTheme: theme.getStaffTheme(role), canPublish: false, testMode: false, mode: null,
+    message: null, guidance: null, historyLabel: 'Hành trình ghi nhận',
+    selectPlan: () => {}, change: async () => {},
+  }));
+  const attendant = renderHistory('BUS_ATTENDANT');
+  assert.ok(attendant.includes('background-color:rgba(243,238,252,1.00)'));
+  assert.ok(attendant.includes('color:rgba(121,86,194,1.00)'));
+  assert.doesNotMatch(renderHistory('PARENT'), /rgba\((243,238,252|121,86,194),/);
+  assert.equal(theme.getStaffTheme(undefined), undefined);
+});
 
 describe('Navigation guidance presentation', () => {
   it('capitalizes retained guidance at render time without changing its text or distance', () => {
