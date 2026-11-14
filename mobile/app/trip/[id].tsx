@@ -51,7 +51,7 @@ import { canCancelAllAbsent, canCorrectAttendance, tripBlockLabel } from "@/util
 import { useActiveRefresh } from "@/hooks/use-active-refresh";
 import type { RefreshContext } from "@/utils/refresh-loop";
 import { getTripMapSnapshot } from "@/utils/trip-map-data";
-import { tripMapIconCss, schoolMapIconHtml, busMapIconHtml } from "@/utils/trip-map-icons";
+import { busMapIcon, schoolMapIcon } from "@/utils/trip-map-icons";
 import {
   childMapPinCss,
   childMapPinScript,
@@ -647,7 +647,6 @@ export default function MobileTripDetailScreen() {
         <style>
           body, html, #map { margin: 0; padding: 0; height: 100%; width: 100%; background: #F8FAFC; }
           .depot-marker { background: #2563EB; color: white; border: 2px solid white; border-radius: 50%; font-weight: bold; width: 28px; height: 28px; line-height: 24px; text-align: center; font-size: 13px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
-          ${tripMapIconCss}
           .student-marker { background: #059669; color: white; border: 2px solid white; border-radius: 50%; font-weight: bold; width: 26px; height: 26px; line-height: 22px; text-align: center; font-size: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
           ${childMapPinCss}
         </style>
@@ -668,12 +667,11 @@ export default function MobileTripDetailScreen() {
 
           stops.forEach(function(s) {
             var iconHtml = '<div class="student-marker">' + s.order + '</div>';
+            var schoolStop = s.type === 'SCHOOL_ARRIVAL' || s.type === 'SCHOOL_DEPARTURE';
             var ownChildPin = s.isMyChild && s.studentId && (s.type === 'PICKUP' || s.type === 'DROPOFF');
             var staffStopPin = staffMap && (s.type === 'PICKUP' || s.type === 'DROPOFF');
             if (s.type === 'PARKING_START' || s.type === 'PARKING_END') {
               iconHtml = '<div class="depot-marker">P</div>';
-            } else if (s.type === 'SCHOOL_ARRIVAL' || s.type === 'SCHOOL_DEPARTURE') {
-              iconHtml = '${schoolMapIconHtml}';
             } else if (ownChildPin) {
               iconHtml = window.createChildMapPin(s.studentId, s.name);
             } else if (staffStopPin) {
@@ -681,12 +679,14 @@ export default function MobileTripDetailScreen() {
             }
 
             var pinMarker = ownChildPin || staffStopPin;
-            var icon = L.divIcon({ className: '', html: iconHtml,
+            var icon = L.divIcon(schoolStop ? ${JSON.stringify(schoolMapIcon)} : { className: '', html: iconHtml,
               iconSize: pinMarker ? [${childMapPinSize.width}, ${childMapPinSize.height}] : [28, 28],
               iconAnchor: pinMarker ? [${childMapPinSize.width / 2}, ${(childMapPinSize.height * 65) / 66}] : [14, 14],
               popupAnchor: pinMarker ? [0, -${childMapPinSize.height - 5}] : [0, 0] });
             var marker = L.marker([s.lat, s.lng], { icon: icon }).addTo(map);
-            if (ownChildPin && marker.getElement()) {
+            if (schoolStop && marker.getElement()) {
+              marker.getElement().setAttribute('aria-label', s.name || 'Trường học');
+            } else if (ownChildPin && marker.getElement()) {
               marker.getElement().setAttribute('aria-label', (s.type === 'PICKUP' ? 'Điểm đón: ' : 'Điểm trả: ') + s.name);
             } else if (staffStopPin && marker.getElement()) {
               marker.getElement().setAttribute('aria-label', 'Điểm dừng ' + s.order + ': ' + s.name);
@@ -714,7 +714,10 @@ export default function MobileTripDetailScreen() {
           });
           window.setNavigation = function(n) {
             if (n.position) {
-              if (!vehicle) vehicle = L.marker(n.position, {icon: L.divIcon({className:'',html:'${busMapIconHtml}',iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
+              if (!vehicle) vehicle = L.marker(n.position, {
+                icon: L.divIcon(${JSON.stringify(busMapIcon)}),
+                title: 'Xe đưa đón học sinh',
+              }).addTo(map);
               else vehicle.setLatLng(n.position);
               if (n.centerOnStart) {
                 map.setView(n.position, Math.max(map.getZoom(), 16));
