@@ -1,3 +1,4 @@
+import { incidentStatusLabel, incidentTypeLabels } from "@/utils/trip-incident-label";
 import { AppAlert as Alert } from '@/services/app-alert';
 import { AppModal as Modal } from '@/components/app-alert';
 import { AppHeader } from '@/components/navigation/app-header';
@@ -97,7 +98,7 @@ export default function IncidentDetailScreen() {
       case 'LATE_STOP':
         return { label: 'Trễ đón/trả', bg: '#FFEDD5', text: '#C2410C', icon: 'time-outline' };
       default:
-        return { label: type, bg: '#F1F5F9', text: '#475569', icon: 'alert-circle-outline' };
+        return { label: incidentTypeLabels[type] ?? type, bg: '#F1F5F9', text: '#475569', icon: 'alert-circle-outline' };
     }
   };
 
@@ -200,7 +201,7 @@ export default function IncidentDetailScreen() {
 
                 <View style={[styles.badge, { backgroundColor: getStatusBadge(incident.status).bg }]}>
                   <Text style={[styles.badgeText, { color: getStatusBadge(incident.status).text }]}>
-                    {getStatusBadge(incident.status).label}
+                    {incidentStatusLabel(incident)}
                   </Text>
                 </View>
               </View>

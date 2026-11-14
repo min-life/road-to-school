@@ -1,5 +1,7 @@
 # Bản đồ source, routes và tests
 
+Kiểm kê mobile ngày 05/11/2026 có 40 entry files, phân loại 33 entry nghiệp vụ và 7 entry hạ tầng/fallback/mẫu. Bản đồ mới nối từng source với role, hành vi, API, form/popup, refresh và scope sửa flow. [Mobile screen/business-flow map](../architecture/mobile-screen-business-flows.md)
+
 28/10/2026. Danh sách file có trong checkout; tồn tại test không đồng nghĩa test đã chạy/PASS.
 
 ## Web routes

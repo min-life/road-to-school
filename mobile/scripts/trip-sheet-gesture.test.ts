@@ -35,6 +35,17 @@ function setup() {
 }
 
 describe('Trip sheet gesture ownership', () => {
+  it('shows next-stop estimates only for a collapsed, running Driver sheet', () => {
+    const predicate = declaration('showNextStopSummary').initializer!.getText(source);
+    const visible = (isDriver: boolean, isExpanded: boolean, status?: string) =>
+      runInNewContext(predicate, { isDriver, isExpanded, operationalState: status ? { status } : null });
+    assert.equal(visible(true, false, 'IN_PROGRESS'), true);
+    assert.equal(visible(true, true, 'IN_PROGRESS'), false);
+    assert.equal(visible(false, false, 'IN_PROGRESS'), false);
+    for (const status of [undefined, 'SCHEDULED', 'COMPLETED', 'CANCELLED']) {
+      assert.equal(visible(true, false, status), false);
+    }
+  });
   it('does not recreate the active responder when header measurement changes', () => {
     const { context } = setup();
     const memo = declaration('panResponder').initializer as ts.CallExpression;

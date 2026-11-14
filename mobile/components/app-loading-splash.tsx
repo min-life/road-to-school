@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { ActivityIndicator, Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BrandLogo } from '@/components/brand-logo';
@@ -6,15 +7,16 @@ import { colors } from '@/constants/theme';
 type AppLoadingSplashProps = {
   message?: string;
   progressWidth?: Animated.AnimatedInterpolation<string>;
+  illustration?: ReactNode;
 };
 
 /** Presentation only; auth and RoleSplash own readiness and transition timing. */
-export function AppLoadingSplash({ message = 'Đang tải...', progressWidth }: AppLoadingSplashProps) {
+export function AppLoadingSplash({ message = 'Đang tải...', progressWidth, illustration }: AppLoadingSplashProps) {
   return (
     <SafeAreaView style={styles.overlay}>
       <ScrollView contentContainerStyle={styles.content} bounces={false}>
         <View style={styles.frame} accessibilityViewIsModal>
-          <BrandLogo />
+          {illustration ?? <BrandLogo />}
           <View style={styles.loading} accessible accessibilityRole="progressbar" accessibilityLabel={message}
             accessibilityState={{ busy: true }}>
             <Text style={styles.message}>{message}</Text>

@@ -197,7 +197,7 @@ export default function HomeScreen() {
               })
             }
             isReportingLeave={isRequesting(homeTrip.id)}
-            canReportLeave={Boolean(homeTrip.canReportLeave)}
+            canReportLeave={homeTrip.status === 'SCHEDULED'}
             getStatusBadge={getStatusBadge}
           />
           </>
@@ -205,9 +205,6 @@ export default function HomeScreen() {
           <View style={staffHomeStyles.emptyContainer}>
             <Ionicons name="bus-outline" size={48} color="#94A3B8" />
             <Text style={staffHomeStyles.emptyTitle}>Không có chuyến xe cần vận hành</Text>
-            <Text style={staffHomeStyles.emptySubtitle}>
-              Hiện không có chuyến xe nào trong khung giờ hoạt động hoặc chuyến xe hôm nay đã hoàn thành.
-            </Text>
             <TouchableOpacity
               style={staffHomeStyles.secondaryBtn}
               onPress={() => router.push('/(tabs)/schedule' as any)}

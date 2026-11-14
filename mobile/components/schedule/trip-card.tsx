@@ -12,10 +12,11 @@ interface Props {
   onOpen: () => void;
   onReportLeave: () => void;
   isReportingLeave: boolean;
+  canReportLeave?: boolean;
   children?: ReactNode;
 }
 
-export function ScheduleTripCard({ trip, directionLabel, actionLabel, onOpen, onReportLeave, isReportingLeave, children }: Props) {
+export function ScheduleTripCard({ trip, directionLabel, actionLabel, onOpen, onReportLeave, isReportingLeave, canReportLeave = trip.canReportLeave, children }: Props) {
   const isToSchool = trip.direction === 'TO_SCHOOL';
   const isClickable = !trip.isVirtual;
   return (
@@ -77,7 +78,7 @@ export function ScheduleTripCard({ trip, directionLabel, actionLabel, onOpen, on
         </View>
 
         <View style={styles.footerActions}>
-          {trip.canReportLeave && !trip.isVirtual && (
+          {canReportLeave && !trip.isVirtual && (
             <TouchableOpacity
               style={styles.leaveNoticeBtn}
               disabled={isReportingLeave}

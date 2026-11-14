@@ -2,6 +2,18 @@
 
 Ngày cập nhật: **29/10/2026 (Asia/Saigon)**. Commit `db02de6` là mốc Phase1 trên nhánh `dongnnp/mobile/refactor-ui`; các cập nhật local được ghi riêng bên dưới. Tài liệu này ghi nhận phần đã triển khai trong đợt chuyển phong cách V1 sang V2; không phải phê duyệt toàn bộ kế hoạch chuyển giao diện hoặc chứng nhận nghiệm thu thiết bị.
 
+## Splash dành riêng cho phụ huynh — 13/11/2026
+
+ParentLoginSplash dùng SVG phụ huynh do PO cung cấp, bundle PNG trong suốt 720 × 720, frame vuông tối đa 240 dp giữa nền kem. AppLoadingSplash thêm illustration tùy chọn để dùng chung safe area/cuộn/loading. PARENT thấy hình sau đăng nhập thủ công và sau GET me khôi phục phiên thành công. Giai đoạn chờ xác định vai trò dùng splash chung. RoleSplash tiếp tục quản lý thời gian 1.200 ms. Typecheck, Expo export iOS/Android/Web/server và Chromium isolated preview nhiều kích thước PASS. Native iPhone/Android và auth/restore thật NOT_VERIFIED. [Contract, vòng đời và kiểm chứng](mobile-parent-splash.md)
+
+## Kiểm kê màn hình và luồng nghiệp vụ — 05/11/2026
+
+Đã kiểm kê 40 file entry trong mobile/app, gồm 33 entry nghiệp vụ và 7 entry hạ tầng/fallback/mẫu. Danh mục có source từng route, role/params/controls/API/refresh, các component dùng chung/entry tương thích, 13 nhóm form/popup, flow liên màn, gap SF-01–SF-07 và 6 đợt sửa gắn M-01–M-10. Trạng thái “đã có” được xác định theo UI/handler source, phần sửa/UAT được ghi riêng. [Bản đồ màn hình và luồng chi tiết](mobile-screen-business-flows.md)
+
+## Đối chiếu backend mới — 05/11/2026
+
+Đã fetch và kiểm tra origin/chuongtv/update-be tại41cf3b0. Backend này đã có trong HEAD f075db4 của nhánh mobile, cây api hai nhánh giống nhau. Source mobile còn gap ở ba loại sự cố mới/GPS, lý do khóa vận hành, audit chốt hành chính và UAT đồng bộ roster/lịch/phân công. Một số capability BE và hướng dẫn FE đang lệch service/DTO. Tài liệu mới ghi rõ contract, sáu điểm cần BE chốt, các nhóm sửa M-01–M-10 theo ưu tiên và kịch bản nghiệm thu. Lượt này cập nhật docs, typecheck mobile baseline PASS. [Bảng thay đổi và kế hoạch tích hợp](mobile-backend-sync-2026-11-05.md)
+
 ## Popup thông báo/xác nhận dùng theme app (01/11/2026)
 
 78Alert.alert tại23files đã chuyển sang AppAlert: backdrop tối, card trắng bo24/icon trạng thái, CTA vàng/cancel viền/destructive đỏ; giữ arguments/callbacks/busy guards. AppAlertRoot + AppModal hosts cho10modal trong5files để thông báo trong form không nằm sau native modal, queue FIFO/double-press guard, safe-area/scroll/focus/back/escape. Không đổi backend/API/data; OS permission/dialer/photo-picker prompts vẫn do hệ điều hành. [Component API, source map, hành vi và giới hạn](mobile-app-alerts.md).13popup tests/73pure tests delivery, tsc/export all và Chromium preview320/390/landscape/desktop PASS; native acceptance chưa xác minh. PO đã yêu cầu commit+push nhánh hiện tại sau checks.

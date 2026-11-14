@@ -43,7 +43,7 @@ export function TripNavigationControls(p: Props) {
         )}
       </View>
     )}
-    {p.guidance && <><Text style={styles.guidance}>{p.guidance.text} · {p.guidance.metres} m</Text>
+    {p.guidance && <><Text style={styles.guidance}>{p.guidance.text.charAt(0).toUpperCase() + p.guidance.text.slice(1)} · {p.guidance.metres} m</Text>
       {!!p.guidance.streetName && <Text style={styles.small}>{p.guidance.streetName}</Text>}</>}
     {p.mode && !p.guidance && !p.message && <Text style={styles.small}>Đang cập nhật chỉ dẫn</Text>}
     {!!p.targetName && <Text numberOfLines={1} style={styles.small}>Điểm tiếp theo: {p.targetName}</Text>}

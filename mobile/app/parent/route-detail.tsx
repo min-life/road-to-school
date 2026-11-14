@@ -19,6 +19,7 @@ import {
   ParentStudentRoutingDetail,
 } from '@/services/api-client';
 import { decodePolyline } from '@/utils/polyline';
+import { tripMapIconCss, schoolMapIconHtml } from '@/utils/trip-map-icons';
 
 export default function ParentRouteDetailScreen() {
   const router = useRouter();
@@ -110,7 +111,7 @@ export default function ParentRouteDetailScreen() {
         <style>
           body, html, #map { margin: 0; padding: 0; height: 100%; width: 100%; background: #F8FAFC; }
           .depot-marker { background: #2563EB; color: white; border: 2px solid white; border-radius: 50%; font-weight: bold; width: 28px; height: 28px; line-height: 24px; text-align: center; font-size: 13px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
-          .school-marker { background: #FFCB56; color: #1E293B; border: 2px solid white; border-radius: 50%; font-weight: bold; width: 30px; height: 30px; line-height: 26px; text-align: center; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+          ${tripMapIconCss}
           .student-marker { background: #059669; color: white; border: 2px solid white; border-radius: 50%; font-weight: bold; width: 28px; height: 28px; line-height: 24px; text-align: center; font-size: 13px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
         </style>
       </head>
@@ -132,7 +133,7 @@ export default function ParentRouteDetailScreen() {
           bounds.extend([${depotLat}, ${depotLng}]);
 
           // 2. School Marker
-          var schoolIcon = L.divIcon({ className: '', html: '<div class="school-marker">🏫</div>', iconSize: [30, 30], iconAnchor: [15, 15] });
+          var schoolIcon = L.divIcon({ className: '', html: '${schoolMapIconHtml}', iconSize: [30, 30], iconAnchor: [15, 15] });
           var schoolMarker = L.marker([${schoolLat}, ${schoolLng}], { icon: schoolIcon }).addTo(map);
           schoolMarker.bindPopup(${schoolPopupText});
           bounds.extend([${schoolLat}, ${schoolLng}]);
