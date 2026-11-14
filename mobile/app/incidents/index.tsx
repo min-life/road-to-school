@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { colors } from '@/constants/theme';
+import { colors, getStaffTheme } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import {
   mobileApiClient,
@@ -44,6 +44,8 @@ const STATUS_OPTIONS: { label: string; value: string }[] = [
 export default function IncidentsHistoryScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const buttons = getStaffTheme(user?.role)?.buttons;
+  const activeChip = buttons?.selected ?? styles.filterChipActive;
 
   const [selectedType, setSelectedType] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
@@ -128,11 +130,12 @@ export default function IncidentsHistoryScreen() {
             return (
               <TouchableOpacity
                 key={opt.value}
-                style={[styles.filterChip, active && styles.filterChipActive]}
+                style={[styles.filterChip, active && activeChip]}
                 onPress={() => setSelectedType(opt.value)}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                <Text style={[styles.filterChipText, active && styles.filterChipTextActive,
+                  active && buttons?.secondaryText]}>
                   {opt.label}
                 </Text>
               </TouchableOpacity>
@@ -150,11 +153,12 @@ export default function IncidentsHistoryScreen() {
             return (
               <TouchableOpacity
                 key={opt.value}
-                style={[styles.filterChip, active && styles.filterChipActive]}
+                style={[styles.filterChip, active && activeChip]}
                 onPress={() => setSelectedStatus(opt.value)}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                <Text style={[styles.filterChipText, active && styles.filterChipTextActive,
+                  active && buttons?.secondaryText]}>
                   {opt.label}
                 </Text>
               </TouchableOpacity>

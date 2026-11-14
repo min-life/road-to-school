@@ -2,22 +2,25 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors } from '@/constants/theme';
+import { colors, type StaffTheme } from '@/constants/theme';
 import { navigationMetrics as metrics } from '@/constants/navigation';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
-export function HeaderAction({ icon, label, onPress, disabled = false }: {
+export function HeaderAction({ icon, label, onPress, disabled = false, staffTheme }: {
   icon: IconName;
   label: string;
   onPress: () => void;
   disabled?: boolean;
+  staffTheme?: StaffTheme;
 }) {
+  const buttons = staffTheme?.buttons;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label}
       accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
-      style={({ pressed }) => [styles.action, pressed && styles.pressed, disabled && styles.disabled]}>
-      <Ionicons name={icon} size={metrics.iconSize} color={colors.foreground} />
+      style={({ pressed }) => [styles.action, buttons?.secondary,
+        pressed && styles.pressed, disabled && (buttons?.disabled ?? styles.disabled)]}>
+      <Ionicons name={icon} size={metrics.iconSize} color={(disabled ? staffTheme?.colors.disabledText : staffTheme?.colors.primary) ?? colors.foreground} />
     </Pressable>
   );
 }

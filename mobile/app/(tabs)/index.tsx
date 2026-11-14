@@ -13,7 +13,7 @@ import { useActiveRefresh } from '@/hooks/use-active-refresh';
 import type { RefreshContext } from '@/utils/refresh-loop';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { colors } from '@/constants/theme';
+import { colors, getStaffTheme } from '@/constants/theme';
 import { journeyTones } from '@/constants/parent-journey';
 import { parentHomeStyles } from '@/components/parent/home-styles';
 import { ParentHomeScrollView } from '@/components/parent/home-scroll-view';
@@ -38,7 +38,8 @@ export default function HomeScreen() {
   const isParent = user?.role === 'PARENT';
   const isDriverOrAttendant = user?.role === 'DRIVER' || user?.role === 'BUS_ATTENDANT';
   const isDriver = user?.role === 'DRIVER';
-  const isAttendant = user?.role === 'BUS_ATTENDANT';
+  const staffTheme = getStaffTheme(user?.role);
+  const buttons = staffTheme?.buttons;
   const { triggerQuickLeaveNotice, isRequesting } = useQuickLeaveNotice();
 
   const [loading, setLoading] = useState(true);
@@ -140,6 +141,7 @@ export default function HomeScreen() {
         onChangeStop: () => router.push('/parent/change-stop')
       } : isDriverOrAttendant ? {
         fullName: user?.fullName, avatarUrl: user?.avatarUrl,
+        staffRole: user?.role,
         title: user?.fullName || (isDriver ? 'Tài xế' : 'Giáo viên phụ xe'),
         subtitle: `${isDriver ? 'Tài xế' : 'Giáo viên phụ xe'} · ${homeTrip?.schoolName || (isDriver ? 'Bãi xe trung tâm' : 'Trường học đối tác')}`,
         actions: [
@@ -168,10 +170,12 @@ export default function HomeScreen() {
           <Text style={isParent ? parentHomeStyles.emptySubtitle : staffHomeStyles.emptySubtitle}>{error}</Text>
           <TouchableOpacity
             accessibilityRole={isParent ? 'button' : undefined}
-            style={isParent ? parentHomeStyles.actionBtn : staffHomeStyles.primaryBtn}
+            style={[isParent ? parentHomeStyles.actionBtn : staffHomeStyles.primaryBtn,
+              buttons?.primary]}
             onPress={loadHomeData}
           >
-            <Text style={isParent ? parentHomeStyles.actionBtnText : staffHomeStyles.primaryBtnText}>Thử lại</Text>
+            <Text style={[isParent ? parentHomeStyles.actionBtnText : staffHomeStyles.primaryBtnText,
+              buttons?.primaryText]}>Thử lại</Text>
           </TouchableOpacity>
         </View>
       ) : isDriverOrAttendant ? (
@@ -206,11 +210,11 @@ export default function HomeScreen() {
             <Ionicons name="bus-outline" size={48} color="#94A3B8" />
             <Text style={staffHomeStyles.emptyTitle}>Không có chuyến xe cần vận hành</Text>
             <TouchableOpacity
-              style={staffHomeStyles.secondaryBtn}
+              style={[staffHomeStyles.secondaryBtn, buttons?.secondary]}
               onPress={() => router.push('/(tabs)/schedule' as any)}
             >
-              <Ionicons name="calendar-outline" size={16} color="#1E293B" />
-              <Text style={staffHomeStyles.secondaryBtnText}>Xem toàn bộ lịch trình</Text>
+              <Ionicons name="calendar-outline" size={16} color={staffTheme?.colors.primary ?? colors.foreground} />
+              <Text style={[staffHomeStyles.secondaryBtnText, buttons?.secondaryText]}>Xem toàn bộ lịch trình</Text>
             </TouchableOpacity>
           </View>
         )

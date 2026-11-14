@@ -74,8 +74,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const currentUser = await mobileApiClient.getMe();
       setUser(currentUser);
       setIsNetworkError(false);
-      if (currentUser.role === 'PARENT') {
-        setSplashRole('PARENT');
+      if (
+        currentUser.role === 'PARENT' ||
+        currentUser.role === 'DRIVER' ||
+        currentUser.role === 'BUS_ATTENDANT'
+      ) {
+        setSplashRole(currentUser.role);
       }
     } catch (err: any) {
       if (err instanceof ApiError && err.statusCode === 0) {

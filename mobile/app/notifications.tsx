@@ -5,7 +5,7 @@ import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { colors } from '@/constants/theme';
+import { colors, getStaffTheme } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useNotifications } from '@/context/notifications-context';
 import { notificationApi, type NotificationList } from '@/services/notifications';
@@ -13,6 +13,8 @@ import { useActiveRefresh } from '@/hooks/use-active-refresh';
 
 export default function NotificationsScreen() {
   const { user } = useAuth();
+  const staffTheme = getStaffTheme(user?.role);
+  const buttons = staffTheme?.buttons;
   const { open, refresh: refreshSummary } = useNotifications();
   const router = useRouter(), insets = useSafeAreaInsets();
   const [filter, setFilter] = useState('ALL'), [cursor, setCursor] = useState<string | undefined>();
@@ -34,8 +36,16 @@ export default function NotificationsScreen() {
     finally { setBusy(false); }
   }
   return <View style={styles.container}>
-    <AppHeader title="Thông báo" onBack={() => router.back()} actions={<HeaderAction icon="checkmark-done" label="Đánh dấu tất cả đã đọc" disabled={busy} onPress={() => { void readAll(); }} />} />
-    <View style={styles.filters}>{[['ALL', 'Tất cả'], ['UNREAD', 'Chưa đọc']].map(([value, label]) => <TouchableOpacity key={value} onPress={() => { setFilter(value); setCursor(undefined); }} style={[styles.filter, filter === value && styles.selected]}><Text style={styles.text}>{label}</Text></TouchableOpacity>)}</View>
+    <AppHeader title="Thông báo" onBack={() => router.back()} actions={<HeaderAction icon="checkmark-done"
+      label="Đánh dấu tất cả đã đọc" staffTheme={staffTheme} disabled={busy} onPress={() => { void readAll(); }} />} />
+    <View style={styles.filters}>
+      {[['ALL', 'Tất cả'], ['UNREAD', 'Chưa đọc']].map(([value, label]) => (
+        <TouchableOpacity key={value} onPress={() => { setFilter(value); setCursor(undefined); }}
+          style={[styles.filter, filter === value && (buttons?.secondary ?? styles.selected)]}>
+          <Text style={[styles.text, filter === value && buttons?.secondaryText]}>{label}</Text>
+        </TouchableOpacity>
+      ))}
+    </View>
     {error && <TouchableOpacity onPress={refresh} style={styles.error}><Text style={{ color: colors.error }}>{error} · Thử lại</Text></TouchableOpacity>}
     {!data && !error && <ActivityIndicator color={colors.primary} style={{ margin: 32 }} />}
     {data && <FlatList data={data.items} keyExtractor={item => item.id} contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}

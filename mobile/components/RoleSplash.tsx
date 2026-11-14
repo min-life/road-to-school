@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Image } from 'react-native';
 import { Role } from '@/services/api-client';
 import { colors } from '@/constants/theme';
+import { AppLoadingSplash } from '@/components/app-loading-splash';
 import { ParentLoginSplash } from '@/components/parent/login-splash';
 
 interface RoleSplashProps {
@@ -27,24 +28,6 @@ export function RoleSplash({
     });
   }, [durationMs, onFinish, progressAnim]);
 
-  let roleTitle = 'Người dùng';
-  let roleIcon = '👤';
-
-  switch (role) {
-    case 'DRIVER':
-      roleTitle = 'Tài xế';
-      roleIcon = '🚗';
-      break;
-    case 'BUS_ATTENDANT':
-      roleTitle = 'Nhân viên phụ trách xe';
-      roleIcon = '📋';
-      break;
-    case 'PARENT':
-      roleTitle = 'Phụ huynh học sinh';
-      roleIcon = '👨‍👩‍👧';
-      break;
-  }
-
   const barWidth = progressAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0%', '100%'],
@@ -52,22 +35,37 @@ export function RoleSplash({
 
   if (role === 'PARENT') return <ParentLoginSplash progressWidth={barWidth} />;
 
+  if (role === 'DRIVER' || role === 'BUS_ATTENDANT') {
+    const isDriver = role === 'DRIVER';
+    return (
+      <AppLoadingSplash
+        message="Đang mở trang chủ..."
+        progressWidth={barWidth}
+        illustration={
+          <View style={styles.illustration}>
+            <Image
+              source={isDriver
+                ? require('@/assets/driver/login-splash.png')
+                : require('@/assets/images/brand/bus-attendant-splash.png')}
+              style={styles.image}
+              resizeMode="contain"
+              accessibilityRole="image"
+              accessibilityLabel={isDriver ? 'RoadToSchool dành cho tài xế' : 'RoadToSchool dành cho phụ xe'}
+            />
+          </View>
+        }
+      />
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.content}>
         <View style={styles.iconCircle}>
-          {role === 'DRIVER' ? (
-            <Image
-              source={require('@/assets/driver/login-splash.png')}
-              style={styles.driverIcon}
-              resizeMode="contain"
-            />
-          ) : (
-            <Text style={styles.iconText}>{roleIcon}</Text>
-          )}
+          <Text style={styles.iconText}>👤</Text>
         </View>
 
-        <Text style={styles.roleTitle}>{roleTitle}</Text>
+        <Text style={styles.roleTitle}>Người dùng</Text>
         <Text style={styles.subtitle}>Đang khởi tạo không gian làm việc...</Text>
 
         {/* Loader bar */}
@@ -80,6 +78,8 @@ export function RoleSplash({
 }
 
 const styles = StyleSheet.create({
+  illustration: { width: '100%', maxWidth: 240, aspectRatio: 1 },
+  image: { width: '100%', height: '100%' },
   container: {
     position: 'absolute',
     top: 0,
@@ -108,10 +108,6 @@ const styles = StyleSheet.create({
   },
   iconText: {
     fontSize: 40,
-  },
-  driverIcon: {
-    width: 72,
-    height: 72,
   },
   roleTitle: {
     fontSize: 22,
