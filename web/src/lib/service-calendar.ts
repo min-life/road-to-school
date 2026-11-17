@@ -23,22 +23,40 @@ export function calendarOccurrence(entry: CalendarDate, year: number): string | 
   if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) return null;
   return calendarMatches(entry, date) ? date : null;
 }
-export function resolveSchoolDay(date: string, schedule: WeeklySchedule, entries: ServiceCalendarEntry[], schoolId: string, changes: SchoolScheduledChange[] = []) {
+export type SchoolDayType = 'REGULAR' | 'MAKEUP' | 'WEEKLY_OFF' | 'HOLIDAY' | 'OUT_OF_CONTRACT' | 'INACTIVE';
+
+export interface ResolvedSchoolDay {
+  dayType: SchoolDayType;
+  kind: 'REGULAR' | 'MAKEUP' | 'HOLIDAY';
+  label: string;
+  start?: string;
+  end?: string;
+}
+
+export function resolveSchoolDay(
+  date: string,
+  schedule: WeeklySchedule,
+  entries: ServiceCalendarEntry[],
+  schoolId: string,
+  changes: SchoolScheduledChange[] = [],
+): ResolvedSchoolDay {
   let weekly = schedule;
   let inactive = false;
   for (const change of [...changes].filter(row => row.status === 'PENDING' && row.effectiveDate.slice(0, 10) <= date).sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate) || a.createdAt.localeCompare(b.createdAt))) {
     if (change.type === 'SCHEDULE' && change.payload.weeklySchedule) weekly = change.payload.weeklySchedule;
     if (change.type === 'INACTIVE') inactive = true;
   }
-  if (inactive) return { kind: 'HOLIDAY' as const, label: 'Ngừng hoạt động' };
+  if (inactive) return { dayType: 'INACTIVE', kind: 'HOLIDAY', label: 'Ngừng hoạt động' };
   const eligible = entries.filter(row => (row.effectiveStatus ?? row.status) === 'APPROVED' && calendarMatches(row, date));
   const operatorHoliday = eligible.find(row => row.kind === 'HOLIDAY' && !row.schoolId);
-  if (operatorHoliday) return { kind: 'HOLIDAY' as const, label: operatorHoliday.title };
+  if (operatorHoliday) return { dayType: 'HOLIDAY', kind: 'HOLIDAY', label: operatorHoliday.title };
   const makeup = eligible.find(row => row.kind === 'MAKEUP' && row.schoolId === schoolId && row.startTime && row.endTime);
-  if (makeup) return { kind: 'MAKEUP' as const, label: makeup.title, start: makeup.startTime!, end: makeup.endTime! };
+  if (makeup) return { dayType: 'MAKEUP', kind: 'MAKEUP', label: makeup.title, start: makeup.startTime!, end: makeup.endTime! };
   const holiday = eligible.find(row => row.kind === 'HOLIDAY' && row.schoolId === schoolId);
-  if (holiday) return { kind: 'HOLIDAY' as const, label: holiday.title };
+  if (holiday) return { dayType: 'HOLIDAY', kind: 'HOLIDAY', label: holiday.title };
   const weekday = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][new Date(`${date}T00:00:00Z`).getUTCDay()];
   const hours = weekly[weekday];
-  return hours?.start && hours.end ? { kind: 'REGULAR' as const, label: '', ...hours } : { kind: 'HOLIDAY' as const, label: 'Nghỉ' };
+  return hours?.start && hours.end
+    ? { dayType: 'REGULAR', kind: 'REGULAR', label: '', ...hours }
+    : { dayType: 'WEEKLY_OFF', kind: 'HOLIDAY', label: 'Nghỉ theo lịch tuần' };
 }

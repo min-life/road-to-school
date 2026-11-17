@@ -146,7 +146,7 @@ export function ApprovalReadinessCard({
           </p>
         </div>
 
-        {/* Giáo viên / Phụ xe */}
+        {/* Giáo viên phụ trách */}
         <div
           className={`p-3 rounded-xl border text-xs ${
             (readiness.summary.totalRoutes - readiness.summary.routesWithBusAttendant) === 0
@@ -155,13 +155,13 @@ export function ApprovalReadinessCard({
           }`}
         >
           <div className="font-bold flex items-center justify-between mb-1">
-            <span>Giáo viên / Phụ xe</span>
+            <span>Giáo viên phụ trách</span>
             <span>{(readiness.summary.totalRoutes - readiness.summary.routesWithBusAttendant) === 0 ? '✓ Đủ' : '✗ Thiếu'}</span>
           </div>
           <p className="text-[11px] opacity-80">
             {(readiness.summary.totalRoutes - readiness.summary.routesWithBusAttendant) === 0
-              ? 'Tất cả tuyến đã có giáo viên phụ xe'
-              : `Còn ${(readiness.summary.totalRoutes - readiness.summary.routesWithBusAttendant)} tuyến chưa có giáo viên`}
+              ? 'Tất cả tuyến đã có giáo viên phụ trách'
+              : `Còn ${(readiness.summary.totalRoutes - readiness.summary.routesWithBusAttendant)} tuyến chưa có giáo viên phụ trách`}
           </p>
         </div>
       </div>
@@ -204,7 +204,7 @@ export function ApprovalReadinessCard({
               <ul className="list-disc list-inside space-y-1 pl-1 text-slate-700">
                 <li>Phương án được sử dụng khi hệ thống tạo chuyến theo lịch.</li>
                 <li>Hủy phương án theo điều kiện và tác động được hệ thống kiểm tra.</li>
-                <li>Mọi phân công xe, tài xế và giáo viên hiện tại sẽ được lưu thành mặc định.</li>
+                <li>Mọi phân công xe, tài xế và giáo viên phụ trách hiện tại sẽ được lưu thành mặc định.</li>
               </ul>
             </div>
 

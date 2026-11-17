@@ -1,12 +1,13 @@
 import { locationOptions } from '../schools/geography.js';
 import { closeCancelledTripTasks } from '../trips/utils/close-cancelled-trip-tasks.js';
 import { captureTripSnapshots } from '../trips/utils/capture-trip-snapshots.js';
-import { administrativeLocationForCoordinates } from '../schools/location-province.js';
+import { administrativeLocationForCoordinates, provinceForCoordinates } from '../schools/location-province.js';
 import { vietnamToday } from '../schools/school-effective-state.js';
 import { frozenTripWhere } from '../overview/operations-policy.js';
 import { lockOperations } from '../trips/utils/operations-lock.js';
 import { notifyCancelledTrips, writeNotification } from '../notifications/notification-writer.js';
-import { assertSchoolWritable } from '../schools/school-policy.js';
+import { assertSchoolWritable, effectiveSchool } from '../schools/school-policy.js';
+import { metresBetween } from '../trips/utils/navigation-state.js';
 import { Optional } from '@nestjs/common';
 import { EnrollmentSessionsService } from '../iot/enrollment/enrollment-sessions.service.js';
 import {
@@ -16,6 +17,7 @@ import {
   BadRequestException,
   ForbiddenException,
   ConflictException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import {
   Prisma,
@@ -27,10 +29,15 @@ import {
   RequestStatus,
   LeaveNoticeStatus,
 } from '@prisma/client';
-import { createHash } from 'node:crypto';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CloudinaryService } from '../schools/cloudinary.service.js';
 import { generateStudentCode } from './utils/student-code.generator.js';
+import {
+  parseXlsxBuffer,
+  generateXlsxBuffer,
+  getStudentImportTemplateBuffer,
+} from './utils/xlsx.js';
 import {
   CreateStudentDto,
   ListStudentsQueryDto,
@@ -39,6 +46,15 @@ import {
   StudentDetailResponseDto,
   StudentItemDto,
   StudentDisableImpactDto,
+  ServiceAreaCheckDto,
+  ServiceAreaCheckResponseDto,
+  ServiceAreaStatus,
+  BulkImportPreviewResponseDto,
+  BulkImportCommitDto,
+  BulkImportCommitResponseDto,
+  BulkExportDto,
+  BulkExportScope,
+  BulkImportRowErrorDto,
 } from './dto/index.js';
 
 @Injectable()
@@ -984,5 +1000,727 @@ export class StudentsService {
       createdAt: updated.createdAt.toISOString(),
       updatedAt: updated.updatedAt.toISOString(),
     };
+  }
+
+  /**
+   * Kiểm tra phạm vi phục vụ của địa chỉ học sinh (Chỉ dành cho SCHOOL_ADMIN đúng trường)
+   * Hoàn toàn chỉ đọc, tính toán theo bãi đỗ xe trung tâm đang hiệu lực và tỉnh/thành của trường.
+   */
+  async checkServiceArea(
+    schoolId: string,
+    dto: ServiceAreaCheckDto,
+    currentUser: User,
+  ): Promise<ServiceAreaCheckResponseDto> {
+    // 1. Kiểm tra quyền SCHOOL_ADMIN và cách ly trường học
+    if (currentUser.role !== Role.SCHOOL_ADMIN) {
+      throw new ForbiddenException(
+        'Chỉ Quản trị viên trường học (SCHOOL_ADMIN) mới có quyền kiểm tra phạm vi phục vụ',
+      );
+    }
+    if (currentUser.schoolId !== schoolId) {
+      throw new ForbiddenException(
+        'Bạn không có quyền kiểm tra phạm vi phục vụ cho trường học khác',
+      );
+    }
+
+    // 2. Lấy thông tin trường học hiệu lực (tính theo ngày Việt Nam)
+    const today = vietnamToday();
+    const school = await effectiveSchool(this.prisma, schoolId, today);
+    if (!school) {
+      throw new NotFoundException('Không tìm thấy trường học');
+    }
+
+    // 3. Lấy cấu hình bãi đỗ xe trung tâm đang hiệu lực
+    const setting = await this.prisma.systemSetting.findUnique({
+      where: { key: 'PARKING_LOT' },
+    });
+
+    const val = setting?.value as any;
+    if (!val || typeof val !== 'object') {
+      return { status: ServiceAreaStatus.UNAVAILABLE };
+    }
+
+    const scheduled = val.scheduledChange;
+    const isDue =
+      scheduled?.effectiveDate && String(scheduled.effectiveDate) <= today;
+
+    const parkingLat = Number(isDue ? scheduled.newLatitude : val.latitude);
+    const parkingLng = Number(isDue ? scheduled.newLongitude : val.longitude);
+    const maxRadiusKm = Number(val.maxOperatingRadiusKm ?? 50);
+
+    if (
+      !Number.isFinite(parkingLat) ||
+      !Number.isFinite(parkingLng) ||
+      Math.abs(parkingLat) > 90 ||
+      Math.abs(parkingLng) > 180 ||
+      !Number.isFinite(maxRadiusKm) ||
+      maxRadiusKm <= 0
+    ) {
+      return { status: ServiceAreaStatus.UNAVAILABLE };
+    }
+
+    // 4. Kiểm tra bán kính Haversine (metresBetween)
+    const distanceMeters = metresBetween(
+      { latitude: parkingLat, longitude: parkingLng },
+      { latitude: dto.latitude, longitude: dto.longitude },
+    );
+    const maxRadiusMeters = maxRadiusKm * 1000;
+
+    if (distanceMeters > maxRadiusMeters) {
+      return { status: ServiceAreaStatus.OUT_OF_SERVICE_AREA };
+    }
+
+    // 5. Kiểm tra tỉnh/thành nếu trường đã có thông tin tỉnh
+    const schoolProvince = school.province?.trim();
+    if (schoolProvince) {
+      const studentProvince = (
+        await provinceForCoordinates(dto.latitude, dto.longitude)
+      )?.trim();
+
+      if (
+        studentProvince &&
+        schoolProvince.toLowerCase() !== studentProvince.toLowerCase()
+      ) {
+        return { status: ServiceAreaStatus.OUT_OF_SERVICE_AREA };
+      }
+    }
+
+    return { status: ServiceAreaStatus.IN_SERVICE_AREA };
+  }
+
+  // ==========================================
+  // BULK IMPORT & EXPORT EXCEL METHODS
+  // ==========================================
+
+  /**
+   * Tải tệp mẫu Excel .xlsx cho School Admin
+   */
+  async getImportTemplate(schoolId: string, currentUser: User): Promise<Buffer> {
+    if (currentUser.role !== Role.SCHOOL_ADMIN || currentUser.schoolId !== schoolId) {
+      throw new ForbiddenException('Chỉ Quản trị viên trường học đúng trường mới có quyền tải tệp mẫu');
+    }
+    return getStudentImportTemplateBuffer();
+  }
+
+  /**
+   * Helper phân tích cú pháp và kiểm tra toàn bộ dòng trong tệp Excel
+   */
+  private async parseAndValidateImportRows(
+    schoolId: string,
+    fileBuffer: Buffer,
+  ): Promise<{
+    totalRows: number;
+    validRows: Array<{
+      rowNumber: number;
+      fullName: string;
+      phone: string;
+      addressText: string | null;
+      latitude: number | null;
+      longitude: number | null;
+      geography?: any;
+    }>;
+    errors: BulkImportRowErrorDto[];
+  }> {
+    const errors: BulkImportRowErrorDto[] = [];
+    const validRows: Array<{
+      rowNumber: number;
+      fullName: string;
+      phone: string;
+      addressText: string | null;
+      latitude: number | null;
+      longitude: number | null;
+      geography?: any;
+    }> = [];
+
+    let parsedRows;
+    try {
+      parsedRows = parseXlsxBuffer(fileBuffer);
+    } catch (err: any) {
+      errors.push({
+        rowNumber: 1,
+        message: err?.message || 'Tệp không đúng định dạng Excel .xlsx hoặc bị hỏng',
+      });
+      return { totalRows: 0, validRows: [], errors };
+    }
+
+    if (!parsedRows || parsedRows.length === 0) {
+      errors.push({
+        rowNumber: 1,
+        message: 'Tệp Excel không chứa bất kỳ dữ liệu nào',
+      });
+      return { totalRows: 0, validRows: [], errors };
+    }
+
+    // Kiểm tra hàng tiêu đề (Row 1)
+    const headerRow = parsedRows[0];
+    const col0 = (headerRow.cells[0] || '').toLowerCase();
+    const col1 = (headerRow.cells[1] || '').toLowerCase();
+
+    if (!col0.includes('họ') && !col0.includes('tên')) {
+      errors.push({
+        rowNumber: 1,
+        field: 'fullName',
+        message: 'Cột 1 phải là tiêu đề "Họ và tên học sinh"',
+      });
+    }
+    if (!col1.includes('thoại') && !col1.includes('sđt') && !col1.includes('phone')) {
+      errors.push({
+        rowNumber: 1,
+        field: 'guardianPhone',
+        message: 'Cột 2 phải là tiêu đề "Số điện thoại phụ huynh"',
+      });
+    }
+
+    // Lọc các hàng dữ liệu (bỏ qua hàng tiêu đề và các hàng hoàn toàn trống)
+    const dataRows = parsedRows.slice(1).filter((r) => {
+      return Object.values(r.cells).some((val) => val && val.trim().length > 0);
+    });
+
+    if (dataRows.length === 0) {
+      errors.push({
+        rowNumber: 1,
+        message: 'Tệp không chứa dòng dữ liệu học sinh nào',
+      });
+      return { totalRows: 0, validRows: [], errors };
+    }
+
+    if (dataRows.length > 200) {
+      errors.push({
+        rowNumber: 1,
+        message: `Tệp vượt quá giới hạn tối đa 200 dòng (tìm thấy ${dataRows.length} dòng dữ liệu)`,
+      });
+      return { totalRows: dataRows.length, validRows: [], errors };
+    }
+
+    // Lấy thông tin trường và bãi đỗ xe trung tâm phục vụ kiểm tra phạm vi
+    const today = vietnamToday();
+    const school = await effectiveSchool(this.prisma, schoolId, today);
+    const setting = await this.prisma.systemSetting.findUnique({
+      where: { key: 'PARKING_LOT' },
+    });
+
+    const val = setting?.value as any;
+    let hasParkingConfig = false;
+    let parkingLat = 0;
+    let parkingLng = 0;
+    let maxRadiusMeters = 0;
+
+    if (val && typeof val === 'object') {
+      const scheduled = val.scheduledChange;
+      const isDue = scheduled?.effectiveDate && String(scheduled.effectiveDate) <= today;
+      parkingLat = Number(isDue ? scheduled.newLatitude : val.latitude);
+      parkingLng = Number(isDue ? scheduled.newLongitude : val.longitude);
+      const maxRadiusKm = Number(val.maxOperatingRadiusKm ?? 50);
+
+      if (
+        Number.isFinite(parkingLat) &&
+        Number.isFinite(parkingLng) &&
+        Math.abs(parkingLat) <= 90 &&
+        Math.abs(parkingLng) <= 180 &&
+        Number.isFinite(maxRadiusKm) &&
+        maxRadiusKm > 0
+      ) {
+        hasParkingConfig = true;
+        maxRadiusMeters = maxRadiusKm * 1000;
+      }
+    }
+
+    const schoolProvince = school?.province?.trim();
+    const seenRows = new Map<string, number>();
+
+    // Duyệt từng dòng dữ liệu
+    for (const r of dataRows) {
+      const rowNum = r.rowNumber;
+      const fullName = (r.cells[0] || '').trim();
+      const rawPhone = (r.cells[1] || '').trim();
+      const addressText = (r.cells[2] || '').trim();
+      const rawLat = (r.cells[3] || '').trim();
+      const rawLng = (r.cells[4] || '').trim();
+
+      let rowHasError = false;
+
+      // 1. Kiểm tra Họ và tên
+      if (!fullName) {
+        errors.push({
+          rowNumber: rowNum,
+          field: 'fullName',
+          message: 'Họ và tên học sinh không được để trống',
+        });
+        rowHasError = true;
+      } else if (fullName.length > 100) {
+        errors.push({
+          rowNumber: rowNum,
+          field: 'fullName',
+          message: 'Họ và tên học sinh không được vượt quá 100 ký tự',
+        });
+        rowHasError = true;
+      }
+
+      // 2. Kiểm tra Số điện thoại phụ huynh
+      let cleanPhone = '';
+      if (!rawPhone) {
+        errors.push({
+          rowNumber: rowNum,
+          field: 'guardianPhone',
+          message: 'Số điện thoại phụ huynh không được để trống',
+        });
+        rowHasError = true;
+      } else {
+        cleanPhone = rawPhone.replace(/[\s\-().]/g, '');
+        if (cleanPhone.startsWith('+84')) {
+          cleanPhone = '0' + cleanPhone.slice(3);
+        } else if (cleanPhone.startsWith('84') && cleanPhone.length >= 11) {
+          cleanPhone = '0' + cleanPhone.slice(2);
+        }
+
+        if (!/^0\d{9}$/.test(cleanPhone)) {
+          errors.push({
+            rowNumber: rowNum,
+            field: 'guardianPhone',
+            message: `Số điện thoại phụ huynh không hợp lệ (${rawPhone}). Vui lòng nhập 10 chữ số (bắt đầu bằng 0)`,
+          });
+          rowHasError = true;
+        }
+      }
+
+      // 3. Kiểm tra Địa chỉ và Tọa độ (Cả 3 cùng có hoặc cả 3 cùng để trống)
+      const hasAddr = addressText.length > 0;
+      const hasLat = rawLat.length > 0;
+      const hasLng = rawLng.length > 0;
+
+      let lat: number | null = null;
+      let lng: number | null = null;
+
+      if (hasAddr || hasLat || hasLng) {
+        if (!(hasAddr && hasLat && hasLng)) {
+          errors.push({
+            rowNumber: rowNum,
+            field: 'addressText',
+            message: 'Nếu nhập địa chỉ, bắt buộc phải có đủ cả Địa chỉ đón/trả, Vĩ độ và Kinh độ',
+          });
+          rowHasError = true;
+        } else {
+          lat = parseFloat(rawLat);
+          lng = parseFloat(rawLng);
+
+          if (isNaN(lat) || lat < -90 || lat > 90) {
+            errors.push({
+              rowNumber: rowNum,
+              field: 'latitude',
+              message: `Vĩ độ không hợp lệ (${rawLat}). Phải là số từ -90 đến 90`,
+            });
+            rowHasError = true;
+          }
+          if (isNaN(lng) || lng < -180 || lng > 180) {
+            errors.push({
+              rowNumber: rowNum,
+              field: 'longitude',
+              message: `Kinh độ không hợp lệ (${rawLng}). Phải là số từ -180 đến 180`,
+            });
+            rowHasError = true;
+          }
+
+          if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+            if (hasParkingConfig) {
+              const distanceMeters = metresBetween(
+                { latitude: parkingLat, longitude: parkingLng },
+                { latitude: lat, longitude: lng },
+              );
+              if (distanceMeters > maxRadiusMeters) {
+                errors.push({
+                  rowNumber: rowNum,
+                  field: 'addressText',
+                  message: `Tọa độ nằm ngoài phạm vi phục vụ (${(distanceMeters / 1000).toFixed(1)} km / ${(maxRadiusMeters / 1000).toFixed(1)} km)`,
+                });
+                rowHasError = true;
+              } else if (schoolProvince) {
+                const studentProvince = (await provinceForCoordinates(lat, lng))?.trim();
+                if (studentProvince && schoolProvince.toLowerCase() !== studentProvince.toLowerCase()) {
+                  errors.push({
+                    rowNumber: rowNum,
+                    field: 'addressText',
+                    message: `Tọa độ thuộc ${studentProvince}, khác tỉnh/thành với trường (${schoolProvince})`,
+                  });
+                  rowHasError = true;
+                }
+              }
+            } else {
+              errors.push({
+                rowNumber: rowNum,
+                field: 'addressText',
+                message: 'Chưa thể kiểm tra phạm vi do bãi đỗ xe trung tâm chưa được cấu hình',
+              });
+              rowHasError = true;
+            }
+          }
+        }
+      }
+
+      // 4. Phát hiện dòng trùng lặp hoàn toàn trong cùng tệp
+      const rowKey = `${fullName.toLowerCase()}|${cleanPhone}|${addressText.toLowerCase()}|${lat}|${lng}`;
+      if (seenRows.has(rowKey)) {
+        errors.push({
+          rowNumber: rowNum,
+          field: 'row',
+          message: `Dòng này trùng lặp với dòng ${seenRows.get(rowKey)} trong tệp`,
+        });
+        rowHasError = true;
+      } else {
+        seenRows.set(rowKey, rowNum);
+      }
+
+      if (!rowHasError) {
+        validRows.push({
+          rowNumber: rowNum,
+          fullName,
+          phone: cleanPhone,
+          addressText: hasAddr ? addressText : null,
+          latitude: lat,
+          longitude: lng,
+        });
+      }
+    }
+
+    return { totalRows: dataRows.length, validRows, errors };
+  }
+
+  /**
+   * Preview kiểm tra toàn bộ tệp Excel trước khi nhập
+   */
+  async previewImport(
+    schoolId: string,
+    file: Express.Multer.File,
+    currentUser: User,
+  ): Promise<BulkImportPreviewResponseDto> {
+    if (currentUser.role !== Role.SCHOOL_ADMIN || currentUser.schoolId !== schoolId) {
+      throw new ForbiddenException('Chỉ Quản trị viên trường học đúng trường mới có quyền xem trước tệp nhập');
+    }
+
+    const { totalRows, validRows, errors } = await this.parseAndValidateImportRows(
+      schoolId,
+      file.buffer,
+    );
+
+    const errorRowSet = new Set(errors.map((e) => e.rowNumber));
+    const invalidRows = errorRowSet.size;
+    const validRowsCount = Math.max(0, totalRows - invalidRows);
+
+    if (errors.length === 0 && validRows.length > 0) {
+      // Sinh previewToken có chữ ký số HMAC, thời hạn 30 phút
+      const fileHash = createHash('sha256').update(file.buffer).digest('hex');
+      const payload = JSON.stringify({
+        schoolId,
+        fileHash,
+        totalRows: validRows.length,
+        exp: Date.now() + 30 * 60 * 1000,
+      });
+      const secret = process.env.JWT_SECRET || 'roadtoschool-secret-key';
+      const sig = createHmac('sha256', secret).update(payload).digest('hex');
+      const previewToken = `${Buffer.from(payload).toString('base64url')}.${sig}`;
+
+      return {
+        totalRows: validRows.length,
+        validRows: validRows.length,
+        invalidRows: 0,
+        errors: [],
+        previewToken,
+      };
+    }
+
+    return {
+      totalRows,
+      validRows: validRowsCount,
+      invalidRows,
+      errors,
+    };
+  }
+
+  /**
+   * Xác nhận nhập học sinh từ tệp Excel trong 1 transaction nguyên tử
+   */
+  async commitImport(
+    schoolId: string,
+    file: Express.Multer.File,
+    dto: BulkImportCommitDto,
+    currentUser: User,
+  ): Promise<BulkImportCommitResponseDto> {
+    if (currentUser.role !== Role.SCHOOL_ADMIN || currentUser.schoolId !== schoolId) {
+      throw new ForbiddenException('Chỉ Quản trị viên trường học đúng trường mới có quyền xác nhận nhập');
+    }
+
+    // 1. Kiểm tra tính hợp lệ và chữ ký của previewToken
+    const tokenParts = dto.previewToken.split('.');
+    if (tokenParts.length !== 2) {
+      throw new ConflictException('Mã xem trước (previewToken) không hợp lệ');
+    }
+
+    const [payloadB64, sig] = tokenParts;
+    const secret = process.env.JWT_SECRET || 'roadtoschool-secret-key';
+    let tokenData: any;
+
+    try {
+      const payloadStr = Buffer.from(payloadB64, 'base64url').toString('utf8');
+      const expectedSig = createHmac('sha256', secret).update(payloadStr).digest('hex');
+      if (sig !== expectedSig) {
+        throw new ConflictException('Chữ ký của mã xem trước không hợp lệ');
+      }
+      tokenData = JSON.parse(payloadStr);
+    } catch (err: any) {
+      throw new ConflictException('Mã xem trước (previewToken) không thể giải mã hoặc đã bị thay đổi');
+    }
+
+    if (tokenData.exp < Date.now()) {
+      throw new ConflictException('Phiên xem trước đã hết hạn. Vui lòng tải lên và xem trước lại tệp.');
+    }
+
+    if (tokenData.schoolId !== schoolId) {
+      throw new ConflictException('Mã xem trước không thuộc trường học hiện tại');
+    }
+
+    const fileHash = createHash('sha256').update(file.buffer).digest('hex');
+    if (tokenData.fileHash !== fileHash) {
+      throw new ConflictException('Nội dung tệp tải lên không khớp với phiên xem trước');
+    }
+
+    // 2. Kiểm tra biên nhận idempotency trước khi vào transaction
+    const receiptKey = (`imp_${dto.importKey.replace(/-/g, '')}`).slice(0, 50);
+    const existingReceipt = await this.prisma.systemSetting.findUnique({
+      where: { key: receiptKey },
+    });
+
+    if (existingReceipt) {
+      const recVal = existingReceipt.value as any;
+      if (recVal?.fileHash === fileHash) {
+        // Tái lặp idempotent: trả về kết quả đã commit trước đó
+        return {
+          importedCount: Number(recVal.importedCount ?? 0),
+          importKey: dto.importKey,
+        };
+      }
+      throw new ConflictException('Khóa importKey đã được sử dụng cho một tệp khác');
+    }
+
+    // 3. Phân tích và kiểm tra lại toàn bộ dòng để đảm bảo tính nhất quán
+    const { totalRows, validRows, errors } = await this.parseAndValidateImportRows(
+      schoolId,
+      file.buffer,
+    );
+
+    if (errors.length > 0 || validRows.length === 0) {
+      throw new UnprocessableEntityException({
+        message: 'Tệp không còn hợp lệ hoặc chứa lỗi dòng',
+        errors,
+      });
+    }
+
+    // 4. Geocode địa lý cho các dòng có tọa độ (Thực hiện ngoài Transaction để tránh block DB)
+    for (const item of validRows) {
+      if (item.latitude !== null && item.longitude !== null) {
+        item.geography = await administrativeLocationForCoordinates(item.latitude, item.longitude);
+      }
+    }
+
+    // 5. Ghi cả lô vào DB trong đúng một Prisma Transaction
+    const importedCount = await this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
+      await assertSchoolWritable(tx, schoolId);
+
+      // Kiểm tra lại receipt trong transaction chống race condition
+      const inTxReceipt = await tx.systemSetting.findUnique({
+        where: { key: receiptKey },
+      });
+      if (inTxReceipt) {
+        return Number((inTxReceipt.value as any)?.importedCount ?? 0);
+      }
+
+      const usedCodes = new Set<string>();
+      const studentRecords: Prisma.StudentCreateManyInput[] = [];
+
+      for (const row of validRows) {
+        let code = generateStudentCode();
+        while (usedCodes.has(code)) {
+          code = generateStudentCode();
+        }
+        usedCodes.add(code);
+
+        studentRecords.push({
+          code,
+          schoolId,
+          fullName: row.fullName,
+          guardianPhone: row.phone,
+          addressText: row.addressText,
+          latitude: row.latitude,
+          longitude: row.longitude,
+          provinceId: row.geography?.provinceId ?? null,
+          province: row.geography?.province ?? null,
+          wardId: row.geography?.wardId ?? null,
+          ward: row.geography?.ward ?? null,
+          status: StudentStatus.AVAILABLE,
+        });
+      }
+
+      // Tạo toàn bộ học sinh - không dùng skipDuplicates để đảm bảo tính nguyên tử
+      await tx.student.createMany({
+        data: studentRecords,
+        skipDuplicates: false,
+      });
+
+      // Lưu biên nhận hoàn tất vào SystemSetting trong cùng transaction
+      await tx.systemSetting.create({
+        data: {
+          id: randomUUID(),
+          key: receiptKey,
+          value: {
+            actorId: currentUser.id,
+            schoolId,
+            fileHash,
+            importedCount: studentRecords.length,
+            committedAt: new Date().toISOString(),
+          },
+          updatedById: currentUser.id,
+        },
+      });
+
+      return studentRecords.length;
+    });
+
+    return {
+      importedCount,
+      importKey: dto.importKey,
+    };
+  }
+
+  /**
+   * Tra cứu biên nhận kết quả nhập khi mất kết nối
+   */
+  async getImportReceipt(
+    schoolId: string,
+    importKey: string,
+    currentUser: User,
+  ): Promise<BulkImportCommitResponseDto> {
+    if (currentUser.role !== Role.SCHOOL_ADMIN || currentUser.schoolId !== schoolId) {
+      throw new ForbiddenException('Chỉ Quản trị viên trường học đúng trường mới có quyền tra cứu biên nhận');
+    }
+
+    const receiptKey = (`imp_${importKey.replace(/-/g, '')}`).slice(0, 50);
+    const receipt = await this.prisma.systemSetting.findUnique({
+      where: { key: receiptKey },
+    });
+
+    if (!receipt || (receipt.value as any)?.schoolId !== schoolId) {
+      throw new NotFoundException('Chưa tìm thấy biên nhận cho khóa import này');
+    }
+
+    return {
+      importedCount: Number((receipt.value as any)?.importedCount ?? 0),
+      importKey,
+    };
+  }
+
+  /**
+   * Xuất danh sách học sinh ra file Excel .xlsx
+   */
+  async exportStudents(
+    schoolId: string,
+    dto: BulkExportDto,
+    currentUser: User,
+  ): Promise<Buffer> {
+    if (currentUser.role !== Role.SCHOOL_ADMIN || currentUser.schoolId !== schoolId) {
+      throw new ForbiddenException('Chỉ Quản trị viên trường học đúng trường mới có quyền xuất Excel');
+    }
+
+    let students: any[] = [];
+
+    if (dto.scope === BulkExportScope.SELECTED) {
+      if (!dto.studentIds || dto.studentIds.length === 0) {
+        throw new BadRequestException('Danh sách studentIds không được để trống khi chọn phạm vi SELECTED');
+      }
+
+      students = await this.prisma.student.findMany({
+        where: {
+          id: { in: dto.studentIds },
+          schoolId,
+        },
+        orderBy: { fullName: 'asc' },
+      });
+
+      if (students.length !== dto.studentIds.length) {
+        throw new BadRequestException('Một số học sinh được chọn không tồn tại hoặc không thuộc trường của bạn');
+      }
+    } else if (dto.scope === BulkExportScope.FILTERED) {
+      const where: Prisma.StudentWhereInput = { schoolId };
+
+      if (dto.filters?.routingStatus === 'UNASSIGNED') {
+        where.routeStops = {
+          none: { route: { routePlan: { status: { in: ['DRAFT', 'ACTIVE'] } } } },
+        };
+      }
+      if (dto.filters?.provinceId) where.provinceId = dto.filters.provinceId;
+      if (dto.filters?.wardId) where.wardId = dto.filters.wardId;
+      if (dto.filters?.status) where.status = dto.filters.status;
+
+      if (dto.filters?.hasAddress !== undefined) {
+        if (dto.filters.hasAddress) {
+          where.addressText = { not: null };
+          where.latitude = { not: null };
+          where.longitude = { not: null };
+        } else {
+          where.OR = [{ addressText: null }, { latitude: null }, { longitude: null }];
+        }
+      }
+
+      if (dto.filters?.search && dto.filters.search.trim().length > 0) {
+        const s = dto.filters.search.trim();
+        const searchCondition = {
+          OR: [
+            { fullName: { contains: s, mode: 'insensitive' as const } },
+            { code: { contains: s, mode: 'insensitive' as const } },
+          ],
+        };
+        if (where.OR) {
+          where.AND = [searchCondition];
+        } else {
+          where.OR = searchCondition.OR;
+        }
+      }
+
+      const totalCount = await this.prisma.student.count({ where });
+      if (totalCount === 0) {
+        throw new BadRequestException('Không có học sinh nào phù hợp với bộ lọc hiện tại để xuất');
+      }
+      if (totalCount > 5000) {
+        throw new UnprocessableEntityException('Số lượng học sinh vượt quá giới hạn xuất 5.000 dòng. Vui lòng thu hẹp bộ lọc.');
+      }
+
+      students = await this.prisma.student.findMany({
+        where,
+        orderBy: { fullName: 'asc' },
+        take: 5000,
+      });
+    }
+
+    const headers = [
+      'Mã học sinh',
+      'Họ và tên học sinh',
+      'Số điện thoại phụ huynh',
+      'Địa chỉ đón/trả',
+      'Tỉnh/thành',
+      'Phường/xã',
+      'Tình trạng địa chỉ',
+      'Trạng thái',
+    ];
+
+    const rows = students.map((s) => [
+      s.code,
+      s.fullName,
+      s.guardianPhone,
+      s.addressText || '',
+      s.province || '',
+      s.ward || '',
+      s.latitude !== null && s.longitude !== null ? 'Đã có tọa độ' : 'Chưa có địa chỉ',
+      s.status === StudentStatus.AVAILABLE ? 'Đang hoạt động' : 'Ngừng hoạt động',
+    ]);
+
+    return generateXlsxBuffer('DanhSachHocSinh', headers, rows);
   }
 }

@@ -9,4 +9,5 @@ export * from './school-location.dto.js';
 export * from './school-contract.dto.js';
 export * from './update-school-schedule.dto.js';
 export * from './employee-status.dto.js';
+export * from './update-school-profile.dto.js';
 

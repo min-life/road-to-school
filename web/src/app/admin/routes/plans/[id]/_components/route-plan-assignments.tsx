@@ -152,7 +152,7 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
           vehicleId: selectedGroup.vehicleId,
           busAttendantId: selectedResourceId,
         });
-      toast.success('Đã phân công giáo viên phụ xe.');
+      toast.success('Đã phân công giáo viên phụ trách.');
       }
       closeModal();
       onUpdated();
@@ -197,7 +197,7 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
             </h2>
           </div>
           <span className="text-xs text-slate-400">
-            Mỗi nhóm xe vận hành đồng bộ 1 tài xế & 1 giáo viên phụ xe
+            Mỗi nhóm xe vận hành đồng bộ 1 tài xế & 1 giáo viên phụ trách
           </span>
         </div>
 
@@ -276,7 +276,7 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
                 <div className="flex-1 space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                      Giáo viên / Phụ xe
+                      Giáo viên phụ trách
                     </span>
                     {isSchoolAdmin && group.vehicleId && (
                       <Button
@@ -297,7 +297,7 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
                       )}
                     </div>
                   ) : (
-                    <span className={compact && isSystemAdmin ? 'text-xs text-slate-500' : 'text-xs text-rose-600 font-semibold italic'}>{compact && isSystemAdmin ? 'Chờ trường phân công giáo viên' : 'Chưa phân công'}</span>
+                    <span className={compact && isSystemAdmin ? 'text-xs text-slate-500' : 'text-xs text-rose-600 font-semibold italic'}>{compact && isSystemAdmin ? 'Chờ trường phân công giáo viên phụ trách' : 'Chưa phân công'}</span>
                   )}
                 </div>
               </div>
@@ -332,7 +332,7 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
             <h3 className="text-base font-bold text-slate-800">
               {modalType === 'VEHICLE' && 'Thay đổi xe cho nhóm tuyến'}
               {modalType === 'DRIVER' && 'Phân công tài xế cho nhóm xe'}
-              {modalType === 'ATTENDANT' && 'Phân công giáo viên phụ xe cho nhóm'}
+              {modalType === 'ATTENDANT' && 'Phân công giáo viên phụ trách cho nhóm'}
             </h3>
 
             <p className="text-xs text-slate-500">
@@ -350,7 +350,7 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
                 <label className="block text-xs font-semibold text-slate-700">
                   {modalType === 'VEHICLE' && 'Chọn phương tiện thay thế:'}
                   {modalType === 'DRIVER' && 'Chọn tài xế phụ trách:'}
-                  {modalType === 'ATTENDANT' && 'Chọn giáo viên / phụ xe:'}
+                  {modalType === 'ATTENDANT' && 'Chọn giáo viên phụ trách:'}
                 </label>
 
                 {modalType === 'VEHICLE' && (
@@ -391,7 +391,7 @@ export function RoutePlanAssignments({ plan, currentUserRole, onUpdated, compact
                     onChange={(e) => setSelectedResourceId(e.target.value)}
                     className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary"
                   >
-                    <option value="">-- Chọn giáo viên phụ xe --</option>
+                    <option value="">-- Chọn giáo viên phụ trách --</option>
                     {candidateAttendants.map((a) => (
                       <option key={a.id} value={a.id} disabled={!a.isEligible}>
                         {a.fullName} {a.phone ? `(${a.phone})` : ''}

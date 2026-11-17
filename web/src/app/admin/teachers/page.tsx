@@ -107,11 +107,16 @@ function TeachersPageContent() {
   };
 
   const handleTeacherAdded = (result: CreateSchoolAdminResponse) => {
-    if (result.credentialDeliveryStatus === 'FAILED') toast.error('Đã tạo giáo viên nhưng email chưa gửi được. Dùng Cấp lại mật khẩu để bàn giao.');
-    else if (result.credentialDeliveryStatus === 'CONSOLE') toast.info('Đã tạo giáo viên; thông tin bàn giao ở console phát triển.');
-    else toast.success('Đã tạo tài khoản giáo viên và gửi email.');
+    if (result.credentialDeliveryStatus === 'SENT') {
+      toast.success('Đã tạo tài khoản. Nhắc người nhận kiểm tra email để đăng nhập.');
+    } else if (result.credentialDeliveryStatus === 'FAILED') {
+      toast.error('Đã tạo tài khoản, email chưa gửi được. Dùng “Cấp lại mật khẩu” để gửi lại.');
+    } else if (result.credentialDeliveryStatus === 'CONSOLE') {
+      toast.info('Đã tạo tài khoản. Thông tin đăng nhập chưa được gửi qua email.');
+    } else {
+      toast.success('Đã tạo tài khoản.');
+    }
     fetchTeachers();
-
   };
 
   if (!schoolId) {

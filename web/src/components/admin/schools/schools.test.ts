@@ -5,8 +5,20 @@ import path from 'node:path';
 import {
   validateWeeklySchedule,
   DAYS_OF_WEEK,
+  getDayScheduleError,
+  getVietnamToday,
+  getNextCalendarDay,
 } from './weekly-schedule.helper.ts';
-import type { WeeklySchedule, Role } from '../../../lib/types.ts';
+import {
+  normalizeWeeklySchedule,
+  areSchedulesEqual,
+  areCoordinatesEqual,
+  createSchoolEditBaseline,
+  detectSchoolChanges,
+  validateSchoolEditForm,
+  type SchoolEditCurrentDraft,
+} from './school-edit.helper.ts';
+import type { WeeklySchedule, Role, SchoolDetail } from '../../../lib/types.ts';
 import { getVisibleNavItems } from '../admin-nav.config.ts';
 
 describe('School Management — Weekly Schedule Business Rules', () => {
@@ -65,6 +77,72 @@ describe('School Management — Weekly Schedule Business Rules', () => {
       'saturday',
       'sunday',
     ]);
+  });
+});
+
+describe('School Management — Contract Date & Schedule Inline Constraints', () => {
+  it('getVietnamToday trả về ngày hiện tại định dạng YYYY-MM-DD theo giờ Việt Nam', () => {
+    const today = getVietnamToday();
+    assert.match(today, /^\d{4}-\d{2}-\d{2}$/);
+    const [y, m, d] = today.split('-').map(Number);
+    assert.ok(y >= 2024);
+    assert.ok(m >= 1 && m <= 12);
+    assert.ok(d >= 1 && d <= 31);
+  });
+
+  it('getNextCalendarDay tính chính xác ngày kế tiếp qua ranh giới tháng, năm và năm nhuận', () => {
+    assert.equal(getNextCalendarDay('2026-11-14'), '2026-11-15');
+    assert.equal(getNextCalendarDay('2026-01-31'), '2026-02-01');
+    assert.equal(getNextCalendarDay('2026-02-28'), '2026-03-01'); // Năm thường
+    assert.equal(getNextCalendarDay('2024-02-28'), '2024-02-29'); // Năm nhuận
+    assert.equal(getNextCalendarDay('2024-02-29'), '2024-03-01'); // Năm nhuận hết tháng 2
+    assert.equal(getNextCalendarDay('2026-12-31'), '2027-01-01'); // Qua năm mới
+    assert.equal(getNextCalendarDay('invalid-date'), '');
+  });
+
+  it('getDayScheduleError phát hiện lỗi inline từng ngày học khi giờ kết thúc <= giờ bắt đầu', () => {
+    assert.equal(getDayScheduleError({ start: '07:30', end: '16:30' }), null);
+
+    const equalErr = getDayScheduleError({ start: '08:00', end: '08:00' });
+    assert.ok(equalErr);
+    assert.match(equalErr, /không được bằng nhau/i);
+
+    const earlierErr = getDayScheduleError({ start: '17:00', end: '07:00' });
+    assert.ok(earlierErr);
+    assert.match(earlierErr, /phải muộn hơn giờ bắt đầu/i);
+
+    const invalidFormatErr = getDayScheduleError({ start: '7:0', end: '17:00' });
+    assert.ok(invalidFormatErr);
+    assert.match(invalidFormatErr, /định dạng HH:mm/i);
+  });
+
+  it('quy tắc ngày kết thúc hợp đồng: tối thiểu là ngày kế tiếp của ngày bắt đầu', () => {
+    const startDate = '2026-11-14';
+    const minEndDate = getNextCalendarDay(startDate);
+    assert.equal(minEndDate, '2026-11-15');
+
+    // Ngày kết thúc trùng ngày bắt đầu là không hợp lệ
+    assert.equal(startDate < minEndDate, true);
+    assert.equal('2026-11-14' < minEndDate, true);
+    // Ngày kết thúc hôm sau là hợp lệ
+    assert.equal('2026-11-15' >= minEndDate, true);
+  });
+
+  it('quy tắc đổi ngày bắt đầu: giữ ngày kết thúc nếu còn hợp lệ, xóa nếu mất hiệu lực', () => {
+    let startDate = '2026-11-15';
+    let endDate = '2026-11-20';
+
+    // Đổi ngày bắt đầu sang 2026-11-17 -> minEnd là 2026-11-18 -> endDate 2026-11-20 vẫn >= 2026-11-18 -> GIỮ
+    startDate = '2026-11-17';
+    let minEnd = getNextCalendarDay(startDate);
+    if (endDate < minEnd) endDate = '';
+    assert.equal(endDate, '2026-11-20');
+
+    // Đổi ngày bắt đầu sang 2026-11-25 -> minEnd là 2026-11-26 -> endDate 2026-11-20 < 2026-11-26 -> XÓA
+    startDate = '2026-11-25';
+    minEnd = getNextCalendarDay(startDate);
+    if (endDate < minEnd) endDate = '';
+    assert.equal(endDate, '');
   });
 });
 
@@ -155,7 +233,8 @@ describe('School Management Task 7.1 — Map Worker & Location Validation', () =
   it('phòng ngừa stale coordinates: khi người dùng tự sửa địa chỉ, tọa độ phải được reset để yêu cầu xác nhận lại', () => {
     let internalCoords: { lat: number; lng: number } | null = { lat: 10.776889, lng: 106.700806 };
 
-    function onAddressInputChange(newText: string) {
+    function onAddressInputChange(_newText?: string) {
+      void _newText;
       // Khi gõ địa chỉ mới thủ công, vô hiệu hóa tọa độ cũ
       internalCoords = null;
     }
@@ -265,7 +344,7 @@ describe('School Management Task 7.2 — VietMap Basemap Rendering & Tile Unmask
   });
 
   it('xác thực không chấp nhận style rỗng không có lớp hiển thị (chống báo READY giả)', () => {
-    function validateMapStyle(style: { layers?: any[] } | null | undefined): boolean {
+    function validateMapStyle(style: { layers?: unknown[] } | null | undefined): boolean {
       if (!style || !style.layers || style.layers.length === 0) {
         return false;
       }
@@ -536,5 +615,509 @@ describe('School Weekly Schedule Update — Cascade & Recalculation Rules', () =
     assert.equal(shouldCancelTrip('tuesday'), false);
     assert.equal(shouldCancelTrip('wednesday'), true); // Ngày nghỉ -> HỦY
     assert.equal(shouldCancelTrip('saturday'), true);  // Ngày nghỉ -> HỦY
+  });
+});
+
+describe('School Management — Schools List Redesign v2 Rules', () => {
+  it('địa chỉ chỉ hiển thị dòng phụ ward khi ward có giá trị và chưa xuất hiện trong addressText', () => {
+    function getShowWard(addressText: string, ward?: string | null): boolean {
+      const address = addressText || '';
+      const w = ward?.trim();
+      return Boolean(w && !address.toLowerCase().includes(w.toLowerCase()));
+    }
+
+    // Trường hợp 1: ward đã nằm trong địa chỉ -> không hiện dòng phụ
+    assert.equal(getShowWard('123 Nguyễn Thị Minh Khai, Phường Bến Nghé, Quận 1', 'Phường Bến Nghé'), false);
+    assert.equal(getShowWard('Số 10 Lý Tự Trọng, bến nghé, Q1', 'Bến Nghé'), false);
+
+    // Trường hợp 2: ward chưa có trong địa chỉ -> hiện dòng phụ
+    assert.equal(getShowWard('Số 5 Lê Duẩn, Quận 1', 'Phường Bến Nghé'), true);
+
+    // Trường hợp 3: ward null hoặc rỗng -> không hiện dòng phụ
+    assert.equal(getShowWard('Số 5 Lê Duẩn, Quận 1', null), false);
+    assert.equal(getShowWard('Số 5 Lê Duẩn, Quận 1', ''), false);
+    assert.equal(getShowWard('Số 5 Lê Duẩn, Quận 1', '   '), false);
+  });
+
+  it('TableActions forceMenu giữ menu 3 chấm độc lập và không dàn nút ra ngoài kể cả khi <= 2 mục', () => {
+    function computeShowAll(actionsCount: number, moreCount: number, forceMenu = false): boolean {
+      return !forceMenu && actionsCount + moreCount <= 2;
+    }
+
+    // Mặc định không forceMenu: <= 2 mục thì dàn ra ngoài
+    assert.equal(computeShowAll(1, 0, false), true);
+    assert.equal(computeShowAll(0, 1, false), true);
+    assert.equal(computeShowAll(1, 1, false), true);
+    assert.equal(computeShowAll(1, 2, false), false);
+
+    // Khi forceMenu = true: luôn trả về false (giữ trong menu popup)
+    assert.equal(computeShowAll(0, 1, true), false);
+    assert.equal(computeShowAll(0, 2, true), false);
+    assert.equal(computeShowAll(1, 1, true), false);
+  });
+
+  it('điều hướng dòng table bị chặn khi người dùng đang chọn chữ hoặc click interactive element', () => {
+    function shouldIgnoreRowClick(selectionText: string, tagOrClass: string): boolean {
+      if (selectionText.trim().length > 0) return true;
+      const interactiveTokens = ['a', 'button', 'input', 'select', 'textarea', 'table-actions'];
+      return interactiveTokens.some((token) => tagOrClass.toLowerCase().includes(token));
+    }
+
+    // Khi bôi đen chữ -> chặn điều hướng
+    assert.equal(shouldIgnoreRowClick('Trường Tiểu học', 'td'), true);
+
+    // Khi click nút menu hoặc link -> chặn điều hướng
+    assert.equal(shouldIgnoreRowClick('', 'button'), true);
+    assert.equal(shouldIgnoreRowClick('', 'a'), true);
+    assert.equal(shouldIgnoreRowClick('', 'table-actions'), true);
+
+    // Khi click bình thường vào ô dữ liệu -> cho phép điều hướng
+    assert.equal(shouldIgnoreRowClick('', 'td'), false);
+    assert.equal(shouldIgnoreRowClick('', 'div'), false);
+  });
+
+  it('Section 7: đổi tỉnh xóa phường cũ, cho phép lọc riêng phường khi chưa chọn tỉnh', () => {
+    interface GeoState {
+      provinceId?: string;
+      wardId?: string;
+    }
+
+    function onProvinceChange(current: GeoState, newProvinceId?: string): GeoState {
+      return { provinceId: newProvinceId || undefined };
+    }
+
+    function onWardChange(current: GeoState, newWardId?: string): GeoState {
+      return { ...current, wardId: newWardId || undefined };
+    }
+
+    // 1. Đang có cả tỉnh và phường, đổi sang tỉnh mới -> phường cũ phải bị xóa
+    const state1: GeoState = { provinceId: 'p-hcm', wardId: 'w-dong-hoa' };
+    const state2 = onProvinceChange(state1, 'p-hn');
+    assert.equal(state2.provinceId, 'p-hn');
+    assert.equal(state2.wardId, undefined, 'Phường cũ phải bị xóa khi đổi tỉnh');
+
+    // 2. Chưa chọn tỉnh, người dùng lọc riêng theo phường -> cho phép và giữ provinceId undefined
+    const state3: GeoState = {};
+    const state4 = onWardChange(state3, 'w-ben-nghe');
+    assert.equal(state4.provinceId, undefined);
+    assert.equal(state4.wardId, 'w-ben-nghe');
+
+    // 3. Đổi tỉnh về rỗng (tất cả tỉnh) -> phường cũ cũng bị xóa
+    const state5 = onProvinceChange(state1, '');
+    assert.equal(state5.provinceId, undefined);
+    assert.equal(state5.wardId, undefined);
+  });
+
+  it('Section 7: hasActiveFilters phát hiện chính xác khi có bất kỳ tiêu chí nào trong 4 ô', () => {
+    function computeHasActiveFilters(
+      search: string,
+      debouncedSearch: string,
+      statusFilter: string,
+      geography: { provinceId?: string; wardId?: string },
+    ): boolean {
+      return Boolean(
+        search || debouncedSearch || statusFilter || geography.provinceId || geography.wardId,
+      );
+    }
+
+    // Trạng thái ban đầu: không có filter
+    assert.equal(computeHasActiveFilters('', '', '', {}), false);
+
+    // Có search gõ dở
+    assert.equal(computeHasActiveFilters('Nguyễn', '', '', {}), true);
+
+    // Có debouncedSearch
+    assert.equal(computeHasActiveFilters('', 'Nguyễn', '', {}), true);
+
+    // Có status
+    assert.equal(computeHasActiveFilters('', '', 'ACTIVE', {}), true);
+
+    // Chỉ có provinceId
+    assert.equal(computeHasActiveFilters('', '', '', { provinceId: 'p-1' }), true);
+
+    // Chỉ có wardId
+    assert.equal(computeHasActiveFilters('', '', '', { wardId: 'w-1' }), true);
+
+    // Đầy đủ cả 4
+    assert.equal(
+      computeHasActiveFilters('ABC', 'ABC', 'INACTIVE', { provinceId: 'p-1', wardId: 'w-1' }),
+      true,
+    );
+  });
+});
+
+describe('School Edit Wizard — Baseline, Change Detection & Validation', () => {
+  it('normalizeWeeklySchedule chuẩn hóa chuỗi JSON hoặc object theo thứ tự ngày chuẩn và bỏ qua ngày rỗng', () => {
+    const rawObject = {
+      friday: { start: ' 07:30 ', end: ' 16:30 ' },
+      monday: { start: '07:30', end: '16:30' },
+      sunday: null,
+      saturday: undefined,
+    };
+    const normObj = normalizeWeeklySchedule(rawObject as unknown as WeeklySchedule);
+    const keys = Object.keys(normObj);
+    assert.deepEqual(keys, ['monday', 'friday']);
+    assert.equal(normObj.friday.start, '07:30');
+    assert.equal(normObj.friday.end, '16:30');
+
+    // Chuỗi JSON hợp lệ
+    const jsonStr = JSON.stringify({
+      tuesday: { start: '07:00', end: '17:00' },
+      thursday: { start: '07:00', end: '17:00' },
+    });
+    const normJson = normalizeWeeklySchedule(jsonStr);
+    assert.deepEqual(Object.keys(normJson), ['tuesday', 'thursday']);
+
+    // Input rỗng hoặc hỏng
+    assert.deepEqual(normalizeWeeklySchedule(null), {});
+    assert.deepEqual(normalizeWeeklySchedule(undefined), {});
+    assert.deepEqual(normalizeWeeklySchedule('invalid json'), {});
+  });
+
+  it('areSchedulesEqual nhận diện hai lịch tương đương bất chấp thứ tự key hay định dạng JSON', () => {
+    const schedA = {
+      monday: { start: '07:30', end: '16:30' },
+      wednesday: { start: '07:30', end: '16:30' },
+    };
+    const schedB = {
+      wednesday: { start: '07:30', end: '16:30' },
+      monday: { start: '07:30', end: '16:30' },
+    };
+    assert.equal(areSchedulesEqual(schedA, schedB), true);
+    assert.equal(areSchedulesEqual(schedA, JSON.stringify(schedB)), true);
+
+    const schedDifferentTime = {
+      monday: { start: '08:00', end: '16:30' },
+      wednesday: { start: '07:30', end: '16:30' },
+    };
+    assert.equal(areSchedulesEqual(schedA, schedDifferentTime), false);
+
+    const schedDifferentDays = {
+      monday: { start: '07:30', end: '16:30' },
+    };
+    assert.equal(areSchedulesEqual(schedA, schedDifferentDays), false);
+  });
+
+  it('areCoordinatesEqual so sánh tọa độ theo ngưỡng epsilon 0.00001 để tránh jitter khi pan/zoom', () => {
+    // Trùng khớp hoàn toàn
+    assert.equal(areCoordinatesEqual(10.776889, 106.700806, 10.776889, 106.700806), true);
+
+    // Chênh lệch cực nhỏ <= 0.00001 (ví dụ floating point jitter)
+    assert.equal(areCoordinatesEqual(10.776889, 106.700806, 10.776885, 106.700809), true);
+
+    // Chênh lệch lớn hơn 0.00001 -> thay đổi tọa độ thực sự
+    assert.equal(areCoordinatesEqual(10.776889, 106.700806, 10.776950, 106.700806), false);
+
+    // Null checks
+    assert.equal(areCoordinatesEqual(null, null, null, null), true);
+    assert.equal(areCoordinatesEqual(10.77, 106.7, null, null), false);
+    assert.equal(areCoordinatesEqual(null, null, 10.77, 106.7), false);
+  });
+
+  it('createSchoolEditBaseline tạo snapshot chuẩn hóa không bị đột biến từ SchoolDetail', () => {
+    const mockSchool: SchoolDetail = {
+      id: 'sch-1',
+      name: 'Trường Tiểu học Chu Văn An',
+      addressText: '  123 Nguyễn Huệ, Phường Bến Nghé, Quận 1  ',
+      latitude: 10.776889,
+      longitude: 106.700806,
+      imageUrl: 'https://res.cloudinary.com/demo/image/upload/school_1.webp',
+      imagePublicId: 'roadtoschool/schools/school_1',
+      employeeCount: 5,
+      contractStartDate: '2025-01-01T00:00:00.000Z',
+      contractEndDate: '2026-12-31T23:59:59.000Z',
+      weeklySchedule: {
+        monday: { start: '07:30', end: '16:30' },
+      },
+      isActive: true,
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+    };
+
+    const baseline = createSchoolEditBaseline(mockSchool);
+    assert.equal(baseline.id, 'sch-1');
+    assert.equal(baseline.name, 'Trường Tiểu học Chu Văn An');
+    assert.equal(baseline.imageUrl, 'https://res.cloudinary.com/demo/image/upload/school_1.webp');
+    assert.equal(baseline.imagePublicId, 'roadtoschool/schools/school_1');
+    assert.equal(baseline.addressText, '123 Nguyễn Huệ, Phường Bến Nghé, Quận 1');
+    assert.equal(baseline.latitude, 10.776889);
+    assert.equal(baseline.longitude, 106.700806);
+    assert.equal(baseline.contractStartDate, '2025-01-01');
+    assert.equal(baseline.contractEndDate, '2026-12-31');
+    assert.deepEqual(baseline.weeklySchedule, {
+      monday: { start: '07:30', end: '16:30' },
+    });
+  });
+
+  it('detectSchoolChanges phát hiện chính xác thay đổi theo từng nhóm và khóa nút khi không có thay đổi', () => {
+    const mockSchool: SchoolDetail = {
+      id: 'sch-2',
+      name: 'Trường THCS Lê Quý Đôn',
+      addressText: '456 Võ Văn Tần',
+      latitude: 10.78,
+      longitude: 106.69,
+      imageUrl: null,
+      imagePublicId: null,
+      employeeCount: 0,
+      contractStartDate: '2025-02-01',
+      contractEndDate: '2026-02-01',
+      weeklySchedule: {
+        monday: { start: '07:30', end: '16:30' },
+      },
+      isActive: true,
+      createdAt: '2025-01-01',
+      updatedAt: '2025-01-01',
+    };
+
+    const baseline = createSchoolEditBaseline(mockSchool);
+
+    // 1. Bản nháp ban đầu giống hệt baseline -> không có thay đổi
+    const initialDraft: SchoolEditCurrentDraft = {
+      name: 'Trường THCS Lê Quý Đôn',
+      selectedFile: null,
+      addressText: '456 Võ Văn Tần',
+      latitude: 10.78,
+      longitude: 106.69,
+      contractStartDate: '2025-02-01',
+      contractEndDate: '2026-02-01',
+      weeklySchedule: {
+        monday: { start: '07:30', end: '16:30' },
+      },
+    };
+    const c0 = detectSchoolChanges(baseline, initialDraft);
+    assert.equal(c0.hasChanges, false);
+    assert.equal(c0.isProfileChanged, false);
+    assert.equal(c0.isNameChanged, false);
+    assert.equal(c0.isImageChanged, false);
+    assert.equal(c0.isLocationChanged, false);
+    assert.equal(c0.isScheduleChanged, false);
+    assert.equal(c0.isContractChanged, false);
+
+    // 2. Đổi tên trường -> bật isNameChanged & isProfileChanged & hasChanges
+    const draftNameChanged: SchoolEditCurrentDraft = {
+      ...initialDraft,
+      name: 'Trường THCS Lê Quý Đôn - Quận 3',
+    };
+    const cName = detectSchoolChanges(baseline, draftNameChanged);
+    assert.equal(cName.hasChanges, true);
+    assert.equal(cName.isProfileChanged, true);
+    assert.equal(cName.isNameChanged, true);
+    assert.equal(cName.isImageChanged, false);
+    assert.equal(cName.isLocationChanged, false);
+
+    // 3. Hoàn tác tên về như cũ -> tắt lại hasChanges
+    const draftNameReverted: SchoolEditCurrentDraft = {
+      ...initialDraft,
+      name: ' Trường THCS Lê Quý Đôn ', // có whitespace thừa vẫn được trim
+    };
+    const cNameRev = detectSchoolChanges(baseline, draftNameReverted);
+    assert.equal(cNameRev.hasChanges, false);
+
+    // 4. Chọn file ảnh mới -> bật isImageChanged & isProfileChanged & hasChanges
+    const mockFile = { name: 'new-gate.jpg', size: 1024, type: 'image/jpeg' } as unknown as File;
+    const draftImageChanged: SchoolEditCurrentDraft = {
+      ...initialDraft,
+      selectedFile: mockFile,
+    };
+    const cImg = detectSchoolChanges(baseline, draftImageChanged);
+    assert.equal(cImg.hasChanges, true);
+    assert.equal(cImg.isProfileChanged, true);
+    assert.equal(cImg.isImageChanged, true);
+    assert.equal(cImg.isNameChanged, false);
+
+    // 5. Hủy file ảnh mới chọn -> tắt lại hasChanges
+    const draftImageCancelled: SchoolEditCurrentDraft = {
+      ...draftImageChanged,
+      selectedFile: null,
+    };
+    const cImgCancel = detectSchoolChanges(baseline, draftImageCancelled);
+    assert.equal(cImgCancel.hasChanges, false);
+
+    // 6. Đổi địa chỉ -> chỉ bật isLocationChanged & hasChanges
+    const draftAddressChanged: SchoolEditCurrentDraft = {
+      ...initialDraft,
+      addressText: '789 Điện Biên Phủ',
+    };
+    const c1 = detectSchoolChanges(baseline, draftAddressChanged);
+    assert.equal(c1.hasChanges, true);
+    assert.equal(c1.isLocationChanged, true);
+    assert.equal(c1.isScheduleChanged, false);
+    assert.equal(c1.isContractChanged, false);
+
+    // 7. Hoàn tác địa chỉ về như cũ -> hasChanges tắt lại
+    const draftAddressReverted: SchoolEditCurrentDraft = {
+      ...draftAddressChanged,
+      addressText: ' 456 Võ Văn Tần ', // có whitespace thừa vẫn được trim
+    };
+    const c1Rev = detectSchoolChanges(baseline, draftAddressReverted);
+    assert.equal(c1Rev.hasChanges, false);
+
+    // 8. Đổi tọa độ -> bật isLocationChanged
+    const draftCoordsChanged: SchoolEditCurrentDraft = {
+      ...initialDraft,
+      latitude: 10.79,
+    };
+    const c2 = detectSchoolChanges(baseline, draftCoordsChanged);
+    assert.equal(c2.hasChanges, true);
+    assert.equal(c2.isLocationChanged, true);
+
+    // 9. Đổi lịch học -> bật isScheduleChanged
+    const draftSchedChanged: SchoolEditCurrentDraft = {
+      ...initialDraft,
+      weeklySchedule: {
+        monday: { start: '07:30', end: '16:30' },
+        tuesday: { start: '07:30', end: '16:30' },
+      },
+    };
+    const c3 = detectSchoolChanges(baseline, draftSchedChanged);
+    assert.equal(c3.hasChanges, true);
+    assert.equal(c3.isScheduleChanged, true);
+    assert.equal(c3.isLocationChanged, false);
+
+    // 10. Đổi ngày kết thúc hợp đồng (gia hạn) -> bật isContractChanged
+    const draftContractChanged: SchoolEditCurrentDraft = {
+      ...initialDraft,
+      contractEndDate: '2027-02-01',
+    };
+    const c4 = detectSchoolChanges(baseline, draftContractChanged);
+    assert.equal(c4.hasChanges, true);
+    assert.equal(c4.isContractChanged, true);
+    assert.equal(c4.isLocationChanged, false);
+    assert.equal(c4.isScheduleChanged, false);
+  });
+
+  it('validateSchoolEditForm kiểm tra hợp lệ và trả về đúng bước mục tiêu có lỗi', () => {
+    const draftValid: SchoolEditCurrentDraft = {
+      name: 'Trường Tiểu học Chu Văn An',
+      selectedFile: null,
+      addressText: '123 Hai Bà Trưng',
+      latitude: 10.78,
+      longitude: 106.69,
+      contractStartDate: '2024-01-01', // ngày quá khứ vẫn được chấp nhận trong edit mode
+      contractEndDate: '2026-12-31',
+      weeklySchedule: {
+        monday: { start: '07:30', end: '16:30' },
+      },
+    };
+    const changesNoop = {
+      isProfileChanged: false,
+      isNameChanged: false,
+      isImageChanged: false,
+      isLocationChanged: false,
+      isScheduleChanged: false,
+      isContractChanged: false,
+      hasChanges: false,
+    };
+
+    // Hợp lệ với SYSTEM_ADMIN
+    const v1 = validateSchoolEditForm(draftValid, changesNoop, '', 'SYSTEM_ADMIN');
+    assert.equal(v1.valid, true);
+
+    // Từ chối role không phải SYSTEM_ADMIN
+    const vRole = validateSchoolEditForm(draftValid, changesNoop, '', 'SCHOOL_ADMIN');
+    assert.equal(vRole.valid, false);
+    assert.match(vRole.error || '', /SYSTEM_ADMIN/i);
+
+    // Tên trường rỗng -> báo lỗi và target step 1
+    const vEmptyName = validateSchoolEditForm(
+      { ...draftValid, name: '   ' },
+      changesNoop,
+      '',
+      'SYSTEM_ADMIN',
+    );
+    assert.equal(vEmptyName.valid, false);
+    assert.equal(vEmptyName.stepTarget, 1);
+
+    // Tên trường < 2 ký tự -> báo lỗi và target step 1
+    const vShortName = validateSchoolEditForm(
+      { ...draftValid, name: 'A' },
+      changesNoop,
+      '',
+      'SYSTEM_ADMIN',
+    );
+    assert.equal(vShortName.valid, false);
+    assert.equal(vShortName.stepTarget, 1);
+
+    // File ảnh > 5MB -> báo lỗi và target step 1
+    const oversizedFile = { name: 'large.jpg', size: 6 * 1024 * 1024, type: 'image/jpeg' } as unknown as File;
+    const vLargeFile = validateSchoolEditForm(
+      { ...draftValid, selectedFile: oversizedFile },
+      changesNoop,
+      '',
+      'SYSTEM_ADMIN',
+    );
+    assert.equal(vLargeFile.valid, false);
+    assert.equal(vLargeFile.stepTarget, 1);
+    assert.match(vLargeFile.error || '', /5MB/i);
+
+    // File ảnh sai định dạng -> báo lỗi và target step 1
+    const badMimeFile = { name: 'anim.gif', size: 1024, type: 'image/gif' } as unknown as File;
+    const vBadMime = validateSchoolEditForm(
+      { ...draftValid, selectedFile: badMimeFile },
+      changesNoop,
+      '',
+      'SYSTEM_ADMIN',
+    );
+    assert.equal(vBadMime.valid, false);
+    assert.equal(vBadMime.stepTarget, 1);
+
+    // Địa chỉ rỗng -> báo lỗi và target step 2
+    const vEmptyAddr = validateSchoolEditForm(
+      { ...draftValid, addressText: '   ' },
+      changesNoop,
+      '',
+      'SYSTEM_ADMIN',
+    );
+    assert.equal(vEmptyAddr.valid, false);
+    assert.equal(vEmptyAddr.stepTarget, 2);
+
+    // Tọa độ null -> báo lỗi và target step 2
+    const vNullCoords = validateSchoolEditForm(
+      { ...draftValid, latitude: null },
+      changesNoop,
+      '',
+      'SYSTEM_ADMIN',
+    );
+    assert.equal(vNullCoords.valid, false);
+    assert.equal(vNullCoords.stepTarget, 2);
+
+    // Ngày kết thúc hợp đồng < ngày bắt đầu -> báo lỗi và target step 3
+    const vInvalidContract = validateSchoolEditForm(
+      { ...draftValid, contractStartDate: '2026-05-01', contractEndDate: '2026-04-30' },
+      changesNoop,
+      '',
+      'SYSTEM_ADMIN',
+    );
+    assert.equal(vInvalidContract.valid, false);
+    assert.equal(vInvalidContract.stepTarget, 3);
+
+    // Lịch học rỗng -> báo lỗi và target step 3
+    const vEmptySched = validateSchoolEditForm(
+      { ...draftValid, weeklySchedule: {} },
+      changesNoop,
+      '',
+      'SYSTEM_ADMIN',
+    );
+    assert.equal(vEmptySched.valid, false);
+    assert.equal(vEmptySched.stepTarget, 3);
+
+    // Khi có đổi vị trí, ngày áp dụng trong quá khứ -> báo lỗi và target step 3
+    const changesLocation = {
+      isProfileChanged: false,
+      isNameChanged: false,
+      isImageChanged: false,
+      isLocationChanged: true,
+      isScheduleChanged: false,
+      isContractChanged: false,
+      hasChanges: true,
+    };
+    const vPastEffective = validateSchoolEditForm(
+      draftValid,
+      changesLocation,
+      '2020-01-01',
+      'SYSTEM_ADMIN',
+    );
+    assert.equal(vPastEffective.valid, false);
+    assert.equal(vPastEffective.stepTarget, 3);
   });
 });

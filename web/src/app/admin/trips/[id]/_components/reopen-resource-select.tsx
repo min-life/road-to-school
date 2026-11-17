@@ -40,7 +40,7 @@ export function ReopenResourceSelect({ kind, schoolId, onChange, initialSelectio
     }, 250);
     return () => { current = false; clearTimeout(timer); };
   }, [kind, schoolId, search, page, requestKey]);
-  const label = kind === 'vehicle' ? 'Xe' : kind === 'driver' ? 'Tài xế' : 'Giáo viên phụ xe';
+  const label = kind === 'vehicle' ? 'Xe' : kind === 'driver' ? 'Tài xế' : 'Giáo viên phụ trách';
   const current = result?.key === requestKey ? result : null;
   return <div className="space-y-2">
     <label htmlFor={id} className="block text-sm font-semibold">{label}</label>
@@ -49,7 +49,7 @@ export function ReopenResourceSelect({ kind, schoolId, onChange, initialSelectio
       const next = current?.items.find(item => item.id === event.target.value) ?? null;
       setSelected(next); onChange(next?.id || '');
     }}>
-      <option value="">{current ? allowKeep ? 'Giữ phân công cũ' : 'Chọn giáo viên phụ xe' : 'Đang tải…'}</option>
+      <option value="">{current ? allowKeep ? 'Giữ phân công cũ' : 'Chọn ' + label.toLowerCase() : 'Đang tải…'}</option>
       {selected && !current?.items.some(item => item.id === selected.id) && <option value={selected.id}>{selected.label}</option>}
       {current?.items.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
     </Select>

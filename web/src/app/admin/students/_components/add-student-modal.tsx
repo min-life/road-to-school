@@ -62,6 +62,33 @@ export function AddStudentModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Service area check state
+  const [serviceAreaStatus, setServiceAreaStatus] = useState<
+    'IDLE' | 'CHECKING' | 'IN_SERVICE_AREA' | 'OUT_OF_SERVICE_AREA' | 'UNAVAILABLE'
+  >('IDLE');
+  const serviceAreaRequestIdRef = useRef(0);
+
+  const checkServiceArea = useCallback(
+    async (lat: number, lng: number) => {
+      const requestId = ++serviceAreaRequestIdRef.current;
+      setServiceAreaStatus('CHECKING');
+      try {
+        const res = await apiClient.checkStudentServiceArea(schoolId, {
+          latitude: lat,
+          longitude: lng,
+        });
+        if (requestId === serviceAreaRequestIdRef.current) {
+          setServiceAreaStatus(res.status);
+        }
+      } catch (err) {
+        if (requestId === serviceAreaRequestIdRef.current) {
+          setServiceAreaStatus('UNAVAILABLE');
+        }
+      }
+    },
+    [schoolId],
+  );
+
   const clearImagePreview = useCallback(() => {
     if (imagePreviewUrl) {
       URL.revokeObjectURL(imagePreviewUrl);
@@ -78,11 +105,13 @@ export function AddStudentModal({
   // Reset form when modal closes/opens
   useEffect(() => {
     if (!isOpen) {
+      serviceAreaRequestIdRef.current += 1;
       setFullName('');
       setGuardianPhone('');
       setAddressText('');
       setLatitude(null);
       setLongitude(null);
+      setServiceAreaStatus('IDLE');
       setSelectedFile(null);
       clearImagePreview();
       setSuggestions([]);
@@ -126,10 +155,14 @@ export function AddStudentModal({
     const val = e.target.value;
     setAddressText(val);
 
-    // If user clears the text, reset coordinates as well
+    // Bỏ kết quả cũ và tọa độ cũ khi người dùng chỉnh sửa địa chỉ thủ công
+    serviceAreaRequestIdRef.current += 1;
+    setLatitude(null);
+    setLongitude(null);
+    setServiceAreaStatus('IDLE');
+
+    // If user clears the text, reset suggestions as well
     if (!val.trim()) {
-      setLatitude(null);
-      setLongitude(null);
       setSuggestions([]);
       setShowSuggestions(false);
       return;
@@ -166,6 +199,7 @@ export function AddStudentModal({
         setAddressText(details.addressText);
         setLatitude(details.latitude);
         setLongitude(details.longitude);
+        checkServiceArea(details.latitude, details.longitude);
       } else {
         setAddressText(suggestion.display);
       }
@@ -181,13 +215,16 @@ export function AddStudentModal({
   const handleChangeCoordinates = (lat: number, lng: number) => {
     setLatitude(lat);
     setLongitude(lng);
+    checkServiceArea(lat, lng);
   };
 
   // Clear address if user decides not to specify one
   const handleClearAddress = () => {
+    serviceAreaRequestIdRef.current += 1;
     setAddressText('');
     setLatitude(null);
     setLongitude(null);
+    setServiceAreaStatus('IDLE');
     setSuggestions([]);
     setShowSuggestions(false);
   };
@@ -220,6 +257,20 @@ export function AddStudentModal({
     if (addressText.trim() && (latitude === null || longitude === null)) {
       setErrorMessage(
         'Vui lòng chọn địa điểm từ gợi ý hoặc nhấp trên bản đồ để xác định tọa độ chính xác.'
+      );
+      return;
+    }
+
+    if (serviceAreaStatus === 'OUT_OF_SERVICE_AREA') {
+      setErrorMessage(
+        'Điểm đón học sinh nằm ngoài phạm vi phục vụ. Vui lòng chọn điểm đón khác hoặc xóa địa chỉ.'
+      );
+      return;
+    }
+
+    if (serviceAreaStatus === 'CHECKING') {
+      setErrorMessage(
+        'Đang kiểm tra phạm vi phục vụ. Vui lòng đợi trong giây lát.'
       );
       return;
     }
@@ -446,6 +497,56 @@ export function AddStudentModal({
               )}
             </div>
 
+            {/* Service Area Check Status Feedback */}
+            {addressText.trim() && (latitude === null || longitude === null) && (
+              <div className="flex items-center gap-1.5 text-xs text-slate-500" role="status" aria-live="polite">
+                <MapPinIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span>Chọn vị trí từ gợi ý hoặc trên bản đồ.</span>
+              </div>
+            )}
+
+            {latitude !== null && longitude !== null && serviceAreaStatus === 'CHECKING' && (
+              <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50/80 px-3 py-2 rounded-lg border border-amber-200" role="status" aria-live="polite">
+                <SpinnerIcon className="w-3.5 h-3.5 animate-spin text-amber-600 shrink-0" />
+                <span>Đang kiểm tra phạm vi…</span>
+              </div>
+            )}
+
+            {latitude !== null && longitude !== null && serviceAreaStatus === 'IN_SERVICE_AREA' && (
+              <div className="flex items-center gap-1.5 text-xs text-emerald-800 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200" role="status" aria-live="polite">
+                <CheckIcon className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="font-medium">Trong phạm vi phục vụ</span>
+              </div>
+            )}
+
+            {latitude !== null && longitude !== null && serviceAreaStatus === 'OUT_OF_SERVICE_AREA' && (
+              <div className="flex items-start gap-2 text-xs text-red-800 bg-red-50 px-3 py-2 rounded-lg border border-red-200" role="alert" aria-live="polite">
+                <AlertIcon className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-semibold text-red-900 block">Ngoài phạm vi phục vụ.</span>
+                  <span className="text-red-700">Điểm đón này không đủ điều kiện đưa đón. Vui lòng chọn điểm đón khác hoặc xóa địa chỉ.</span>
+                </div>
+              </div>
+            )}
+
+            {latitude !== null && longitude !== null && serviceAreaStatus === 'UNAVAILABLE' && (
+              <div className="flex items-center justify-between gap-2 text-xs text-slate-700 bg-slate-50 px-3 py-2 rounded-lg border border-slate-200" role="status" aria-live="polite">
+                <div className="flex items-center gap-1.5">
+                  <AlertIcon className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                  <span>Chưa thể kiểm tra phạm vi</span>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => checkServiceArea(latitude, longitude)}
+                  className="text-xs px-2 py-1 h-auto font-medium text-slate-700 hover:text-slate-900 cursor-pointer"
+                >
+                  Thử lại
+                </Button>
+              </div>
+            )}
+
             {/* VietMap Interactive Picker */}
             <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
               <VietMapPicker
@@ -456,12 +557,6 @@ export function AddStudentModal({
                 disabled={isSubmitting}
               />
             </div>
-            {latitude !== null && longitude !== null && (
-              <p className="text-[11px] text-emerald-600 flex items-center gap-1">
-                <CheckIcon className="w-3.5 h-3.5" />
-                Tọa độ đã được xác định qua bản đồ.
-              </p>
-            )}
           </div>
 
           {/* Form Actions */}
@@ -476,8 +571,8 @@ export function AddStudentModal({
             </Button>
             <Button variant="primary" size="sm"
               type="submit"
-              disabled={isSubmitting}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-slate-900 bg-primary hover:bg-amber-400 rounded-lg transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+              disabled={isSubmitting || serviceAreaStatus === 'OUT_OF_SERVICE_AREA' || serviceAreaStatus === 'CHECKING'}
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-slate-900 bg-primary hover:bg-amber-400 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-xs"
             >
               {isSubmitting && <SpinnerIcon className="w-4 h-4 animate-spin text-slate-900" />}
               <span>{isSubmitting ? 'Đang tạo...' : 'Tạo học sinh'}</span>

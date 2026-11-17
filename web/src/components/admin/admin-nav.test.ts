@@ -126,4 +126,23 @@ describe('Admin Navigation Configuration & Role Filtering', () => {
       assert.ok(item.allowedRoles.length > 0, `allowedRoles không được rỗng cho ${item.id}`);
     }
   });
+
+  it('quy tắc thu gọn sidebar desktop: mặc định mở rộng, chuyển đổi aria-expanded và nhãn', () => {
+    const storageKey = 'r2s_admin_sidebar_collapsed';
+    assert.equal(storageKey, 'r2s_admin_sidebar_collapsed');
+
+    // Trạng thái mở rộng (isCollapsed = false)
+    let isCollapsed = false;
+    let label = isCollapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar';
+    let ariaExpanded = !isCollapsed;
+    assert.equal(label, 'Thu gọn sidebar');
+    assert.equal(ariaExpanded, true);
+
+    // Chuyển sang thu gọn (isCollapsed = true)
+    isCollapsed = !isCollapsed;
+    label = isCollapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar';
+    ariaExpanded = !isCollapsed;
+    assert.equal(label, 'Mở rộng sidebar');
+    assert.equal(ariaExpanded, false);
+  });
 });

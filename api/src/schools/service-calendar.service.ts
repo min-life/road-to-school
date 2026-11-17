@@ -133,12 +133,12 @@ export class ServiceCalendarService {
       throw new BadRequestException('Ngày nghỉ không nhận giờ học');
     return this.prisma
       .$transaction(async (tx) => {
-      await lockOperations(tx);
+        await lockOperations(tx);
         await this.lock(tx);
-        if (
-          schoolId &&
-          !(await tx.school.findUnique({ where: { id: schoolId } }))
-        )
+        const school = schoolId
+          ? await tx.school.findUnique({ where: { id: schoolId } })
+          : null;
+        if (schoolId && !school)
           throw new NotFoundException('Không tìm thấy trường');
         const candidate = {
           ...dto,
@@ -151,6 +151,15 @@ export class ServiceCalendarService {
             throw new BadRequestException(
               'Ngày nghỉ phải tồn tại và báo trước hôm nay',
             );
+          if (dto.kind === 'HOLIDAY' && school) {
+            const start = contractDate(school.contractStartDate);
+            const end = contractDate(school.contractEndDate);
+            if (date < start || date > end) {
+              throw new BadRequestException(
+                'Ngày nghỉ một lần của trường phải nằm trong thời hạn hợp đồng',
+              );
+            }
+          }
         } else {
           // Recurrences whose day is absent in a particular year skip that occurrence.
           const years = Array.from({ length: 300 }, (_, i) => 1900 + i);
