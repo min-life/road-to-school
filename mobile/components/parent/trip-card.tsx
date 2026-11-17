@@ -3,7 +3,7 @@ import { Animated, Easing, Pressable, StyleSheet, Text, View, useWindowDimension
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { UserAvatar } from '@/components/user-avatar';
 import { parentHomeStyles } from '@/components/parent/home-styles';
-import { colors } from '@/constants/theme';
+import { colors, type StaffTheme } from '@/constants/theme';
 import { useReducedMotionPreference } from '@/hooks/use-reduced-motion-preference';
 import { journeyTones } from '@/constants/parent-journey';
 import type { StudentJourneyBadge } from '@/utils/parent-journey-stage';
@@ -14,6 +14,8 @@ type Props = {
   leading?: ReactNode;
   summaryContent?: ReactNode;
   accessibilityLabel?: string;
+  staffTheme?: StaffTheme;
+  titleColor?: string;
   schoolName: string;
   status: { label: string; bg: string; text: string };
   children: ReactNode;
@@ -26,7 +28,8 @@ type Props = {
 };
 
 /** Owns disclosure only; the parent keeps trip data, permissions and action handlers. */
-export function ParentTripCard({ studentName, avatarUrl, leading, summaryContent, accessibilityLabel, schoolName, status, children, journey, studentStatus, readiness, hasIncident, attention, stale }: Props) {
+export function ParentTripCard({ studentName, avatarUrl, leading, summaryContent, accessibilityLabel, schoolName, status, children, journey, studentStatus, readiness, hasIncident, attention, stale, staffTheme, titleColor }: Props) {
+  const buttons = staffTheme?.buttons;
   const [expanded, setExpanded] = useState(false);
   const [visible, setVisible] = useState(false);
   const [contentHeight, setContentHeight] = useState(0);
@@ -53,7 +56,9 @@ export function ParentTripCard({ studentName, avatarUrl, leading, summaryContent
   }, [expanded, contentHeight, height, reveal, reduced]);
 
   return (
-    <View style={[parentHomeStyles.tripCard, styles.card, expanded && styles.expandedCard, cardTone && { borderColor: cardTone.border }]}>
+    <View style={[parentHomeStyles.tripCard, styles.card,
+      expanded && (staffTheme ? { borderColor: staffTheme.colors.primary } : styles.expandedCard),
+      cardTone && { borderColor: cardTone.border }]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel ?? `${studentName}, ${schoolName}, ${status.label}${studentStatus ? ', ' + studentStatus.label : ''}${readiness ? ', ' + readiness.label : ''}${hasIncident ? ', Chuyến có sự cố' : ''}${stale ? ', Chưa cập nhật đầy đủ' : ''}`}
@@ -67,7 +72,7 @@ export function ParentTripCard({ studentName, avatarUrl, leading, summaryContent
         {leading ?? <UserAvatar avatarUrl={avatarUrl} fullName={studentName} size={48} />}
         <View style={parentHomeStyles.identity}>
           <View style={[styles.nameStatusRow, stacked && styles.stacked]}>
-            <Text style={[parentHomeStyles.studentName, styles.name]}>{studentName}</Text>
+            <Text style={[parentHomeStyles.studentName, styles.name, titleColor && { color: titleColor }]}>{studentName}</Text>
             <View style={[styles.status, stacked && styles.stackedStatus]}>
               <View style={[parentHomeStyles.statusPill, { backgroundColor: status.bg }]}>
                 <Text style={[parentHomeStyles.statusPillText, { color: status.text }]}>
@@ -78,8 +83,9 @@ export function ParentTripCard({ studentName, avatarUrl, leading, summaryContent
           </View>
           <View style={styles.schoolRow}>
             <Text style={[parentHomeStyles.metaText, styles.school]}>{schoolName}</Text>
-            <Animated.View aria-hidden style={[styles.chevron, { transform: [{ rotate: reveal.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] }) }] }]}>
-              <Ionicons name="chevron-down" size={16} color={colors.navigationActive} accessible={false} />
+            <Animated.View aria-hidden style={[styles.chevron, buttons?.secondary,
+              { transform: [{ rotate: reveal.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] }) }] }]}>
+              <Ionicons name="chevron-down" size={16} color={staffTheme?.colors.primary ?? colors.navigationActive} accessible={false} />
             </Animated.View>
           </View>
           {summaryContent}

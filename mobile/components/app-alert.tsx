@@ -3,8 +3,9 @@ import { AccessibilityInfo, BackHandler, Keyboard, Modal as NativeModal, Platfor
   ScrollView, StyleSheet, Text, View, findNodeHandle, useWindowDimensions, type ModalProps } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { colors } from '@/constants/theme';
+import { colors, getStaffTheme } from '@/constants/theme';
 import { journeyTones } from '@/constants/parent-journey';
+import { useAuth } from '@/context/auth-context';
 import { appAlertStore } from '@/services/app-alert';
 import { appAlertTone, type AppAlertRequest } from '@/utils/app-alert-store';
 
@@ -46,6 +47,8 @@ export function AppModal({ children, visible = true, onRequestClose, ...props }:
 }
 
 function AppAlertSurface({ request }: { request: AppAlertRequest }) {
+  const { user } = useAuth();
+  const staffTheme = getStaffTheme(user?.role);
   const insets = useSafeAreaInsets();
   const { height, width, fontScale } = useWindowDimensions();
   const card = useRef<ComponentRef<typeof View>>(null);
@@ -115,9 +118,12 @@ function AppAlertSurface({ request }: { request: AppAlertRequest }) {
             accessibilityRole="button" onPress={() => appAlertStore.press(request.id, index)}
             onFocus={() => setFocused(index)} onBlur={() => setFocused(null)}
             style={({ pressed }) => [styles.button, stacked && styles.stackedButton,
+              staffTheme?.buttons.primary,
               button.style === 'cancel' && styles.cancel, button.style === 'destructive' && styles.destructive,
-              focused === index && styles.focused, pressed && styles.pressed]}>
-            <Text style={[styles.buttonText, button.style === 'cancel' && styles.cancelText,
+              focused === index && { borderColor: staffTheme?.colors.disabledText ?? colors.navigationActive },
+              pressed && styles.pressed]}>
+            <Text style={[styles.buttonText, staffTheme?.buttons.primaryText,
+              button.style === 'cancel' && styles.cancelText,
               button.style === 'destructive' && styles.destructiveText]}>{button.text || 'Đã hiểu'}</Text>
           </Pressable>)}
         </View>
@@ -148,6 +154,5 @@ const styles = StyleSheet.create({
   cancelText: { color: colors.mutedText },
   destructive: { backgroundColor: journeyTones.danger.text },
   destructiveText: { color: colors.surface },
-  focused: { borderColor: colors.navigationActive },
   pressed: { opacity: 0.75 },
 });

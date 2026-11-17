@@ -14,7 +14,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { colors } from '@/constants/theme';
+import { colors, getStaffTheme } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import {
   mobileApiClient,
@@ -30,6 +30,8 @@ export default function LeaveNoticesHistoryScreen() {
   const params = useLocalSearchParams<{ studentId?: string; studentName?: string }>();
 
   const isParent = user?.role === 'PARENT';
+  const staffTheme = getStaffTheme(user?.role);
+  const buttons = staffTheme?.buttons;
 
   // Filters state
   const [selectedStudentId, setSelectedStudentId] = useState<string>(params.studentId || '');
@@ -188,10 +190,11 @@ export default function LeaveNoticesHistoryScreen() {
             return (
               <TouchableOpacity
                 key={st.id}
-                style={[styles.statusFilterChip, active && styles.statusFilterChipActive]}
+                style={[styles.statusFilterChip, active && (buttons?.secondary ?? styles.statusFilterChipActive)]}
                 onPress={() => setStatusFilter(st.id)}
               >
-                <Text style={[styles.statusFilterText, active && styles.statusFilterTextActive]}>
+                <Text style={[styles.statusFilterText, active && styles.statusFilterTextActive,
+                  active && buttons?.secondaryText]}>
                   {st.label}
                 </Text>
               </TouchableOpacity>
@@ -292,7 +295,7 @@ export default function LeaveNoticesHistoryScreen() {
           })
         )}
       </ScrollView>
-      <FloatingAddButton label="Tạo báo nghỉ" bottom={insets.bottom + 16} right={insets.right + 20}
+      <FloatingAddButton label="Tạo báo nghỉ" staffTheme={staffTheme} bottom={insets.bottom + 16} right={insets.right + 20}
         onPress={() => router.push({
           pathname: '/leave-notices/create',
           params: selectedStudentId ? { studentId: selectedStudentId } : {},

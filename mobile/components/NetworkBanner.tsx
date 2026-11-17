@@ -1,14 +1,16 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors } from '@/constants/theme';
+import { colors, type StaffTheme } from '@/constants/theme';
 
 interface NetworkBannerProps {
   onRetry: () => void;
   isRetrying?: boolean;
+  staffTheme?: StaffTheme;
 }
 
-export function NetworkBanner({ onRetry, isRetrying = false }: NetworkBannerProps) {
+export function NetworkBanner({ onRetry, isRetrying = false, staffTheme }: NetworkBannerProps) {
+  const buttons = staffTheme?.buttons;
   return (
     <SafeAreaView style={styles.banner} edges={['top', 'left', 'right']} accessibilityRole="alert">
       <View style={styles.textContainer}>
@@ -16,15 +18,15 @@ export function NetworkBanner({ onRetry, isRetrying = false }: NetworkBannerProp
         <Text style={styles.message}>Vui lòng kiểm tra lại đường truyền mạng của thiết bị.</Text>
       </View>
       <TouchableOpacity
-        style={styles.retryButton}
+        style={[styles.retryButton, buttons?.primary]}
         onPress={onRetry}
         disabled={isRetrying}
         activeOpacity={0.7}
       >
         {isRetrying ? (
-          <ActivityIndicator size="small" color={colors.foreground} />
+          <ActivityIndicator size="small" color={buttons?.primaryText.color ?? colors.foreground} />
         ) : (
-          <Text style={styles.retryText}>Thử lại</Text>
+          <Text style={[styles.retryText, buttons?.primaryText]}>Thử lại</Text>
         )}
       </TouchableOpacity>
     </SafeAreaView>

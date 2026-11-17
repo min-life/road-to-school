@@ -16,7 +16,7 @@ import {
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
 import { File as ExpoFile } from 'expo-file-system';
-import { colors } from '@/constants/theme';
+import { colors, getStaffTheme } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNotifications } from '@/context/notifications-context';
@@ -24,6 +24,8 @@ import { mobileApiClient } from '@/services/api-client';
 
 export default function SettingsScreen() {
   const { user, logout, setUser, refreshUser } = useAuth();
+  const staffTheme = getStaffTheme(user?.role);
+  const buttons = staffTheme?.buttons;
   const { enablePush, disablePush, pushStatus, pushEnabled } = useNotifications();
   const [isChangingPush, setIsChangingPush] = useState(false);
   const changingPush = useRef(false);
@@ -335,14 +337,14 @@ export default function SettingsScreen() {
             disabled={isUploadingAvatar}
             activeOpacity={0.8}
           >
-            <UserAvatar avatarUrl={user.avatarUrl} fullName={user.fullName} size={72}
+            <UserAvatar avatarUrl={user.avatarUrl} fullName={user.fullName} size={72} staffTheme={staffTheme}
               onLoad={() => console.log('[AVATAR_DIAG] [8. AVATAR_RENDERED]', { platform: Platform.OS, hasAvatarUrl: Boolean(user.avatarUrl) })} />
 
-            <View style={styles.cameraBadge}>
+            <View style={[styles.cameraBadge, buttons?.secondary]}>
               {isUploadingAvatar ? (
-                <ActivityIndicator size="small" color="#1E293B" />
+                <ActivityIndicator size="small" color={staffTheme?.colors.primary ?? colors.foreground} />
               ) : (
-                <Ionicons name="camera" size={14} color="#1E293B" />
+                <Ionicons name="camera" size={14} color={staffTheme?.colors.primary ?? colors.foreground} />
               )}
             </View>
           </TouchableOpacity>
@@ -400,7 +402,7 @@ export default function SettingsScreen() {
                 accessibilityState={{ busy: isChangingPush }}
                 value={pushEnabled} disabled={isChangingPush || isLoggingOut}
                 onValueChange={value => { void handlePushChange(value); }}
-                trackColor={{ false: colors.border, true: colors.primary }}
+                trackColor={{ false: colors.border, true: staffTheme?.colors.primary ?? colors.primary }}
                 thumbColor={colors.surface} ios_backgroundColor={colors.border} />
             </View>
 
@@ -426,7 +428,7 @@ export default function SettingsScreen() {
           <Ionicons name="color-palette-outline" size={20} color={colors.foreground} />
           <View style={styles.settingTextContainer}>
             <Text style={styles.settingLabel}>Giao diện</Text>
-            <Text style={styles.settingValue}>Bảng màu RoadToSchool (#FFCB56)</Text>
+            <Text style={styles.settingValue}>Bảng màu RoadToSchool ({staffTheme?.colors.primary ?? colors.primary})</Text>
           </View>
         </View>
 
@@ -548,14 +550,15 @@ export default function SettingsScreen() {
                 <Text style={styles.cancelModalButtonText}>Hủy</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.submitModalButton}
+                style={[styles.submitModalButton,
+                  isChangingPass ? buttons?.disabled : buttons?.primary]}
                 onPress={handleChangePassword}
                 disabled={isChangingPass}
               >
                 {isChangingPass ? (
-                  <ActivityIndicator size="small" color="#1E293B" />
+                  <ActivityIndicator size="small" color={staffTheme?.colors.disabledText ?? colors.foreground} />
                 ) : (
-                  <Text style={styles.submitModalButtonText}>Lưu mật khẩu</Text>
+                  <Text style={[styles.submitModalButtonText, buttons?.primaryText]}>Lưu mật khẩu</Text>
                 )}
               </TouchableOpacity>
             </View>

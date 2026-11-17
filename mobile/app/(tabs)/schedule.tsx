@@ -2,6 +2,7 @@ import { ScheduleTripCard } from '@/components/schedule/trip-card';
 import { ScheduleWeekSelector } from '@/components/schedule/week-selector';
 import { scheduleStyles as styles } from '@/components/schedule/schedule-styles';
 import { NotificationBell } from '@/components/notification-bell';
+import { getStaffTheme } from '@/constants/theme';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Text,
@@ -36,6 +37,8 @@ export default function ScheduleScreen() {
 
   const isDriver = user?.role === 'DRIVER';
   const isAttendant = user?.role === 'BUS_ATTENDANT';
+  const staffTheme = getStaffTheme(user?.role);
+  const buttons = staffTheme?.buttons;
   const roleTitle = isDriver ? 'Tài xế' : isAttendant ? 'Giáo viên phụ xe' : 'Nhân sự';
 
   // Current active date (YYYY-MM-DD in Vietnam)
@@ -129,14 +132,16 @@ export default function ScheduleScreen() {
     <View style={styles.container}>
       {/* Header */}
       <AppHeader title="Lịch vận hành" subtitle={`Phân công tuyến xe dành cho ${roleTitle}`} actions={<>
-          <TouchableOpacity accessibilityRole="button" onPress={goToToday} style={headerActionStyles.textButton} activeOpacity={0.7}>
-            <Text style={headerActionStyles.text}>Hôm nay</Text>
+          <TouchableOpacity accessibilityRole="button" onPress={goToToday}
+            style={[headerActionStyles.textButton, buttons?.secondary]} activeOpacity={0.7}>
+            <Text style={[headerActionStyles.text, buttons?.secondaryText]}>Hôm nay</Text>
           </TouchableOpacity>
           <NotificationBell />
         </>} />
 
       {/* Week Selector Bar */}
       <ScheduleWeekSelector
+        staffTheme={staffTheme}
         weekDays={weekDays}
         selectedDate={selectedDate}
         onSelectDate={setSelectedDate}
@@ -152,7 +157,7 @@ export default function ScheduleScreen() {
       >
         {loading && !refreshing ? (
           <View style={styles.centerContainer}>
-            <ActivityIndicator size="large" color="#D97706" />
+            <ActivityIndicator size="large" color={staffTheme?.colors.primary ?? '#D97706'} />
             <Text style={styles.loadingText}>Đang tải lịch trình...</Text>
           </View>
         ) : error ? (
@@ -173,6 +178,7 @@ export default function ScheduleScreen() {
           selectedDateTrips.map((trip) => (
             <ScheduleTripCard
               key={trip.id}
+              staffTheme={staffTheme}
               trip={trip}
               directionLabel={trip.direction === 'TO_SCHOOL' ? 'Chiều đi' : 'Chiều về'}
               actionLabel="Xem bản đồ"

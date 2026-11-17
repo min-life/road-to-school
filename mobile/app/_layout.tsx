@@ -7,7 +7,7 @@ import { useEffect } from 'react';
 import { View } from 'react-native';
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
-import { colors } from '@/constants/theme';
+import { colors, getStaffTheme } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { AppLoadingSplash } from '@/components/app-loading-splash';
 import { RoleSplash } from '@/components/RoleSplash';
@@ -109,7 +109,7 @@ function RootNavigation() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Screen M8: Network Banner nếu mất kết nối máy chủ */}
-      {isNetworkError && <NetworkBanner onRetry={retryConnection} />}
+      {isNetworkError && <NetworkBanner onRetry={retryConnection} staffTheme={getStaffTheme(user?.role)} />}
 
       {/* Banner owns the top inset while visible; screens below must not add it twice. */}
       <SafeAreaInsetsContext.Provider value={isNetworkError ? { ...insets, top: 0 } : insets}>
@@ -155,11 +155,11 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={RoadToSchoolTheme}>
-      <AppAlertRoot><AuthProvider>
+      <AuthProvider><AppAlertRoot>
         <OnboardingProvider>
           <NotificationsProvider><RootNavigation /></NotificationsProvider>
         </OnboardingProvider>
-      </AuthProvider></AppAlertRoot>
+      </AppAlertRoot></AuthProvider>
     </ThemeProvider>
   );
 }

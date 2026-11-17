@@ -1,8 +1,9 @@
 import { cloneElement, type ComponentProps, type ReactNode, useState } from 'react';
-import { Pressable, ScrollView, ScrollViewProps, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, ScrollViewProps, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { colors } from '@/constants/theme';
+import { colors, getStaffTheme } from '@/constants/theme';
+import type { Role } from '@/services/api-client';
 import { NotificationBell } from '@/components/notification-bell';
 import { UserAvatar } from '@/components/user-avatar';
 
@@ -15,13 +16,14 @@ type Props = ScrollViewProps & {
   onChangeStop?: () => void;
   title?: string;
   subtitle?: string;
+  staffRole?: Role;
   actions?: readonly { label: string; icon: ComponentProps<typeof Ionicons>['name']; onPress?: () => void }[];
   /** Optional presentation slot; the app uses its existing NotificationBell by default. */
   notification?: ReactNode;
 };
 
 /** Shared parent/driver presentation. Owns scrolling only; no business requests. */
-export function ParentHomeScrollView({ fullName, avatarUrl, onOpenLeave, onChangeStop,
+export function ParentHomeScrollView({ fullName, avatarUrl, onOpenLeave, onChangeStop, staffRole,
   title = `Xin chào${fullName ? `, ${fullName}` : ''}`, subtitle = 'Đồng hành cùng con mỗi ngày',
   actions = [
     { label: 'Báo nghỉ', icon: 'calendar-outline', onPress: onOpenLeave },
@@ -29,6 +31,7 @@ export function ParentHomeScrollView({ fullName, avatarUrl, onOpenLeave, onChang
   ],
   notification, refreshControl, style, contentContainerStyle, onScroll, onLayout, children, ...props }: Props) {
   const insets = useSafeAreaInsets();
+  const staffTheme = getStaffTheme(staffRole);
   const [rowHeight, setRowHeight] = useState(48);
   const [labelHeight, setLabelHeight] = useState(22);
   const [viewport, setViewport] = useState(0);
@@ -62,13 +65,22 @@ export function ParentHomeScrollView({ fullName, avatarUrl, onOpenLeave, onChang
       <View style={styles.frame}>
         <View style={styles.row} onLayout={event => setRowHeight(event.nativeEvent.layout.height)}>
           <View style={[styles.avatar, { transform: [{ scale: compact ? 0.8 : 1 }] }]}>
-            <UserAvatar avatarUrl={avatarUrl} fullName={fullName} size={48} />
+            <UserAvatar avatarUrl={avatarUrl} fullName={fullName} size={48} staffTheme={staffTheme} />
           </View>
           <View pointerEvents="none" accessibilityElementsHidden={compact}
             importantForAccessibility={compact ? 'no-hide-descendants' : 'auto'} aria-hidden={compact}
             style={[styles.greeting, { opacity: compact ? 0 : 1 }]}>
             <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>{title}</Text>
-            <Text numberOfLines={1} style={styles.subtitle}>{subtitle}</Text>
+            {staffTheme ? (
+              <View style={styles.staffSubtitle}>
+                <Image source={staffRole === 'DRIVER'
+                  ? require('@/assets/driver/login-splash.png')
+                  : require('@/assets/images/brand/bus-attendant-splash.png')}
+                  style={[styles.staffRoleIcon, staffTheme.buttons.secondary]}
+                  resizeMode="contain" accessible={false} />
+                <Text numberOfLines={1} style={[styles.subtitle, styles.staffRoleText]}>{subtitle}</Text>
+              </View>
+            ) : <Text numberOfLines={1} style={styles.subtitle}>{subtitle}</Text>}
           </View>
           {notification ?? <NotificationBell />}
         </View>
@@ -82,8 +94,8 @@ export function ParentHomeScrollView({ fullName, avatarUrl, onOpenLeave, onChang
         }]}>
           {actions.map(action => <View key={action.label} style={styles.actionSlot}>
             <Pressable accessibilityRole="button" accessibilityLabel={action.label} onPress={action.onPress}
-              style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
-              <Ionicons name={action.icon} size={22} color={colors.navigationActive} accessible={false} />
+              style={({ pressed }) => [styles.action, staffTheme?.buttons.secondary, pressed && styles.pressed]}>
+              <Ionicons name={action.icon} size={22} color={staffTheme?.colors.primary ?? colors.navigationActive} accessible={false} />
             </Pressable>
             <View pointerEvents="none" aria-hidden accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants" style={{ opacity: compact ? 0 : 1 }}>
@@ -111,6 +123,9 @@ const styles = StyleSheet.create({
   greeting: { flex: 1, minWidth: 0 },
   title: { color: colors.foreground, fontSize: 19, lineHeight: 25, fontWeight: '700' },
   subtitle: { color: colors.mutedText, fontSize: 12, lineHeight: 18, marginTop: 2 },
+  staffSubtitle: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  staffRoleIcon: { width: 28, height: 28, borderRadius: 14 },
+  staffRoleText: { marginTop: 0, flexShrink: 1, color: colors.navigationShadow },
   actions: { position: 'absolute', borderRadius: 16, flexDirection: 'row', justifyContent: 'space-evenly',
     shadowColor: colors.navigationShadow, shadowOffset: { width: 0, height: 3 }, shadowRadius: 8 },
   actionSlot: { flex: 1, alignItems: 'center' },

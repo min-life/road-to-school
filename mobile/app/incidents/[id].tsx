@@ -18,7 +18,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { colors } from '@/constants/theme';
+import { attendantTheme, colors, getStaffTheme } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import {
   mobileApiClient,
@@ -33,6 +33,7 @@ export default function IncidentDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const incidentId = params.id;
   const { user } = useAuth();
+  const buttons = getStaffTheme(user?.role)?.buttons;
 
   const [incident, setIncident] = useState<TripIncident | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,6 +48,7 @@ export default function IncidentDetailScreen() {
     incident?.status === 'WAITING_CONFIRMATION' ||
     incident?.status === ('PENDING_CONFIRMATION' as any);
   const canConfirm = isBusAttendant && isAutoIncident && isWaitingConfirmation;
+  const confirmDisabled = confirming || confirmReason.trim().length < 3;
 
   const handleConfirm = async () => {
     if (!incidentId) return;
@@ -156,8 +158,8 @@ export default function IncidentDetailScreen() {
             <Ionicons name="alert-circle-outline" size={44} color="#EF4444" />
             <Text style={styles.errorTitle}>Lỗi</Text>
             <Text style={styles.errorText}>{error || 'Không tìm thấy sự cố'}</Text>
-            <TouchableOpacity style={styles.retryBtn} onPress={fetchDetail}>
-              <Text style={styles.retryBtnText}>Thử lại</Text>
+            <TouchableOpacity style={[styles.retryBtn, buttons?.primary]} onPress={fetchDetail}>
+              <Text style={[styles.retryBtnText, buttons?.primaryText]}>Thử lại</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -175,12 +177,12 @@ export default function IncidentDetailScreen() {
                   Vui lòng cung cấp lý do giải trình để hoàn tất ghi nhận sự cố.
                 </Text>
                 <TouchableOpacity
-                  style={styles.actionCalloutBtn}
+                  style={[styles.actionCalloutBtn, attendantTheme.buttons.secondary]}
                   onPress={() => setConfirmModalVisible(true)}
                   activeOpacity={0.85}
                 >
-                  <Ionicons name="create-outline" size={16} color="#FFFFFF" />
-                  <Text style={styles.actionCalloutBtnText}>Giải trình ngay</Text>
+                  <Ionicons name="create-outline" size={16} color={attendantTheme.colors.primary} />
+                  <Text style={[styles.actionCalloutBtnText, attendantTheme.buttons.secondaryText]}>Giải trình ngay</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -354,7 +356,7 @@ export default function IncidentDetailScreen() {
       {canConfirm && (
         <View style={[styles.bottomBar, { paddingBottom: insets.bottom > 0 ? insets.bottom : 12 }]}>
           <TouchableOpacity
-            style={styles.confirmBottomBtn}
+            style={[styles.confirmBottomBtn, attendantTheme.buttons.primary]}
             onPress={() => setConfirmModalVisible(true)}
             activeOpacity={0.85}
           >
@@ -412,10 +414,10 @@ export default function IncidentDetailScreen() {
               <TouchableOpacity
                 onPress={Keyboard.dismiss}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={styles.keyboardDismissBtn}
+                style={[styles.keyboardDismissBtn, isBusAttendant && attendantTheme.buttons.secondary]}
               >
-                <Ionicons name="chevron-down-outline" size={13} color="#64748B" />
-                <Text style={styles.keyboardDismissBtnText}>Ẩn phím</Text>
+                <Ionicons name="chevron-down-outline" size={13} color={isBusAttendant ? attendantTheme.colors.primary : colors.mutedText} />
+                <Text style={[styles.keyboardDismissBtnText, isBusAttendant && attendantTheme.buttons.secondaryText]}>Ẩn phím</Text>
               </TouchableOpacity>
             </View>
 
@@ -431,7 +433,8 @@ export default function IncidentDetailScreen() {
 
             <View style={styles.modalBtnRow}>
               <TouchableOpacity
-                style={styles.modalCancelBtn}
+                style={[styles.modalCancelBtn, isBusAttendant &&
+                  (confirming ? attendantTheme.buttons.disabled : attendantTheme.buttons.secondary)]}
                 onPress={() => {
                   Keyboard.dismiss();
                   setConfirmModalVisible(false);
@@ -439,24 +442,25 @@ export default function IncidentDetailScreen() {
                 }}
                 disabled={confirming}
               >
-                <Text style={styles.modalCancelBtnText}>Hủy</Text>
+                <Text style={[styles.modalCancelBtnText, isBusAttendant &&
+                  (confirming ? attendantTheme.buttons.disabledText : attendantTheme.buttons.secondaryText)]}>Hủy</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[
                   styles.modalConfirmBtn,
-                  (!confirmReason.trim() || confirmReason.trim().length < 3) && styles.btnDisabled,
+                  confirmDisabled ? attendantTheme.buttons.disabled : attendantTheme.buttons.primary,
                 ]}
                 onPress={() => {
                   Keyboard.dismiss();
                   handleConfirm();
                 }}
-                disabled={confirming || !confirmReason.trim() || confirmReason.trim().length < 3}
+                disabled={confirmDisabled}
               >
                 {confirming ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <ActivityIndicator size="small" color={attendantTheme.colors.disabledText} />
                 ) : (
-                  <Text style={styles.modalConfirmBtnText}>Gửi giải trình</Text>
+                  <Text style={[styles.modalConfirmBtnText, confirmDisabled && attendantTheme.buttons.disabledText]}>Gửi giải trình</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -780,8 +784,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '700',
-  },
-  btnDisabled: {
-    opacity: 0.5,
   },
 });

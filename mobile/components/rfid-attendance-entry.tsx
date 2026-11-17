@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { colors } from '../constants/theme';
+import { attendantTheme } from '../constants/theme';
 import { RfidAttendancePanel } from './rfid-attendance-panel';
 
 type Props = Omit<React.ComponentProps<typeof RfidAttendancePanel>, 'onInteractionChange'>;
@@ -20,15 +20,15 @@ export function RfidAttendanceEntry(props: Props) {
         accessibilityState={{ expanded, disabled: locked }}
         disabled={locked}
         activeOpacity={0.8}
-        style={[styles.button, !expanded && styles.collapsed]}
+        style={[styles.button, !expanded && styles.collapsed, locked && styles.locked]}
         onPress={() => setExpanded((previous) => !previous)}
       >
-        <Ionicons name="radio-outline" size={20} color={colors.foreground} />
-        <Text style={styles.label}>Điểm danh RFID</Text>
+        <Ionicons name="radio-outline" size={20} color={locked ? attendantTheme.colors.disabledText : attendantTheme.colors.primary} />
+        <Text style={[styles.label, locked && attendantTheme.buttons.disabledText]}>Điểm danh RFID</Text>
         {locked ? (
-          <ActivityIndicator color={colors.foreground} size="small" />
+          <ActivityIndicator color={attendantTheme.colors.disabledText} size="small" />
         ) : (
-          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedText} />
+          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={attendantTheme.colors.primary} />
         )}
       </TouchableOpacity>
       {expanded && (
@@ -49,9 +49,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.primary,
-    backgroundColor: colors.navigationHighlight,
+    ...attendantTheme.buttons.selected,
   },
   collapsed: { marginBottom: 12 },
-  label: { flex: 1, fontSize: 14, fontWeight: '700', color: colors.foreground },
+  locked: { ...attendantTheme.buttons.disabled, borderColor: attendantTheme.colors.disabled },
+  label: { flex: 1, fontSize: 14, fontWeight: '700', color: attendantTheme.colors.primary },
 });
