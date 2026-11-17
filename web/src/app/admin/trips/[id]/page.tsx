@@ -278,7 +278,7 @@ function TripDetailContent({ tripId }: { tripId: string }) {
             <span>Dự kiến <strong>{trip.scheduledStartTime} – {trip.scheduledEndTime}</strong></span>
             <span>Xe <strong>{trip.vehiclePlate || 'Chưa gán'}</strong></span>
             <span title={trip.driverName}>Tài xế: <strong>{trip.driverName || 'Chưa gán'}</strong></span>
-            <span title={trip.busAttendantName}>Giáo viên: <strong>{trip.busAttendantName || 'Chưa gán'}</strong></span>
+            <span title={trip.busAttendantName}>Giáo viên phụ trách: <strong>{trip.busAttendantName || 'Chưa gán'}</strong></span>
           </p>
           <details className="trip-detail-expanded">
             <summary>Chi tiết <span aria-hidden="true">⌄</span></summary>
@@ -288,7 +288,7 @@ function TripDetailContent({ tripId }: { tripId: string }) {
               <div><dt>Lịch dự kiến</dt><dd>{trip.scheduledStartTime} – {trip.scheduledEndTime}</dd><small>{trip.actualStartTime || trip.actualEndTime ? `Thực tế: ${trip.actualStartTime ? actualTime(trip.actualStartTime) : 'Chưa bắt đầu'} – ${trip.actualEndTime ? actualTime(trip.actualEndTime) : 'Chưa kết thúc'}` : `Khởi hành từ ${isToSchool ? 'bãi xe' : 'trường học'}`}</small></div>
               <div><dt>Phương tiện</dt><dd>{trip.vehiclePlate || 'Chưa gán xe'}</dd><small>{trip.vehicleSeats ? `${trip.vehicleSeats} chỗ` : 'Chưa cập nhật sức chứa'}{trip.vehicleBrand ? ` · ${trip.vehicleBrand}` : ''}</small></div>
               <div><dt>Tài xế</dt><dd>{trip.driverName || 'Chưa gán tài xế'}</dd><small>{trip.driverPhone || 'Chưa cập nhật số điện thoại'}</small></div>
-              <div><dt>Giáo viên phụ xe</dt><dd>{trip.busAttendantName || 'Chưa gán giáo viên'}</dd><small>{trip.busAttendantPhone || 'Chưa cập nhật số điện thoại'}</small></div>
+              <div><dt>Giáo viên phụ trách</dt><dd>{trip.busAttendantName || 'Chưa gán giáo viên phụ trách'}</dd><small>{trip.busAttendantPhone || 'Chưa cập nhật số điện thoại'}</small></div>
             </dl>
             {isCancelled && trip.cancellationReason && <p className="trip-detail-cancellation"><strong>Lý do hủy:</strong> {trip.cancellationReason}</p>}
             {policy?.tripId === trip.id && policy.audit?.state === 'FINALIZED' && <div className="trip-detail-policy-content">

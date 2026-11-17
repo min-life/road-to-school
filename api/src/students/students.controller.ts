@@ -13,7 +13,9 @@ import {
   UploadedFile,
   ParseUUIDPipe,
   BadRequestException,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
@@ -39,6 +41,12 @@ import {
   StudentDetailResponseDto,
   StudentItemDto,
   StudentDisableImpactDto,
+  ServiceAreaCheckDto,
+  ServiceAreaCheckResponseDto,
+  BulkImportPreviewResponseDto,
+  BulkImportCommitDto,
+  BulkImportCommitResponseDto,
+  BulkExportDto,
 } from './dto/index.js';
 
 @ApiResponse({ status: 400, description: 'Payload thiếu hoặc không hợp lệ' })
@@ -76,6 +84,306 @@ export class StudentsController {
   locationOptions(@Param('schoolId', ParseUUIDPipe) schoolId: string,
     @Query() query: LocationOptionsQueryDto, @CurrentUser() user: User): Promise<LocationOptionsDto> {
     return this.studentsService.getLocationOptions(schoolId, user, query.provinceId);
+  }
+
+  @Post('service-area-check')
+  @Roles(Role.SCHOOL_ADMIN)
+  @ApiOperation({
+    summary: 'Kiểm tra tọa độ địa chỉ học sinh có nằm trong phạm vi phục vụ không (Chỉ SCHOOL_ADMIN)',
+    description:
+      'Chỉ dành cho SCHOOL_ADMIN đúng trường. Tính toán khoảng cách Haversine tới bãi đỗ xe trung tâm đang hiệu lực và so sánh tỉnh/thành với trường. Trả về IN_SERVICE_AREA, OUT_OF_SERVICE_AREA hoặc UNAVAILABLE. Hoàn toàn chỉ đọc, không tạo dữ liệu.',
+  })
+  @ApiParam({
+    name: 'schoolId',
+    description: 'Mã định danh UUID của trường học',
+    example: 'c1f8a847-75c1-4b36-a3d5-22e3914a8721',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Kiểm tra phạm vi thành công',
+    type: ServiceAreaCheckResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Tọa độ không hợp lệ hoặc mã trường không đúng UUID',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Chưa xác thực hoặc token không hợp lệ',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Không có quyền truy cập trường học khác',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Không tìm thấy trường học',
+  })
+  async checkServiceArea(
+    @Param(
+      'schoolId',
+      new ParseUUIDPipe({
+        version: '4',
+        exceptionFactory: () =>
+          new BadRequestException('Mã trường học không đúng định dạng UUID'),
+      }),
+    )
+    schoolId: string,
+    @Body() dto: ServiceAreaCheckDto,
+    @CurrentUser() user: User,
+  ): Promise<ServiceAreaCheckResponseDto> {
+    return this.studentsService.checkServiceArea(schoolId, dto, user);
+  }
+
+  @Get('import-template')
+  @Roles(Role.SCHOOL_ADMIN)
+  @ApiOperation({
+    summary: 'Tải tệp Excel mẫu để nhập học sinh',
+    description: 'Trả về tệp Excel .xlsx mẫu gồm các cột chuẩn hóa và hàng dữ liệu mẫu để School Admin tải về sử dụng.',
+  })
+  @ApiParam({
+    name: 'schoolId',
+    description: 'Mã định danh UUID của trường học',
+    example: 'c1f8a847-75c1-4b36-a3d5-22e3914a8721',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Trả về tệp Excel mẫu dưới dạng binary attachment',
+  })
+  async getImportTemplate(
+    @Param(
+      'schoolId',
+      new ParseUUIDPipe({
+        version: '4',
+        exceptionFactory: () =>
+          new BadRequestException('Mã trường học không đúng định dạng UUID'),
+      }),
+    )
+    schoolId: string,
+    @Res() res: Response,
+    @CurrentUser() user: User,
+  ): Promise<void> {
+    const buffer = await this.studentsService.getImportTemplate(schoolId, user);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="mau-nhap-hoc-sinh.xlsx"');
+    res.send(buffer);
+  }
+
+  @Post('imports/preview')
+  @Roles(Role.SCHOOL_ADMIN)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 2 * 1024 * 1024 }, // Tối đa 2 MiB
+    }),
+  )
+  @ApiOperation({
+    summary: 'Xem trước và kiểm tra toàn bộ tệp Excel nhập học sinh',
+    description:
+      'Đọc toàn bộ các dòng trong tệp Excel, kiểm tra định dạng cột, họ tên, số điện thoại, tính hợp lệ của địa chỉ và phạm vi phục vụ. Không lưu dữ liệu vào DB. Trả về previewToken nếu toàn bộ lô hợp lệ.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Tệp Excel .xlsx cần kiểm tra (tối đa 200 dòng, 2 MiB)',
+        },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiParam({
+    name: 'schoolId',
+    description: 'Mã định danh UUID của trường học',
+    example: 'c1f8a847-75c1-4b36-a3d5-22e3914a8721',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Kết quả xem trước và kiểm tra tính hợp lệ',
+    type: BulkImportPreviewResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Chưa tải lên tệp hoặc tệp không hợp lệ',
+  })
+  async previewImport(
+    @Param(
+      'schoolId',
+      new ParseUUIDPipe({
+        version: '4',
+        exceptionFactory: () =>
+          new BadRequestException('Mã trường học không đúng định dạng UUID'),
+      }),
+    )
+    schoolId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: User,
+  ): Promise<BulkImportPreviewResponseDto> {
+    if (!file) {
+      throw new BadRequestException('Vui lòng chọn tệp Excel .xlsx để tải lên');
+    }
+    return this.studentsService.previewImport(schoolId, file, user);
+  }
+
+  @Post('imports/commit')
+  @Roles(Role.SCHOOL_ADMIN)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 2 * 1024 * 1024 },
+    }),
+  )
+  @ApiOperation({
+    summary: 'Xác nhận nhập học sinh từ tệp Excel (nguyên tử trong 1 transaction)',
+    description:
+      'Kiểm tra lại tính hợp lệ của previewToken và nội dung tệp. Thực hiện ghi tất cả học sinh vào DB trong duy nhất 1 transaction. Nếu có bất kỳ lỗi nào, rollback toàn bộ và lưu 0 học sinh. Hỗ trợ đối soát và retry qua importKey.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Tệp Excel .xlsx đã preview',
+        },
+        previewToken: {
+          type: 'string',
+          description: 'Token preview nhận được từ bước preview hợp lệ',
+        },
+        importKey: {
+          type: 'string',
+          description: 'UUIDv4 định danh giao dịch để chống gửi lặp',
+        },
+      },
+      required: ['file', 'previewToken', 'importKey'],
+    },
+  })
+  @ApiParam({
+    name: 'schoolId',
+    description: 'Mã định danh UUID của trường học',
+    example: 'c1f8a847-75c1-4b36-a3d5-22e3914a8721',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Đã nhập thành công toàn bộ học sinh',
+    type: BulkImportCommitResponseDto,
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Phiên preview hết hạn, không khớp nội dung hoặc khóa importKey trùng lặp với tệp khác',
+  })
+  @ApiResponse({
+    status: 422,
+    description: 'Tệp không còn hợp lệ khi kiểm tra lại trước khi ghi',
+  })
+  async commitImport(
+    @Param(
+      'schoolId',
+      new ParseUUIDPipe({
+        version: '4',
+        exceptionFactory: () =>
+          new BadRequestException('Mã trường học không đúng định dạng UUID'),
+      }),
+    )
+    schoolId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: BulkImportCommitDto,
+    @CurrentUser() user: User,
+  ): Promise<BulkImportCommitResponseDto> {
+    if (!file) {
+      throw new BadRequestException('Vui lòng chọn tệp Excel .xlsx để xác nhận nhập');
+    }
+    return this.studentsService.commitImport(schoolId, file, dto, user);
+  }
+
+  @Get('imports/:importKey')
+  @Roles(Role.SCHOOL_ADMIN)
+  @ApiOperation({
+    summary: 'Tra cứu biên nhận giao dịch nhập học sinh theo importKey',
+    description:
+      'Dùng khi client gặp sự cố mạng/mất phản hồi sau khi gửi commit. Tra cứu biên nhận trong SystemSetting để xác nhận xem lô học sinh đã được commit thành công hay chưa.',
+  })
+  @ApiParam({
+    name: 'schoolId',
+    description: 'Mã định danh UUID của trường học',
+    example: 'c1f8a847-75c1-4b36-a3d5-22e3914a8721',
+  })
+  @ApiParam({
+    name: 'importKey',
+    description: 'Khóa định danh UUID của giao dịch nhập cần tra cứu',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Biên nhận giao dịch nhập đã commit thành công',
+    type: BulkImportCommitResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Chưa tìm thấy biên nhận cho khóa importKey này',
+  })
+  async getImportReceipt(
+    @Param(
+      'schoolId',
+      new ParseUUIDPipe({
+        version: '4',
+        exceptionFactory: () =>
+          new BadRequestException('Mã trường học không đúng định dạng UUID'),
+      }),
+    )
+    schoolId: string,
+    @Param('importKey') importKey: string,
+    @CurrentUser() user: User,
+  ): Promise<BulkImportCommitResponseDto> {
+    return this.studentsService.getImportReceipt(schoolId, importKey, user);
+  }
+
+  @Post('exports')
+  @Roles(Role.SCHOOL_ADMIN)
+  @ApiOperation({
+    summary: 'Xuất danh sách học sinh ra tệp Excel .xlsx',
+    description:
+      'Hỗ trợ 2 phạm vi: SELECTED (theo danh sách UUID học sinh đang chọn) hoặc FILTERED (toàn bộ học sinh khớp bộ lọc trên mọi trang, tối đa 5.000 dòng). Các trường số điện thoại và mã học sinh được định dạng text để bảo toàn số 0 đầu.',
+  })
+  @ApiParam({
+    name: 'schoolId',
+    description: 'Mã định danh UUID của trường học',
+    example: 'c1f8a847-75c1-4b36-a3d5-22e3914a8721',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Tệp Excel .xlsx chứa danh sách học sinh',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Dữ liệu yêu cầu không hợp lệ hoặc không có bản ghi nào để xuất',
+  })
+  @ApiResponse({
+    status: 422,
+    description: 'Số lượng học sinh khớp bộ lọc vượt quá giới hạn 5.000 dòng',
+  })
+  async exportStudents(
+    @Param(
+      'schoolId',
+      new ParseUUIDPipe({
+        version: '4',
+        exceptionFactory: () =>
+          new BadRequestException('Mã trường học không đúng định dạng UUID'),
+      }),
+    )
+    schoolId: string,
+    @Body() dto: BulkExportDto,
+    @Res() res: Response,
+    @CurrentUser() user: User,
+  ): Promise<void> {
+    const buffer = await this.studentsService.exportStudents(schoolId, dto, user);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="danh-sach-hoc-sinh.xlsx"');
+    res.send(buffer);
   }
 
   @Get()

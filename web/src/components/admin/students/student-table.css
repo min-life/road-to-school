@@ -1,0 +1,13 @@
+/* Student Table & Filter Toolbar styling */
+.student-filter-toolbar {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+
+.student-filter-toolbar [data-active="true"] {
+  border-color: #f59e0b !important;
+  background-color: #fffdf5 !important;
+}

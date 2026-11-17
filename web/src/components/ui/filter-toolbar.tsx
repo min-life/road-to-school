@@ -7,13 +7,21 @@ import './filter-toolbar.css';
 type FilterToolbarProps = ComponentProps<'div'> & {
   onReset?: () => void;
   hasActiveFilters?: boolean;
+  actions?: ReactNode;
 };
 
-export function FilterToolbar({ className = '', children, onReset, hasActiveFilters, ...props }: FilterToolbarProps) {
-  return <div role="group" aria-label="Bộ lọc" {...props} className={`ui-filter-toolbar ui-card ${className}`}>
-    {children}
-    {hasActiveFilters && onReset && <Button type="button" variant="ghost" className="ui-filter-reset" onClick={onReset}>Xóa bộ lọc</Button>}
-  </div>;
+export function FilterToolbar({ className = '', children, onReset, hasActiveFilters, actions, ...props }: FilterToolbarProps) {
+  return (
+    <div role="group" aria-label="Bộ lọc" {...props} className={`ui-filter-toolbar ui-card ${className}`}>
+      {children}
+      {hasActiveFilters && onReset && (
+        <Button type="button" variant="ghost" className="ui-filter-reset" onClick={onReset}>
+          Xóa bộ lọc
+        </Button>
+      )}
+      {actions && <div className="ui-filter-actions">{actions}</div>}
+    </div>
+  );
 }
 
 /** A visible label and a single control; custom controls must forward id to their trigger. */

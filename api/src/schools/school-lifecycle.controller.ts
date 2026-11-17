@@ -125,13 +125,18 @@ export class SchoolLifecycleController {
   @ApiOperation({
     summary: 'Tạo ngày nghỉ hoặc đề nghị học bù',
     description:
-      'HOLIDAY được duyệt ngay theo phạm vi quyền. MAKEUP là ONCE, bắt buộc trường/giờ, chờ SYSTEM_ADMIN duyệt. Báo trước ngày. Âm lịch UTC+7; ngày lặp không tồn tại bỏ lần đó.',
+      'HOLIDAY được duyệt ngay theo phạm vi quyền. MAKEUP là ONCE, bắt buộc trường/giờ, chờ SYSTEM_ADMIN duyệt. Báo trước ngày. Âm lịch UTC+7; ngày lặp không tồn tại bỏ lần đó. Ngày nghỉ một lần của trường (HOLIDAY + ONCE + schoolId) phải nằm trong thời hạn hợp đồng trường (từ max(ngày mai VN, contractStartDate) đến contractEndDate).',
   })
   @ApiResponse({
     status: 201,
     type: CalendarEntryResponseDto,
     description:
       'ServiceCalendarEntry được tạo: HOLIDAY APPROVED / MAKEUP PENDING',
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Dữ liệu không hợp lệ hoặc ngày nghỉ một lần của trường nằm ngoài thời hạn hợp đồng',
   })
   createCalendar(
     @Body() dto: CreateCalendarEntryDto,

@@ -171,3 +171,120 @@ Các hành vi dưới đây còn trong source hiện tại. PO yêu cầu triể
 | R09 | GET /trips/mobile/bus-attendant-schedule còn trả giờ đã lưu. Home/chi tiết đã tính giờ hiệu lực cho Trip đủ điều kiện. | Sau khi lịch trường đổi hiệu lực và cron chưa cập nhật, giờ trên lịch phụ xe có thể khác Home/detail. Khi mở chi tiết chuyến dùng giờ response detail để hiển thị tại màn chi tiết. |
 
 Các lỗi tích hợp tài liệu R04/R05 đã được sửa trong bản hướng dẫn này. URL Home dùng đúng controller. Lỗi OTP mô tả số lượt còn lại trong message, purpose đúng enum và TTL mặc định có cấu hình. Trạng thái bug R01/R02/R07/R08/R09 vẫn là chờ triển khai.
+
+## 14. Kiểm tra phạm vi phục vụ khi thêm học sinh — 16/11/2026
+
+- **Endpoint**: `POST /schools/:schoolId/students/service-area-check`
+- **Phân quyền**: Chỉ dành cho `SCHOOL_ADMIN` của đúng trường (`schoolId`).
+- **Mục đích**: Kiểm tra chỉ đọc (read-only) xem tọa độ địa chỉ học sinh có nằm trong phạm vi phục vụ (bán kính bãi đỗ xe trung tâm đang hiệu lực và cùng tỉnh/thành với trường) hay không. Không ghi DB, không tạo học sinh.
+- **Request Body**:
+  ```json
+  {
+    "latitude": 10.776889,
+    "longitude": 106.700806
+  }
+  ```
+- **Response**:
+  - `status`: `'IN_SERVICE_AREA' | 'OUT_OF_SERVICE_AREA' | 'UNAVAILABLE'`
+  - HTTP 200: Trả về kết quả kiểm tra nghiệp vụ, bao gồm cả khi cấu hình bãi đỗ xe chưa sẵn sàng (`UNAVAILABLE`).
+  - HTTP 400: Tọa độ không hợp lệ hoặc mã trường không đúng định dạng UUID.
+  - HTTP 401: Chưa xác thực.
+  - HTTP 403: Không đúng quyền hoặc không đúng trường của School Admin.
+  - HTTP 404: Không tìm thấy trường học.
+- **Hành vi trên Web (`AddStudentModal`)**:
+  - Tự động kiểm tra khi chọn gợi ý có tọa độ hoặc khi ghim/chỉnh vị trí trên bản đồ.
+  - Hiển thị phản hồi trực tiếp bên dưới ô nhập địa chỉ, phía trên bản đồ:
+    - Chưa nhập địa chỉ: Không hiển thị kết quả.
+    - Có chữ nhưng chưa có tọa độ: «Chọn vị trí từ gợi ý hoặc trên bản đồ.»
+    - Đang kiểm tra: «Đang kiểm tra phạm vi…»
+    - Trong phạm vi: «Trong phạm vi phục vụ» (màu xanh lá).
+    - Ngoài phạm vi: «Ngoài phạm vi phục vụ. Điểm đón này không đủ điều kiện đưa đón. Vui lòng chọn điểm đón khác hoặc xóa địa chỉ.» (cảnh báo màu đỏ, vô hiệu hóa phím «Tạo học sinh» để tránh hiểu lầm).
+    - Lỗi / Chưa sẵn sàng: «Chưa thể kiểm tra phạm vi» kèm nút «Thử lại».
+
+## 15. Nhập và xuất nhiều học sinh bằng Excel (.xlsx) — 16/11/2026
+
+Toàn bộ các endpoint dưới đây chỉ dành cho `SCHOOL_ADMIN` của đúng trường (`schoolId`).
+
+### 15.1. Tải tệp Excel mẫu
+- **Endpoint**: `GET /schools/:schoolId/students/import-template`
+- **Response**: Trả về tệp nhị phân `mau-nhap-hoc-sinh.xlsx` (`Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`).
+- **Cấu trúc tệp mẫu**: Gồm 5 cột:
+  1. `Họ và tên học sinh` (Bắt buộc)
+  2. `Số điện thoại phụ huynh` (Bắt buộc, 10 chữ số)
+  3. `Địa chỉ đón/trả` (Tùy chọn, đi cùng Vĩ độ và Kinh độ)
+  4. `Vĩ độ` (Tùy chọn)
+  5. `Kinh độ` (Tùy chọn)
+
+### 15.2. Xem trước và kiểm tra toàn bộ tệp Excel (Preview)
+- **Endpoint**: `POST /schools/:schoolId/students/imports/preview`
+- **Request**: Multipart `FormData` có trường `file` (.xlsx, tối đa 200 dòng, 2 MiB).
+- **Hành vi**: Đọc toàn bộ các dòng, kiểm tra cú pháp, tên, số điện thoại, quy tắc địa chỉ/tọa độ, phạm vi phục vụ và phát hiện trùng lặp nội bộ tệp. Không lưu dữ liệu vào cơ sở dữ liệu.
+- **Response**:
+  ```json
+  {
+    "totalRows": 10,
+    "validRows": 10,
+    "invalidRows": 0,
+    "errors": [],
+    "previewToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+  ```
+  *(Trường `previewToken` chỉ được trả về khi `invalidRows === 0` và `validRows > 0`, có thời hạn hiệu lực 30 phút).*
+
+### 15.3. Xác nhận nhập cả lô học sinh (Commit)
+- **Endpoint**: `POST /schools/:schoolId/students/imports/commit`
+- **Request**: Multipart `FormData` gồm:
+  - `file`: Tệp Excel .xlsx đã preview
+  - `previewToken`: Token nhận được từ bước preview hợp lệ
+  - `importKey`: Chuỗi UUIDv4 do client sinh để làm khóa biên nhận idempotency
+- **Hành vi**:
+  - Xác thực chữ ký và thời hạn của `previewToken`.
+  - Phân tích và kiểm tra lại toàn bộ dòng để đảm bảo tính nhất quán.
+  - Geocode địa lý ngoài transaction.
+  - Ghi toàn bộ học sinh trong duy nhất 1 Prisma transaction (tính nguyên tử: 1 dòng lỗi sẽ rollback toàn bộ 100%, 0 học sinh nào được lưu).
+  - Lưu biên nhận giao dịch vào `SystemSetting` trong cùng transaction.
+  - Nếu gửi lại cùng `importKey` và cùng tệp: trả về kết quả đã commit trước đó (chống ghi đúp).
+- **Response** (HTTP 201):
+  ```json
+  {
+    "importedCount": 10,
+    "importKey": "550e8400-e29b-41d4-a716-446655440000"
+  }
+  ```
+
+### 15.4. Tra cứu biên nhận giao dịch nhập (Receipt Check)
+- **Endpoint**: `GET /schools/:schoolId/students/imports/:importKey`
+- **Mục đích**: Xử lý tình huống mất mạng/timeout giữa chừng sau khi gửi commit. Client gọi endpoint này để xác nhận xem lô đã commit thành công hay chưa.
+- **Response**:
+  - HTTP 200: `{ "importedCount": 10, "importKey": "..." }` (đã commit thành công).
+  - HTTP 404: Chưa tìm thấy biên nhận (chưa lưu hoặc transaction đã rollback).
+
+### 15.5. Xuất danh sách học sinh ra Excel (.xlsx)
+- **Endpoint**: `POST /schools/:schoolId/students/exports`
+- **Request Body**:
+  - Xuất học sinh đã chọn:
+    ```json
+    {
+      "scope": "SELECTED",
+      "studentIds": ["uuid-1", "uuid-2"]
+    }
+    ```
+  - Xuất theo bộ lọc hiện tại:
+    ```json
+    {
+      "scope": "FILTERED",
+      "filters": {
+        "search": "Nguyễn",
+        "status": "AVAILABLE",
+        "hasAddress": true,
+        "routingStatus": "UNASSIGNED",
+        "provinceId": "79",
+        "wardId": "26734"
+      }
+    }
+    ```
+- **Hành vi**:
+  - Với `SELECTED`: Xác minh tất cả `studentIds` phải thuộc trường của `SCHOOL_ADMIN`.
+  - Với `FILTERED`: Áp dụng bộ lọc trên toàn bộ các trang, giới hạn tối đa 5.000 dòng.
+  - Định dạng các trường văn bản (số điện thoại, mã học sinh) dưới dạng text để bảo toàn số 0 đầu.
+- **Response**: Trả về tệp nhị phân `.xlsx` tải xuống trực tiếp.

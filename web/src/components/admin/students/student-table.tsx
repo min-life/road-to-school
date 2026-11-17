@@ -31,23 +31,35 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Table } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Select } from '@/components/ui/select';
 import { StudentCardSelectionCheckbox, StudentCardSelectionToolbar, useStudentCardSelection } from './student-card-selection';
 import { StudentCardPrinter } from './student-card-printer';
+import './student-table.css';
 
 interface StudentTableProps {
   schoolId: string;
   readOnly?: boolean;
   baseDetailUrl?: string; // e.g. "/admin/students" or "/admin/schools/:schoolId/students"
-  onAddClick?: () => void;
   allowCardPrinting?: boolean;
+  onSelectionChange?: (selectedIds: string[]) => void;
+  onFiltersChange?: (filters: {
+    search?: string;
+    status?: StudentStatus;
+    hasAddress?: boolean;
+    routingStatus?: string;
+    provinceId?: string;
+    wardId?: string;
+    total?: number;
+  }) => void;
 }
 
 export function StudentTable({
   schoolId,
   readOnly = false,
   baseDetailUrl = '/admin/students',
-  onAddClick,
   allowCardPrinting = false,
+  onSelectionChange,
+  onFiltersChange,
 }: StudentTableProps) {
   const [geography, setGeography] = useState<GeographyQuery>({});
   // Query state
@@ -70,6 +82,40 @@ export function StudentTable({
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const selection = useStudentCardSelection(schoolId, students);
+
+  useEffect(() => {
+    if (onSelectionChange) {
+      onSelectionChange(Object.keys(selection.selected));
+    }
+  }, [selection.selected, onSelectionChange]);
+
+  useEffect(() => {
+    if (onFiltersChange) {
+      onFiltersChange({
+        search: search.trim() || undefined,
+        status: statusFilter !== 'ALL' ? (statusFilter as StudentStatus) : undefined,
+        hasAddress:
+          addressFilter === 'HAS_ADDRESS'
+            ? true
+            : addressFilter === 'NO_ADDRESS'
+            ? false
+            : undefined,
+        routingStatus: routingFilter || undefined,
+        provinceId: geography.provinceId,
+        wardId: geography.wardId,
+        total,
+      });
+    }
+  }, [
+    search,
+    statusFilter,
+    addressFilter,
+    routingFilter,
+    geography,
+    total,
+    onFiltersChange,
+  ]);
+
   const [printRequest, setPrintRequest] = useState<{ schoolId: string; studentIds: string[] } | null>(null);
   const closePrint = useCallback(() => setPrintRequest(null), []);
   const handlePrintError = useCallback((message: string) => { toast.error(message); setPrintRequest(null); }, []);
@@ -129,6 +175,10 @@ export function StudentTable({
 
       // Only apply if it's the latest request
       if (requestId === latestRequestRef.current) {
+        if (res.meta.totalItems > 0 && res.items.length === 0 && page > 1) {
+          setPage(Math.max(1, res.meta.totalPages));
+          return;
+        }
         setRouteMembership({});
         setStudents(res.items);
         setTotal(res.meta.totalItems);
@@ -235,6 +285,55 @@ export function StudentTable({
 
   };
 
+  const hasActiveFilters = Boolean(
+    search.trim() ||
+    statusFilter !== 'ALL' ||
+    addressFilter !== 'ALL' ||
+    routingFilter !== '' ||
+    !!geography.provinceId ||
+    !!geography.wardId
+  );
+
+  const handleResetFilters = () => {
+    setGeography({});
+    setSearch('');
+    setStatusFilter('ALL');
+    setAddressFilter('ALL');
+    setRoutingFilter('');
+    setPage(1);
+  };
+
+  const isInitialEmpty = !readOnly && !isLoading && !errorMessage && page === 1 && !hasActiveFilters && total === 0;
+  const isFilterEmpty = !isLoading && !errorMessage && students.length === 0 && !isInitialEmpty;
+  const showSelectionToolbar = allowCardPrinting && (selection.values.length > 0 || printRequest?.schoolId === schoolId);
+  const colCount = !readOnly ? (allowCardPrinting ? 6 : 5) : 5;
+
+  if (isInitialEmpty) {
+    return (
+      <div className="space-y-4">
+        {allowCardPrinting && printRequest?.schoolId === schoolId && printRequest.studentIds.length > 0 && (
+          <StudentCardPrinter
+            schoolId={schoolId}
+            studentIds={printRequest.studentIds}
+            onClose={closePrint}
+            onError={handlePrintError}
+          />
+        )}
+        <Card className="bg-white border border-slate-200 rounded-xl shadow-xs p-12 text-center">
+          <div className="max-w-xs mx-auto space-y-2">
+            <div className="w-12 h-12 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+              <StudentIcon className="w-6 h-6" />
+            </div>
+            <p className="font-semibold text-slate-800 text-sm">Chưa có học sinh</p>
+            <p className="text-xs text-slate-500">
+              Trường học chưa có dữ liệu học sinh.
+            </p>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Toast message */}
@@ -286,42 +385,6 @@ export function StudentTable({
         </div>
       )}
 
-
-      {/* Filter bar */}
-      <StudentFilters
-        search={search}
-        onSearchChange={(val) => {
-          setSearch(val);
-          setPage(1);
-        }}
-        status={statusFilter === 'ALL' ? '' : statusFilter}
-        onStatusChange={(val) => {
-          setStatusFilter(val === '' ? 'ALL' : val);
-          setPage(1);
-        }}
-        hasAddress={
-          addressFilter === 'HAS_ADDRESS'
-            ? 'true'
-            : addressFilter === 'NO_ADDRESS'
-              ? 'false'
-              : ''
-        }
-        onHasAddressChange={(val) => {
-          setAddressFilter(
-            val === 'true' ? 'HAS_ADDRESS' : val === 'false' ? 'NO_ADDRESS' : 'ALL'
-          );
-          setPage(1);
-        }}
-        onReset={() => {
-          setGeography({});
-          setSearch('');
-          setStatusFilter('ALL');
-          setAddressFilter('ALL'); setRoutingFilter('');
-          setPage(1);
-        }}
-        hasActiveFilters={Boolean(search || statusFilter !== 'ALL' || addressFilter !== 'ALL' || routingFilter !== '' || !!geography.provinceId || !!geography.wardId)}
-      ><FilterField label="Phân tuyến"><select aria-label="Phân tuyến" value={routingFilter} onChange={event => { setRoutingFilter(event.target.value); setPage(1); }} className="w-full"><option value="">Tất cả phân tuyến</option><option value="UNASSIGNED">Chưa có tuyến</option></select></FilterField><GeographyFilter schoolId={schoolId} value={geography} onChange={value => { setGeography(value); setPage(1); }} /></StudentFilters>
-
       {/* Error state */}
       {errorMessage && (
         <div className="flex items-center gap-2 p-4 text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl">
@@ -337,177 +400,302 @@ export function StudentTable({
         </div>
       )}
 
-      {/* Table Container */}
-      {allowCardPrinting && <StudentCardSelectionToolbar count={selection.values.length} onClear={selection.clear}
-        printing={printRequest?.schoolId === schoolId} onCancel={closePrint}
-        onPrint={() => setPrintRequest({ schoolId, studentIds: selection.values.map(student => student.id) })} />}
+      {/* Combined Card: Filters + Selection Toolbar + Table + Pagination */}
       <Card className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <Table className="w-full text-left text-sm text-slate-700" minWidth={allowCardPrinting ? 1378 : 1330}>
-            <colgroup>{allowCardPrinting && <col style={{ width: 48 }} />}<col /><col style={{ width: 160 }} /><col style={{ width: 170 }} /><col style={{ width: 190 }} /><col style={{ width: 180 }} /><col style={{ width: 390 }} /></colgroup>
-            <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-              <tr>
-                {allowCardPrinting && <th className="px-4 py-3" scope="col">
-                  <StudentCardSelectionCheckbox checked={selection.allOnPage} mixed={selection.someOnPage && !selection.allOnPage}
-                    disabled={isLoading || !students.length} label="Chọn tất cả học sinh trên trang này" onChange={selection.togglePage} />
-                </th>}
-                <th className="px-4 py-3">Học sinh</th>
-                <th className="px-4 py-3">Mã học sinh</th>
-                <th className="px-4 py-3">SĐT Phụ huynh</th>
-                <th className="px-4 py-3 text-center">Tình trạng địa chỉ</th>
-                <th className="px-4 py-3 text-center">Trạng thái</th>
-                <th className="px-4 py-3 text-right">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {isLoading && students.length === 0 ? (
-                <tr>
-                  <td colSpan={allowCardPrinting ? 7 : 6} className="px-4 py-12 text-center text-slate-400">
-                    <div className="inline-flex items-center gap-2">
-                      <SpinnerIcon className="w-5 h-5 animate-spin text-amber-500" />
-                      <span>Đang tải danh sách học sinh...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : students.length === 0 ? (
-                <tr>
-                  <td colSpan={allowCardPrinting ? 7 : 6} className="px-4 py-12 text-center text-slate-500">
-                    <div className="max-w-xs mx-auto space-y-2">
-                      <div className="w-12 h-12 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-                        <StudentIcon className="w-6 h-6" />
-                      </div>
-                      <p className="font-medium text-slate-800 text-sm">Chưa có học sinh nào</p>
-                      <p className="text-xs text-slate-500">
-                        {search || statusFilter !== 'ALL' || addressFilter !== 'ALL' || routingFilter !== ''
-                          ? 'Không tìm thấy học sinh phù hợp với bộ lọc hiện tại.'
-                          : 'Bắt đầu thêm học sinh vào trường của bạn.'}
-                      </p>
-                      {!readOnly && onAddClick && !search && statusFilter === 'ALL' && addressFilter === 'ALL' && (
-                        <Button variant="primary" size="sm"
-                          type="button"
-                          onClick={onAddClick}
-                          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-900 bg-primary hover:bg-amber-400 rounded-lg transition-colors cursor-pointer"
-                        >
-                          + Thêm học sinh
-                        </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                students.map((student) => {
-                  const detailHref = `${baseDetailUrl}/${student.id}`;
-                  const isAvailable = student.status === 'AVAILABLE';
-
-                  return (
-                    <tr
-                      key={student.id}
-                      className="hover:bg-amber-50/30 transition-colors group"
-                    >
-                      {allowCardPrinting && <td className="px-4 py-3">
-                        <StudentCardSelectionCheckbox checked={!!selection.selected[student.id]} disabled={isLoading}
-                          label={`Chọn ${student.fullName}, mã ${student.code}`} onChange={() => selection.toggle(student)} />
-                      </td>}
-                      {/* Avatar + Full Name */}
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          {student.avatarUrl ? (
-                            <img
-                              src={student.avatarUrl}
-                              alt={student.fullName}
-                              className="w-9 h-9 rounded-full object-cover border border-slate-200"
-                            />
-                          ) : (
-                            <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-800 font-bold text-xs flex items-center justify-center border border-amber-200 flex-shrink-0">
-                              {student.fullName.charAt(0).toUpperCase()}
-                            </div>
-                          )}
-                          <div>
-                            <ContextLink
-                              href={detailHref}
-                              className="font-semibold text-slate-900 hover:text-amber-700 transition-colors line-clamp-1"
-                            >
-                              {student.fullName}
-                            </ContextLink>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Code */}
-                      <td className="px-4 py-3">
-                        <span className="font-mono text-xs font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">
-                          {student.code}
-                        </span>
-                      </td>
-
-                      {/* Guardian Phone */}
-                      <td className="px-4 py-3 text-slate-600 text-xs">
-                        <div className="inline-flex items-center gap-1.5">
-                          <PhoneIcon className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{student.guardianPhone}</span>
-                        </div>
-                      </td>
-
-                      {/* Address Availability */}
-                      <td className="px-4 py-3 text-center">
-                        {student.hasAddress ? (
-                          <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                            Đã có địa chỉ
-                          </Badge>
-                        ) : (
-                          <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                            Chưa có địa chỉ
-                          </Badge>
-                        )}
-                      </td>
-
-                      {/* Student Status */}
-                      <td className="px-4 py-3 text-center">
-                        {isAvailable ? (
-                          <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            Khả dụng
-                          </Badge>
-                        ) : (
-                          <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-300">
-                            Đã vô hiệu hóa
-                          </Badge>
-                        )}
-                      </td>
-
-                      {/* Actions */}
-                      <td className="px-4 py-3 text-right">
-                        <TableActions label={`Thao tác với ${student.fullName}`} actions={[
-                          ...(currentUserRole === 'SYSTEM_ADMIN' && isAvailable && student.hasAddress && routeMembership[student.id] === false ? [{
-                            label: 'Thêm vào tuyến', primary: true,
-                            onClick: () => { setInsertingStudent(student); setIsInsertModalOpen(true); },
-                          }] : []),
-                          { label: 'Chi tiết', href: detailHref },
-                        ]} more={!readOnly ? [{ label: isAvailable ? 'Vô hiệu hóa' : 'Kích hoạt', danger: isAvailable,
-                          onClick: () => handleOpenStatusModal(student) }] : []} />
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </Table>
+        {/* Filter bar */}
+        <div className="p-4 border-b border-slate-200 bg-white">
+          <StudentFilters
+            className="student-filter-toolbar"
+            search={search}
+            onSearchChange={(val) => {
+              setSearch(val);
+              setPage(1);
+            }}
+            status={statusFilter === 'ALL' ? '' : statusFilter}
+            onStatusChange={(val) => {
+              setStatusFilter(val === '' ? 'ALL' : val);
+              setPage(1);
+            }}
+            hasAddress={
+              addressFilter === 'HAS_ADDRESS'
+                ? 'true'
+                : addressFilter === 'NO_ADDRESS'
+                  ? 'false'
+                  : ''
+            }
+            onHasAddressChange={(val) => {
+              setAddressFilter(
+                val === 'true' ? 'HAS_ADDRESS' : val === 'false' ? 'NO_ADDRESS' : 'ALL'
+              );
+              setPage(1);
+            }}
+            onReset={handleResetFilters}
+            hasActiveFilters={hasActiveFilters}
+          >
+            <FilterField label="Phân tuyến">
+              <Select
+                aria-label="Phân tuyến"
+                value={routingFilter}
+                onChange={(event) => {
+                  setRoutingFilter(event.target.value);
+                  setPage(1);
+                }}
+                className={`w-full ${Boolean(routingFilter) ? 'border-amber-400 bg-amber-50/40 text-slate-900 font-medium' : ''}`}
+                data-active={Boolean(routingFilter) || undefined}
+              >
+                <option value="">Tất cả phân tuyến</option>
+                <option value="UNASSIGNED">Chưa có tuyến</option>
+              </Select>
+            </FilterField>
+            <GeographyFilter
+              schoolId={schoolId}
+              value={geography}
+              onChange={(value) => {
+                setGeography(value);
+                setPage(1);
+              }}
+            />
+          </StudentFilters>
         </div>
 
-        {/* Pagination bar */}
-        <PaginationControl
-          page={page}
-          totalPages={totalPages}
-          total={total}
-          limit={limit}
-          loading={isLoading}
-          onPageChange={(newPage) => setPage(newPage)}
-          onLimitChange={(newLimit) => {
-            setLimit(newLimit);
-            setPage(1);
-          }}
-        />
+        {/* Selection Toolbar inside card */}
+        {showSelectionToolbar && (
+          <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/70">
+            <StudentCardSelectionToolbar
+              count={selection.values.length}
+              onClear={selection.clear}
+              printing={printRequest?.schoolId === schoolId}
+              onCancel={closePrint}
+              onPrint={() =>
+                setPrintRequest({
+                  schoolId,
+                  studentIds: selection.values.map((student) => student.id),
+                })
+              }
+            />
+          </div>
+        )}
+
+        {/* Table Container or Empty Notice */}
+        {isLoading && students.length === 0 ? (
+          <div className="p-12 text-center text-slate-400 border-t border-slate-100">
+            <div className="inline-flex items-center gap-2 text-sm">
+              <SpinnerIcon className="w-5 h-5 animate-spin text-amber-500" />
+              <span>Đang tải danh sách học sinh...</span>
+            </div>
+          </div>
+        ) : students.length === 0 ? (
+          <div className="p-8 text-center border-t border-slate-100">
+            <div className="max-w-xs mx-auto space-y-1.5">
+              <div className="w-10 h-10 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                {hasActiveFilters ? (
+                  <SearchIcon className="w-5 h-5" />
+                ) : (
+                  <StudentIcon className="w-5 h-5" />
+                )}
+              </div>
+              <p className="font-semibold text-slate-800 text-sm">
+                {hasActiveFilters
+                  ? 'Không tìm thấy học sinh phù hợp'
+                  : 'Chưa có học sinh nào'}
+              </p>
+              <p className="text-xs text-slate-500">
+                {hasActiveFilters
+                  ? 'Không có học sinh nào khớp với bộ lọc hoặc từ khóa tìm kiếm hiện tại.'
+                  : 'Trường học chưa có dữ liệu học sinh.'}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <Table
+                className="w-full text-left text-sm text-slate-700"
+                minWidth={readOnly ? 880 : (allowCardPrinting ? 940 : 880)}
+              >
+                <colgroup>
+                  {!readOnly ? (
+                    <>
+                      {allowCardPrinting && <col style={{ width: 48 }} />}
+                      <col />
+                      <col style={{ width: 170 }} />
+                      <col style={{ width: 170 }} />
+                      <col style={{ width: 160 }} />
+                      <col style={{ width: 80 }} />
+                    </>
+                  ) : (
+                    <>
+                      <col />
+                      <col style={{ width: 170 }} />
+                      <col style={{ width: 170 }} />
+                      <col style={{ width: 160 }} />
+                      <col style={{ width: 160 }} />
+                    </>
+                  )}
+                </colgroup>
+                <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                  <tr>
+                    {!readOnly && allowCardPrinting && (
+                      <th className="px-4 py-3" scope="col">
+                        <StudentCardSelectionCheckbox
+                          checked={selection.allOnPage}
+                          mixed={selection.someOnPage && !selection.allOnPage}
+                          disabled={isLoading || !students.length}
+                          label="Chọn tất cả học sinh trên trang này"
+                          onChange={selection.togglePage}
+                        />
+                      </th>
+                    )}
+                    <th className="px-4 py-3">Học sinh</th>
+                    <th className="px-4 py-3">SĐT Phụ huynh</th>
+                    <th className="px-4 py-3 text-center">Tình trạng địa chỉ</th>
+                    <th className="px-4 py-3 text-center">Trạng thái</th>
+                    <th className="px-4 py-3 text-right">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {students.map((student) => {
+                    const detailHref = `${baseDetailUrl}/${student.id}`;
+                    const isAvailable = student.status === 'AVAILABLE';
+
+                    return (
+                      <tr
+                        key={student.id}
+                        className="hover:bg-amber-50/30 transition-colors group"
+                      >
+                        {!readOnly && allowCardPrinting && (
+                          <td className="px-4 py-3">
+                            <StudentCardSelectionCheckbox
+                              checked={!!selection.selected[student.id]}
+                              disabled={isLoading}
+                              label={`Chọn ${student.fullName}, mã ${student.code}`}
+                              onChange={() => selection.toggle(student)}
+                            />
+                          </td>
+                        )}
+
+                        {/* Avatar + Full Name + Code */}
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            {student.avatarUrl ? (
+                              <img
+                                src={student.avatarUrl}
+                                alt={student.fullName}
+                                className="w-9 h-9 rounded-full object-cover border border-slate-200 shrink-0"
+                              />
+                            ) : (
+                              <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-800 font-bold text-xs flex items-center justify-center border border-amber-200 shrink-0">
+                                {student.fullName.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <ContextLink
+                                href={detailHref}
+                                className="font-semibold text-slate-900 hover:text-amber-700 transition-colors line-clamp-1 text-sm block"
+                              >
+                                {student.fullName}
+                              </ContextLink>
+                              <span className="font-mono text-xs text-slate-500 block mt-0.5">
+                                {student.code}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Guardian Phone */}
+                        <td className="px-4 py-3 text-slate-600 text-xs">
+                          <div className="inline-flex items-center gap-1.5">
+                            <PhoneIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>{student.guardianPhone || '—'}</span>
+                          </div>
+                        </td>
+
+                        {/* Address Availability */}
+                        <td className="px-4 py-3 text-center">
+                          {student.hasAddress ? (
+                            <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              Đã có địa chỉ
+                            </Badge>
+                          ) : (
+                            <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                              Chưa có địa chỉ
+                            </Badge>
+                          )}
+                        </td>
+
+                        {/* Student Status */}
+                        <td className="px-4 py-3 text-center">
+                          {isAvailable ? (
+                            <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              Khả dụng
+                            </Badge>
+                          ) : (
+                            <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-300">
+                              Đã vô hiệu hóa
+                            </Badge>
+                          )}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-4 py-3 text-right">
+                          {!readOnly ? (
+                            <TableActions
+                              label={`Thao tác với ${student.fullName}`}
+                              forceMenu={true}
+                              actions={[]}
+                              more={[
+                                {
+                                  label: isAvailable ? 'Vô hiệu hóa' : 'Kích hoạt',
+                                  danger: isAvailable,
+                                  onClick: () => handleOpenStatusModal(student),
+                                },
+                              ]}
+                            />
+                          ) : currentUserRole === 'SYSTEM_ADMIN' &&
+                            isAvailable &&
+                            student.hasAddress &&
+                            routeMembership[student.id] === false ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="primary"
+                              onClick={() => {
+                                setInsertingStudent(student);
+                                setIsInsertModalOpen(true);
+                              }}
+                            >
+                              Thêm vào tuyến
+                            </Button>
+                          ) : (
+                            <span className="text-slate-400 text-xs">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </Table>
+            </div>
+
+            {/* Pagination bar */}
+            {total > 0 && (
+              <PaginationControl
+                page={page}
+                totalPages={totalPages}
+                total={total}
+                limit={limit}
+                loading={isLoading}
+                onPageChange={(newPage) => setPage(newPage)}
+                onLimitChange={(newLimit) => {
+                  setLimit(newLimit);
+                  setPage(1);
+                }}
+              />
+            )}
+          </>
+        )}
       </Card>
 
       {/* Status Confirm Modal */}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ContextLink } from './context-navigation';
 import { Button } from '@/components/ui/button';
@@ -19,13 +19,15 @@ type RowAction = {
 type MenuAction = { label: string; onClick: () => void; danger?: boolean; warning?: boolean; disabled?: boolean };
 
 /** Callers own permission checks, destination URLs, confirmations and mutations. */
-export function TableActions({ actions, more = [], label = 'Thao tác khác' }: {
+export function TableActions({ actions, more = [], label = 'Thao tác khác', forceMenu = false, triggerLabel }: {
   actions: RowAction[];
   more?: MenuAction[];
   label?: string;
+  forceMenu?: boolean;
+  triggerLabel?: ReactNode;
 }) {
   const menuId = useId();
-  const showAll = actions.length + more.length <= 2;
+  const showAll = !forceMenu && actions.length + more.length <= 2;
   const visibleActions: RowAction[] = showAll ? [...actions, ...more] : actions;
   const menuActions = showAll ? [] : more;
   const trigger = useRef<HTMLButtonElement>(null);
@@ -93,11 +95,11 @@ export function TableActions({ actions, more = [], label = 'Thao tác khác' }: 
     {visibleActions.map(action => action.href && !action.disabled
       ? <ContextLink key={action.label} href={action.href} title={action.title} className="ui-button" data-variant={action.danger ? 'danger' : action.primary ? 'primary' : 'outline'} data-tone={action.warning ? 'warning' : undefined} data-size="sm">{action.label}</ContextLink>
       : <Button key={action.label} type="button" size="sm" variant={action.danger ? 'danger' : action.primary ? 'primary' : 'outline'} data-tone={action.warning ? 'warning' : undefined} disabled={action.disabled} title={action.title} onClick={action.onClick}>{action.label}</Button>)}
-    {menuActions.length > 0 && <Button ref={trigger} type="button" variant="outline" size="sm" className="table-actions-more" aria-label={label}
+    {menuActions.length > 0 && <Button ref={trigger} type="button" variant="outline" size="sm" className={triggerLabel ? 'table-actions-trigger-custom' : 'table-actions-more'} aria-label={label}
       aria-haspopup="menu" aria-expanded={isOpen} aria-controls={isOpen ? menuId : undefined}
       onClick={() => isOpen ? close(true) : open()} onKeyDown={event => {
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); open(); }
-      }}><span aria-hidden="true">⋯</span></Button>}
+      }}>{triggerLabel ?? <span aria-hidden="true">⋯</span>}</Button>}
     {isOpen && createPortal(<div ref={menu} id={menuId} role="menu" aria-label={label} className="table-actions-menu" style={position!}
       onKeyDown={onMenuKeyDown} onClick={event => event.stopPropagation()}>
       {menuActions.map(action => <button key={action.label} type="button" role="menuitem" disabled={action.disabled} data-danger={action.danger || undefined} data-tone={action.warning ? 'warning' : undefined}

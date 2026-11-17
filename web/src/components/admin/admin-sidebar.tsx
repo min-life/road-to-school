@@ -20,6 +20,8 @@ import {
   CalendarIcon,
   CalendarXIcon,
   AlertTriangleIcon,
+  SidebarCollapseIcon,
+  SidebarExpandIcon,
 } from '@/components/icons';
 import { Role } from '@/lib/types';
 import { getVisibleNavItems, AdminNavItem } from './admin-nav.config';
@@ -32,6 +34,8 @@ interface AdminSidebarProps {
   isMobileOpen: boolean;
   onCloseMobile: () => void;
   onRequestLogout: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export function AdminSidebar({
@@ -39,6 +43,8 @@ export function AdminSidebar({
   isMobileOpen,
   onCloseMobile,
   onRequestLogout,
+  isCollapsed = false,
+  onToggleCollapse,
 }: AdminSidebarProps) {
   const pathname = usePathname();
   const visibleItems = getVisibleNavItems(role);
@@ -82,10 +88,14 @@ export function AdminSidebar({
     }
   };
 
-  const navContent = (
+  const renderNavContent = (isDrawer = false) => (
     <div className="admin-nav-content">
       {/* Danh sách mục điều hướng */}
-      <nav aria-label="Điều hướng quản trị" className="admin-nav">
+      <nav
+        id={isDrawer ? 'admin-nav-drawer' : 'admin-nav-desktop'}
+        aria-label="Điều hướng quản trị"
+        className="admin-nav"
+      >
         {visibleItems.map((item: AdminNavItem) => {
           const isActive = pathname === item.href;
           return (
@@ -135,12 +145,35 @@ export function AdminSidebar({
   return (
     <>
       {/* Desktop Sidebar (Cố định ở desktop) */}
-      <aside className="admin-sidebar">
+      <aside
+        className="admin-sidebar"
+        data-collapsed={isCollapsed ? 'true' : 'false'}
+      >
         <div className="admin-brand">
-          <BrandLogo />
-          <BrandLogo icon />
+          <div className="admin-brand-logo-wrap">
+            <BrandLogo />
+            <BrandLogo icon />
+          </div>
+          {onToggleCollapse && (
+            <Button
+              type="button"
+              id="admin-sidebar-toggle"
+              aria-label={isCollapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar'}
+              title={isCollapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar'}
+              aria-expanded={!isCollapsed}
+              aria-controls="admin-nav-desktop"
+              onClick={onToggleCollapse}
+              className="admin-sidebar-toggle-btn"
+            >
+              {isCollapsed ? (
+                <SidebarExpandIcon className="w-5 h-5 shrink-0" />
+              ) : (
+                <SidebarCollapseIcon className="w-5 h-5 shrink-0" />
+              )}
+            </Button>
+          )}
         </div>
-        {navContent}
+        {renderNavContent(false)}
       </aside>
 
       {/* Mobile Drawer (Bật nổi trên mobile/tablet nhỏ) */}
@@ -176,7 +209,7 @@ export function AdminSidebar({
 
             {/* Menu Links */}
             <div className="flex flex-1 min-h-0 flex-col">
-              {navContent}
+              {renderNavContent(true)}
             </div>
           </div>
         </div>

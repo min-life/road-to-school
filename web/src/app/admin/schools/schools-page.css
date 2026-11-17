@@ -1,0 +1,310 @@
+/* Redesign v2 styling for /admin/schools */
+
+.schools-frame {
+  background: var(--brand-surface, #ffffff);
+  border: 1px solid var(--brand-border, rgba(226, 232, 240, 0.8));
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.schools-frame-header {
+  padding: 16px 20px 18px;
+  border-bottom: 1px solid var(--brand-border, rgba(226, 232, 240, 0.8));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--brand-surface, #ffffff);
+}
+
+.schools-frame-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.schools-frame-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--brand-heading, #1e293b);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Filter area: Transparent container without outer background or border */
+.schools-toolbar {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  container-type: inline-size;
+}
+
+/* Controls Grid / Fields wrapper */
+.schools-toolbar-fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+/* Transparently unwrap GeographyFilter inline root and its fields inside the grid */
+.schools-toolbar .geography-filter-inline-root,
+.schools-toolbar .geography-filter-fields {
+  display: contents;
+}
+
+/* Error message inside GeographyFilter spans full width */
+.schools-toolbar .geography-filter-error {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+}
+
+/* Responsive columns based on container width */
+/* 2 columns on medium (600px - 1023px) */
+@container (min-width: 600px) {
+  .schools-toolbar-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* 4 columns on desktop with balanced proportional widths (>= 1024px) */
+@container (min-width: 1024px) {
+  .schools-toolbar-fields {
+    grid-template-columns: minmax(260px, 2.2fr) minmax(160px, 1.1fr) minmax(180px, 1.35fr) minmax(180px, 1.35fr);
+    max-width: 1160px;
+  }
+}
+
+/* Fallback media queries if container queries unsupported */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .schools-toolbar-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .schools-toolbar-fields {
+    grid-template-columns: minmax(260px, 2.2fr) minmax(160px, 1.1fr) minmax(180px, 1.35fr) minmax(180px, 1.35fr);
+    max-width: 1160px;
+  }
+}
+
+/* Each field container inside toolbar */
+.schools-toolbar .ui-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  width: 100%;
+}
+
+/* Filter field labels */
+.schools-toolbar .ui-filter-label {
+  color: var(--brand-foreground, #1e293b);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Filter control container */
+.schools-toolbar .ui-filter-control {
+  position: relative;
+  min-width: 0;
+  width: 100%;
+}
+
+/* All inputs and selects inside toolbar:
+   Explicit 1px solid border, 8px radius, 44px height, --brand-surface background */
+.schools-toolbar .ui-filter-control > :where(input, select),
+.schools-toolbar .ui-filter-control select.ui-select,
+.schools-toolbar .ui-filter-control input.ui-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--brand-input-border, #cfdbea);
+  border-radius: 8px;
+  background-color: var(--brand-surface, #ffffff);
+  color: var(--brand-foreground, #1e293b);
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Focus-visible ring */
+.schools-toolbar .ui-filter-control > :where(input, select):focus-visible,
+.schools-toolbar .ui-filter-control select.ui-select:focus-visible,
+.schools-toolbar .ui-filter-control input.ui-input:focus-visible {
+  outline: 2px solid var(--brand-ring, #b88619);
+  outline-offset: 2px;
+  border-color: var(--brand-ring, #b88619);
+}
+
+/* Search input with search icon - high specificity and !important to guarantee left padding */
+.schools-toolbar .ui-filter-control-search > input,
+.schools-toolbar .ui-filter-control-search > input.ui-input,
+.schools-toolbar .ui-filter-control > input.pl-9 {
+  padding-left: 38px !important;
+}
+
+.schools-toolbar .ui-filter-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--brand-muted, #64748b);
+  pointer-events: none;
+  z-index: 10;
+  width: 16px;
+  height: 16px;
+}
+
+.schools-toolbar .ui-filter-icon svg {
+  width: 16px;
+  height: 16px;
+  color: var(--brand-muted, #64748b);
+  flex-shrink: 0;
+  display: block;
+}
+
+/* Select option styling */
+.schools-toolbar select option {
+  background-color: var(--brand-surface, #ffffff);
+  color: var(--brand-foreground, #1e293b);
+}
+
+/* Table container with Container Query */
+.schools-table-container {
+  container-type: inline-size;
+}
+
+.schools-table-scroll {
+  overflow-x: auto;
+}
+
+.schools-table-row {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.schools-table-row:hover {
+  background-color: var(--brand-hover, rgba(248, 250, 252, 0.8));
+}
+
+.schools-table-row:focus-within {
+  background-color: color-mix(in srgb, var(--brand-primary, #ffcb56) 6%, transparent);
+}
+
+.schools-name-link {
+  font-weight: 700;
+  color: var(--brand-heading, #1e293b);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.schools-name-link:hover {
+  color: #b45309; /* amber-700 */
+}
+
+.schools-name-link:focus-visible {
+  outline: 2px solid var(--brand-primary, #ffcb56);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.schools-address-cell {
+  max-width: 280px;
+}
+
+.schools-address-main {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.4;
+  font-size: 12px;
+  color: var(--brand-foreground, #334155);
+}
+
+.schools-address-sub {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--brand-muted, #64748b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.schools-contract-date {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.schools-contract-end-date {
+  font-weight: 700;
+  color: var(--brand-heading, #1e293b);
+}
+
+.schools-contract-combined-cell {
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+
+.schools-contract-label {
+  color: var(--brand-muted, #64748b);
+  font-size: 11px;
+  margin-right: 4px;
+}
+
+/* Default / narrow in container (< 1024px): show combined contract column */
+.col-contract-start,
+.col-contract-end {
+  display: none;
+}
+
+.col-contract-combined {
+  display: table-cell;
+}
+
+/* Wide container (>= 1024px): show separate start and end columns */
+@container (min-width: 1024px) {
+  .col-contract-start,
+  .col-contract-end {
+    display: table-cell;
+  }
+
+  .col-contract-combined {
+    display: none;
+  }
+}
+
+/* Media query fallback */
+@media (min-width: 1280px) {
+  .schools-table-container:not([data-cq-unsupported]) .col-contract-start,
+  .schools-table-container:not([data-cq-unsupported]) .col-contract-end {
+    display: table-cell;
+  }
+
+  .schools-table-container:not([data-cq-unsupported]) .col-contract-combined {
+    display: none;
+  }
+}

@@ -6,21 +6,23 @@ import { vietmapService } from '@/lib/vietmap/vietmap.service';
 import type { VietmapSuggestion } from '@/lib/vietmap/types';
 import type { WeeklySchedule } from '@/lib/types';
 import {
-  CloseIcon,
   SearchIcon,
   SpinnerIcon,
   ImageIcon,
   TrashIcon,
   AlertIcon,
-  MapPinIcon,
   CheckIcon,
 } from '@/components/icons';
 import {
   WeeklyScheduleBuilder,
-  validateWeeklySchedule,
+  getDayScheduleError,
+  getVietnamToday,
+  getNextCalendarDay,
+  DAYS_OF_WEEK,
 } from '@/components/admin/schools/weekly-schedule-builder';
 import { VietMapPicker } from '@/components/admin/schools/vietmap-picker';
 import { Tooltip } from '@/components/admin/schools/tooltip';
+import { SchoolWizardDialog } from '@/components/admin/schools/school-wizard-dialog';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,6 +54,8 @@ export function AddSchoolModal({
   const [longitude, setLongitude] = useState<number | null>(null);
   const [contractStartDate, setContractStartDate] = useState('');
   const [contractEndDate, setContractEndDate] = useState('');
+  const [contractStartError, setContractStartError] = useState<string | null>(null);
+  const [contractEndError, setContractEndError] = useState<string | null>(null);
   const [weeklySchedule, setWeeklySchedule] = useState<WeeklySchedule>({});
 
   // Image handling
@@ -87,6 +91,7 @@ export function AddSchoolModal({
   // Reset form khi modal đóng/mở
   useEffect(() => {
     if (!isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStep(1);
       setName('');
       setAddressText('');
@@ -94,6 +99,8 @@ export function AddSchoolModal({
       setLongitude(null);
       setContractStartDate('');
       setContractEndDate('');
+      setContractStartError(null);
+      setContractEndError(null);
       setWeeklySchedule({});
       setSelectedFile(null);
       clearImagePreview();
@@ -102,6 +109,51 @@ export function AddSchoolModal({
       setErrorMessage(null);
     }
   }, [isOpen, clearImagePreview]);
+
+  const todayVn = getVietnamToday();
+  const isStartDateValid = Boolean(contractStartDate && contractStartDate >= todayVn);
+  const minEndDate = isStartDateValid ? getNextCalendarDay(contractStartDate) : '';
+
+  const handleContractStartDateChange = (newStart: string) => {
+    setContractStartDate(newStart);
+    setContractStartError(null);
+    setContractEndError(null);
+    setErrorMessage(null);
+
+    if (!newStart) {
+      // Khi xóa ngày bắt đầu, xóa và khóa ngày kết thúc
+      setContractEndDate('');
+      return;
+    }
+
+    const currentToday = getVietnamToday();
+    if (newStart < currentToday) {
+      setContractStartError('Ngày bắt đầu hợp đồng không thể ở quá khứ.');
+      setContractEndDate('');
+      return;
+    }
+
+    // Khi đổi ngày bắt đầu, giữ ngày kết thúc nếu còn hợp lệ.
+    // Nếu mất hiệu lực, xóa giá trị và yêu cầu chọn lại.
+    const nextMinEnd = getNextCalendarDay(newStart);
+    if (contractEndDate) {
+      if (contractEndDate < nextMinEnd) {
+        setContractEndDate('');
+      }
+    }
+  };
+
+  const handleContractEndDateChange = (newEnd: string) => {
+    setContractEndDate(newEnd);
+    setContractEndError(null);
+    setErrorMessage(null);
+
+    if (!newEnd) return;
+
+    if (minEndDate && newEnd < minEndDate) {
+      setContractEndError('Ngày kết thúc hợp đồng phải sau ngày bắt đầu ít nhất 1 ngày.');
+    }
+  };
 
   // Xử lý chọn ảnh
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -161,8 +213,9 @@ export function AddSchoolModal({
         const results = await vietmapService.autocomplete(val.trim());
         setSuggestions(results);
         setShowSuggestions(results.length > 0);
-      } catch (err: any) {
-        console.warn('VietMap autocomplete error:', err?.message);
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : 'Lỗi không xác định';
+        console.warn('VietMap autocomplete error:', errorMsg);
         setSuggestions([]);
       } finally {
         setIsSearching(false);
@@ -184,10 +237,10 @@ export function AddSchoolModal({
       if (placeDetail.addressText) {
         setAddressText(placeDetail.addressText);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Lỗi không xác định';
       setErrorMessage(
-        'Không thể lấy chi tiết vị trí từ VietMap: ' +
-          (err?.message || 'Lỗi không xác định'),
+        'Không thể lấy chi tiết vị trí từ VietMap: ' + errorMsg,
       );
     } finally {
       setIsGettingPlace(false);
@@ -198,46 +251,83 @@ export function AddSchoolModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setContractStartError(null);
+    setContractEndError(null);
 
     // 1. Validation tên
     if (!name.trim()) {
       setErrorMessage('Vui lòng nhập tên trường học.');
+      goToStep(1, 'school-name');
       return;
     }
 
     // 2. Validation địa chỉ
     if (!addressText.trim()) {
       setErrorMessage('Vui lòng nhập địa chỉ chi tiết của trường học.');
+      goToStep(2, 'school-address-input');
       return;
     }
 
     // 3. Validation tọa độ (chống gửi null hoặc tọa độ giả)
     if (latitude === null || longitude === null) {
       setErrorMessage('Vui lòng chọn vị trí trường trên bản đồ hoặc từ danh sách gợi ý địa chỉ.');
+      goToStep(2, 'school-address-input');
       return;
     }
 
     // 4. Validation hợp đồng
+    const currentToday = getVietnamToday();
     if (!contractStartDate) {
-      setErrorMessage('Vui lòng chọn ngày bắt đầu hợp đồng.');
+      const msg = 'Vui lòng chọn ngày bắt đầu hợp đồng.';
+      setErrorMessage(msg);
+      setContractStartError(msg);
+      goToStep(3, 'contract-start');
+      return;
+    }
+
+    if (contractStartDate < currentToday) {
+      const msg = 'Ngày bắt đầu hợp đồng không thể ở quá khứ (tối thiểu là hôm nay).';
+      setErrorMessage(msg);
+      setContractStartError(msg);
+      goToStep(3, 'contract-start');
       return;
     }
 
     if (!contractEndDate) {
-      setErrorMessage('Vui lòng chọn ngày kết thúc hợp đồng.');
+      const msg = 'Vui lòng chọn ngày kết thúc hợp đồng.';
+      setErrorMessage(msg);
+      setContractEndError(msg);
+      goToStep(3, 'contract-end');
       return;
     }
 
-    if (contractEndDate < contractStartDate) {
-      setErrorMessage('Ngày kết thúc hợp đồng phải sau hoặc cùng ngày bắt đầu hợp đồng.');
+    const currentMinEnd = getNextCalendarDay(contractStartDate);
+    if (contractEndDate < currentMinEnd) {
+      const msg = 'Ngày kết thúc hợp đồng phải sau ngày bắt đầu hợp đồng ít nhất 1 ngày.';
+      setErrorMessage(msg);
+      setContractEndError(msg);
+      goToStep(3, 'contract-end');
       return;
     }
 
     // 5. Validation lịch học tuần
-    const scheduleValidation = validateWeeklySchedule(weeklySchedule);
-    if (!scheduleValidation.valid) {
-      setErrorMessage(scheduleValidation.error || 'Lịch học tuần không hợp lệ.');
+    const activeDays = Object.entries(weeklySchedule).filter(
+      ([, val]) => val !== undefined && val !== null,
+    );
+    if (activeDays.length === 0) {
+      setErrorMessage('Vui lòng chọn ít nhất một ngày học trong tuần.');
+      goToStep(3, 'day-monday');
       return;
+    }
+
+    for (const [dayKey, dayVal] of activeDays) {
+      const dayErr = getDayScheduleError(dayVal);
+      if (dayErr) {
+        const dayLabel = DAYS_OF_WEEK.find((d) => d.key === dayKey)?.label || dayKey;
+        setErrorMessage(`${dayLabel}: ${dayErr}`);
+        goToStep(3, `${dayKey}-end`);
+        return;
+      }
     }
 
     try {
@@ -260,9 +350,10 @@ export function AddSchoolModal({
 
       onSuccess();
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : null;
       setErrorMessage(
-        err?.message ||
+        errorMsg ||
           'Không thể tạo trường học. Vui lòng kiểm tra lại thông tin và thử lại.',
       );
     } finally {
@@ -270,12 +361,19 @@ export function AddSchoolModal({
     }
   };
 
-  const goToStep = (nextStep: number) => {
+  const goToStep = (nextStep: number, focusTargetId?: string) => {
     setStep(nextStep);
-    requestAnimationFrame(() => {
+    setTimeout(() => {
+      if (focusTargetId) {
+        const el = document.getElementById(focusTargetId);
+        if (el) {
+          el.focus();
+          return;
+        }
+      }
       formRef.current?.scrollTo({ top: 0 });
       formRef.current?.focus({ preventScroll: true });
-    });
+    }, 50);
   };
 
   const handleWizardSubmit = (event: React.FormEvent) => {
@@ -283,13 +381,6 @@ export function AddSchoolModal({
       event.preventDefault();
       goToStep(step + 1);
       return;
-    }
-    // Reveal the section containing the existing validation error.
-    // handleSubmit remains the sole validator and API submission handler.
-    if (!name.trim()) {
-      goToStep(1);
-    } else if (!addressText.trim() || latitude === null || longitude === null) {
-      goToStep(2);
     }
     void handleSubmit(event);
   };
@@ -299,66 +390,77 @@ export function AddSchoolModal({
   const hasLocation = latitude !== null && longitude !== null;
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="modal-add-school-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
-    >
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity"
-        onClick={() => {
-          if (!isSubmitting) onClose();
-        }}
-      />
-
-      {/* Modal Dialog Container */}
-      <Card className="school-wizard-dialog ui-dialog-panel ui-dialog-panel-body relative w-full max-w-2xl max-h-[92vh] flex flex-col bg-white rounded-2xl shadow-2xl z-10 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-200">
-        {/* Header */}
-        <div className="school-wizard-header flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0">
-          <div>
-            <h2
-              id="modal-add-school-title"
-              className="text-lg font-bold text-slate-800"
-            >
-              Thêm trường học mới
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Nhập thông tin cơ bản, vị trí địa lý và cấu hình lịch học
-            </p>
-          </div>
+    <SchoolWizardDialog
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Thêm trường học mới"
+      description="Nhập thông tin cơ bản, vị trí địa lý và cấu hình lịch học"
+      titleId="modal-add-school-title"
+      step={step}
+      steps={SCHOOL_FORM_STEPS}
+      onStepChange={goToStep}
+      errorMessage={errorMessage}
+      isSubmitting={isSubmitting}
+      onSubmit={handleWizardSubmit}
+      formRef={formRef}
+      footer={
+        <>
           <Button
+            variant="outline"
+            size="sm"
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            aria-label="Đóng biểu mẫu"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50 cursor-pointer"
+            className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
           >
-            <CloseIcon className="w-5 h-5" />
+            Hủy bỏ
           </Button>
-        </div>
-
-        <nav className="school-wizard-navigation" aria-label="Các bước thêm trường học">
-          <ol>{SCHOOL_FORM_STEPS.map((label, index) => <li key={label}>
-            <button type="button" aria-current={step === index + 1 ? 'step' : undefined}
-              aria-controls={`school-wizard-panel-${index + 1}`} disabled={isSubmitting} onClick={() => goToStep(index + 1)}>
-              <span className="school-wizard-step-number" aria-hidden="true">{index + 1}</span>
-              <span>{label}</span>
-            </button>
-          </li>)}</ol>
-        </nav>
-
-        {/* Inactive sections stay mounted to preserve image/map/form state. */}
-        <form ref={formRef} onSubmit={handleWizardSubmit} tabIndex={-1} aria-label={`Bước ${step}: ${SCHOOL_FORM_STEPS[step - 1]}`} className="school-wizard-form ui-dialog-body flex-1 overflow-y-auto p-6 space-y-6">
-          {errorMessage && (
-            <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-2.5">
-              <AlertIcon className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-              <div className="flex-1 font-medium">{errorMessage}</div>
-            </div>
-          )}
-
-          {/* 1. Thông tin chung */}
+          <div className="school-wizard-footer-actions">
+            {step > 1 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => goToStep(step - 1)}
+                disabled={isSubmitting}
+              >
+                Quay lại
+              </Button>
+            )}
+            {step < SCHOOL_FORM_STEPS.length ? (
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={() => goToStep(step + 1)}
+                disabled={isSubmitting}
+              >
+                Tiếp tục
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                size="sm"
+                type="button"
+                onClick={handleWizardSubmit}
+                disabled={isSubmitting}
+                className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-primary hover:bg-[#e6b74d] text-foreground text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+              >
+                {isSubmitting ? (
+                  <>
+                    <SpinnerIcon className="w-4 h-4 animate-spin text-foreground" />
+                    <span>Đang tạo trường học...</span>
+                  </>
+                ) : (
+                  <span>Tạo trường học</span>
+                )}
+              </Button>
+            )}
+          </div>
+        </>
+      }
+    >
+      {/* 1. Thông tin chung */}
           <fieldset id="school-wizard-panel-1" className="school-wizard-panel" hidden={step !== 1} disabled={isSubmitting || step !== 1} aria-label={SCHOOL_FORM_STEPS[0]}>
           <div className="school-wizard-section school-wizard-basics space-y-4">
             <h3 className="school-wizard-section-title text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -566,11 +668,28 @@ export function AddSchoolModal({
                   type="date"
                   id="contract-start"
                   value={contractStartDate}
+                  min={todayVn}
                   disabled={isSubmitting}
-                  onChange={(e) => setContractStartDate(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+                  aria-invalid={Boolean(contractStartError)}
+                  aria-describedby={contractStartError ? 'contract-start-error' : undefined}
+                  onChange={(e) => handleContractStartDateChange(e.target.value)}
+                  className={`w-full px-3 py-2 text-xs rounded-xl border bg-white text-slate-800 focus:outline-none focus:ring-2 ${
+                    contractStartError
+                      ? 'border-rose-400 focus:ring-rose-400'
+                      : 'border-slate-200 focus:ring-amber-400'
+                  }`}
                   required
                 />
+                {contractStartError && (
+                  <p
+                    id="contract-start-error"
+                    role="alert"
+                    className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium"
+                  >
+                    <AlertIcon className="w-3.5 h-3.5 shrink-0 text-rose-500" />
+                    <span>{contractStartError}</span>
+                  </p>
+                )}
               </div>
 
               <div>
@@ -584,11 +703,38 @@ export function AddSchoolModal({
                   type="date"
                   id="contract-end"
                   value={contractEndDate}
-                  disabled={isSubmitting}
-                  onChange={(e) => setContractEndDate(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+                  min={minEndDate || undefined}
+                  disabled={!isStartDateValid || isSubmitting}
+                  aria-invalid={Boolean(contractEndError)}
+                  aria-describedby={
+                    !isStartDateValid
+                      ? 'contract-end-hint'
+                      : contractEndError
+                        ? 'contract-end-error'
+                        : undefined
+                  }
+                  onChange={(e) => handleContractEndDateChange(e.target.value)}
+                  className={`w-full px-3 py-2 text-xs rounded-xl border bg-white text-slate-800 focus:outline-none focus:ring-2 ${
+                    contractEndError
+                      ? 'border-rose-400 focus:ring-rose-400'
+                      : 'border-slate-200 focus:ring-amber-400'
+                  } disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed`}
                   required
                 />
+                {!isStartDateValid ? (
+                  <p id="contract-end-hint" className="text-[11px] text-slate-500 mt-1">
+                    Chọn ngày bắt đầu trước
+                  </p>
+                ) : contractEndError ? (
+                  <p
+                    id="contract-end-error"
+                    role="alert"
+                    className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium"
+                  >
+                    <AlertIcon className="w-3.5 h-3.5 shrink-0 text-rose-500" />
+                    <span>{contractEndError}</span>
+                  </p>
+                ) : null}
               </div>
             </div>
           </div>
@@ -599,39 +745,6 @@ export function AddSchoolModal({
               disabled={isSubmitting}
             />
           </fieldset>
-        </form>
-
-        {/* Footer Actions */}
-        <div className="school-wizard-footer flex items-center justify-between gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50 shrink-0">
-          <Button variant="outline" size="sm"
-            type="button"
-            onClick={onClose}
-            disabled={isSubmitting}
-            className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
-          >
-            Hủy bỏ
-          </Button>
-          <div className="school-wizard-footer-actions">
-          {step > 1 && <Button type="button" variant="outline" size="sm" onClick={() => goToStep(step - 1)} disabled={isSubmitting}>Quay lại</Button>}
-          {step < SCHOOL_FORM_STEPS.length ? <Button type="button" variant="primary" size="sm" onClick={() => goToStep(step + 1)} disabled={isSubmitting}>Tiếp tục</Button> :
-          <Button variant="primary" size="sm"
-            type="button"
-            onClick={handleWizardSubmit}
-            disabled={isSubmitting}
-            className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-primary hover:bg-[#e6b74d] text-foreground text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
-          >
-            {isSubmitting ? (
-              <>
-                <SpinnerIcon className="w-4 h-4 animate-spin text-foreground" />
-                <span>Đang tạo trường học...</span>
-              </>
-            ) : (
-              <span>Tạo trường học</span>
-            )}
-          </Button>}
-          </div>
-        </div>
-      </Card>
-    </div>
+    </SchoolWizardDialog>
   );
 }

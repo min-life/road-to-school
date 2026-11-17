@@ -5,12 +5,23 @@ import type { WeeklySchedule } from '@/lib/types';
 import {
   DAYS_OF_WEEK,
   validateWeeklySchedule,
+  getDayScheduleError,
+  getVietnamToday,
+  getNextCalendarDay,
   type DayConfig,
 } from './weekly-schedule.helper';
 import { Input } from '@/components/ui/input';
+import { AlertIcon } from '@/components/icons';
 import './weekly-schedule-builder.css';
 
-export { DAYS_OF_WEEK, validateWeeklySchedule, type DayConfig };
+export {
+  DAYS_OF_WEEK,
+  validateWeeklySchedule,
+  getDayScheduleError,
+  getVietnamToday,
+  getNextCalendarDay,
+  type DayConfig,
+};
 
 export interface WeeklyScheduleBuilderProps {
   value: WeeklySchedule;
@@ -72,13 +83,16 @@ export function WeeklyScheduleBuilder({
         {DAYS_OF_WEEK.map((day) => {
           const isEnabled = Boolean(value[day.key]);
           const dayData = value[day.key];
+          const dayError = isEnabled ? getDayScheduleError(dayData) : null;
 
           return (
             <div
               key={day.key}
               className={`weekly-schedule-row p-2.5 rounded-lg border transition-colors ${
                 isEnabled
-                  ? 'bg-white border-amber-200 shadow-2xs'
+                  ? dayError
+                    ? 'has-error bg-rose-50/40 border-rose-300 shadow-2xs'
+                    : 'bg-white border-amber-200 shadow-2xs'
                   : 'bg-transparent border-transparent opacity-75'
               }`}
             >
@@ -114,10 +128,16 @@ export function WeeklyScheduleBuilder({
                         id={`${day.key}-start`}
                         value={dayData?.start || '07:00'}
                         disabled={disabled}
+                        aria-invalid={Boolean(dayError)}
+                        aria-describedby={dayError ? `${day.key}-error` : undefined}
                         onChange={(e) =>
                           handleTimeChange(day.key, 'start', e.target.value)
                         }
-                        className="px-2 py-1 text-xs font-medium rounded-md border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                        className={`px-2 py-1 text-xs font-medium rounded-md border bg-white text-slate-800 focus:outline-none focus:ring-1 ${
+                          dayError
+                            ? 'border-rose-400 focus:ring-rose-400'
+                            : 'border-slate-300 focus:ring-amber-400'
+                        }`}
                       />
                     </div>
                   </div>
@@ -135,10 +155,16 @@ export function WeeklyScheduleBuilder({
                         id={`${day.key}-end`}
                         value={dayData?.end || '17:00'}
                         disabled={disabled}
+                        aria-invalid={Boolean(dayError)}
+                        aria-describedby={dayError ? `${day.key}-error` : undefined}
                         onChange={(e) =>
                           handleTimeChange(day.key, 'end', e.target.value)
                         }
-                        className="px-2 py-1 text-xs font-medium rounded-md border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                        className={`px-2 py-1 text-xs font-medium rounded-md border bg-white text-slate-800 focus:outline-none focus:ring-1 ${
+                          dayError
+                            ? 'border-rose-400 focus:ring-rose-400'
+                            : 'border-slate-300 focus:ring-amber-400'
+                        }`}
                       />
                     </div>
                   </div>
@@ -147,6 +173,17 @@ export function WeeklyScheduleBuilder({
                 <span className="weekly-schedule-off text-xs text-slate-400 italic">
                   Nghỉ
                 </span>
+              )}
+
+              {dayError && (
+                <div
+                  id={`${day.key}-error`}
+                  role="alert"
+                  className="weekly-schedule-row-error col-span-full flex items-center gap-1.5 text-[11px] font-medium text-rose-600 pt-1"
+                >
+                  <AlertIcon className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                  <span>{dayError}</span>
+                </div>
               )}
             </div>
           );

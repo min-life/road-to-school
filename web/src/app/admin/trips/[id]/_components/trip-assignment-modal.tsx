@@ -106,7 +106,7 @@ export function TripAssignmentModal({
       if (selectedDriverId !== baseline.driverId) payload.driverId = selectedDriverId;
     } else if (isSchoolAdmin) {
       if (!selectedAttendantId) {
-        setError('Vui lòng chọn Giáo viên phụ xe');
+        setError('Vui lòng chọn Giáo viên phụ trách');
         return;
       }
       if (selectedAttendantId !== baseline.busAttendantId) payload.busAttendantId = selectedAttendantId;
@@ -164,7 +164,7 @@ export function TripAssignmentModal({
           <div className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
             {isSystemAdmin
               ? 'Phân quyền: SYSTEM_ADMIN chỉ được phân công Xe & Tài xế'
-              : 'Phân quyền: SCHOOL_ADMIN chỉ được phân công Giáo viên phụ xe'}
+              : 'Phân quyền: SCHOOL_ADMIN chỉ được phân công Giáo viên phụ trách'}
           </div>
         </div>
 
@@ -231,14 +231,14 @@ export function TripAssignmentModal({
               )}
             </div>
 
-            {/* Giáo viên phụ xe: Read-only cho SYSTEM_ADMIN, Editable cho SCHOOL_ADMIN */}
+            {/* Giáo viên phụ trách: Read-only cho SYSTEM_ADMIN, Editable cho SCHOOL_ADMIN */}
             <div className="space-y-1">
               <label className="text-xs font-semibold text-slate-700">
-                Giáo viên phụ xe (Trường sở tại):
+                Giáo viên phụ trách (Trường sở tại):
               </label>
               {isSchoolAdmin ? (
                 <ReopenResourceSelect key={baseline.id + ':' + isOpen} kind="attendant" schoolId={trip.schoolId} allowKeep={false}
-                  initialSelection={baseline.busAttendantId ? { id: baseline.busAttendantId, label: baseline.busAttendantName || 'Phụ xe hiện tại' } : undefined}
+                  initialSelection={baseline.busAttendantId ? { id: baseline.busAttendantId, label: baseline.busAttendantName || 'Giáo viên phụ trách hiện tại' } : undefined}
                   onChange={setSelectedAttendantId} />
               ) : (
                 <div className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-700 flex items-center justify-between">

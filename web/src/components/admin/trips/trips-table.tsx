@@ -324,7 +324,7 @@ export function TripsTable({
                 <th className="py-3 px-4 text-center">Khung giờ</th>
                 <th className="py-3 px-4">Xe phân công</th>
                 <th className="py-3 px-4">Tài xế</th>
-                <th className="py-3 px-4">Giáo viên phụ xe</th>
+                <th className="py-3 px-4">Giáo viên phụ trách</th>
                 <th className="py-3 px-4 text-center">Học sinh</th>
                 <th className="py-3 px-4">Trạng thái</th>
                 <th className="py-3 px-4 text-right">Thao tác</th>

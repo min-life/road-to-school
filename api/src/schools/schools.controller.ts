@@ -54,6 +54,7 @@ import {
   UpdateSchoolScheduleResponseDto,
   EmployeeDeactivationImpactDto,
   UpdateEmployeeStatusDto,
+  UpdateSchoolProfileDto,
 } from './dto/index.js';
 
 @ApiResponse({ status: 409, description: 'Lịch trùng/đã đến hạn, nguồn lực không phù hợp hoặc dữ liệu thay đổi đồng thời' })
@@ -642,6 +643,75 @@ export class SchoolsController {
     @CurrentUser() user: User,
   ): Promise<UpdateSchoolScheduleResponseDto> {
     return this.schoolsService.updateSchedule(id, dto, user);
+  }
+
+  @Patch(':id/profile')
+  @Roles(Role.SYSTEM_ADMIN)
+  @UseInterceptors(FileInterceptor('image'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Cập nhật tên và/hoặc ảnh cổng trường học (Chỉ SYSTEM_ADMIN)',
+    description:
+      'Cho phép Quản trị viên hệ thống cập nhật tên trường học và/hoặc ảnh cổng trường qua Cloudinary. Yêu cầu cung cấp ít nhất một trường thông tin (name hoặc image).',
+  })
+  @ApiParam({ name: 'id', description: 'Mã UUID trường học' })
+  @ApiBody({
+    description: 'Dữ liệu cập nhật thông tin trường học dạng multipart/form-data',
+    schema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          example: 'Trường Tiểu học Lê Quý Đôn',
+          description: 'Tên trường học mới (tùy chọn, tối thiểu 2 ký tự)',
+        },
+        image: {
+          type: 'string',
+          format: 'binary',
+          description: 'Tệp ảnh cổng trường mới tùy chọn (JPEG, PNG, WebP, tối đa 5 MB)',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Cập nhật thông tin cơ bản trường học thành công',
+    type: SchoolDetailResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Dữ liệu đầu vào không hợp lệ hoặc thiếu cả tên và ảnh',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Chưa xác thực hoặc Access Token không hợp lệ',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Chỉ SYSTEM_ADMIN được phép thực hiện',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Không tìm thấy trường học',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Ảnh trường học bị thay đổi đồng thời bởi một phiên làm việc khác',
+  })
+  @ApiResponse({
+    status: 502,
+    description: 'Lỗi tải ảnh lên dịch vụ lưu trữ Cloudinary',
+  })
+  @ApiResponse({
+    status: 503,
+    description: 'Dịch vụ lưu trữ Cloudinary chưa được cấu hình',
+  })
+  async updateProfile(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateSchoolProfileDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ): Promise<SchoolDetailResponseDto> {
+    return this.schoolsService.updateProfile(id, dto, file);
   }
 }
 
