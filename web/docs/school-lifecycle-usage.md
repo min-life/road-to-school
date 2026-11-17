@@ -18,6 +18,22 @@ Web chỉ gọi contract đã có; không thay backend, schema, dữ liệu ho�
 
 Trong **Lịch vận hành**, mặc định mở **Ngày nghỉ & học bù**. Chuyển sang **Thay đổi đã hẹn** để xem lịch thay đổi cấu hình; huy hiệu chỉ đếm thay đổi đang chờ áp dụng. Chỉ một khối hiển thị mỗi lần; đổi tab không gửi lại request hoặc mất trạng thái đã tải.
 
+Ở đầu trang `/admin/calendar`, thẻ thông tin trường hiển thị tên trường cùng badge trạng thái có chấm tròn («Đang hoạt động» / «Ngừng hoạt động») theo nhóm; phía bên phải (hoặc xếp dưới trên màn hình hẹp) là khối «Thời hạn hợp đồng» tách rõ hai mốc «Bắt đầu» và «Kết thúc» với ngày định dạng `dd/MM/yyyy` nổi bật hơn nhãn.
+
+Khung **Lịch học tuần** và hộp thoại **Lịch học theo tháng** (`SchoolSchedule`) đồng bộ màu sắc và nhãn cho 6 loại ngày:
+- **Ngày học (`REGULAR`)**: Nền xanh dương nhạt, viền xanh nhạt, chữ xanh đậm, hiển thị khung giờ.
+- **Học bù (`MAKEUP`)**: Nền xanh lá nhạt, viền xanh lá, chữ xanh lá đậm, nhãn `Học bù` và khung giờ.
+- **Nghỉ theo lịch tuần (`WEEKLY_OFF`)**: Nền xám xanh, viền xám, chữ xám đậm, nhãn `Nghỉ theo lịch tuần`.
+- **Ngày nghỉ của trường hoặc nhà xe (`HOLIDAY`)**: Nền vàng nhạt, viền vàng, chữ nâu đậm, hiển thị tên ngày nghỉ.
+- **Ngoài hợp đồng (`OUT_OF_CONTRACT`)**: Nền xám rất nhạt, viền đứt nét, chữ xám đậm, nhãn `Ngoài hợp đồng`.
+- **Ngừng hoạt động (`INACTIVE`)**: Nền hồng nhạt, viền hồng đỏ, chữ đỏ trầm, nhãn `Ngừng hoạt động`.
+- **Hôm nay (`isToday`)**: Đánh dấu bằng viền xanh 2px và nhãn tròn «Hôm nay», giữ nguyên vẹn màu nền của loại ngày tương ứng.
+
+Bố cục hai tab được hiển thị dưới dạng bảng dữ liệu chuyên biệt:
+- **Ngày nghỉ & học bù**: Bảng gồm 6 cột: Ngày, Nội dung, Giờ bắt đầu, Giờ kết thúc, Trạng thái, Thao tác. Ngày nghỉ chiếm 2 cột giờ với nhãn «Cả ngày»; đề nghị học bù hiển thị giờ bắt đầu/kết thúc độc lập dạng `HH:mm`. Dropdown Select «Trạng thái» gồm: «Tất cả», «Chờ duyệt (n)», «Đã duyệt», «Đã từ chối», «Đã hủy» và «Bị chặn». Nút làm mới độc lập cho tab đang chọn.
+- **Thay đổi đã hẹn**: Bảng gồm 4 cột: Ngày dự kiến, Loại thay đổi, Trạng thái, Thao tác. Khi có dữ liệu lịch tuần, cột Loại thay đổi hiển thị nút chữ «Đổi lịch học» kèm icon chevron để mở rộng ma trận lịch tuần T2–CN (hàng Bắt đầu / Kết thúc, hiển thị «Nghỉ» khi không có ca học) ngay dưới hàng tương ứng qua một hàng `colSpan={4}`. Dropdown Select «Trạng thái» gồm: «Tất cả», «Chờ áp dụng (n)», «Đã áp dụng», «Đã hủy» và «Áp dụng thất bại».
+- **Thích ứng màn hình nhỏ (≤ 768px)**: Cả hai tab tự động chuyển đổi sang giao diện thẻ (cards) xếp dọc, loại bỏ hoàn toàn thanh cuộn dọc thừa và giữ trọn vẹn nhãn giờ, trạng thái và nút thao tác.
+
 ## 2. Hẹn thay đổi trường và gia hạn
 
 1. Vào **Trường học → Chi tiết → Chỉnh sửa trường & vị trí**.
@@ -44,6 +60,9 @@ nhập ngày dương/âm lịch; học bù cần khung giờ và chỉ áp dụn
 được áp dụng theo quyền; học bù ở trạng thái chờ nhà xe duyệt.
 
 Cách nhập ngày: **Dương lịch · Một lần** dùng ô lịch Ngày áp dụng; **Hằng năm** chỉ chọn ngày/tháng (cho phép 29/02). **Âm lịch** chọn ngày, tháng, tháng nhuận và năm khi áp dụng một lần; xem ngày dương tương ứng bên dưới. Với âm lịch hằng năm, phần quy đổi minh họa cho năm âm lịch hiện tại, không cố định ngày dương cho mọi năm. Payload gửi API vẫn là day/month/year như trước.
+
+**Giới hạn hợp đồng cho ngày nghỉ một lần của trường:**
+Khi tạo ngày nghỉ có `kind=HOLIDAY`, `recurrence=ONCE` và có `schoolId` (áp dụng cho cả `SCHOOL_ADMIN` của trường và `SYSTEM_ADMIN` khi tạo lịch riêng cho một trường): ngày áp dụng bắt buộc phải nằm trong khoảng hợp lệ từ `max(ngày mai theo giờ Việt Nam, contractStartDate)` đến hết `contractEndDate` (tính cả hai đầu mốc; với âm lịch, áp dụng theo ngày dương thực tế sau khi quy đổi UTC+7). Web hiển thị khoảng ngày hợp lệ ngay dưới ô ngày, khóa các ngày ngoài khoảng trong lịch, và hiển thị thông báo vô hiệu hóa nút lưu khi khoảng rỗng (hợp đồng đã kết thúc hoặc không còn ngày hợp lệ). Client cũ vẫn gửi payload như trước và sẽ nhận HTTP 400 kèm thông báo `"Ngày nghỉ một lần của trường phải nằm trong thời hạn hợp đồng"` nếu gửi ngày nằm ngoài thời hạn hợp đồng. Ngày nghỉ hằng năm của trường, ngày nghỉ toàn nhà xe và đề nghị học bù tiếp tục tuân thủ quy tắc riêng hiện hành.
 
 **Duyệt học bù:** Nhà xe mở Cài đặt → Lịch dịch vụ → **Chỉ chờ duyệt** → Duyệt/Từ chối.
 Từ chối cần lý do. Học bù trùng ngày nghỉ nhà xe bị chặn; học bù đã duyệt có thể

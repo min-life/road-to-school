@@ -400,7 +400,7 @@ export default function AdminIncidentsPage() {
                             {inc.reportedByRole === 'DRIVER'
                               ? 'Tài xế'
                               : inc.reportedByRole === 'BUS_ATTENDANT'
-                              ? 'Giáo viên phụ xe'
+                              ? 'Giáo viên'
                               : inc.reportedByRole}
                           </div>
                         </div>

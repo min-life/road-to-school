@@ -6,17 +6,275 @@
 .school-week-navigation { display: flex; align-items: center; gap: 4px; }
 .school-week-navigation > span { color: var(--brand-heading); font-size: 13px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; }
 .school-week-navigation .ui-button { display: grid; place-items: center; width: 32px; height: 32px; min-height: 32px; padding: 0; }
-.school-week-grid { width: 100%; table-layout: fixed; border-collapse: collapse; text-align: center; }
-.school-week-grid th { padding: 8px 2px; color: var(--brand-muted); font-size: 12px; font-weight: 600; }
-.school-week-grid td { padding: 8px 2px; border: 0; vertical-align: top; color: var(--brand-heading); }
-.school-week-grid td[aria-current=date] { outline: 1px solid var(--brand-info); outline-offset: -1px; border-radius: 6px; }
-.school-week-grid time { display: block; font-size: 13px; font-weight: 600; }
-.school-week-hours, .school-week-rest { display: block; margin-top: 8px; font-size: 12px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.school-week-hours { display: flex; justify-content: center; flex-wrap: wrap; column-gap: 3px; }
-.school-week-hours > span { white-space: nowrap; }
-.school-week-rest { color: var(--brand-muted); }
 .school-week-toolbar { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-left: auto; min-width: 0; }
 .school-week-toolbar > .ui-button { white-space: nowrap; }
+
+/* Header card for /admin/calendar */
+.school-calendar-header-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 20px 24px;
+  border: 1px solid var(--brand-border, #e2e8f0);
+  border-radius: 14px;
+  background: var(--brand-surface, #ffffff);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  margin-bottom: 20px;
+}
+.school-calendar-header-main {
+  min-width: 0;
+  flex: 1 1 300px;
+}
+.school-calendar-title-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+}
+.school-calendar-school-name {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--brand-heading, #0f172a);
+  line-height: 1.3;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+.school-calendar-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.school-calendar-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.school-calendar-status-active {
+  background-color: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+}
+.school-calendar-status-active .school-calendar-status-dot {
+  background-color: #10b981;
+}
+.school-calendar-status-inactive {
+  background-color: #fff1f2;
+  border: 1px solid #fecdd3;
+  color: #9f1239;
+}
+.school-calendar-status-inactive .school-calendar-status-dot {
+  background-color: #f43f5e;
+}
+
+.school-calendar-contract-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 18px;
+  border: 1px solid var(--brand-border, #e2e8f0);
+  border-radius: 10px;
+  background: #f8fafc;
+  flex-shrink: 0;
+}
+.school-calendar-contract-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--brand-muted, #64748b);
+}
+.school-calendar-contract-dates {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.school-calendar-contract-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.school-calendar-contract-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--brand-muted, #64748b);
+}
+.school-calendar-contract-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--brand-heading, #0f172a);
+  font-variant-numeric: tabular-nums;
+}
+.school-calendar-contract-divider {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--brand-muted, #94a3b8);
+  margin-top: 14px;
+}
+
+/* Canonical 6 Day Types */
+.school-day-regular {
+  background-color: #eff6ff !important;
+  border-color: #bfdbfe !important;
+  color: #1e40af !important;
+}
+.school-day-makeup {
+  background-color: #f0fdf4 !important;
+  border-color: #bbf7d0 !important;
+  color: #166534 !important;
+}
+.school-day-weekly-off {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #475569 !important;
+}
+.school-day-holiday {
+  background-color: #fefce8 !important;
+  border-color: #fde68a !important;
+  color: #854d0e !important;
+}
+.school-day-out-of-contract {
+  background-color: #f8fafc !important;
+  border: 1px dashed #cbd5e1 !important;
+  color: #64748b !important;
+}
+.school-day-inactive {
+  background-color: #fff1f2 !important;
+  border-color: #fecdd3 !important;
+  color: #9f1239 !important;
+}
+
+/* Today indicator: preserves background of day type and adds 2px blue ring */
+.school-week-day-cell.is-today,
+.school-calendar-day-cell.is-today {
+  box-shadow: inset 0 0 0 2px #2563eb !important;
+  position: relative;
+}
+.school-schedule-today-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  border-radius: 9999px;
+  background-color: #dbeafe;
+  color: #1d4ed8;
+  white-space: nowrap;
+}
+
+/* Week Grid */
+.school-week-table-wrap { width: 100%; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
+.school-week-grid { width: 100%; min-width: 540px; table-layout: fixed; border-collapse: separate; border-spacing: 6px; text-align: center; }
+.school-week-grid th { padding: 8px 2px; color: var(--brand-muted); font-size: 12px; font-weight: 600; }
+.school-week-day-cell {
+  padding: 10px 4px;
+  border: 1px solid var(--brand-border);
+  border-radius: 8px;
+  vertical-align: top;
+  text-align: center;
+  min-height: 88px;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.school-week-cell-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+.school-week-date-num {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.school-week-cell-body {
+  font-size: 12px;
+  line-height: 1.35;
+}
+.school-week-hours {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  column-gap: 3px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+.school-week-day-content,
+.school-calendar-day-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.school-day-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
+  border-radius: 4px;
+  text-align: center;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+.school-tag-regular {
+  background-color: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+.school-tag-makeup {
+  background-color: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+.school-tag-holiday {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+.school-tag-weekly-off {
+  background-color: #e2e8f0;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  white-space: normal;
+}
+.school-tag-out-of-contract {
+  background-color: #f1f5f9;
+  color: #475569;
+  border: 1px dashed #cbd5e1;
+  white-space: normal;
+}
+.school-tag-inactive {
+  background-color: #ffe4e6;
+  color: #9f1239;
+  border: 1px solid #fecdd3;
+  white-space: normal;
+}
+.school-week-event-title,
+.school-week-holiday-title {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* Month Dialog */
 .school-calendar-dialog { width: min(960px, calc(100vw - 32px)); max-width: none; max-height: calc(100dvh - 32px); margin: auto; padding: 0; overflow: hidden; border: 1px solid var(--brand-border); border-radius: 16px; color: var(--brand-foreground); background: var(--brand-surface); box-shadow: 0 20px 70px #0f172a33; }
 .school-calendar-dialog::backdrop { background: #0f172a80; }
 .school-calendar-panel { display: flex; flex-direction: column; max-height: calc(100dvh - 34px); }
@@ -31,26 +289,82 @@
 .school-calendar-toolbar { flex-wrap: wrap; }
 .school-calendar-month-navigation h3 { min-width: 135px; margin: 0; text-align: center; color: var(--brand-heading); font-size: 16px; font-weight: 600; }
 .school-calendar-note { margin: 14px 0; font-size: 12px; color: var(--brand-muted); line-height: 1.6; }
-.school-calendar-grid { width: 100%; table-layout: fixed; border-collapse: collapse; }
-.school-calendar-grid th { padding: 10px 4px; font-size: 13px; font-weight: 600; color: var(--brand-muted); }
-.school-calendar-grid td { height: 94px; vertical-align: top; padding: 10px; border: 1px solid var(--brand-border); }
-.school-calendar-schoolday { background: var(--brand-surface); }
-.school-calendar-rest, .school-calendar-empty { background: var(--brand-hover); }
-.school-calendar-grid td[aria-current=date] { outline: 2px solid var(--brand-info); outline-offset: -2px; }
-.school-calendar-date { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 3px; min-height: 22px; font-size: 13px; font-weight: 600; }
-.school-calendar-today-label { color: var(--brand-info); font-size: 10px; }
-.school-calendar-hours { display: flex; justify-content: center; flex-wrap: wrap; gap: 3px; margin-top: 10px; padding: 5px 2px; border-radius: 5px; background: var(--brand-accent); color: var(--brand-heading); font-size: 12px; font-variant-numeric: tabular-nums; }
-.school-calendar-rest-label { display: block; margin-top: 13px; font-size: 12px; color: var(--brand-muted); }
+
+/* Month Grid */
+.school-calendar-grid { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 4px; }
+.school-calendar-grid th { padding: 10px 4px; font-size: 13px; font-weight: 600; color: var(--brand-muted); text-align: center; }
+.school-calendar-day-cell {
+  height: 96px;
+  vertical-align: top;
+  padding: 8px;
+  border: 1px solid var(--brand-border);
+  border-radius: 8px;
+}
+.school-calendar-empty {
+  background: transparent !important;
+  border: 1px dashed transparent !important;
+}
+.school-calendar-date {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.school-calendar-cell-body {
+  font-size: 11px;
+  line-height: 1.3;
+}
+.school-calendar-hours {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px 2px;
+  border-radius: 4px;
+  background-color: #dbeafe;
+  color: #1e40af;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.school-calendar-event-title,
+.school-calendar-holiday-title {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
 .school-calendar-footer { justify-content: flex-end; border-top: 1px solid var(--brand-border); }
+
+@media (max-width: 640px) {
+  .school-calendar-header-card {
+    flex-direction: column;
+    padding: 16px;
+    gap: 14px;
+  }
+  .school-calendar-contract-box {
+    width: 100%;
+  }
+}
+
 @media (max-width: 540px) {
   .school-detail-info-card { padding: 14px; }
-  .school-week-hours, .school-week-rest { font-size: 10px; }
+  .school-week-grid { min-width: 480px; border-spacing: 3px; }
+  .school-week-day-cell { padding: 8px 3px; }
+  .school-week-date-num { font-size: 12px; }
+  .school-calendar-grid { border-spacing: 2px; }
+  .school-calendar-day-cell { height: 88px; padding: 4px 2px; }
+  .school-calendar-date { font-size: 11px; }
+  .school-calendar-hours { font-size: 10px; }
   .school-calendar-dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); border-radius: 12px; }
   .school-calendar-panel { max-height: calc(100dvh - 18px); }
   .school-calendar-header, .school-calendar-footer, .school-calendar-body { padding: 14px 10px; }
   .school-calendar-header h2 { font-size: 18px; }
-  .school-calendar-grid td { height: 102px; padding: 6px 3px; }
-  .school-calendar-hours { flex-direction: column; align-items: center; gap: 0; font-size: 10px; }
-  .school-calendar-hours > span:nth-child(2) { line-height: 8px; }
-  .school-calendar-today-label { font-size: 9px; }
+  .school-schedule-today-pill { font-size: 9px; padding: 1px 4px; }
 }

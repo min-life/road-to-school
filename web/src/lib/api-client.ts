@@ -69,6 +69,9 @@ import {
   TripIncidentStatus,
   TripIncidentListResponse,
   IncidentCandidatesResponse,
+  BulkImportPreviewResponse,
+  BulkImportCommitResponse,
+  BulkExportDto,
 } from './types';
 
 const API_BASE_URL =
@@ -183,7 +186,7 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {},
     retryCount = 0,
-    responseType: 'json' | 'arrayBuffer' = 'json',
+    responseType: 'json' | 'arrayBuffer' | 'blob' = 'json',
   ): Promise<T> {
     const url = endpoint.startsWith('http')
       ? endpoint
@@ -280,6 +283,7 @@ class ApiClient {
       return {} as T;
     }
 
+    if (responseType === 'blob') return response.blob() as Promise<T>;
     if (responseType === 'arrayBuffer') return response.arrayBuffer() as Promise<T>;
     return response.json();
   }
@@ -393,6 +397,13 @@ class ApiClient {
   async updateSchool(id: string, formData: FormData): Promise<SchoolDetail> {
     return this.request<SchoolDetail>(`/schools/${id}`, {
       method: 'PUT',
+      body: formData,
+    });
+  }
+
+  async updateSchoolProfile(id: string, formData: FormData): Promise<SchoolDetail> {
+    return this.request<SchoolDetail>(`/schools/${id}/profile`, {
+      method: 'PATCH',
       body: formData,
     });
   }
@@ -607,6 +618,80 @@ class ApiClient {
       method: 'POST',
       body: formData,
     });
+  }
+
+  async checkStudentServiceArea(
+    schoolId: string,
+    coordinates: { latitude: number; longitude: number },
+  ): Promise<{ status: 'IN_SERVICE_AREA' | 'OUT_OF_SERVICE_AREA' | 'UNAVAILABLE' }> {
+    return this.request<{ status: 'IN_SERVICE_AREA' | 'OUT_OF_SERVICE_AREA' | 'UNAVAILABLE' }>(
+      `/schools/${schoolId}/students/service-area-check`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(coordinates),
+      },
+    );
+  }
+
+  async downloadStudentImportTemplate(schoolId: string): Promise<Blob> {
+    return this.request<Blob>(
+      `/schools/${schoolId}/students/import-template`,
+      { method: 'GET' },
+      0,
+      'blob',
+    );
+  }
+
+  async previewStudentImport(schoolId: string, file: File): Promise<BulkImportPreviewResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request<BulkImportPreviewResponse>(
+      `/schools/${schoolId}/students/imports/preview`,
+      {
+        method: 'POST',
+        body: formData,
+      },
+    );
+  }
+
+  async commitStudentImport(
+    schoolId: string,
+    file: File,
+    previewToken: string,
+    importKey: string,
+  ): Promise<BulkImportCommitResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('previewToken', previewToken);
+    formData.append('importKey', importKey);
+    return this.request<BulkImportCommitResponse>(
+      `/schools/${schoolId}/students/imports/commit`,
+      {
+        method: 'POST',
+        body: formData,
+      },
+    );
+  }
+
+  async getStudentImportReceipt(schoolId: string, importKey: string): Promise<BulkImportCommitResponse> {
+    return this.request<BulkImportCommitResponse>(
+      `/schools/${schoolId}/students/imports/${importKey}`,
+      { method: 'GET' },
+    );
+  }
+
+  async exportStudents(schoolId: string, dto: BulkExportDto): Promise<Blob> {
+    return this.request<Blob>(
+      `/schools/${schoolId}/students/exports`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dto),
+      },
+      0,
+      'blob',
+    );
   }
 
   async updateStudentStatus(

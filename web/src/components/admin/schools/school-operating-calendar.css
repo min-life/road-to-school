@@ -1,10 +1,390 @@
 .school-operating-calendar { min-width: 0; display: grid; gap: 14px; }
-.school-operating-calendar-tabs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-self: start; max-width: 100%; padding: 5px; border: 1px solid var(--brand-border); border-radius: 12px; background: var(--brand-hover); }
-.school-operating-calendar-tabs .ui-button { min-height: 38px; }
-.school-operating-calendar-tabs .ui-button[aria-selected=false] { color: var(--brand-foreground); }
-.school-operating-calendar-count { min-width: 20px; padding: 1px 6px; border-radius: 999px; background: var(--brand-accent); color: #92400e; font-size: 12px; font-variant-numeric: tabular-nums; }
-.school-operating-calendar > [role=tabpanel] > .lifecycle-panel { margin-top: 0; }
+.school-operating-calendar-frame {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--brand-border);
+  border-radius: 16px;
+  background: var(--brand-surface);
+  padding: 24px;
+  box-shadow: 0 1px 2px #0f172a08;
+}
+.school-operating-subtabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--brand-border);
+  margin-bottom: 20px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+}
+.school-operating-subtabs::-webkit-scrollbar {
+  display: none;
+}
+@media (min-width: 640px) {
+  .school-operating-subtabs {
+    overflow: visible;
+  }
+}
+.school-subtab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--brand-muted);
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  margin-bottom: -1px;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+.school-subtab-btn:hover {
+  color: var(--brand-heading);
+}
+.school-subtab-btn:focus-visible {
+  outline: 2px solid var(--brand-ring);
+  outline-offset: 2px;
+}
+.school-subtab-btn.is-active,
+.school-subtab-btn[aria-selected="true"] {
+  color: var(--brand-heading);
+  font-weight: 700;
+  border-bottom-color: var(--brand-primary, #ffcb56);
+}
+.school-operating-calendar-count {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--brand-accent);
+  color: #92400e;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.school-operating-calendar-frame > [role=tabpanel] > .lifecycle-panel {
+  margin-top: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Redesigned Operating Calendar Toolbar */
+.operating-calendar-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.operating-calendar-status-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.operating-calendar-status-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--brand-foreground, #1e293b);
+  white-space: nowrap;
+}
+.operating-calendar-status-select {
+  min-width: 190px;
+  height: 40px;
+  padding: 0 32px 0 12px;
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--brand-input-border, #cfdbea);
+  border-radius: 8px;
+  background-color: var(--brand-surface, #ffffff);
+  color: var(--brand-foreground, #1e293b);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.operating-calendar-status-select:focus-visible {
+  outline: 2px solid var(--brand-ring, #b88619);
+  outline-offset: 2px;
+  border-color: var(--brand-ring, #b88619);
+}
+.operating-calendar-status-select option {
+  background-color: var(--brand-surface, #ffffff);
+  color: var(--brand-foreground, #1e293b);
+}
+.operating-calendar-filters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.operating-calendar-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--brand-border);
+  background: var(--brand-surface);
+  color: var(--brand-muted);
+  cursor: pointer;
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s;
+}
+.operating-calendar-filter-btn:hover {
+  color: var(--brand-heading);
+  background: var(--brand-hover);
+}
+.operating-calendar-filter-btn:focus-visible {
+  outline: 2px solid var(--brand-ring);
+  outline-offset: 2px;
+}
+.operating-calendar-filter-btn.is-active,
+.operating-calendar-filter-btn[aria-pressed="true"] {
+  background: var(--brand-primary, #ffcb56);
+  color: var(--brand-heading, #1e293b);
+  font-weight: 600;
+  border-color: var(--brand-primary, #ffcb56);
+}
+.operating-calendar-filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+}
+.operating-calendar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Redesigned Operating Calendar Tables */
+.operating-calendar-table-container {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--brand-border);
+  border-radius: 12px;
+  background: var(--brand-surface);
+}
+.operating-calendar-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: var(--brand-foreground);
+  text-align: left;
+}
+.operating-calendar-table th {
+  padding: 12px 14px;
+  background: var(--brand-hover);
+  color: var(--brand-muted);
+  font-size: 12px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--brand-border);
+  white-space: nowrap;
+}
+.operating-calendar-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--brand-border);
+  vertical-align: middle;
+}
+.operating-calendar-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.operating-calendar-table tbody tr:hover {
+  background: var(--brand-row-hover, #f8fafc);
+}
+.operating-calendar-table tbody tr.operating-calendar-row-expanded {
+  background: #fffbeb !important;
+}
+.operating-calendar-table tbody tr.operating-calendar-row-expanded:hover {
+  background: #fef9c3 !important;
+}
+.operating-calendar-allday-cell {
+  font-style: italic;
+}
+
+/* Expanded Weekly Schedule Row & Trigger */
+.operating-calendar-expand-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand-foreground, #1e293b);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.operating-calendar-expand-trigger:hover {
+  background-color: var(--brand-hover, #fffdf0);
+  color: #92400e;
+}
+.operating-calendar-expand-trigger:focus-visible {
+  outline: 2px solid var(--brand-ring, #b88619);
+  outline-offset: 2px;
+}
+.operating-calendar-expand-trigger svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--brand-muted, #64748b);
+  transition: transform 0.2s ease, color 0.15s ease;
+}
+.operating-calendar-expand-trigger:hover svg {
+  color: #92400e;
+}
+
+.operating-calendar-expanded-row td {
+  padding: 0 !important;
+  background-color: #fffdf5 !important;
+  border-bottom: 1px solid var(--brand-border);
+}
+.operating-calendar-schedule-detail {
+  padding: 16px 20px 20px 20px;
+  background: #ffffff;
+  border: 1px solid #fef3c7;
+  border-radius: 10px;
+  margin: 10px 16px 16px 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.operating-calendar-weekly-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--brand-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--brand-surface);
+}
+.operating-calendar-weekly-table th,
+.operating-calendar-weekly-table td {
+  padding: 8px 12px;
+  border: 1px solid var(--brand-border);
+  text-align: center;
+  font-size: 12px;
+}
+.operating-calendar-weekly-table th {
+  background: var(--brand-hover);
+  color: var(--brand-heading);
+  font-weight: 600;
+}
+.operating-calendar-weekly-table .row-header {
+  text-align: left;
+  font-weight: 600;
+  color: var(--brand-muted);
+  background: var(--brand-hover);
+  width: 90px;
+}
+.operating-calendar-weekly-table .is-off {
+  color: var(--brand-muted);
+  background: #fafaf9;
+}
+
+/* Mobile cards fallback for narrow screens */
+.operating-calendar-cards {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .operating-calendar-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .operating-calendar-status-filter {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .operating-calendar-status-select {
+    flex: 1;
+    min-width: 0;
+  }
+  .operating-calendar-actions {
+    justify-content: flex-end;
+  }
+  .operating-calendar-table-container {
+    border: none;
+    background: transparent;
+    overflow-x: visible;
+  }
+  .operating-calendar-table,
+  .operating-calendar-table thead {
+    display: none;
+  }
+  .operating-calendar-cards {
+    display: grid;
+    gap: 12px;
+  }
+  .operating-calendar-card {
+    border: 1px solid var(--brand-border);
+    border-radius: 12px;
+    background: var(--brand-surface);
+    padding: 14px;
+    box-shadow: 0 1px 2px #0f172a08;
+  }
+  .operating-calendar-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .operating-calendar-card-body {
+    display: grid;
+    gap: 6px;
+    font-size: 13px;
+  }
+  .operating-calendar-card-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .operating-calendar-card-label {
+    color: var(--brand-muted);
+    font-size: 12px;
+    min-width: 80px;
+    flex-shrink: 0;
+  }
+  .operating-calendar-card-actions {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--brand-border);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+}
+
 @media (max-width: 540px) {
-  .school-operating-calendar-tabs { justify-self: stretch; }
-  .school-operating-calendar-tabs .ui-button { flex: 1 1 auto; }
+  .school-operating-calendar-frame {
+    padding: 16px;
+  }
+  .school-subtab-btn {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
 }

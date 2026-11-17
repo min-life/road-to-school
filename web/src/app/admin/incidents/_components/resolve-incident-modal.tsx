@@ -75,7 +75,7 @@ export function ResolveIncidentModal({
   if (!isOpen || !incident) return null;
 
   const isAttendantMissing = incident.type === 'ATTENDANT_MISSING';
-  const roleTitle = isAttendantMissing ? 'Giáo viên phụ xe' : 'Tài xế';
+  const roleTitle = isAttendantMissing ? 'Giáo viên phụ trách' : 'Tài xế';
 
   const handleSubmitResolve = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,18 +1,74 @@
-.school-detail-summary { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr); align-items: stretch; gap: 16px; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--brand-border); }
-.school-detail-contract-card { container-type: inline-size; display: flex; flex-direction: column; justify-content: center; gap: 20px; padding: 28px; }
-.school-detail-contract-card .school-detail-section-heading { margin-bottom: 0; }
-.school-detail-contract-card .school-detail-section-heading h3 { gap: 10px; font-size: 16px; }
-.school-detail-contract-card .school-detail-section-heading svg { width: 24px; height: 24px; }
-.school-detail-contract { display: flex; flex-wrap: nowrap; align-items: baseline; gap: 4px; margin: 0; color: var(--brand-heading); font-size: clamp(10px, 6.5cqi, 26px); line-height: 1.5; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.school-detail-contract time { white-space: nowrap; }
-.school-detail-map-toggle.ui-button { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; }
-.school-detail-location { margin-top: 16px; padding: 16px; border: 1px solid var(--brand-border); border-radius: 12px; }
-.school-detail-location > div > div:last-child { height: 300px; }
-@media (max-width: 760px) {
-  .school-detail-summary { grid-template-columns: minmax(0, 1fr); }
+.school-detail-header-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--brand-border);
 }
-@media (max-width: 540px) {
-  .school-detail-contract-card { padding: 20px; gap: 16px; }
-  .school-detail-location { padding: 12px; }
-  .school-detail-location > div > div:last-child { height: 260px; }
+.school-detail-contract-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.school-detail-contract-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.school-detail-contract-label {
+  color: var(--brand-muted);
+  font-weight: 500;
+}
+.school-detail-contract-value {
+  color: var(--brand-heading);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.school-detail-contract-end {
+  font-weight: 700;
+}
+.school-detail-map-toggle.ui-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.school-detail-location {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--brand-border);
+  border-radius: 12px;
+  background: var(--brand-surface);
+}
+.school-detail-location > div > div:last-child {
+  height: 300px;
+}
+.school-calendar-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-top: 8px;
+}
+
+@media (max-width: 640px) {
+  .school-detail-header-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .school-detail-contract-group {
+    gap: 8px 16px;
+    font-size: 12px;
+  }
+  .school-detail-location {
+    padding: 12px;
+  }
+  .school-detail-location > div > div:last-child {
+    height: 260px;
+  }
 }

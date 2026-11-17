@@ -58,14 +58,12 @@ export function CreateSchoolAdminModal({
       return;
     }
 
-    // Phone format check if provided
-    if (trimmedPhone && !/^(0|\+84|84)?[35789]\d{8}$/.test(trimmedPhone)) {
+    if (!/^(0|\+84|84)?[35789]\d{8}$/.test(trimmedPhone)) {
       setErrorMessage('Số điện thoại không đúng định dạng di động Việt Nam (ví dụ: 0912345678).');
       return;
     }
 
-    // Email format check if provided
-    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
       setErrorMessage('Địa chỉ email không đúng định dạng (ví dụ: admin@school.edu.vn).');
       return;
     }
@@ -82,8 +80,7 @@ export function CreateSchoolAdminModal({
       onClose();
     } catch (err: any) {
       setErrorMessage(
-        err?.message ||
-          'Không thể tạo tài khoản quản trị trường. Vui lòng kiểm tra lại thông tin.',
+        err?.message || 'Không thể tạo tài khoản. Vui lòng thử lại.',
       );
     } finally {
       setIsLoading(false);
@@ -95,20 +92,20 @@ export function CreateSchoolAdminModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-create-admin-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs"
     >
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity"
+        className="fixed inset-0"
         onClick={() => {
           if (!isLoading) onClose();
         }}
       />
 
       {/* Modal Container */}
-      <Card className="ui-dialog-panel relative w-full max-w-lg bg-white rounded-2xl shadow-2xl z-10 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-200">
+      <Card className="ui-dialog-panel relative w-full max-w-lg bg-white rounded-2xl shadow-2xl z-10 overflow-hidden flex flex-col max-h-[calc(100vh-2rem)] animate-in fade-in-0 zoom-in-95 duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0">
           <div>
             <h2
               id="modal-create-admin-title"
@@ -124,6 +121,7 @@ export function CreateSchoolAdminModal({
             type="button"
             onClick={onClose}
             disabled={isLoading}
+            aria-label="Đóng"
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50 cursor-pointer"
           >
             <CloseIcon className="w-5 h-5" />
@@ -131,7 +129,7 @@ export function CreateSchoolAdminModal({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
           {errorMessage && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-2">
               <AlertIcon className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
@@ -175,6 +173,9 @@ export function CreateSchoolAdminModal({
               placeholder="admin@school.edu.vn"
               className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
             />
+            <p className="text-xs text-slate-500 mt-1">
+              Nhập email của người nhận tài khoản.
+            </p>
           </div>
 
           <div>
@@ -196,21 +197,21 @@ export function CreateSchoolAdminModal({
             />
           </div>
 
-          <div className="p-3 bg-amber-50/60 border border-amber-200/80 rounded-xl text-xs text-amber-800 leading-relaxed">
-            Hệ thống sẽ tự động gán vai trò <strong>Quản trị trường (SCHOOL_ADMIN)</strong> và tạo mật khẩu ban đầu an toàn. Mật khẩu được gửi qua email.
-          </div>
-
           {/* Footer Actions */}
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm"
+            <Button
+              variant="outline"
+              size="sm"
               type="button"
               onClick={onClose}
               disabled={isLoading}
               className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
             >
-              Hủy bỏ
+              Hủy
             </Button>
-            <Button variant="primary" size="sm"
+            <Button
+              variant="primary"
+              size="sm"
               type="submit"
               disabled={isLoading}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary hover:bg-[#e6b74d] text-foreground text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
@@ -218,7 +219,7 @@ export function CreateSchoolAdminModal({
               {isLoading ? (
                 <>
                   <SpinnerIcon className="w-4 h-4 animate-spin text-foreground" />
-                  <span>Đang tạo tài khoản...</span>
+                  <span>Đang tạo…</span>
                 </>
               ) : (
                 <span>Tạo tài khoản</span>

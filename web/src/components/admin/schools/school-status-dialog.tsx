@@ -115,7 +115,7 @@ export function SchoolStatusDialog({
             <div className="space-y-3">
               <label className="block text-sm font-semibold" htmlFor="school-inactive-date">Ngày ngừng hoạt động</label>
               <Input id="school-inactive-date" type="date" min={vietnamDate(1)} max={contractEndDate?.slice(0, 10)} value={effectiveDate || vietnamDate(1)} onChange={(event) => setEffectiveDate(event.target.value)} disabled={isLoading} required />
-              <p className="text-xs text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200">Lưu lịch hẹn; trường vẫn hoạt động đến ngày hiệu lực. Tài khoản trường và giáo viên phụ xe sẽ bị khóa khi ngừng hoạt động.</p>
+              <p className="text-xs text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200">Lưu lịch hẹn; trường vẫn hoạt động đến ngày hiệu lực. Tài khoản trường và giáo viên sẽ bị khóa khi ngừng hoạt động.</p>
             </div>
           )}
 

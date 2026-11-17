@@ -31,7 +31,7 @@ Hệ thống hoạt động theo mô hình **đơn vị dịch vụ tập trung*
 
 ### Phân định nguồn lực:
 - **Nguồn lực nhà xe**: Phương tiện (Vehicles), Tài xế (Drivers).
-- **Nguồn lực nhà trường**: Học sinh (Students), Giáo viên phụ trách / Giám sát xe (Bus Attendants).
+- **Nguồn lực nhà trường**: Học sinh (Students), Giáo viên (Bus Attendants).
 - **Phụ huynh (Parents)**: Khách hàng sử dụng dịch vụ theo dõi. Một phụ huynh có thể liên kết nhiều học sinh (con em) trong hệ thống.
 
 ---
@@ -50,7 +50,7 @@ Hệ thống gồm **5 actor chính**. Các trách nhiệm dưới đây là đ�
 ### 3.2. School Admin (Quản trị viên phía Nhà trường)
 Đại diện cho trường học đối tác:
 - **Quản lý học sinh**: Tiếp nhận, nhập danh sách học sinh đăng ký dịch vụ, quản lý hồ sơ học sinh thuộc trường; xử lý các yêu cầu cập nhật thông tin học sinh từ phụ huynh.
-- **Quản lý Bus Attendant**: Tạo tài khoản cho giáo viên phụ trách xe (Bus Attendants); phân bổ giáo viên vào các chuyến xe liên quan đến trường.
+- **Quản lý Bus Attendant**: Tạo tài khoản cho giáo viên (Bus Attendants); phân bổ giáo viên vào các chuyến xe liên quan đến trường.
 - **Giám sát & Báo cáo**: Giám sát các chuyến xe phục vụ học sinh trường mình; xem báo cáo chuyên cần và sự cố liên quan.
 - **Thông tin trường học**: Gửi yêu cầu thay đổi thông tin/cấu hình trường đến System Admin (không tự ý sửa đổi trực tiếp các cấu hình cốt lõi).
 
@@ -63,8 +63,8 @@ Nhân sự vận hành phương tiện do nhà xe quản lý:
 - Sử dụng bản đồ số (Map Service) để định vị và điều hướng di chuyển.
 - Đề xuất hoặc thay đổi thứ tự di chuyển khi gặp sự cố giao thông (quy tắc cần duyệt).
 
-### 3.4. Bus Attendant (Giáo viên phụ trách / Giám sát xe)
-Nhân sự nhà trường được phân công đi cùng chuyến xe:
+### 3.4. Bus Attendant (Giáo viên / Giáo viên phụ trách)
+Nhân sự nhà trường được phân công đi cùng chuyến xe (Vai trò tài khoản là **Giáo viên**; khi được gán vào tuyến hoặc chuyến cụ thể là **Giáo viên phụ trách**):
 - Xem thông tin chuyến được phân công, thông tin xe, tài xế và danh sách học sinh trên chuyến.
 - Thực hiện điểm danh học sinh khi lên xe (đón) và khi xuống xe (trả).
 - Ghi nhận và báo cáo sự cố phát sinh trong chuyến xe.

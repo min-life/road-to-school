@@ -362,7 +362,7 @@ function LegacyRoutePlanDetailPage({ params }: { params: Promise<{ id: string }>
                 <th className="py-3 px-4">Chiều tuyến</th>
                 <th className="py-3 px-4">Xe đề xuất</th>
                 <th className="py-3 px-4">Tài xế</th>
-                <th className="py-3 px-4">Giáo viên</th>
+                <th className="py-3 px-4">Giáo viên phụ trách</th>
                 <th className="py-3 px-4 text-center">Học sinh</th>
                 <th className="py-3 px-4 text-center">Số trạm</th>
                 <th className="py-3 px-4">Quãng đường</th>

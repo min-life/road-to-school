@@ -1,10 +1,9 @@
 'use client';
-import type { CreateSchoolAdminResponse } from '@/lib/types';
 
+import type { CreateSchoolAdminResponse } from '@/lib/types';
 import React, { useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { CloseIcon, SpinnerIcon, AlertIcon } from '@/components/icons';
-import { Tooltip } from '@/components/admin/schools/tooltip';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,13 +43,8 @@ function AddTeacherForm({
       return;
     }
 
-    if (!trimmedEmail) {
-      setErrorMessage('Vui lòng nhập email của giáo viên.');
-      return;
-    }
-
-    if (!trimmedPhone) {
-      setErrorMessage('Vui lòng nhập số điện thoại của giáo viên.');
+    if (!trimmedEmail || !trimmedPhone) {
+      setErrorMessage('Vui lòng nhập đầy đủ email và số điện thoại.');
       return;
     }
 
@@ -60,7 +54,7 @@ function AddTeacherForm({
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      setErrorMessage('Địa chỉ email không đúng định dạng.');
+      setErrorMessage('Địa chỉ email không đúng định dạng (ví dụ: teacher@school.edu.vn).');
       return;
     }
 
@@ -76,7 +70,7 @@ function AddTeacherForm({
       onClose();
     } catch (err: unknown) {
       setErrorMessage(
-        err instanceof Error ? err.message : 'Không thể tạo tài khoản giáo viên. Vui lòng thử lại.'
+        err instanceof Error ? err.message : 'Không thể tạo tài khoản. Vui lòng thử lại.',
       );
     } finally {
       setIsLoading(false);
@@ -84,38 +78,46 @@ function AddTeacherForm({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <Card
-        className="ui-dialog-panel bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-200"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="add-teacher-title"
-      >
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="add-teacher-title"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs"
+    >
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0"
+        onClick={() => {
+          if (!isLoading) onClose();
+        }}
+      />
+
+      {/* Modal Container */}
+      <Card className="ui-dialog-panel relative w-full max-w-lg bg-white rounded-2xl shadow-2xl z-10 overflow-hidden flex flex-col max-h-[calc(100vh-2rem)] animate-in fade-in-0 zoom-in-95 duration-200">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0">
           <div>
-            <h2 id="add-teacher-title" className="text-base font-bold text-slate-900">
-              Thêm giáo viên mới
+            <h2 id="add-teacher-title" className="text-base font-bold text-slate-800">
+              Tạo tài khoản giáo viên
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Tạo tài khoản giáo viên quản lý học sinh và xe buýt trường học.
-            </p>
           </div>
           <Button
             type="button"
             onClick={onClose}
             disabled={isLoading}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
             aria-label="Đóng"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50 cursor-pointer"
           >
             <CloseIcon className="w-5 h-5" />
           </Button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        {/* Form Body */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
           {errorMessage && (
-            <div className="flex items-center gap-2 p-3 text-xs text-red-800 bg-red-50 border border-red-200 rounded-xl">
-              <AlertIcon className="w-4 h-4 text-red-600 flex-shrink-0" />
-              <div className="flex-1">{errorMessage}</div>
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-2">
+              <AlertIcon className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+              <div className="flex-1 font-medium">{errorMessage}</div>
             </div>
           )}
 
@@ -127,68 +129,76 @@ function AddTeacherForm({
               id="teacher-full-name"
               type="text"
               value={fullName}
+              disabled={isLoading}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="Ví dụ: Trần Thị Mai"
-              disabled={isLoading}
-              className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 disabled:bg-slate-100"
+              className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
               required
             />
           </div>
 
           <div>
-            <div className="flex items-center gap-1 mb-1">
-              <label htmlFor="teacher-email" className="text-xs font-semibold text-slate-700">Email <span className="text-red-500">*</span></label>
-              <Tooltip content="Bắt buộc. Dùng để đăng nhập và nhận mật khẩu tài khoản." />
-            </div>
+            <label htmlFor="teacher-email" className="block text-xs font-semibold text-slate-700 mb-1">
+              Email <span className="text-red-500">*</span>
+            </label>
             <Input
               id="teacher-email"
               type="email"
               required
               value={email}
+              disabled={isLoading}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="mai.tt@school.edu.vn"
-              disabled={isLoading}
-              className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 disabled:bg-slate-100"
+              className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
             />
+            <p className="text-xs text-slate-500 mt-1">
+              Nhập email của người nhận tài khoản.
+            </p>
           </div>
 
           <div>
-            <div className="flex items-center gap-1 mb-1">
-              <label htmlFor="teacher-phone" className="text-xs font-semibold text-slate-700">Số điện thoại <span className="text-red-500">*</span></label>
-              <Tooltip content="Bắt buộc. Số di động Việt Nam dùng để liên hệ và đăng nhập." />
-            </div>
+            <label htmlFor="teacher-phone" className="block text-xs font-semibold text-slate-700 mb-1">
+              Số điện thoại <span className="text-red-500">*</span>
+            </label>
             <Input
               id="teacher-phone"
               type="tel"
               required
               value={phone}
+              disabled={isLoading}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="0912345678"
-              disabled={isLoading}
-              className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 disabled:bg-slate-100"
+              className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
             />
           </div>
 
-          <p className="text-[11px] text-slate-500 italic bg-amber-50/50 p-2.5 rounded-lg border border-amber-100">
-            * Mật khẩu khởi tạo ngẫu nhiên và được bảo mật an toàn.
-          </p>
-
-          <div className="border-t border-slate-200 pt-4 flex items-center justify-end gap-3">
+          {/* Footer Actions */}
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
             <Button
+              variant="outline"
+              size="sm"
               type="button"
               onClick={onClose}
               disabled={isLoading}
-              className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
             >
               Hủy
             </Button>
-            <Button variant="primary" size="sm"
+            <Button
+              variant="primary"
+              size="sm"
               type="submit"
               disabled={isLoading}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-slate-900 bg-primary hover:bg-amber-400 rounded-lg transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary hover:bg-[#e6b74d] text-foreground text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
             >
-              {isLoading && <SpinnerIcon className="w-4 h-4 animate-spin text-slate-900" />}
-              <span>{isLoading ? 'Đang tạo...' : 'Tạo giáo viên'}</span>
+              {isLoading ? (
+                <>
+                  <SpinnerIcon className="w-4 h-4 animate-spin text-foreground" />
+                  <span>Đang tạo…</span>
+                </>
+              ) : (
+                <span>Tạo tài khoản</span>
+              )}
             </Button>
           </div>
         </form>
