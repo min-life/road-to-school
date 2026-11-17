@@ -15,7 +15,56 @@ export const DAYS_OF_WEEK: DayConfig[] = [
   { key: 'sunday', label: 'Chủ nhật' },
 ];
 
-const TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
+export const TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+/**
+ * Returns today's date formatted as YYYY-MM-DD according to Asia/Ho_Chi_Minh timezone.
+ */
+export function getVietnamToday(): string {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(new Date());
+}
+
+/**
+ * Calculates the next calendar day string (YYYY-MM-DD) from a given date string (YYYY-MM-DD).
+ * Safely handles month boundaries, leap years, and year-end rollovers.
+ */
+export function getNextCalendarDay(dateStr: string): string {
+  const parts = dateStr.split('-').map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) {
+    return '';
+  }
+  const next = new Date(parts[0], parts[1] - 1, parts[2] + 1);
+  const y = next.getFullYear();
+  const m = String(next.getMonth() + 1).padStart(2, '0');
+  const d = String(next.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Validates a single day's schedule. Returns error string or null if valid.
+ */
+export function getDayScheduleError(dayData?: DaySchedule): string | null {
+  if (!dayData) return null;
+  if (!dayData.start || !TIME_REGEX.test(dayData.start)) {
+    return 'Giờ bắt đầu học không hợp lệ (định dạng HH:mm).';
+  }
+  if (!dayData.end || !TIME_REGEX.test(dayData.end)) {
+    return 'Giờ kết thúc học không hợp lệ (định dạng HH:mm).';
+  }
+  if (dayData.start === dayData.end) {
+    return 'Giờ kết thúc học phải muộn hơn giờ bắt đầu (không được bằng nhau).';
+  }
+  if (dayData.start > dayData.end) {
+    return `Giờ kết thúc học (${dayData.end}) phải muộn hơn giờ bắt đầu (${dayData.start}).`;
+  }
+  return null;
+}
 
 /**
  * Validates a WeeklySchedule object according to business rules:
@@ -26,9 +75,11 @@ const TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
 export function validateWeeklySchedule(schedule: WeeklySchedule): {
   valid: boolean;
   error?: string;
+  invalidDayKey?: string;
+  invalidField?: 'start' | 'end';
 } {
   const activeDays = Object.entries(schedule).filter(
-    ([_, val]) => val !== undefined && val !== null,
+    ([, val]) => val !== undefined && val !== null,
   ) as [string, DaySchedule][];
 
   if (activeDays.length === 0) {
@@ -45,6 +96,8 @@ export function validateWeeklySchedule(schedule: WeeklySchedule): {
       return {
         valid: false,
         error: `${dayLabel}: Giờ bắt đầu học không hợp lệ (định dạng HH:mm).`,
+        invalidDayKey: dayKey,
+        invalidField: 'start',
       };
     }
 
@@ -52,6 +105,8 @@ export function validateWeeklySchedule(schedule: WeeklySchedule): {
       return {
         valid: false,
         error: `${dayLabel}: Giờ kết thúc học không hợp lệ (định dạng HH:mm).`,
+        invalidDayKey: dayKey,
+        invalidField: 'end',
       };
     }
 
@@ -59,6 +114,8 @@ export function validateWeeklySchedule(schedule: WeeklySchedule): {
       return {
         valid: false,
         error: `${dayLabel}: Giờ bắt đầu học (${dayVal.start}) phải trước giờ kết thúc học (${dayVal.end}). Không cho phép lịch qua đêm.`,
+        invalidDayKey: dayKey,
+        invalidField: 'end',
       };
     }
   }

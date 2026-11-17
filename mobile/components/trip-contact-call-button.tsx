@@ -2,16 +2,19 @@ import { AppAlert as Alert } from '@/services/app-alert';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { colors } from '@/constants/theme';
+import { colors, type StaffTheme } from '@/constants/theme';
 import { phoneDialUrl } from '@/utils/phone-link';
 
 /** Opens the system phone app; a missing number stays tappable to explain the error. */
-export function TripContactCallButton({ phone, contactLabel }: {
+export function TripContactCallButton({ phone, contactLabel, staffTheme }: {
   phone?: string | null;
   contactLabel: string;
+  staffTheme?: StaffTheme;
 }) {
+  const buttons = staffTheme?.buttons;
   const [opening, setOpening] = useState(false);
   const openingRef = useRef(false);
+  const iconColor = staffTheme?.colors.primary ?? colors.foreground;
 
   const handlePress = async () => {
     if (openingRef.current) return;
@@ -39,9 +42,10 @@ export function TripContactCallButton({ phone, contactLabel }: {
   return <Pressable accessibilityRole="button" accessibilityLabel={`Gọi ${contactLabel}`}
     accessibilityHint="Mở bàn phím gọi điện" accessibilityState={{ disabled: opening, busy: opening }}
     disabled={opening} onPress={handlePress}
-    style={({ pressed }) => [styles.button, pressed && styles.pressed, opening && styles.opening]}>
-    {opening ? <ActivityIndicator size="small" color={colors.foreground} />
-      : <Ionicons name="call-outline" size={20} color={colors.foreground} accessible={false} />}
+    style={({ pressed }) => [styles.button, buttons?.secondary,
+      pressed && styles.pressed, opening && (buttons?.disabled ?? styles.opening)]}>
+    {opening ? <ActivityIndicator size="small" color={iconColor} />
+      : <Ionicons name="call-outline" size={20} color={iconColor} accessible={false} />}
   </Pressable>;
 }
 

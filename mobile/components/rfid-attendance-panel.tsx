@@ -8,7 +8,7 @@ import {
   View,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { colors } from '../constants/theme';
+import { attendantTheme, colors } from '../constants/theme';
 import {
   useRfidAttendance,
   type RfidMutation,
@@ -78,6 +78,7 @@ export function RfidAttendancePanel({
     !!event &&
     canConfirmRfid(event, r.data?.phase ?? null, r.serverNow) &&
     event.phase === phaseFilter;
+  const confirmDisabled = busy || r.loading || !confirmable || !!r.error;
   return (
     <View style={styles.panel} testID="rfid-attendance-panel">
       <View style={styles.row}>
@@ -119,7 +120,7 @@ export function RfidAttendancePanel({
                   r.setView(view);
                 }}
               >
-                <Text style={styles.buttonText}>
+                <Text style={[styles.buttonText, r.view === view && attendantTheme.buttons.secondaryText]}>
                   {view === 'queue' ? 'Vừa quẹt' : 'Lịch sử'}
                 </Text>
               </TouchableOpacity>
@@ -183,7 +184,7 @@ export function RfidAttendancePanel({
                   style={[styles.primary, busy && styles.disabled]}
                   onPress={() => void r.confirm(event)}
                 >
-                  <Text style={styles.buttonText}>
+                  <Text style={[styles.buttonText, busy ? attendantTheme.buttons.disabledText : attendantTheme.buttons.primaryText]}>
                     {busy ? 'Đang kiểm tra…' : 'Kiểm tra kết quả'}
                   </Text>
                 </TouchableOpacity>
@@ -195,25 +196,22 @@ export function RfidAttendancePanel({
                     <TouchableOpacity
                       accessibilityRole="button"
                       disabled={busy}
-                      style={[styles.smallButton, busy && styles.disabled]}
+                      style={[styles.smallButton, attendantTheme.buttons.secondary, busy && styles.disabled]}
                       onPress={() => void r.dismiss(event)}
                     >
-                      <Text style={styles.buttonText}>Bỏ qua</Text>
+                      <Text style={[styles.buttonText, busy ? attendantTheme.buttons.disabledText : attendantTheme.buttons.secondaryText]}>Bỏ qua</Text>
                     </TouchableOpacity>
                   )}
                   {event.state === 'WAITING_CONFIRMATION' && (
                     <TouchableOpacity
                       accessibilityRole="button"
                       accessibilityLabel={`Xác nhận ${phaseLabel(event.phase)} cho ${event.studentName || 'học sinh'}`}
-                      disabled={busy || r.loading || !confirmable || !!r.error}
-                      style={[
-                        styles.primary,
-                        (busy || r.loading || !confirmable || !!r.error) &&
-                          styles.disabled,
-                      ]}
+                      disabled={confirmDisabled}
+                      style={[styles.primary, confirmDisabled && styles.disabled]}
                       onPress={() => void r.confirm(event)}
                     >
-                      <Text style={styles.buttonText}>
+                      <Text style={[styles.buttonText, confirmDisabled
+                        ? attendantTheme.buttons.disabledText : attendantTheme.buttons.primaryText]}>
                         {busy
                           ? 'Đang xử lý…'
                           : `Xác nhận ${phaseLabel(event.phase)}`}
@@ -252,7 +250,7 @@ export function RfidAttendancePanel({
                   r.clearMessage();
                 }}
               >
-                <Text numberOfLines={1} style={styles.buttonText}>
+                <Text numberOfLines={1} style={[styles.buttonText, event?.scanId === item.scanId && attendantTheme.buttons.secondaryText]}>
                   {item.studentName || 'Thẻ không hợp lệ'}
                 </Text>
                 <Text style={styles.muted}>
@@ -353,7 +351,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.primary,
+    backgroundColor: attendantTheme.colors.primary,
     borderRadius: 10,
   },
   smallButton: {
@@ -383,6 +381,6 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     borderRadius: 8,
   },
-  active: { backgroundColor: colors.navigationHighlight },
-  disabled: { opacity: 0.45 },
+  active: attendantTheme.buttons.secondary,
+  disabled: attendantTheme.buttons.disabled,
 });

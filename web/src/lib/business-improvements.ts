@@ -8,7 +8,7 @@ export function vietnamDateKey(daysAhead = 0, now = new Date()) {
 
 export function tripAssignmentLock(trip: TripDetail, roster?: TripAttendanceRoster | null) {
   if (trip.status !== 'SCHEDULED' || trip.actualStartTime) return 'Chuyến đã bắt đầu hoặc không còn chờ xuất phát.';
-  if (trip.attendantReadyAt || trip.isAttendantReady) return 'Giáo viên phụ xe đã xác nhận sẵn sàng.';
+  if (trip.attendantReadyAt || trip.isAttendantReady) return 'Giáo viên phụ trách đã xác nhận sẵn sàng.';
   if (roster && (roster.presentCount > 0 || roster.absentCount > 0)) return 'Chuyến đã ghi điểm danh học sinh.';
   if (trip.actualStartTime === undefined || trip.attendantReadyAt === undefined || !roster) return 'Đang chờ đủ dữ liệu để kiểm tra phân công.';
   return null;

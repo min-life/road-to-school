@@ -116,11 +116,16 @@ export function SchoolEmployeesTab({
   };
 
   const handleCreateSuccess = (result: CreateSchoolAdminResponse) => {
-    if (result.credentialDeliveryStatus === 'FAILED') toast.error('Đã tạo tài khoản nhưng gửi email thất bại. Cần gửi lại mật khẩu.');
-    else if (result.credentialDeliveryStatus === 'CONSOLE') toast.info('Đã tạo tài khoản; thông tin bàn giao ở console phát triển.');
-    else toast.success('Tạo tài khoản quản trị trường thành công.');
+    if (result.credentialDeliveryStatus === 'SENT') {
+      toast.success('Đã tạo tài khoản. Nhắc người nhận kiểm tra email để đăng nhập.');
+    } else if (result.credentialDeliveryStatus === 'FAILED') {
+      toast.error('Đã tạo tài khoản, email chưa gửi được. Dùng “Cấp lại mật khẩu” để gửi lại.');
+    } else if (result.credentialDeliveryStatus === 'CONSOLE') {
+      toast.info('Đã tạo tài khoản. Thông tin đăng nhập chưa được gửi qua email.');
+    } else {
+      toast.success('Đã tạo tài khoản.');
+    }
     fetchEmployees(1, limit, search, roleFilter, statusFilter);
-
   };
 
   const formatRoleLabel = (role: string) => {
@@ -128,7 +133,7 @@ export function SchoolEmployeesTab({
       case 'SCHOOL_ADMIN':
         return 'Quản trị trường';
       case 'BUS_ATTENDANT':
-        return 'Giám sát xe';
+        return 'Giáo viên';
       default:
         return role;
     }
@@ -147,42 +152,8 @@ export function SchoolEmployeesTab({
           handleRoleChange('');
           handleStatusChange('');
         }}
-      >
-        <FilterField label="Tìm kiếm" grow icon={<SearchIcon />}>
-          <Input
-              type="text"
-              value={search}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              placeholder="Tìm theo họ tên, email, SĐT..."
-              className="w-full"
-            />
-        </FilterField>
-
-        <FilterField label="Vai trò">
-          <Select
-            value={roleFilter}
-            onChange={(e) => handleRoleChange(e.target.value)}
-            className="w-full"
-          >
-            <option value="">Tất cả vai trò</option>
-            <option value="SCHOOL_ADMIN">Quản trị trường</option>
-            <option value="BUS_ATTENDANT">Giám sát xe</option>
-          </Select>
-        </FilterField>
-
-        <FilterField label="Trạng thái">
-          <Select
-            value={statusFilter}
-            onChange={(e) => handleStatusChange(e.target.value)}
-            className="w-full"
-          >
-            <option value="">Tất cả trạng thái</option>
-            <option value="ACTIVE">Đang hoạt động</option>
-            <option value="INACTIVE">Ngừng hoạt động</option>
-          </Select>
-        </FilterField>
-
-<div className="ui-filter-actions"><Button
+        actions={
+          <Button
             type="button"
             onClick={() => setIsCreateModalOpen(true)}
             disabled={!isSchoolActive}
@@ -199,7 +170,42 @@ export function SchoolEmployeesTab({
           >
             <PlusIcon className="w-4 h-4" />
             <span>Tạo quản trị trường</span>
-          </Button></div>
+          </Button>
+        }
+      >
+        <FilterField label="Tìm kiếm" grow icon={<SearchIcon />}>
+          <Input
+            type="text"
+            value={search}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            placeholder="Tìm theo họ tên, email, SĐT..."
+            className="w-full"
+          />
+        </FilterField>
+
+        <FilterField label="Vai trò">
+          <Select
+            value={roleFilter}
+            onChange={(e) => handleRoleChange(e.target.value)}
+            className="w-full"
+          >
+            <option value="">Tất cả vai trò</option>
+            <option value="SCHOOL_ADMIN">Quản trị trường</option>
+            <option value="BUS_ATTENDANT">Giáo viên</option>
+          </Select>
+        </FilterField>
+
+        <FilterField label="Trạng thái">
+          <Select
+            value={statusFilter}
+            onChange={(e) => handleStatusChange(e.target.value)}
+            className="w-full"
+          >
+            <option value="">Tất cả trạng thái</option>
+            <option value="ACTIVE">Đang hoạt động</option>
+            <option value="INACTIVE">Ngừng hoạt động</option>
+          </Select>
+        </FilterField>
       </FilterToolbar>
 
       {!isSchoolActive && (

@@ -10,6 +10,21 @@
 .weekly-schedule-input .ui-input { display:block; width:100%; min-width:0; max-width:100%; box-sizing:border-box; min-height:44px; }
 .weekly-schedule-off { justify-self:end; }
 .weekly-schedule-columns { display: none; }
+.weekly-schedule-row-error {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #e11d48;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  padding-top: 2px;
+}
+.weekly-schedule-row.has-error {
+  border-color: #fca5a5 !important;
+  background-color: #fff8f8 !important;
+}
 @container (min-width:360px) {
   .weekly-schedule-times { grid-template-columns:repeat(2, minmax(0, 1fr)); }
 }

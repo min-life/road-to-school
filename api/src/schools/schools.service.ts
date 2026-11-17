@@ -47,6 +47,7 @@ import {
   UpdateSchoolScheduleResponseDto,
   EmployeeDeactivationImpactDto,
   UpdateEmployeeStatusDto,
+  UpdateSchoolProfileDto,
 } from './dto/index.js';
 
 @Injectable()
@@ -198,6 +199,151 @@ export class SchoolsService {
       updatedAt: school.updatedAt.toISOString(),
       employeeCount: 0,
     };
+  }
+
+  /**
+   * Cập nhật thông tin cơ bản của trường học (Tên và/hoặc ảnh cổng trường).
+   * - Tên: tối thiểu 2 ký tự sau khi trim.
+   * - Ảnh: JPEG, PNG, WebP tối đa 5MB, kiểm tra magic bytes.
+   * - Upload ảnh trước lên Cloudinary, sau đó ghi DB kèm kiểm tra xung đột trên imagePublicId.
+   * - Dọn ảnh cũ sau khi DB xác nhận trỏ tới ảnh mới.
+   * - Dọn ảnh mới nếu DB chắc chắn không lưu. Xác minh DB trước khi dọn nếu kết quả chưa rõ.
+   * - Không báo thất bại nếu dọn ảnh cũ gặp lỗi.
+   */
+  async updateProfile(
+    id: string,
+    dto: UpdateSchoolProfileDto,
+    file?: Express.Multer.File,
+  ): Promise<SchoolDetailResponseDto> {
+    const trimmedName = dto.name !== undefined ? dto.name.trim() : undefined;
+    if (trimmedName !== undefined && trimmedName.length < 2) {
+      throw new BadRequestException('Tên trường học phải có ít nhất 2 ký tự');
+    }
+
+    if (!trimmedName && !file) {
+      throw new BadRequestException(
+        'Vui lòng cung cấp ít nhất một thông tin cần cập nhật (tên trường hoặc ảnh cổng trường)',
+      );
+    }
+
+    const currentSchool = await this.prisma.school.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        imageUrl: true,
+        imagePublicId: true,
+      },
+    });
+
+    if (!currentSchool) {
+      throw new NotFoundException('Không tìm thấy trường học');
+    }
+
+    // 1. Trường hợp chỉ cập nhật tên (không có tệp ảnh)
+    if (!file) {
+      await this.prisma.school.update({
+        where: { id },
+        data: { name: trimmedName! },
+      });
+      return this.findOne(id);
+    }
+
+    // 2. Trường hợp có tải tệp ảnh lên
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+    if (file.size > MAX_FILE_SIZE) {
+      throw new BadRequestException(
+        'Kích thước ảnh vượt quá giới hạn tối đa cho phép (5 MB)',
+      );
+    }
+
+    const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      throw new BadRequestException(
+        'Định dạng ảnh không được hỗ trợ. Chỉ chấp nhận JPEG, PNG hoặc WebP',
+      );
+    }
+
+    if (!file.buffer || file.buffer.length === 0) {
+      throw new BadRequestException('Tệp ảnh rỗng hoặc không hợp lệ');
+    }
+
+    if (!this.validateImageMagicBytes(file.buffer, file.mimetype)) {
+      throw new BadRequestException(
+        'Nội dung tệp ảnh không đúng với định dạng được khai báo',
+      );
+    }
+
+    // Upload ảnh mới trước
+    const uploadResult = await this.cloudinaryService.uploadSchoolImage(
+      file.buffer,
+      file.originalname,
+    );
+    const newImageUrl = uploadResult.secureUrl;
+    const newImagePublicId = uploadResult.publicId;
+    const oldImagePublicId = currentSchool.imagePublicId;
+
+    try {
+      // Cập nhật DB nguyên tử với điều kiện optimistic locking trên imagePublicId cũ
+      const whereClause: Prisma.SchoolWhereInput = {
+        id,
+        imagePublicId: oldImagePublicId,
+      };
+
+      const updateData: Prisma.SchoolUpdateInput = {
+        imageUrl: newImageUrl,
+        imagePublicId: newImagePublicId,
+      };
+      if (trimmedName !== undefined) {
+        updateData.name = trimmedName;
+      }
+
+      const updateResult = await this.prisma.school.updateMany({
+        where: whereClause,
+        data: updateData,
+      });
+
+      if (updateResult.count === 0) {
+        // Xung đột phiên hoặc trường đã bị xóa -> Xóa ảnh mới vừa tải lên
+        await this.cloudinaryService.deleteImage(newImagePublicId);
+
+        const exists = await this.prisma.school.findUnique({
+          where: { id },
+          select: { id: true, imagePublicId: true },
+        });
+        if (!exists) {
+          throw new NotFoundException('Không tìm thấy trường học');
+        }
+        throw new ConflictException(
+          'Ảnh trường học đã bị thay đổi bởi một phiên làm việc khác. Vui lòng tải lại trang và thử lại.',
+        );
+      }
+
+      // Xác nhận DB đã trỏ tới ảnh mới -> Dọn ảnh cũ (best-effort, không throw nếu lỗi)
+      if (oldImagePublicId && oldImagePublicId !== newImagePublicId) {
+        void this.cloudinaryService.deleteImage(oldImagePublicId);
+      }
+
+      return this.findOne(id);
+    } catch (err: unknown) {
+      if (err instanceof ConflictException || err instanceof NotFoundException) {
+        throw err;
+      }
+
+      // Khi DB ném lỗi không xác định, xác minh trước khi dọn ảnh mới
+      try {
+        const verify = await this.prisma.school.findUnique({
+          where: { id },
+          select: { imagePublicId: true },
+        });
+        if (verify?.imagePublicId !== newImagePublicId) {
+          await this.cloudinaryService.deleteImage(newImagePublicId);
+        }
+      } catch (verifyErr) {
+        this.logger.warn(`Không thể xác minh tham chiếu ảnh sau lỗi DB: ${verifyErr}`);
+      }
+      throw err;
+    }
   }
 
   /**

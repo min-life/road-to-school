@@ -168,17 +168,17 @@ function SchoolRoutePlanWorkspace({ planId, role, schoolId }: SavedRoutePlanWork
                 <span>{isSchoolAdmin ? 'Nhà xe cần hoàn tất phân công xe và tài xế.' : 'Chọn Phân công tài xế hoặc Đổi xe trong từng nhóm bên dưới.'}</span>
               </> : schoolPendingGroupCount > 0 ? <>
                 <strong>Nhà xe đã hoàn tất phân công</strong>
-                <span>{isSchoolAdmin ? `Cần phân công giáo viên phụ xe cho ${schoolPendingGroupCount} nhóm.` : `Đang chờ trường phân công giáo viên phụ xe cho ${schoolPendingGroupCount} nhóm.`}</span>
+                <span>{isSchoolAdmin ? `Cần phân công giáo viên phụ trách cho ${schoolPendingGroupCount} nhóm.` : `Đang chờ trường phân công giáo viên phụ trách cho ${schoolPendingGroupCount} nhóm.`}</span>
               </> : <>
                 <strong>Đã hoàn tất phân công</strong>
-                <span>Xe, tài xế và giáo viên phụ xe đã đầy đủ.</span>
+                <span>Xe, tài xế và giáo viên phụ trách đã đầy đủ.</span>
               </>}
             </div>
             {!isSchoolAdmin && effectivePlanStatus(plan) === 'DRAFT' && <details className="saved-plan-readiness">
               <summary>{readinessError ? 'Chưa tải được điều kiện duyệt' : !readiness ? 'Đang kiểm tra điều kiện duyệt…' : readiness.isReadyForApproval ? 'Đủ điều kiện để trường phê duyệt' : `Còn ${readiness.blockers.length} mục cần bổ sung trước khi duyệt`}</summary>
               {readinessError ? <Button size="sm" variant="outline" onClick={() => setRevision(value => value + 1)}>Thử lại</Button>
                 : <ul>{readiness?.blockers.map((item, index) => <li key={index}>{item.message}</li>)}</ul>}
-              <p>Trường học phân công giáo viên phụ xe và phê duyệt phương án.</p>
+              <p>Trường học phân công giáo viên phụ trách và phê duyệt phương án.</p>
             </details>}
             <RoutePlanAssignments plan={plan} currentUserRole={editable ? role : null} compact
               onUpdated={() => setRevision(value => value + 1)} />

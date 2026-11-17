@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { MenuIcon, LogoutIcon } from '@/components/icons';
+import { MenuIcon } from '@/components/icons';
 import { User } from '@/lib/types';
 import { formatRoleLabel, getAvatarInitial } from './admin-nav.config';
 import { Button } from '@/components/ui/button';
@@ -10,13 +10,11 @@ import { NotificationBell } from './notifications/notification-bell';
 interface AdminHeaderProps {
   user: User;
   onToggleMobileMenu: () => void;
-  onRequestLogout: () => void;
 }
 
 export function AdminHeader({
   user,
   onToggleMobileMenu,
-  onRequestLogout,
 }: AdminHeaderProps) {
   const roleLabel = formatRoleLabel(user.role);
   const initial = getAvatarInitial(user.fullName);
@@ -76,17 +74,6 @@ export function AdminHeader({
             </small>
           </div>
         </div>
-
-        {/* Nút Đăng xuất */}
-        <Button
-          type="button"
-          onClick={onRequestLogout}
-          aria-label="Đăng xuất khỏi hệ thống"
-          title="Đăng xuất"
-          className="admin-header-logout"
-        >
-          <LogoutIcon className="w-3.5 h-3.5" />
-        </Button>
       </div>
     </header>
   );

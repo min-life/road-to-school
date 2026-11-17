@@ -144,6 +144,46 @@ export interface StudentListResponse {
   meta: PaginationMeta;
 }
 
+export type ServiceAreaCheckStatus = 'IN_SERVICE_AREA' | 'OUT_OF_SERVICE_AREA' | 'UNAVAILABLE';
+
+export interface ServiceAreaCheckResponse {
+  status: ServiceAreaCheckStatus;
+}
+
+export interface BulkImportRowError {
+  rowNumber: number;
+  field?: string;
+  message: string;
+}
+
+export interface BulkImportPreviewResponse {
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  errors: BulkImportRowError[];
+  previewToken?: string;
+}
+
+export interface BulkImportCommitResponse {
+  importedCount: number;
+  importKey: string;
+}
+
+export type BulkExportScope = 'SELECTED' | 'FILTERED';
+
+export interface BulkExportDto {
+  scope: BulkExportScope;
+  studentIds?: string[];
+  filters?: {
+    search?: string;
+    status?: StudentStatus;
+    hasAddress?: boolean;
+    routingStatus?: string;
+    provinceId?: string;
+    wardId?: string;
+  };
+}
+
 export interface StudentDetail extends GeographyFields {
   parentLinkAudit?: unknown;
   rfidCardUid?: string | null;

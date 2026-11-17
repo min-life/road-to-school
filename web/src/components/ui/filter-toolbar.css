@@ -34,10 +34,10 @@
 .ui-filter-control-search > input { padding-left: 38px; }
 .ui-filter-icon { position: absolute; left: 12px; top: 50%; display: flex; transform: translateY(-50%); color: var(--brand-muted); pointer-events: none; }
 .ui-filter-icon svg { width: 16px; height: 16px; }
-.ui-filter-toolbar button.ui-filter-reset { flex: none; height: 44px; min-height: 44px; }
+.ui-filter-toolbar button.ui-filter-reset { flex: none; height: 44px; min-height: 44px; order: 1; }
 .ui-filter-toolbar .ui-filter-refresh { min-height: 44px; padding: 0 16px; border: 1px solid var(--brand-input-border); border-radius: 8px; font-size: 14px; font-weight: 500; }
 .ui-filter-toolbar > .ui-filter-meta { align-self: center; color: var(--brand-muted); font-size: 13px; }
-.ui-filter-toolbar > .ui-filter-actions { margin-left: auto; }
+.ui-filter-toolbar > .ui-filter-actions { margin-left: auto; order: 2; }
 .ui-filter-inline { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; min-width: 0; }
 @media (max-width: 767px) {
   .ui-filter-toolbar { padding: 16px; }

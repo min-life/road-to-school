@@ -1,9 +1,11 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors } from '../constants/theme';
+import { colors, type StaffTheme } from '../constants/theme';
 import type { LocationSource } from '../services/trip-navigation';
 import type { nextGuidance } from '../utils/trip-navigation';
 
 interface Props {
+  staffTheme?: StaffTheme;
+  isDriver?: boolean;
   canPublish: boolean; testMode: boolean; mode: LocationSource | null;
   guidance: ReturnType<typeof nextGuidance>; message: string | null; targetName?: string;
   freshness?: string; historyLabel?: string; hasGaps?: boolean;
@@ -17,15 +19,29 @@ interface Props {
   onDecreaseSpeed?: () => void;
 }
 export function TripNavigationControls(p: Props) {
+  const { staffTheme } = p;
+  const buttons = staffTheme?.buttons;
+  const selectedStyle = buttons?.selected ?? styles.selected;
+  const selectedText = buttons?.secondaryText;
+  const speed = p.speedKmh ?? 30;
+  const slowest = speed <= 10;
+  const fastest = speed >= 120;
+  const speedStyle = buttons?.secondary;
+  const speedDisabled = buttons?.disabled ?? styles.speedBtnDisabled;
   const button = (title: string, source: LocationSource) => <Pressable key={source}
-    accessibilityRole="button" onPress={() => { void p.change(source); }}
-    style={[styles.button, p.testMode && styles.modeButton, p.mode === source && styles.selected]}>
-    <Text style={[styles.text, p.testMode && styles.modeText]}>{title}</Text></Pressable>;
+    accessibilityRole="button" accessibilityState={{ selected: p.mode === source }}
+    onPress={() => { void p.change(source); }}
+    style={[styles.button, p.testMode && styles.modeButton, p.mode === source && selectedStyle]}>
+    <Text style={[styles.text, p.testMode && styles.modeText, p.mode === source && selectedText]}>{title}</Text></Pressable>;
   return <View style={styles.card}>
     {!!p.historyLabel && <Text style={styles.text}>{p.historyLabel}{p.hasGaps ? ' · Có đoạn chưa ghi nhận' : ''}</Text>}
     {p.selectPlan && <View style={styles.row}>
-      <Pressable onPress={() => p.selectPlan?.(false)} style={[styles.button, !p.showPlanned && styles.selected]}><Text style={styles.text}>Hành trình ghi nhận</Text></Pressable>
-      <Pressable onPress={() => p.selectPlan?.(true)} style={[styles.button, p.showPlanned && styles.selected]}><Text style={styles.text}>Tuyến dự kiến</Text></Pressable>
+      <Pressable onPress={() => p.selectPlan?.(false)} style={[styles.button, !p.showPlanned && selectedStyle]}>
+        <Text style={[styles.text, !p.showPlanned && selectedText]}>Hành trình ghi nhận</Text>
+      </Pressable>
+      <Pressable onPress={() => p.selectPlan?.(true)} style={[styles.button, p.showPlanned && selectedStyle]}>
+        <Text style={[styles.text, p.showPlanned && selectedText]}>Tuyến dự kiến</Text>
+      </Pressable>
     </View>}
     {!p.historyLabel && <Text style={styles.small}>
       {p.hasLocalPosition ? (p.mode === 'LIVE' ? 'GPS trực tiếp' : (p.mode ? 'Vị trí xe' : 'Sẵn sàng điều hướng'))
@@ -37,8 +53,9 @@ export function TripNavigationControls(p: Props) {
           {p.message === 'ROUTING_UNAVAILABLE' ? 'Chưa thể tải tuyến đường' : p.message}
         </Text>
         {p.canRetry && !!p.retry && (
-          <Pressable accessibilityRole="button" onPress={() => { void p.retry?.(); }} style={styles.retryBtn}>
-            <Text style={styles.retryText}>Thử lại</Text>
+          <Pressable accessibilityRole="button" onPress={() => { void p.retry?.(); }}
+            style={[styles.retryBtn, buttons?.secondary]}>
+            <Text style={[styles.retryText, selectedText]}>Thử lại</Text>
           </Pressable>
         )}
       </View>
@@ -59,19 +76,21 @@ export function TripNavigationControls(p: Props) {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Giảm tốc độ"
+            disabled={p.isDriver && slowest}
             onPress={p.onDecreaseSpeed}
-            style={[styles.speedBtn, (p.speedKmh ?? 30) <= 10 && styles.speedBtnDisabled]}
+            style={[styles.speedBtn, speedStyle, slowest && speedDisabled]}
           >
-            <Text style={styles.speedBtnText}>−</Text>
+            <Text style={[styles.speedBtnText, selectedText, slowest && buttons?.disabledText]}>−</Text>
           </Pressable>
-          <Text style={styles.speedValueText}>{p.speedKmh ?? 30} km/h</Text>
+          <Text style={styles.speedValueText}>{speed} km/h</Text>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Tăng tốc độ"
+            disabled={p.isDriver && fastest}
             onPress={p.onIncreaseSpeed}
-            style={[styles.speedBtn, (p.speedKmh ?? 30) >= 120 && styles.speedBtnDisabled]}
+            style={[styles.speedBtn, speedStyle, fastest && speedDisabled]}
           >
-            <Text style={styles.speedBtnText}>+</Text>
+            <Text style={[styles.speedBtnText, selectedText, fastest && buttons?.disabledText]}>+</Text>
           </Pressable>
         </View>
     )}

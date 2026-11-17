@@ -24,7 +24,7 @@ import {
 import { useAuth } from '@/components/auth/auth-provider';
 import { SchoolStatusDialog } from '@/components/admin/schools/school-status-dialog';
 import { VietMapPicker } from '@/components/admin/schools/vietmap-picker';
-import { EditSchoolModal } from './_components/edit-school-modal';
+import { EditSchoolModal } from '@/components/admin/schools/edit-school-modal';
 import { SchoolEmployeesTab } from './_components/school-employees-tab';
 import { StudentTable } from '@/components/admin/students/student-table';
 import { SchoolRoutesTab } from './_components/school-routes-tab';
@@ -33,6 +33,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
 import { Badge } from '@/components/ui/badge';
+import { TableActions } from '@/components/admin/common/table-actions';
 import { SchoolSchedule } from '@/components/admin/schools/school-schedule';
 import { SchoolOperatingCalendar, type CalendarTab } from '@/components/admin/schools/school-operating-calendar';
 import './_components/school-detail.css';
@@ -57,12 +58,12 @@ export default function AdminSchoolDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-
   // Edit & Status modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
   const [showSchoolMap, setShowSchoolMap] = useState(false);
   const [operatingCalendarTab, setOperatingCalendarTab] = useState<CalendarTab>('calendar');
+  const [scheduleRefreshKey, setScheduleRefreshKey] = useState(0);
 
   // Horizontal Tabs (employees, students, routes, trips)
   const pathname = usePathname();
@@ -91,6 +92,11 @@ export default function AdminSchoolDetailPage() {
     }
   }, [schoolId]);
 
+  const handleSchoolUpdated = useCallback(() => {
+    setScheduleRefreshKey((prev) => prev + 1);
+    fetchSchoolDetail();
+  }, [fetchSchoolDetail]);
+
   useEffect(() => {
     fetchSchoolDetail();
   }, [fetchSchoolDetail]);
@@ -101,8 +107,7 @@ export default function AdminSchoolDetailPage() {
         ? `Đã hẹn ngừng hoạt động từ ${displayDate(result.effectiveDate)}.`
         : result.message || 'Đã cập nhật trạng thái trường học.',
     );
-    fetchSchoolDetail();
-
+    handleSchoolUpdated();
   };
 
   if (isLoading) {
@@ -137,20 +142,17 @@ export default function AdminSchoolDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Toast thông báo */}
-
-
       {/* Navigation quay lại */}
       <div>
         <BackLink fallback="/admin/schools" className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-foreground transition-colors" />
       </div>
 
-      {/* Header Trường học (Wireframe W5) */}
+      {/* Header Trường học */}
       <Card className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6">
-          <div className="flex items-start gap-4">
+          <div className="flex items-start gap-4 min-w-0">
             {/* Ảnh trường học hoặc Placeholder */}
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden bg-amber-50 border border-slate-200 shrink-0 flex items-center justify-center shadow-2xs">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden bg-amber-50 border border-slate-200 shrink-0 flex items-center justify-center shadow-2xs">
               {school.imageUrl ? (
                 <img
                   src={school.imageUrl}
@@ -158,14 +160,14 @@ export default function AdminSchoolDetailPage() {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <SchoolIcon className="w-10 h-10 text-amber-600" />
+                <SchoolIcon className="w-8 h-8 sm:w-10 sm:h-10 text-amber-600" />
               )}
             </div>
 
             {/* Tên & Trạng thái */}
-            <PageHeader className="space-y-1.5">
+            <PageHeader className="space-y-1.5 min-w-0">
               <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">
+                <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight break-words">
                   {school.name}
                 </h1>
                 <Badge
@@ -186,55 +188,70 @@ export default function AdminSchoolDetailPage() {
 
               <p className="text-xs sm:text-sm text-slate-600 flex items-center gap-1.5 pt-0.5">
                 <MapPinIcon className="w-4 h-4 text-slate-400 shrink-0" />
-                <span>{school.addressText}</span>
+                <span className="break-words">{school.addressText}</span>
               </p>
-              <Button type="button" variant="outline" size="sm" className="school-detail-map-toggle"
-                aria-expanded={showSchoolMap} aria-controls="school-detail-location" onClick={() => setShowSchoolMap((open) => !open)}>
-                <MapPinIcon className="w-4 h-4" aria-hidden="true" />
-                {showSchoolMap ? 'Thu gọn bản đồ' : 'Xem bản đồ'}
-              </Button>
-
             </PageHeader>
           </div>
 
           {/* Action Buttons */}
-          <div className="shrink-0 flex items-center gap-2">
-            {user?.role === 'SYSTEM_ADMIN' && (
-              <Button variant="outline" size="sm"
+          {user?.role === 'SYSTEM_ADMIN' && (
+            <div className="shrink-0 flex items-center gap-2 self-start sm:self-auto">
+              <Button
+                variant="outline"
+                size="sm"
                 type="button"
                 onClick={() => setIsEditModalOpen(true)}
                 className="px-3.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 shadow-2xs"
               >
-                Chỉnh sửa trường & vị trí
+                Chỉnh sửa thông tin
               </Button>
-            )}
-            <Button
-              type="button"
-              onClick={() => setIsStatusDialogOpen(true)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer border shadow-2xs ${
-                school.isActive
-                  ? 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100'
-                  : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-              }`}
-            >
-              {school.isActive ? 'Ngừng hoạt động' : 'Kích hoạt lại'}
-            </Button>
-          </div>
+              <TableActions
+                actions={[]}
+                more={[
+                  {
+                    label: school.isActive ? 'Hẹn ngừng hoạt động' : 'Kích hoạt lại',
+                    warning: school.isActive,
+                    onClick: () => setIsStatusDialogOpen(true),
+                  },
+                ]}
+                label={`Thao tác với ${school.name}`}
+                forceMenu={true}
+              />
+            </div>
+          )}
         </div>
 
-        <div className="school-detail-summary">
-          <section className="school-detail-info-card school-detail-contract-card" aria-label="Thời hạn hợp đồng">
-            <div className="school-detail-section-heading">
-              <h3><CalendarIcon className="w-4 h-4" aria-hidden="true" />Thời hạn hợp đồng</h3>
+        {/* Hàng dưới: Hợp đồng có nhãn và Xem bản đồ */}
+        <div className="school-detail-header-bottom">
+          <div className="school-detail-contract-group" aria-label="Thời hạn hợp đồng">
+            <div className="school-detail-contract-item">
+              <CalendarIcon className="w-4 h-4 text-slate-400 shrink-0" aria-hidden="true" />
+              <span className="school-detail-contract-label">Bắt đầu:</span>
+              <time dateTime={school.contractStartDate} className="school-detail-contract-value">
+                {formatDate(school.contractStartDate)}
+              </time>
             </div>
-            <p className="school-detail-contract">
-              <time dateTime={school.contractStartDate}>{formatDate(school.contractStartDate)}</time>
-              <span>–</span>
-              <time dateTime={school.contractEndDate}>{formatDate(school.contractEndDate)}</time>
-            </p>
-          </section>
-          <SchoolSchedule schedule={school.weeklySchedule ?? {}} schoolName={school.name} schoolId={school.id} contractStartDate={school.contractStartDate} contractEndDate={school.contractEndDate} isActive={school.isActive} />
+            <div className="school-detail-contract-item">
+              <span className="school-detail-contract-label">Kết thúc:</span>
+              <time dateTime={school.contractEndDate} className="school-detail-contract-value school-detail-contract-end">
+                {formatDate(school.contractEndDate)}
+              </time>
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="school-detail-map-toggle"
+            aria-expanded={showSchoolMap}
+            aria-controls="school-detail-location"
+            onClick={() => setShowSchoolMap((open) => !open)}
+          >
+            <MapPinIcon className="w-4 h-4 text-slate-500" aria-hidden="true" />
+            {showSchoolMap ? 'Thu gọn bản đồ' : 'Xem bản đồ'}
+          </Button>
         </div>
+
         {showSchoolMap && (
           <section id="school-detail-location" className="school-detail-location" aria-label="Vị trí trường">
             <VietMapPicker
@@ -247,7 +264,7 @@ export default function AdminSchoolDetailPage() {
         )}
       </Card>
 
-      {/* 14. Horizontal Tabs (Section 14 & Wireframe W6) */}
+      {/* Horizontal Tabs */}
       <div className="space-y-2">
         <div className="flex flex-wrap border-b border-slate-200 gap-6">
           <Button
@@ -301,7 +318,30 @@ export default function AdminSchoolDetailPage() {
         </div>
 
         {/* Tab Content */}
-        {activeTab === 'calendar' && <SchoolOperatingCalendar schoolId={school.id} role={user?.role ?? null} onUpdated={fetchSchoolDetail} activeTab={operatingCalendarTab} onTabChange={setOperatingCalendarTab} />}
+        {activeTab === 'calendar' && (
+          <div className="school-calendar-tab-content">
+            <SchoolSchedule
+              schedule={school.weeklySchedule ?? {}}
+              schoolName={school.name}
+              schoolId={school.id}
+              contractStartDate={school.contractStartDate}
+              contractEndDate={school.contractEndDate}
+              isActive={school.isActive}
+              refreshKey={scheduleRefreshKey}
+            />
+            <SchoolOperatingCalendar
+              schoolId={school.id}
+              role={user?.role ?? null}
+              onUpdated={handleSchoolUpdated}
+              activeTab={operatingCalendarTab}
+              onTabChange={setOperatingCalendarTab}
+              contractStartDate={school.contractStartDate}
+              contractEndDate={school.contractEndDate}
+              isActive={school.isActive}
+            />
+          </div>
+        )}
+
         {activeTab === 'employees' && (
           <SchoolEmployeesTab
             schoolId={school.id}
@@ -346,7 +386,7 @@ export default function AdminSchoolDetailPage() {
           setIsEditModalOpen(false);
           if (partial) toast.warning(msg || 'Chỉ lưu được một phần thay đổi.');
           else toast.success(msg || 'Cập nhật thông tin trường học thành công.');
-          fetchSchoolDetail();
+          handleSchoolUpdated();
         }}
       />
 

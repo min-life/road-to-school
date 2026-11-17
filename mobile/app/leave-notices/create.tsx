@@ -14,7 +14,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { colors } from '@/constants/theme';
+import { colors, getStaffTheme } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import {
   mobileApiClient,
@@ -40,6 +40,9 @@ export default function CreateLeaveNoticeScreen() {
   const params = useLocalSearchParams<{ studentId?: string; tripId?: string }>();
 
   const isParent = user?.role === 'PARENT';
+  const staffTheme = getStaffTheme(user?.role);
+  const buttons = staffTheme?.buttons;
+  const directionActive = buttons?.selected ?? styles.directionBtnActive;
   const isFixedStudent = Boolean(params.studentId);
 
   // State: Student selection (Parent only)
@@ -78,6 +81,8 @@ export default function CreateLeaveNoticeScreen() {
   const { remainingSeconds: otpWaitSeconds, start: startOtpWait } = useLeaveOtpCooldown(
     JSON.stringify([user?.id ?? '', isParent ? selectedStudentId : null]),
   );
+  const submitDisabled = !selectedTripId || submittingOtp || otpWaitSeconds > 0;
+  const submitTextStyle = submitDisabled ? buttons?.disabledText : buttons?.primaryText;
 
   // Load linked students if Parent
   useEffect(() => {
@@ -280,13 +285,13 @@ export default function CreateLeaveNoticeScreen() {
             activeOpacity={0.8}
           >
             <View style={styles.dropdownLeft}>
-              <Ionicons name="calendar-outline" size={20} color="#D97706" />
+              <Ionicons name="calendar-outline" size={20} color={staffTheme?.colors.primary ?? '#D97706'} />
               <Text style={styles.dropdownBtnText}>
                 {formatDateDisplay(selectedDate)}
               </Text>
             </View>
-            <View style={styles.actionPill}>
-              <Text style={styles.actionPillText}>Đổi ngày</Text>
+            <View style={[styles.actionPill, buttons?.secondary]}>
+              <Text style={[styles.actionPillText, buttons?.secondaryText]}>Đổi ngày</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -298,7 +303,7 @@ export default function CreateLeaveNoticeScreen() {
             <TouchableOpacity
               style={[
                 styles.directionBtn,
-                selectedDirection === 'TO_SCHOOL' && styles.directionBtnActive,
+                selectedDirection === 'TO_SCHOOL' && directionActive,
               ]}
               onPress={() => {
                 if (selectedDirection !== 'TO_SCHOOL') {
@@ -310,12 +315,13 @@ export default function CreateLeaveNoticeScreen() {
               <Ionicons
                 name="arrow-forward"
                 size={16}
-                color={selectedDirection === 'TO_SCHOOL' ? '#2563EB' : '#64748B'}
+                color={selectedDirection === 'TO_SCHOOL' ? (staffTheme?.colors.primary ?? '#2563EB') : colors.mutedText}
               />
               <Text
                 style={[
                   styles.directionBtnText,
                   selectedDirection === 'TO_SCHOOL' && styles.directionBtnTextActive,
+                  selectedDirection === 'TO_SCHOOL' && buttons?.secondaryText,
                 ]}
               >
                 Chiều đi (Đến trường)
@@ -325,7 +331,7 @@ export default function CreateLeaveNoticeScreen() {
             <TouchableOpacity
               style={[
                 styles.directionBtn,
-                selectedDirection === 'TO_PARKING' && styles.directionBtnActive,
+                selectedDirection === 'TO_PARKING' && directionActive,
               ]}
               onPress={() => {
                 if (selectedDirection !== 'TO_PARKING') {
@@ -337,12 +343,13 @@ export default function CreateLeaveNoticeScreen() {
               <Ionicons
                 name="arrow-back"
                 size={16}
-                color={selectedDirection === 'TO_PARKING' ? '#D97706' : '#64748B'}
+                color={selectedDirection === 'TO_PARKING' ? (staffTheme?.colors.primary ?? '#D97706') : colors.mutedText}
               />
               <Text
                 style={[
                   styles.directionBtnText,
                   selectedDirection === 'TO_PARKING' && styles.directionBtnTextActive,
+                  selectedDirection === 'TO_PARKING' && buttons?.secondaryText,
                 ]}
               >
                 Chiều về (Về nhà)
@@ -382,6 +389,7 @@ export default function CreateLeaveNoticeScreen() {
                       styles.tripOptionCard,
                       !isAvailable && styles.tripOptionDisabled,
                       isSelected && styles.tripOptionSelected,
+                      isSelected && buttons?.selected,
                     ]}
                     onPress={() => {
                       if (isAvailable) setSelectedTripId(opt.tripId);
@@ -394,10 +402,11 @@ export default function CreateLeaveNoticeScreen() {
                         style={[
                           styles.radioCircle,
                           isSelected && styles.radioCircleActive,
+                          isSelected && staffTheme && { borderColor: staffTheme.colors.primary },
                           !isAvailable && styles.radioCircleDisabled,
                         ]}
                       >
-                        {isSelected && <View style={styles.radioDot} />}
+                        {isSelected && <View style={[styles.radioDot, buttons?.primary]} />}
                       </View>
                     </View>
 
@@ -455,22 +464,27 @@ export default function CreateLeaveNoticeScreen() {
         <TouchableOpacity
           style={[
             styles.submitBtn,
-            (!selectedTripId || submittingOtp || otpWaitSeconds > 0) && styles.submitBtnDisabled,
+            buttons?.primary,
+            submitDisabled && styles.submitBtnDisabled,
+            submitDisabled && buttons?.disabled,
           ]}
           onPress={handleRequestOtp}
-          disabled={!selectedTripId || submittingOtp || otpWaitSeconds > 0}
+          disabled={submitDisabled}
           accessibilityRole="button"
           accessibilityLabel={submittingOtp ? 'Đang gửi mã xác thực OTP' : otpWaitSeconds > 0
             ? `Gửi lại OTP sau ${otpWaitSeconds}s` : 'Gửi mã xác thực OTP'}
-          accessibilityState={{ disabled: !selectedTripId || submittingOtp || otpWaitSeconds > 0, busy: submittingOtp }}
+          accessibilityState={{ disabled: submitDisabled, busy: submittingOtp }}
           activeOpacity={0.85}
         >
           {submittingOtp ? (
-            <ActivityIndicator size="small" color="#1E293B" />
+            <ActivityIndicator size="small" color={staffTheme?.colors.disabledText ?? colors.foreground} />
           ) : (
             <>
-              <Text style={styles.submitBtnText}>{otpWaitSeconds > 0 ? `Gửi lại OTP sau ${otpWaitSeconds}s` : 'Gửi mã xác thực OTP'}</Text>
-              <Ionicons name={otpWaitSeconds > 0 ? 'time-outline' : 'arrow-forward'} size={18} color="#1E293B" />
+              <Text style={[styles.submitBtnText, submitTextStyle]}>
+                {otpWaitSeconds > 0 ? `Gửi lại OTP sau ${otpWaitSeconds}s` : 'Gửi mã xác thực OTP'}
+              </Text>
+              <Ionicons name={otpWaitSeconds > 0 ? 'time-outline' : 'arrow-forward'} size={18}
+                color={submitTextStyle?.color ?? colors.foreground} />
             </>
           )}
         </TouchableOpacity>
@@ -526,8 +540,9 @@ export default function CreateLeaveNoticeScreen() {
                     key={cell.dateStr}
                     style={[
                       styles.calCell,
-                      isSelected && styles.calCellSelected,
+                      isSelected && (buttons?.primary ?? styles.calCellSelected),
                       isToday && !isSelected && styles.calCellToday,
+                      isToday && !isSelected && staffTheme && { borderColor: staffTheme.colors.primary },
                     ]}
                     onPress={() => handleSelectDay(cell.dateStr!)}
                   >
@@ -536,6 +551,8 @@ export default function CreateLeaveNoticeScreen() {
                         styles.calCellText,
                         isSelected && styles.calCellTextSelected,
                         isToday && !isSelected && styles.calCellTextToday,
+                        isSelected && buttons?.primaryText,
+                        isToday && !isSelected && buttons?.secondaryText,
                       ]}
                     >
                       {cell.day}
@@ -547,9 +564,9 @@ export default function CreateLeaveNoticeScreen() {
 
             {/* Calendar Modal Footer */}
             <View style={styles.calFooter}>
-              <TouchableOpacity style={styles.todayShortcutBtn} onPress={handleQuickSelectToday}>
-                <Ionicons name="today-outline" size={15} color="#1E293B" />
-                <Text style={styles.todayShortcutText}>Chọn hôm nay</Text>
+              <TouchableOpacity style={[styles.todayShortcutBtn, buttons?.secondary]} onPress={handleQuickSelectToday}>
+                <Ionicons name="today-outline" size={15} color={staffTheme?.colors.primary ?? colors.foreground} />
+                <Text style={[styles.todayShortcutText, buttons?.secondaryText]}>Chọn hôm nay</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.closeCalBtn}

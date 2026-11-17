@@ -4,7 +4,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import type { MobileHomeTrip, Role } from '@/services/api-client';
 import { parentHomeStyles } from '@/components/parent/home-styles';
 import { ParentTripCard } from '@/components/parent/trip-card';
-import { colors } from '@/constants/theme';
+import { attendantTheme, colors, getStaffTheme } from '@/constants/theme';
 import { journeyTones } from '@/constants/parent-journey';
 
 interface StaffTripCardProps {
@@ -21,11 +21,17 @@ export function StaffTripCard({
   role, trip, onViewDetail, onReportLeave, isReportingLeave, canReportLeave, getStatusBadge,
 }: StaffTripCardProps) {
   const isAttendant = role === 'BUS_ATTENDANT';
+  const staffTheme = getStaffTheme(role);
+  const buttons = staffTheme?.buttons;
+  const accent = staffTheme?.colors.primary ?? colors.navigationActive;
+  const attendanceColor = isAttendant ? accent : journeyTones.info.text;
+  const presentColor = isAttendant ? journeyTones.success.text : colors.mutedText;
+  const headingStyle = isAttendant && styles.attendantHeading;
   const statusBadge = trip.assignmentStatus === 'WAITING_ASSIGNMENT'
     ? { label: 'Chờ phân công', bg: journeyTones.warning.bg, text: journeyTones.warning.text }
     : getStatusBadge(trip.status);
   const primaryBtnLabel = isAttendant
-    ? 'Vào điểm danh & Vận hành'
+    ? 'Xem chi tiết & Điểm danh'
     : 'Xem chi tiết & Vận hành';
 
   return (
@@ -34,18 +40,21 @@ export function StaffTripCard({
       studentName={trip.routeName}
       schoolName={trip.schoolName}
       status={statusBadge}
+      staffTheme={staffTheme}
+      titleColor={isAttendant ? colors.navigationShadow : undefined}
       accessibilityLabel={`${trip.routeName}, ${trip.schoolName}, ${statusBadge.label}, ${trip.direction === 'TO_SCHOOL' ? 'Đến trường' : 'Về trạm'}, ${trip.scheduledTime}`}
       leading={
-        <View style={styles.busIcon}>
-          <Ionicons name="bus-outline" size={25} color={colors.foreground} accessible={false} />
+        <View style={[styles.busIcon, buttons?.secondary]}>
+          <Ionicons name="bus-outline" size={25} color={staffTheme?.colors.primary ?? colors.foreground} accessible={false} />
         </View>
       }
       summaryContent={
         <View style={styles.tags}>
-          <View style={[styles.tag, trip.direction === 'TO_SCHOOL' && styles.schoolTag]}>
+          <View style={[styles.tag, trip.direction === 'TO_SCHOOL' && (isAttendant ? attendantTheme.buttons.selected : styles.schoolTag)]}>
             <Ionicons name={trip.direction === 'TO_SCHOOL' ? 'arrow-forward' : 'arrow-back'} size={14}
-              color={trip.direction === 'TO_SCHOOL' ? journeyTones.info.text : journeyTones.warning.text} accessible={false} />
-            <Text style={[styles.tagText, trip.direction === 'TO_SCHOOL' && styles.schoolTagText]}>
+              color={trip.direction === 'TO_SCHOOL' ? attendanceColor : journeyTones.warning.text} accessible={false} />
+            <Text style={[styles.tagText,
+              trip.direction === 'TO_SCHOOL' && (isAttendant ? attendantTheme.buttons.secondaryText : styles.schoolTagText)]}>
               {trip.direction === 'TO_SCHOOL' ? 'Đến trường' : 'Về trạm'}
             </Text>
           </View>
@@ -58,31 +67,35 @@ export function StaffTripCard({
     >
       <View style={styles.body}>
         <View style={styles.infoRow}>
-          <Ionicons name="bus-outline" size={20} color={colors.navigationActive} style={styles.rowIcon} accessible={false} />
+          <Ionicons name="bus-outline" size={20} color={accent} style={styles.rowIcon} accessible={false} />
           <View style={styles.info}>
             <Text style={styles.label}>Phương tiện</Text>
-            <Text style={styles.value}>{trip.vehiclePlate}</Text>
+            <Text style={[styles.value, headingStyle]}>{trip.vehiclePlate}</Text>
             <Text style={styles.secondary}>{trip.vehicleSeats} chỗ · {trip.studentCount} học sinh</Text>
           </View>
         </View>
         <View style={styles.divider} />
         <View style={styles.infoRow}>
-          <Ionicons name="person-outline" size={20} color={colors.navigationActive} style={styles.rowIcon} accessible={false} />
+          <Ionicons name="person-outline" size={20} color={accent} style={styles.rowIcon} accessible={false} />
           <View style={styles.info}>
             <Text style={styles.label}>Tài xế</Text>
             <View style={styles.nameRow}>
-              <Text style={[styles.value, styles.personName]}>{trip.driver.fullName}</Text>
-              {trip.driver.isCurrentUser && <View style={styles.selfBadge}><Text style={styles.self}>Bạn</Text></View>}
+              <Text style={[styles.value, styles.personName, headingStyle]}>{trip.driver.fullName}</Text>
+              {trip.driver.isCurrentUser && <View style={[styles.selfBadge, role === 'DRIVER' && buttons?.secondary]}>
+                <Text style={[styles.self, role === 'DRIVER' && buttons?.secondaryText]}>Bạn</Text>
+              </View>}
             </View>
           </View>
         </View>
         <View style={styles.infoRow}>
-          <Ionicons name="people-outline" size={20} color={colors.navigationActive} style={styles.rowIcon} accessible={false} />
+          <Ionicons name="people-outline" size={20} color={accent} style={styles.rowIcon} accessible={false} />
           <View style={styles.info}>
             <Text style={styles.label}>Giáo viên phụ xe</Text>
             <View style={styles.nameRow}>
-              <Text style={[styles.value, styles.personName]}>{trip.busAttendant.fullName}</Text>
-              {trip.busAttendant.isCurrentUser && <View style={styles.selfBadge}><Text style={styles.self}>Bạn</Text></View>}
+              <Text style={[styles.value, styles.personName, headingStyle]}>{trip.busAttendant.fullName}</Text>
+              {trip.busAttendant.isCurrentUser && <View style={[styles.selfBadge, isAttendant && attendantTheme.buttons.secondary]}>
+                <Text style={[styles.self, isAttendant && attendantTheme.buttons.secondaryText]}>Bạn</Text>
+              </View>}
             </View>
           </View>
         </View>
@@ -100,18 +113,18 @@ export function StaffTripCard({
             </Text>
           </View>
         ) : trip.status === 'IN_PROGRESS' ? (
-          <View style={styles.attendance}>
+          <View style={[styles.attendance, isAttendant && styles.attendantAttendance]}>
             <View style={styles.attendanceHeader}>
               <View style={styles.attendanceTitle}>
-                <Ionicons name="clipboard-outline" size={16} color={journeyTones.info.text} accessible={false} />
-                <Text style={styles.attendanceLabel}>Điểm danh</Text>
+                <Ionicons name="clipboard-outline" size={16} color={attendanceColor} accessible={false} />
+                <Text style={[styles.attendanceLabel, headingStyle]}>Điểm danh</Text>
               </View>
-              <Text style={styles.attendanceCount}>{trip.operationalState.markedCount}/{trip.operationalState.totalStudents} học sinh</Text>
+              <Text style={[styles.attendanceCount, headingStyle]}>{trip.operationalState.markedCount}/{trip.operationalState.totalStudents} học sinh</Text>
             </View>
             <View style={styles.attendanceTotals}>
               <View style={styles.total}>
-                <Ionicons name="checkmark-circle-outline" size={14} color={colors.mutedText} accessible={false} />
-                <Text style={styles.secondary}>{trip.operationalState.presentCount} có mặt</Text>
+                <Ionicons name="checkmark-circle-outline" size={14} color={presentColor} accessible={false} />
+                <Text style={[styles.secondary, isAttendant && styles.presentCount]}>{trip.operationalState.presentCount} có mặt</Text>
               </View>
               <View style={styles.total}>
                 <Ionicons name="remove-circle-outline" size={14} color={colors.mutedText} accessible={false} />
@@ -122,18 +135,20 @@ export function StaffTripCard({
         ) : null}
 
         <View style={styles.actions}>
-          <TouchableOpacity accessibilityRole="button" style={parentHomeStyles.primaryBtn} onPress={onViewDetail} activeOpacity={0.85}>
-            <Text style={parentHomeStyles.primaryBtnText}>{primaryBtnLabel}</Text>
-            <Ionicons name="arrow-forward" size={18} color={colors.foreground} accessible={false} />
+          <TouchableOpacity accessibilityRole="button" style={[parentHomeStyles.primaryBtn, buttons?.primary]}
+            onPress={onViewDetail} activeOpacity={0.85}>
+            <Text style={[parentHomeStyles.primaryBtnText, buttons?.primaryText]}>{primaryBtnLabel}</Text>
+            <Ionicons name="arrow-forward" size={18} color={buttons?.primaryText.color ?? colors.foreground} accessible={false} />
           </TouchableOpacity>
           {canReportLeave && (
             <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: isReportingLeave, busy: isReportingLeave }}
-              style={[parentHomeStyles.leaveNoticeCardBtn, isReportingLeave && parentHomeStyles.disabled]}
+              style={[parentHomeStyles.leaveNoticeCardBtn, buttons?.selected,
+                isReportingLeave && parentHomeStyles.disabled]}
               disabled={isReportingLeave} onPress={onReportLeave} activeOpacity={0.8}>
-              {isReportingLeave ? <ActivityIndicator size="small" color={colors.navigationActive} /> : (
+              {isReportingLeave ? <ActivityIndicator size="small" color={accent} /> : (
                 <>
-                  <Ionicons name="calendar-outline" size={20} color={colors.navigationActive} accessible={false} />
-                  <Text style={parentHomeStyles.leaveNoticeCardBtnText}>Báo nghỉ chuyến này</Text>
+                  <Ionicons name="calendar-outline" size={20} color={accent} accessible={false} />
+                  <Text style={[parentHomeStyles.leaveNoticeCardBtnText, buttons?.secondaryText]}>Báo nghỉ chuyến này</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -171,9 +186,12 @@ const styles = StyleSheet.create({
   pending: { backgroundColor: journeyTones.warning.bg, borderColor: journeyTones.warning.border },
   operationText: { flex: 1, fontSize: 12, lineHeight: 18, fontWeight: '600' },
   attendance: { padding: 12, gap: 8, borderRadius: 14, borderWidth: 1, backgroundColor: journeyTones.info.bg, borderColor: journeyTones.info.border },
+  attendantAttendance: { backgroundColor: attendantTheme.colors.secondary, borderColor: attendantTheme.colors.disabled },
   attendanceHeader: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   attendanceTitle: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   attendanceLabel: { fontSize: 12, lineHeight: 20, fontWeight: '600', color: journeyTones.info.text },
+  attendantHeading: { color: colors.navigationShadow },
+  presentCount: { color: journeyTones.success.text, fontWeight: '600' },
   attendanceCount: { fontSize: 13, lineHeight: 20, fontWeight: '700', color: colors.foreground },
   attendanceTotals: { flexDirection: 'row', flexWrap: 'wrap', gap: 18 },
   total: { flexDirection: 'row', alignItems: 'center', gap: 5 },

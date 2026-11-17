@@ -1,0 +1,76 @@
+.service-calendar-mode-wrap {
+  margin-bottom: 6px;
+}
+.service-calendar-mode-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--brand-border);
+  border-radius: 10px;
+  background: var(--brand-hover);
+}
+.service-calendar-mode-btn {
+  flex: 1 1 0%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 6px 16px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--brand-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.service-calendar-mode-btn:hover {
+  color: var(--brand-heading);
+}
+.service-calendar-mode-btn.is-active,
+.service-calendar-mode-btn[aria-checked="true"] {
+  background: var(--brand-surface);
+  color: var(--brand-heading);
+  box-shadow: 0 1px 3px #0f172a14;
+}
+.service-calendar-mode-btn:focus-visible {
+  outline: 2px solid var(--brand-ring);
+  outline-offset: 1px;
+}
+.service-calendar-field-error {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--brand-danger);
+  line-height: 1.4;
+}
+.service-calendar-contract-range {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--brand-muted);
+  line-height: 1.4;
+}
+.service-calendar-contract-range.is-empty {
+  color: #b45309;
+  font-weight: 500;
+}
+.service-calendar-warning {
+  padding: 10px 14px;
+  border: 1px solid var(--brand-border);
+  border-radius: 10px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.service-calendar-info-box {
+  padding: 10px 14px;
+  border: 1px solid var(--brand-border);
+  border-radius: 10px;
+  background: var(--brand-hover);
+  color: var(--brand-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+}

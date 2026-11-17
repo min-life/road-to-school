@@ -3,7 +3,7 @@ import { StyleSheet, useWindowDimensions } from 'react-native';
 import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { colors } from '@/constants/theme';
+import { colors, getStaffTheme } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { NotificationBell } from '@/components/notification-bell';
 import { AppHeader } from '@/components/navigation/app-header';
@@ -18,6 +18,7 @@ export default function TabLayout() {
   const hideWebTabBar = useNavigationKeyboard();
 
   const isParent = user?.role === 'PARENT';
+  const activeTint = getStaffTheme(user?.role)?.colors.primary ?? colors.navigationActive;
   const isDriverOrAttendant =
     user?.role === 'DRIVER' || user?.role === 'BUS_ATTENDANT';
 
@@ -31,7 +32,7 @@ export default function TabLayout() {
         tabBarButton: (props) => <TabButton {...props} />,
         tabBarHideOnKeyboard: true,
         tabBarLabelPosition: 'below-icon',
-        tabBarActiveTintColor: colors.navigationActive,
+        tabBarActiveTintColor: activeTint,
         tabBarInactiveTintColor: colors.mutedText,
         tabBarLabelStyle: { fontSize: navigationMetrics.tabLabelSize, lineHeight: 15, fontWeight: '600' },
         tabBarIconStyle: { marginBottom: 4 },
@@ -57,7 +58,7 @@ export default function TabLayout() {
             <Ionicons
               name={focused ? 'home' : 'home-outline'}
               size={22}
-              color={focused ? colors.navigationActive : colors.mutedText}
+              color={focused ? activeTint : colors.mutedText}
             />
           ),
         }}
@@ -74,7 +75,7 @@ export default function TabLayout() {
             <Ionicons
               name={focused ? 'bus' : 'bus-outline'}
               size={22}
-              color={focused ? colors.navigationActive : colors.mutedText}
+              color={focused ? activeTint : colors.mutedText}
             />
           ),
         }}
@@ -91,7 +92,7 @@ export default function TabLayout() {
             <Ionicons
               name={focused ? 'calendar' : 'calendar-outline'}
               size={22}
-              color={focused ? colors.navigationActive : colors.mutedText}
+              color={focused ? activeTint : colors.mutedText}
             />
           ),
         }}
@@ -115,7 +116,7 @@ export default function TabLayout() {
             <Ionicons
               name={focused ? 'person' : 'person-outline'}
               size={22}
-              color={focused ? colors.navigationActive : colors.mutedText}
+              color={focused ? activeTint : colors.mutedText}
             />
           ),
         }}
