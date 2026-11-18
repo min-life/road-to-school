@@ -39,6 +39,14 @@ import { RoutePlanDraftProvider, useRoutePlanDraft } from './_components/route-p
 
 const DraftRouteMap = memo(RouteMap);
 
+const INELIGIBLE_REASON_LABELS: Record<string, string> = {
+  INACTIVE_STATUS: 'Vô hiệu hóa',
+  MISSING_COORDINATES: 'Thiếu tọa độ',
+  ALREADY_ASSIGNED: 'Đã có tuyến',
+  OUT_OF_OPERATING_RADIUS: 'Quá bán kính',
+  DIFFERENT_PROVINCE: 'Khác tỉnh/thành',
+};
+
 function CreateRoutePlanContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -781,10 +789,7 @@ function CreateRoutePlanContent() {
                         <p className="text-[11px] text-slate-500 truncate">{s.addressText || 'Chưa cập nhật địa chỉ'}</p>
                         <div className="flex items-center gap-1.5 pt-0.5">
                           <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 shrink-0">
-                            {s.reasonCode === 'INACTIVE_STATUS' && 'Vô hiệu hóa'}
-                            {s.reasonCode === 'MISSING_COORDINATES' && 'Thiếu tọa độ'}
-                            {s.reasonCode === 'ALREADY_ASSIGNED' && 'Đã có tuyến'}
-                            {!['INACTIVE_STATUS', 'MISSING_COORDINATES', 'ALREADY_ASSIGNED'].includes(s.reasonCode) && s.reasonCode}
+                            {INELIGIBLE_REASON_LABELS[s.reasonCode] || s.reasonCode}
                           </span>
                           <span className="text-[11px] text-slate-600 truncate">{s.reasonMessage}</span>
                         </div>

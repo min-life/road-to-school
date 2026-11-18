@@ -11,7 +11,7 @@ export function OtpHero({ compact = false }: { compact?: boolean }) {
       style={[styles.frame, { width: size, height: (size * 652) / 648 }]}
     >
       <Image
-        source={require('../../assets/images/auth/verify-phone.jpg')}
+        source={require('../../assets/images/auth/verify-phone.png')}
         resizeMode="contain"
         accessible={false}
         style={styles.image}

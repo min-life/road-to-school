@@ -1,0 +1,219 @@
+[
+  {
+    "entity": "System Admin",
+    "flows": [
+      [
+        "in",
+        "School and fleet records"
+      ],
+      [
+        "in",
+        "Route planning requests"
+      ],
+      [
+        "in",
+        "Vehicle and driver assignments"
+      ],
+      [
+        "in",
+        "Trip generation requests"
+      ],
+      [
+        "out",
+        "Route plans and trip schedules"
+      ],
+      [
+        "out",
+        "Operational alerts and reports"
+      ]
+    ]
+  },
+  {
+    "entity": "School Admin",
+    "flows": [
+      [
+        "in",
+        "Student and attendant records"
+      ],
+      [
+        "in",
+        "Attendant assignments"
+      ],
+      [
+        "in",
+        "Route plan approval decisions"
+      ],
+      [
+        "in",
+        "School calendar changes"
+      ],
+      [
+        "out",
+        "Route plans and trip schedules"
+      ],
+      [
+        "out",
+        "Attendance and incident reports"
+      ]
+    ]
+  },
+  {
+    "entity": "Parent",
+    "flows": [
+      [
+        "in",
+        "Student linking requests"
+      ],
+      [
+        "in",
+        "Student leave notices"
+      ],
+      [
+        "in",
+        "Pickup/drop-off change requests"
+      ],
+      [
+        "out",
+        "Linked student profiles"
+      ],
+      [
+        "out",
+        "Trip tracking and attendance"
+      ],
+      [
+        "out",
+        "Request results and alerts"
+      ]
+    ]
+  },
+  {
+    "entity": "Driver",
+    "flows": [
+      [
+        "in",
+        "GPS updates"
+      ],
+      [
+        "in",
+        "Trip status updates"
+      ],
+      [
+        "in",
+        "Driver leave notices"
+      ],
+      [
+        "in",
+        "Incident reports"
+      ],
+      [
+        "out",
+        "Trip assignments and routes"
+      ],
+      [
+        "out",
+        "Request results and alerts"
+      ]
+    ]
+  },
+  {
+    "entity": "Bus Attendant",
+    "flows": [
+      [
+        "in",
+        "Readiness confirmations"
+      ],
+      [
+        "in",
+        "Boarding/alighting records"
+      ],
+      [
+        "in",
+        "Attendant leave notices"
+      ],
+      [
+        "in",
+        "Incident reports"
+      ],
+      [
+        "out",
+        "Trip assignments and rosters"
+      ],
+      [
+        "out",
+        "Request results and alerts"
+      ]
+    ]
+  },
+  {
+    "entity": "VietMap",
+    "flows": [
+      [
+        "out",
+        "Address lookup requests"
+      ],
+      [
+        "in",
+        "Address and location data"
+      ],
+      [
+        "out",
+        "Routing requests"
+      ],
+      [
+        "in",
+        "Routes and travel times"
+      ],
+      [
+        "out",
+        "Route optimization requests"
+      ],
+      [
+        "in",
+        "Optimized route plans"
+      ]
+    ]
+  },
+  {
+    "entity": "Cloudinary",
+    "flows": [
+      [
+        "out",
+        "Image uploads"
+      ],
+      [
+        "out",
+        "Image management requests"
+      ],
+      [
+        "in",
+        "Image URLs and upload results"
+      ]
+    ]
+  },
+  {
+    "entity": "Email / SMTP Service",
+    "flows": [
+      [
+        "out",
+        "Email delivery requests"
+      ],
+      [
+        "in",
+        "Submission acceptance or failure"
+      ]
+    ]
+  },
+  {
+    "entity": "Expo Push Service",
+    "flows": [
+      [
+        "out",
+        "Push notification requests"
+      ],
+      [
+        "in",
+        "Push tickets and receipts"
+      ]
+    ]
+  }
+]

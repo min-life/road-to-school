@@ -111,9 +111,10 @@ export default function RegisterScreen() {
           </View>
 
           <Image
-            source={require('@/assets/images/auth/register.jpg')}
+            source={require('@/assets/images/auth/register.png')}
             style={styles.heroImage}
             resizeMode="contain"
+            fadeDuration={0}
             accessible={false}
           />
           <Text style={styles.headerTitle} accessibilityRole="header">Đăng ký Phụ huynh</Text>

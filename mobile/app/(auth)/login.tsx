@@ -70,9 +70,10 @@ export default function LoginScreen() {
           <View style={styles.card}>
             <View style={styles.header}>
               <Image
-                source={require('@/assets/images/auth/login.jpg')}
+                source={require('@/assets/images/auth/login.png')}
                 style={styles.heroImage}
                 resizeMode="contain"
+                fadeDuration={0}
                 accessible={false}
               />
               <Text style={styles.loginTitle} accessibilityRole="header">Đăng nhập</Text>
@@ -155,7 +156,7 @@ export default function LoginScreen() {
               style={[
                 styles.submitButton,
                 (isSubmitting || !identifier.trim() || !password) &&
-                  styles.submitButtonDisabled,
+                styles.submitButtonDisabled,
               ]}
               onPress={handleLogin}
               accessibilityRole="button"
