@@ -81,9 +81,10 @@ export default function ForgotPasswordScreen() {
           </View>
 
           <Image
-            source={require('@/assets/images/auth/forget-password.jpg')}
+            source={require('@/assets/images/auth/forget-password.png')}
             style={styles.heroImage}
             resizeMode="contain"
+            fadeDuration={0}
             accessible={false}
           />
           <Text style={styles.headerTitle} accessibilityRole="header">Quên mật khẩu</Text>

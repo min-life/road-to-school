@@ -969,6 +969,7 @@ export interface AssignBusAttendantGroupRequest {
 export interface TripItem {
   id: string;
   driverId?: string;
+  busAttendantId?: string;
   type?: 'PERSISTED' | 'VIRTUAL';
   isVirtual?: boolean;
   serviceDate: string;

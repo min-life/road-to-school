@@ -93,11 +93,10 @@ function getInventoryPresentation(
             displayValue: (
               <div className="mt-2 flex items-center">
                 <span
-                  className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
-                    isActive
+                  className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${isActive
                       ? 'bg-emerald-50 text-emerald-700'
                       : 'bg-slate-100 text-slate-600'
-                  }`}
+                    }`}
                 >
                   {isActive ? 'Đang hoạt động' : 'Ngừng hoạt động'}
                 </span>
@@ -417,139 +416,136 @@ export default function AdminOverviewPage() {
           </section>
 
           {/* 4. Desktop side-by-side: Theo dõi chuyến bên trái cạnh Công việc bên phải */}
-          <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-12 items-stretch">
-            {/* Cột trái: Theo dõi chuyến */}
-            <div className="min-w-0 lg:col-span-7 xl:col-span-8 flex flex-col">
-              <OverviewTrips
-                className="h-full flex flex-col"
-                attentionTrips={data.attentionTrips}
-                overdueRunningTrips={data.overdueRunningTrips}
-                href={listHref()}
-              />
+            <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-12 items-start">
+              {/* Cột trái: Theo dõi chuyến */}
+              <div className="min-w-0 lg:col-span-7 xl:col-span-8 flex flex-col">
+                <OverviewTrips
+                  className="flex flex-col"
+                  attentionTrips={data.attentionTrips}
+                  overdueRunningTrips={data.overdueRunningTrips}
+                  href={listHref()}
+                />
+              </div>
+
+              {/* Cột phải: Công việc */}
+              <div className="min-w-0 lg:col-span-5 xl:col-span-4 flex flex-col">
+                <section
+                  aria-labelledby="overview-tasks-heading"
+                  className="flex flex-col rounded-2xl border border-slate-200 bg-surface p-5 shadow-xs"
+                >
+                  <div className="flex items-baseline justify-between gap-2 border-b border-slate-100 pb-3 mb-3 flex-shrink-0">
+                    <h2 id="overview-tasks-heading" className="font-bold text-foreground">
+                      Công việc
+                    </h2>
+                    <span className="text-xs font-medium text-slate-500">
+                      Tất cả ngày
+                    </span>
+                  </div>
+
+                  <div className="divide-y divide-slate-100 rounded-xl border border-slate-100 bg-surface overflow-hidden">
+                    {configuredTasks.map((task) => {
+                      const isUrgent = task.count > 0 && task.isBlocker;
+                      return (
+                        <Link
+                          key={task.kind}
+                          href={task.resolvedHref}
+                          className={`flex items-center justify-between gap-3 px-3.5 py-2.5 transition hover:bg-slate-50/80 ${isUrgent ? 'bg-rose-50/40 hover:bg-rose-50/70' : ''
+                            }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            {isUrgent && (
+                              <span
+                                className="h-2 w-2 rounded-full bg-rose-500 flex-shrink-0"
+                                aria-hidden="true"
+                              />
+                            )}
+                            <span
+                              className={`text-xs font-semibold leading-snug truncate ${isUrgent ? 'text-rose-900' : 'text-slate-700'
+                                }`}
+                            >
+                              {task.displayLabel}
+                            </span>
+                          </div>
+                          <span
+                            className={`text-sm font-bold tabular-nums ml-2 flex-shrink-0 ${isUrgent
+                                ? 'text-rose-700'
+                                : task.count > 0
+                                  ? 'text-foreground'
+                                  : 'text-slate-400'
+                              }`}
+                          >
+                            {task.count}
+                          </span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </section>
+              </div>
             </div>
 
-            {/* Cột phải: Công việc */}
-            <div className="min-w-0 lg:col-span-5 xl:col-span-4 flex flex-col">
-              <section
-                aria-labelledby="overview-tasks-heading"
-                className="flex h-full flex-col rounded-2xl border border-slate-200 bg-surface p-5 shadow-xs"
-              >
-                <div className="flex items-baseline justify-between gap-2 border-b border-slate-100 pb-3 mb-3 flex-shrink-0">
-                  <h2 id="overview-tasks-heading" className="font-bold text-foreground">
-                    Công việc
-                  </h2>
-                  <span className="text-xs font-medium text-slate-500">
-                    Tất cả ngày
-                  </span>
-                </div>
+            {/* 5. Hiện trạng */}
+            <section aria-labelledby="overview-inventory-heading">
+              <div className="mb-3 flex items-baseline justify-between gap-2">
+                <h2 id="overview-inventory-heading" className="font-bold text-foreground">
+                  Hiện trạng
+                </h2>
+              </div>
+              <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {data.inventory.map((item) => {
+                  const meta = getInventoryPresentation(
+                    item,
+                    system,
+                    Boolean(selectedSchool),
+                    data.schoolName,
+                  );
+                  const CardContent = (
+                    <>
+                      <span className="block text-xs font-medium text-slate-500">
+                        {meta.label}
+                      </span>
+                      {meta.displayValue}
+                      <span className="mt-1 block text-xs text-slate-400 truncate" title={meta.scopeText}>
+                        {meta.scopeText}
+                      </span>
+                    </>
+                  );
 
-                <div className="divide-y divide-slate-100 rounded-xl border border-slate-100 bg-surface overflow-hidden">
-                  {configuredTasks.map((task) => {
-                    const isUrgent = task.count > 0 && task.isBlocker;
+                  if (item.href) {
                     return (
                       <Link
-                        key={task.kind}
-                        href={task.resolvedHref}
-                        className={`flex items-center justify-between gap-3 px-3.5 py-2.5 transition hover:bg-slate-50/80 ${
-                          isUrgent ? 'bg-rose-50/40 hover:bg-rose-50/70' : ''
-                        }`}
+                        key={item.key}
+                        href={item.href}
+                        className="rounded-2xl border border-slate-200 bg-surface p-4 transition hover:border-slate-300 hover:shadow-xs flex flex-col justify-between"
                       >
-                        <div className="flex items-center gap-2 min-w-0">
-                          {isUrgent && (
-                            <span
-                              className="h-2 w-2 rounded-full bg-rose-500 flex-shrink-0"
-                              aria-hidden="true"
-                            />
-                          )}
-                          <span
-                            className={`text-xs font-semibold leading-snug truncate ${
-                              isUrgent ? 'text-rose-900' : 'text-slate-700'
-                            }`}
-                          >
-                            {task.displayLabel}
-                          </span>
-                        </div>
-                        <span
-                          className={`text-sm font-bold tabular-nums ml-2 flex-shrink-0 ${
-                            isUrgent
-                              ? 'text-rose-700'
-                              : task.count > 0
-                              ? 'text-foreground'
-                              : 'text-slate-400'
-                          }`}
-                        >
-                          {task.count}
-                        </span>
+                        {CardContent}
                       </Link>
                     );
-                  })}
-                </div>
-              </section>
-            </div>
-          </div>
-
-          {/* 5. Hiện trạng */}
-          <section aria-labelledby="overview-inventory-heading">
-            <div className="mb-3 flex items-baseline justify-between gap-2">
-              <h2 id="overview-inventory-heading" className="font-bold text-foreground">
-                Hiện trạng
-              </h2>
-            </div>
-            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {data.inventory.map((item) => {
-                const meta = getInventoryPresentation(
-                  item,
-                  system,
-                  Boolean(selectedSchool),
-                  data.schoolName,
-                );
-                const CardContent = (
-                  <>
-                    <span className="block text-xs font-medium text-slate-500">
-                      {meta.label}
-                    </span>
-                    {meta.displayValue}
-                    <span className="mt-1 block text-xs text-slate-400 truncate" title={meta.scopeText}>
-                      {meta.scopeText}
-                    </span>
-                  </>
-                );
-
-                if (item.href) {
+                  }
                   return (
-                    <Link
+                    <div
                       key={item.key}
-                      href={item.href}
-                      className="rounded-2xl border border-slate-200 bg-surface p-4 transition hover:border-slate-300 hover:shadow-xs flex flex-col justify-between"
+                      className="rounded-2xl border border-slate-200 bg-surface p-4 flex flex-col justify-between"
                     >
                       {CardContent}
-                    </Link>
+                    </div>
                   );
-                }
-                return (
-                  <div
-                    key={item.key}
-                    className="rounded-2xl border border-slate-200 bg-surface p-4 flex flex-col justify-between"
-                  >
-                    {CardContent}
-                  </div>
-                );
-              })}
-            </div>
-          </section>
+                })}
+              </div>
+            </section>
 
-          {/* Timestamp */}
-          <p className="text-right text-xs text-slate-400">
-            Cập nhật{' '}
-            {new Date(data.generatedAt).toLocaleTimeString('vi-VN', {
-              timeZone: 'Asia/Ho_Chi_Minh',
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-            })}
-          </p>
-        </>
+            {/* Timestamp */}
+            <p className="text-right text-xs text-slate-400">
+              Cập nhật{' '}
+              {new Date(data.generatedAt).toLocaleTimeString('vi-VN', {
+                timeZone: 'Asia/Ho_Chi_Minh',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+              })}
+            </p>
+          </>
       )}
-    </div>
-  );
+        </div>
+      );
 }

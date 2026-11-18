@@ -7,12 +7,13 @@ import { useAuth } from '@/components/auth/auth-provider';
 import { SchoolAdminGuard } from '@/components/admin/school-admin-guard';
 import { apiClient } from '@/lib/api-client';
 import type { SchoolEmployeeDetail } from '@/lib/types';
-import { SpinnerIcon, AlertIcon } from '@/components/icons';
+import { SpinnerIcon, AlertIcon, MailIcon, PhoneIcon, TeacherIcon } from '@/components/icons';
 import { Card } from '@/components/ui/card';
 import { BackLink } from '@/components/admin/common/context-navigation';
 import { TableActions } from '@/components/admin/common/table-actions';
 import { ResendCredentialsDialog } from '@/components/admin/common/resend-credentials-dialog';
 import { ResourceStatusDialog } from '@/components/admin/common/resource-status-dialog';
+import { TeacherSchedule } from './_components/teacher-schedule';
 
 function TeacherDetailPageContent() {
   const params = useParams();
@@ -95,7 +96,7 @@ function TeacherDetailPageContent() {
   }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
+    <div className="p-6 max-w-6xl mx-auto space-y-6">
       {/* Back button */}
       <div>
         <BackLink
@@ -107,22 +108,22 @@ function TeacherDetailPageContent() {
       {/* Header Profile Card */}
       <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4 min-w-0">
-          <div className="w-14 h-14 rounded-full bg-amber-100 text-amber-900 font-bold text-xl flex items-center justify-center border-2 border-amber-200 shrink-0">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-slate-900 font-bold text-2xl flex items-center justify-center shadow-xs shrink-0">
             {teacher.fullName.trim().charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0 space-y-1.5">
-            <h1 className="text-xl font-bold text-slate-900 truncate">{teacher.fullName}</h1>
+            <h1 className="text-xl font-bold text-slate-900 leading-snug">{teacher.fullName}</h1>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
-                Giáo viên
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 whitespace-nowrap shrink-0">
+                Giáo viên phụ xe
               </span>
               {isActive ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" aria-hidden="true" />
                   <span>Đang hoạt động</span>
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-300">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-300 whitespace-nowrap shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" aria-hidden="true" />
                   <span>Ngừng hoạt động</span>
                 </span>
@@ -150,28 +151,60 @@ function TeacherDetailPageContent() {
         )}
       </Card>
 
-      {/* Information Card: Thông tin liên hệ */}
-      <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
-        <h2 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-3">
-          Thông tin liên hệ
-        </h2>
+      {/* 2-Column Grid: Contact Info + Role/Account Info */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Card: Thông tin liên hệ */}
+        <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
+          <h2 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-3 flex items-center gap-2">
+            <MailIcon className="w-4 h-4 text-amber-500" />
+            Thông tin liên hệ
+          </h2>
 
-        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-xs">
-          <div>
-            <dt className="text-slate-500 font-medium">Email</dt>
-            <dd className="text-slate-800 font-semibold text-sm mt-1 break-words">
-              {teacher.email || 'Chưa cập nhật'}
-            </dd>
-          </div>
+          <dl className="grid grid-cols-1 gap-4 text-xs">
+            <div className="p-3 rounded-xl bg-slate-50/70 border border-slate-100">
+              <dt className="text-slate-400 font-medium block text-[11px]">Email đăng nhập</dt>
+              <dd className="text-slate-800 font-semibold text-xs mt-1 break-words">
+                {teacher.email || 'Chưa cập nhật'}
+              </dd>
+            </div>
 
-          <div>
-            <dt className="text-slate-500 font-medium">Số điện thoại</dt>
-            <dd className="text-slate-800 font-semibold text-sm mt-1">
-              {teacher.phone || 'Chưa cập nhật'}
-            </dd>
-          </div>
-        </dl>
-      </Card>
+            <div className="p-3 rounded-xl bg-slate-50/70 border border-slate-100">
+              <dt className="text-slate-400 font-medium block text-[11px]">Số điện thoại liên lạc</dt>
+              <dd className="text-slate-800 font-semibold text-xs mt-1 flex items-center gap-1.5">
+                <PhoneIcon className="w-3.5 h-3.5 text-slate-400" />
+                <span>{teacher.phone || 'Chưa cập nhật'}</span>
+              </dd>
+            </div>
+          </dl>
+        </Card>
+
+        {/* Card: Thông tin tài khoản & Nhiệm vụ */}
+        <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
+          <h2 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-3 flex items-center gap-2">
+            <TeacherIcon className="w-4 h-4 text-amber-500" />
+            Thông tin tài khoản & Nhiệm vụ
+          </h2>
+
+          <dl className="grid grid-cols-1 gap-4 text-xs">
+            <div className="p-3 rounded-xl bg-slate-50/70 border border-slate-100">
+              <dt className="text-slate-400 font-medium block text-[11px]">Vai trò hệ thống</dt>
+              <dd className="text-slate-800 font-semibold text-xs mt-1">
+                Giáo viên phụ trách xe (Bus Attendant)
+              </dd>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-50/70 border border-slate-100">
+              <dt className="text-slate-400 font-medium block text-[11px]">Nhiệm vụ chính</dt>
+              <dd className="text-slate-800 font-medium text-xs mt-1 leading-relaxed">
+                Điểm danh học sinh lên/xuống xe, quét mã QR/RFID qua Mobile App, giám sát an toàn trong suốt lộ trình.
+              </dd>
+            </div>
+          </dl>
+        </Card>
+      </div>
+
+      {/* Teacher Schedule (Lịch phụ trách chuyến xe) */}
+      <TeacherSchedule key={teacher.id} teacherId={teacher.id} schoolId={schoolId || undefined} />
 
       {/* Dialogs */}
       {resendOpen && schoolId && (
