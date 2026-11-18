@@ -595,7 +595,7 @@ export class SchoolsController {
   @ApiOperation({
     summary: 'Hẹn đổi địa chỉ và vị trí trường học (SYSTEM_ADMIN)',
     description:
-      'effectiveDate tùy chọn, mặc định ngày mai, đến hết hợp đồng. Trước ngày đó phương án cũ tiếp tục. Đến ngày hủy toàn bộ phương án cũ; chuyến đã điểm danh/đang chạy giữ cho admin chốt, lịch sử giữ nguyên. Response School là dữ liệu hôm nay, counters đã thực hiện bằng 0 khi mới hẹn; thêm scheduledChangeId/effectiveDate/changeStatus. Phải tạo mới phương án sau đổi địa chỉ; giữ quy tắc sinh ngày sau activation nên có thể gián đoạn ngày chuyển.',
+      'effectiveDate tùy chọn, mặc định ngày mai, đến hết hợp đồng. Trước ngày đó phương án cũ tiếp tục. Đến ngày hủy toàn bộ phương án cũ; chuyến đã điểm danh/đang chạy giữ cho admin chốt, lịch sử giữ nguyên. Response School là dữ liệu hôm nay, counters đã thực hiện bằng 0 khi mới hẹn; thêm scheduledChangeId/effectiveDate/changeStatus. Phải duyệt phương án mới sau đổi địa chỉ. Chuyến của phương án mới có thể sinh cùng ngày nếu còn trước giờ khởi hành.',
   })
   @ApiParam({ name: 'id', description: 'Mã UUID trường học' })
   @ApiResponse({ status: 200, description: 'Đã hẹn đổi vị trí; chưa hủy ngay', type: ScheduledLocationResponseDto })

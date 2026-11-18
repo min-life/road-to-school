@@ -61,7 +61,7 @@ export function useVehicleIot(vehicleId: string, onUpdated: () => void) {
     if (!device && !data.current?.assignment) return;
     locked.current = true; sequence.current++; setBusy(true); setActionError(''); setNotice('');
     try {
-      if (device) await iotApi.assign(device.deviceId, vehicleId, device.assignment?.id ?? null, reason.trim());
+      if (device) await iotApi.assign(device.deviceId, vehicleId, null, reason.trim());
       else await iotApi.release(data.current!.deviceId, data.current!.assignment!.id, reason.trim());
       if (mounted.current) {
         setNotice(device ? 'Đã gán thiết bị.' : 'Đã tháo thiết bị.');

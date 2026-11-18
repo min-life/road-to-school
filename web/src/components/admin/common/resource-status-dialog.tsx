@@ -83,7 +83,7 @@ export function ResourceStatusDialog({ target, onClose, onSuccess }: {
   return <LifecycleDialog open title={`${target.isActive ? 'Ngừng hoạt động' : 'Kích hoạt'} ${label}`} busy={busy} onClose={onClose}
     footer={<><Button variant="outline" disabled={busy} onClick={onClose}>Quay lại</Button><Button variant={target.isActive ? 'danger' : 'primary'}
       disabled={busy || loading || !!error || !impact || impact.isActive !== target.isActive || (target.isActive && impact.hasBlockingInProgress) || !!(needsReplacement && !replacement)}
-      onClick={submit}>{busy ? 'Đang lưu…' : 'Xác nhận'}</Button></>}>
+      onClick={submit}>{busy ? 'Đang lưu…' : (target.isActive ? `Ngừng hoạt động ${label}` : `Kích hoạt ${label}`)}</Button></>}>
     <div className="space-y-4">
       <p className="font-semibold">{target.name}</p>
       {loading && <p role="status">Đang kiểm tra tác động…</p>}

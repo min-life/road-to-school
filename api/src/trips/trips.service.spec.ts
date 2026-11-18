@@ -1,6 +1,6 @@
 // Isolate delivery-intent helpers in business-rule suites; actual helpers are tested in notifications.spec.ts.
 vi.mock('../notifications/notification-writer.js', () => ({ notifyTrip: vi.fn().mockResolvedValue(undefined), notifyAssignment: vi.fn().mockResolvedValue(undefined), notifyCancelledTrips: vi.fn().mockResolvedValue(undefined) }));
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { TripsService } from './trips.service.js';
 import { AttendanceStatus, Role, RouteDirection, RoutePlanStatus, TripStatus, TripIncidentType, TripIncidentStatus } from '@prisma/client';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
@@ -118,10 +118,12 @@ describe('TripsService Business Rules', () => {
     service = new TripsService(prismaMock, configMock as any);
   });
 
-  describe('Earliest Eligible Service Date (Rule 7.2)', () => {
-    it('should NOT generate trips on or before activation date', async () => {
-      // RoutePlan activated on 2026-10-26 in VN
-      const activationDate = new Date('2026-10-26T03:00:00Z'); // 10:00 in VN
+  afterEach(() => vi.useRealTimers());
+
+  describe('Trip generation time eligibility (Rule 7.2)', () => {
+    it.each(['2026-10-25T23:30:00Z', '2026-10-26T03:00:00Z'])('should skip a same-day trip at or after departure (%s)', async (now) => {
+      vi.setSystemTime(new Date(now));
+      const activationDate = new Date('2026-10-25T19:00:00Z'); // 02:00 in VN
       const plan = {
         id: 'plan-1',
         schoolId: 'school-1',
@@ -142,7 +144,7 @@ describe('TripsService Business Rules', () => {
           {
             id: 'route-1',
             direction: RouteDirection.TO_SCHOOL,
-            estimatedDuration: 1800,
+            estimatedDurationSeconds: 1800,
             proposedVehicleId: 'v1',
             defaultDriverId: 'd1',
             defaultBusAttendantId: 'ba1',
@@ -184,14 +186,14 @@ describe('TripsService Business Rules', () => {
         mockAdminUser as any,
       );
 
-      // Should not be created because serviceDate <= activationLocalDate
+      expect(result.totalEligible).toBe(0);
       expect(result.createdCount).toBe(0);
       expect(prismaMock.trip.create).not.toHaveBeenCalled();
     });
 
-    it('should generate trips for subsequent eligible school day after activation', async () => {
-      // Activated on 2026-10-25
-      const activationDate = new Date('2026-10-25T03:00:00Z');
+    it.each(['2026-10-25T03:00:00Z', '2026-10-25T19:00:00Z'])('should generate a future departure for a plan activated at %s', async (activatedAt) => {
+      vi.setSystemTime(new Date('2026-10-25T22:00:00Z')); // 05:00 on 26/10 in VN
+      const activationDate = new Date(activatedAt);
       const plan = {
         id: 'plan-1',
         schoolId: 'school-1',
@@ -212,7 +214,7 @@ describe('TripsService Business Rules', () => {
           {
             id: 'route-1',
             direction: RouteDirection.TO_SCHOOL,
-            estimatedDuration: 1800, // 30 min
+            estimatedDurationSeconds: 1800,
             proposedVehicleId: 'v1',
             defaultDriverId: 'd1',
             defaultBusAttendantId: 'ba1',
@@ -252,7 +254,6 @@ describe('TripsService Business Rules', () => {
         serviceDate: '2026-10-26',
       });
 
-      // Generate for 2026-10-26 (Monday, next day after 2026-10-25)
       const result = await service.generateTrips(
         { schoolId: 'school-1', fromDate: '2026-10-26', toDate: '2026-10-26' },
         mockAdminUser as any,
@@ -266,6 +267,7 @@ describe('TripsService Business Rules', () => {
 
   describe('Trip-by-Trip Idempotency (Rule 7.5 & 7.6)', () => {
     it('should SKIP existing trips and NOT overwrite them', async () => {
+      vi.setSystemTime(new Date('2026-10-25T22:00:00Z'));
       const activationDate = new Date('2026-10-25T03:00:00Z');
       const plan = {
         id: 'plan-1',
@@ -287,7 +289,7 @@ describe('TripsService Business Rules', () => {
           {
             id: 'route-1',
             direction: RouteDirection.TO_SCHOOL,
-            estimatedDuration: 1800,
+            estimatedDurationSeconds: 1800,
             proposedVehicleId: 'v1',
             defaultDriverId: 'd1',
             defaultBusAttendantId: 'ba1',

@@ -16,8 +16,32 @@ export interface IotScan {
   scannedAt: string; createdAt: string; assignmentId: string | null; vehicleId: string | null; vehicleLicensePlateSnapshot: string | null;
 }
 export interface IotPage<T> { data: T[]; total: number; page: number; limit: number }
+export interface DeviceListParams {
+  page?: number;
+  limit?: number;
+  deviceId?: string;
+}
+
 export const iotApi = {
-  devices: (page = 1) => apiClient.request<IotPage<IotDevice>>(`/iot/devices?limit=100&page=${page}`),
+  devices: (pageOrParams: number | DeviceListParams = 1) => {
+    let page = 1;
+    let limit = 100;
+    let deviceId = '';
+    if (typeof pageOrParams === 'number') {
+      page = pageOrParams;
+    } else if (pageOrParams && typeof pageOrParams === 'object') {
+      page = pageOrParams.page ?? 1;
+      limit = pageOrParams.limit ?? 100;
+      deviceId = pageOrParams.deviceId ?? '';
+    }
+    const params = new URLSearchParams();
+    params.set('page', String(page));
+    params.set('limit', String(limit));
+    if (deviceId) {
+      params.set('deviceId', deviceId);
+    }
+    return apiClient.request<IotPage<IotDevice>>(`/iot/devices?${params.toString()}`);
+  },
   vehicle: (vehicleId: string) => apiClient.request<Vehicle>(`/vehicles/${encodeURIComponent(vehicleId)}`, { cache: 'no-store' }),
   scans: (page = 1, deviceId = '', vehicleId = '') => apiClient.request<IotPage<IotScan>>(
     `/iot/scans?page=${page}&limit=20${deviceId ? `&deviceId=${encodeURIComponent(deviceId)}` : ''}${vehicleId ? `&vehicleId=${encodeURIComponent(vehicleId)}` : ''}`,
