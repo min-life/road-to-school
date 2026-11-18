@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2600" height="2200" viewBox="0 0 2600 2200"><rect width="100%" height="100%" fill="white"/>
+<circle cx="1300" cy="1100" r="230" fill="white" stroke="#555" stroke-width="3"/>
+<text x="1300.0" y="1060.0" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="29" font-weight="700" fill="#202020">0</text>
+<text x="1300.0" y="1091.0" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="29" font-weight="700" fill="#202020">HỆ THỐNG</text>
+<text x="1300.0" y="1129.0" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="29" font-weight="700" fill="#202020">ROAD TO SCHOOL</text>
+<rect x="1115.0" y="150.0" width="370" height="100" fill="white" stroke="#555" stroke-width="3"/>
+<text x="1300.0" y="200.0" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="25" font-weight="400" fill="#202020">Phụ huynh</text>
+<path d="M1322.0,254.0 L1322.0,867.0 M1329.0,853.0 L1322.0,867.0 L1315.0,853.0" fill="none" stroke="#555" stroke-width="3"/>
+<rect x="1412.5" y="498.0" width="295" height="44" fill="white"/>
+<text x="1560.0" y="520.0" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="23" font-weight="400" fill="#202020">Yêu cầu liên kết và dịch vụ</text>
+<path d="M1278.0,867.0 L1278.0,254.0 M1271.0,268.0 L1278.0,254.0 L1285.0,268.0" fill="none" stroke="#555" stroke-width="3"/>
+<rect x="889.5" y="498.0" width="301" height="44" fill="white"/>
+<text x="1040.0" y="520.0" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="23" font-weight="400" fill="#202020">Thông tin con và hành trình</text>
+<rect x="1757.8" y="360.6" width="370" height="100" fill="white" stroke="#555" stroke-width="3"/>
+<text x="1942.8" y="410.6" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="25" font-weight="400" fill="#202020">Giáo viên phụ xe</text>
+<path d="M1909.5,478.5 L1475.0,944.6 M1489.6,939.1 L1475.0,944.6 L1479.4,929.6" fill="none" stroke="#555" stroke-width="3"/>
+<rect x="1640.6" y="706.6" width="252" height="44" fill="white"/>
+<text x="1766.6" y="728.6" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="23" font-weight="400" fill="#202020">Điểm danh và báo cáo</text>
+<path d="M1442.8,914.6 L1877.4,448.5 M1862.7,453.9 L1877.4,448.5 L1872.9,463.5" fill="none" stroke="#555" stroke-width="3"/>
+<rect x="1502.9" y="586.6" width="270" height="44" fill="white"/>
+<text x="1637.9" y="608.6" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="23" font-weight="400" fill="#202020">Lịch và thông tin chuyến</text>
+<rect x="2099.8" y="893.7" width="370" height="100" fill="white" stroke="#555" stroke-width="3"/>
+<text x="2284.8" y="943.7" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="25" font-weight="400" fill="#202020">VietMap</text>
+<path d="M2099.3,995.4 L1533.6,1085.2 M1548.5,1089.9 L1533.6,1085.2 L1546.3,1076.1" fill="none" stroke="#555" stroke-width="3"/>
+<rect x="1734.2" y="1078.1" width="253" height="44" fill="white"/>
+<text x="1860.7" y="1100.1" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="23" font-weight="400" fill="#202020">Dữ liệu bản đồ, lộ trình</text>
+<path d="M1526.7,1041.8 L2092.4,952.0 M2077.5,947.3 L2092.4,952.0 L2079.7,961.1" fill="none" stroke="#555" stroke-width="3"/>
+<rect x="1707.1" y="904.3" width="252" height="44" fill="white"/>
+<text x="1833.1" y="926.3" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="23" font-weight="400" fill="#202020">Yêu cầu bản đồ, tối ưu</text>
+<rect x="1981.0" y="1500.0" width="370" height="100" fill="white" stroke="#555" stroke-width="3"/>
+<text x="2166.0" y="1550.0" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="25" font-weight="400" fill="#202020">Cloudinary</text>
+<path d="M2056.1,1517.7 L1496.6,1227.0 M1505.8,1239.6 L1496.6,1227.0 L1512.3,1227.2" fill="none" stroke="#555" stroke-width="3"/>
+<rect x="1723.5" y="1426.3" width="112" height="44" fill="white"/>
+<text x="1779.5" y="1448.3" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="23" font-weight="400" fill="#202020">URL ảnh</text>
+<path d="M1516.9,1187.9 L2076.4,1478.6 M2067.2,1466.0 L2076.4,1478.6 L2060.7,1478.4" fill="none" stroke="#555" stroke-width="3"/>
+<rect x="1733.6" y="1270.2" width="254" height="44" fill="white"/>
+<text x="1860.6" y="1292.2" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="23" font-weight="400" fill="#202020">Ảnh và yêu cầu lưu trữ</text>
+<rect x="1457.0" y="1895.7" width="370" height="100" fill="white" stroke="#555" stroke-width="3"/>
+<text x="1642.0" y="1945.7" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="25" font-weight="400" fill="#202020">Dịch vụ Email / SMTP</text>
+<path d="M1387.4,1316.0 L1620.3,1892.0 M1621.5,1876.4 L1620.3,1892.0 L1608.6,1881.7" fill="none" stroke="#555" stroke-width="3"/>
+<rect x="1430.8" y="1616.6" width="174" height="44" fill="white"/>
+<text x="1517.8" y="1638.6" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="23" font-weight="400" fill="#202020">Nội dung email</text>
+<rect x="773.0" y="1895.7" width="370" height="100" fill="white" stroke="#555" stroke-width="3"/>
+<text x="958.0" y="1945.7" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="25" font-weight="400" fill="#202020">Expo Push Service</text>
+<path d="M1212.6,1316.0 L979.7,1892.0 M991.4,1881.7 L979.7,1892.0 L978.5,1876.4" fill="none" stroke="#555" stroke-width="3"/>
+<rect x="971.2" y="1616.6" width="222" height="44" fill="white"/>
+<text x="1082.2" y="1638.6" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="23" font-weight="400" fill="#202020">Nội dung thông báo</text>
+<rect x="249.0" y="1500.0" width="370" height="100" fill="white" stroke="#555" stroke-width="3"/>
+<text x="434.0" y="1550.0" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="25" font-weight="400" fill="#202020">Tài xế</text>
+<path d="M523.6,1478.6 L1083.1,1187.9 M1067.5,1188.2 L1083.1,1187.9 L1073.9,1200.6" fill="none" stroke="#555" stroke-width="3"/>
+<rect x="604.4" y="1270.2" width="270" height="44" fill="white"/>
+<text x="739.4" y="1292.2" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="23" font-weight="400" fill="#202020">GPS và báo cáo chuyến</text>
+<path d="M1103.4,1227.0 L543.9,1517.7 M559.5,1517.4 L543.9,1517.7 L553.1,1505.0" fill="none" stroke="#555" stroke-width="3"/>
+<rect x="716.0" y="1426.3" width="209" height="44" fill="white"/>
+<text x="820.5" y="1448.3" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="23" font-weight="400" fill="#202020">Lịch và phân công</text>
+<rect x="130.2" y="893.7" width="370" height="100" fill="white" stroke="#555" stroke-width="3"/>
+<text x="315.2" y="943.7" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="25" font-weight="400" fill="#202020">Quản trị trường</text>
+<path d="M507.6,952.0 L1073.3,1041.8 M1060.6,1032.6 L1073.3,1041.8 L1058.4,1046.5" fill="none" stroke="#555" stroke-width="3"/>
+<rect x="607.4" y="904.3" width="319" height="44" fill="white"/>
+<text x="766.9" y="926.3" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="23" font-weight="400" fill="#202020">Hồ sơ, phân công, phê duyệt</text>
+<path d="M1066.4,1085.2 L500.7,995.4 M513.4,1004.5 L500.7,995.4 L515.6,990.7" fill="none" stroke="#555" stroke-width="3"/>
+<rect x="592.3" y="1078.1" width="294" height="44" fill="white"/>
+<text x="739.3" y="1100.1" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="23" font-weight="400" fill="#202020">Thông tin vận hành trường</text>
+<rect x="472.2" y="360.6" width="370" height="100" fill="white" stroke="#555" stroke-width="3"/>
+<text x="657.2" y="410.6" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="25" font-weight="400" fill="#202020">Quản trị nhà xe</text>
+<path d="M722.6,448.5 L1157.2,914.6 M1152.8,899.6 L1157.2,914.6 L1142.5,909.1" fill="none" stroke="#555" stroke-width="3"/>
+<rect x="805.6" y="586.6" width="313" height="44" fill="white"/>
+<text x="962.1" y="608.6" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="23" font-weight="400" fill="#202020">Dữ liệu và yêu cầu điều phối</text>
+<path d="M1125.0,944.6 L690.5,478.5 M694.9,493.5 L690.5,478.5 L705.1,484.0" fill="none" stroke="#555" stroke-width="3"/>
+<rect x="683.9" y="706.6" width="299" height="44" fill="white"/>
+<text x="833.4" y="728.6" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="23" font-weight="400" fill="#202020">Kết quả điều phối, giám sát</text>
+</svg>

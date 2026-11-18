@@ -64,14 +64,24 @@ export function StudentRoutingSection({
     }
 
     return (
-      <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-3">
-        <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-          <RouteIcon className="w-4 h-4 text-slate-400" />
-          <span>Tuyến đường đưa đón</span>
-        </h2>
-        <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 flex items-start gap-3">
-          <InfoIcon className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-          <p className="text-xs text-slate-600 leading-relaxed">{message}</p>
+      <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <RouteIcon className="w-4 h-4 text-amber-500" />
+            <span>Tuyến đường đưa đón</span>
+          </h2>
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+            Chưa xếp tuyến
+          </span>
+        </div>
+        <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 flex items-start gap-3.5">
+          <div className="p-2 rounded-lg bg-amber-50 border border-amber-200/60 text-amber-600 shrink-0">
+            <InfoIcon className="w-4 h-4" />
+          </div>
+          <div className="space-y-0.5">
+            <p className="text-xs font-semibold text-slate-800">Thông tin lộ trình đưa đón</p>
+            <p className="text-xs text-slate-500 leading-relaxed">{message}</p>
+          </div>
         </div>
       </Card>
     );

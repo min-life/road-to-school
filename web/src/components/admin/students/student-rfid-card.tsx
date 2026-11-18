@@ -19,18 +19,48 @@ export function StudentRfidCard({ student, onUpdated }: Props) {
   const [operation, setOperation] = useState<Operation | null>(null);
   const [revoking, setRevoking] = useState(false);
   return (
-    <Card className="rfid-student-card">
-      <h2>Thẻ RFID</h2>
-      <p>{student.rfidCardUid || "Chưa đăng ký"}</p>
+    <Card className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+          <svg className="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+          </svg>
+          Thẻ RFID
+        </h2>
+        {student.rfidCardUid ? (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            Đã liên kết
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
+            Chưa đăng ký
+          </span>
+        )}
+      </div>
+
+      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+        <span className="text-slate-400 block text-[11px] font-medium mb-1">Mã thẻ RFID (UID)</span>
+        {student.rfidCardUid ? (
+          <span className="font-mono font-bold text-slate-800 text-xs tracking-wider bg-white px-2 py-0.5 rounded border border-slate-200 inline-block">
+            {student.rfidCardUid}
+          </span>
+        ) : (
+          <span className="text-slate-400 italic text-xs">Chưa gán thẻ quẹt cho học sinh này</span>
+        )}
+      </div>
+
       {user?.role === "SYSTEM_ADMIN" && (
-        <div className="rfid-student-actions">
+        <div className="flex items-center gap-2 pt-1">
           <Button
             type="button"
             variant="outline"
+            size="sm"
             disabled={student.status !== "AVAILABLE"}
             onClick={() =>
               setOperation(student.rfidCardUid ? "REPLACE" : "REGISTER")
             }
+            className="flex-1 text-xs font-medium cursor-pointer"
           >
             {student.rfidCardUid ? "Đổi thẻ" : "Đăng ký thẻ"}
           </Button>
@@ -38,8 +68,10 @@ export function StudentRfidCard({ student, onUpdated }: Props) {
             <Button
               type="button"
               variant="danger"
+              size="sm"
               disabled={student.status !== "AVAILABLE"}
               onClick={() => setRevoking(true)}
+              className="text-xs font-medium cursor-pointer"
             >
               Hủy liên kết
             </Button>

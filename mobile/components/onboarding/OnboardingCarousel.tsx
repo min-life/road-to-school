@@ -74,7 +74,7 @@ export function OnboardingCarousel({ saving, error, onComplete, onContinueWithou
               accessibilityElementsHidden={index !== active}
               importantForAccessibility={index === active ? 'auto' : 'no-hide-descendants'}
             >
-              <Image source={item.image} style={[styles.image, { height: imageHeight }]} resizeMode="contain" accessible={false} />
+              <Image source={item.image} style={[styles.image, { height: imageHeight }]} resizeMode="contain" fadeDuration={0} accessible={false} />
               <View style={styles.copy}>
                 <Text accessibilityRole="header" style={styles.title}>{item.title}</Text>
                 <Text style={styles.description}>{item.description}</Text>

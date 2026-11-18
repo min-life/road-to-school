@@ -25,6 +25,8 @@ import {
   SchoolIcon,
   SpinnerIcon,
   AlertIcon,
+  QrCodeIcon,
+  RequestIcon,
 } from '@/components/icons';
 import { StudentRfidCard } from '@/components/admin/students/student-rfid-card';
 import { QRCodeDisplay } from '@/components/common/qr-code';
@@ -299,7 +301,7 @@ function StudentDetailPageContent() {
   const isAvailable = student.status === 'AVAILABLE';
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-6 max-w-6xl mx-auto space-y-6">
       {/* Toast message */}
 
 
@@ -356,47 +358,51 @@ function StudentDetailPageContent() {
 
       {/* Top Header Card */}
       <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 min-w-0">
           {student.avatarUrl ? (
             <img
               src={student.avatarUrl}
               alt={student.fullName}
-              className="w-16 h-16 rounded-full object-cover border-2 border-amber-400"
+              className="w-16 h-16 rounded-2xl object-cover border-2 border-amber-400 shadow-xs shrink-0"
             />
           ) : (
-            <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-800 font-bold text-2xl flex items-center justify-center border-2 border-amber-300">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-slate-900 font-bold text-2xl flex items-center justify-center shadow-xs shrink-0">
               {student.fullName.charAt(0).toUpperCase()}
             </div>
           )}
 
-          <PageHeader>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-slate-900">{student.fullName}</h1>
+          <PageHeader className="min-w-0">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-xl font-bold text-slate-900 leading-snug">{student.fullName}</h1>
               {isAvailable ? (
-                <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <Badge className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
                   Khả dụng
                 </Badge>
               ) : (
-                <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-300">
+                <Badge className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-300 whitespace-nowrap shrink-0">
                   Đã vô hiệu hóa
                 </Badge>
               )}
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Mã học sinh: <span className="font-mono font-bold text-slate-800">{student.code}</span>
+            <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
+              <span>Mã học sinh:</span>
+              <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2.5 py-0.5 rounded text-[11px] border border-slate-200">
+                {student.code}
+              </span>
             </p>
           </PageHeader>
         </div>
 
         {/* Action button */}
-        <div>
+        <div className="shrink-0">
           <Button
             type="button"
             onClick={handleOpenStatusModal}
-            className={`px-4 py-2 text-xs font-semibold rounded-xl transition-colors cursor-pointer border ${
+            className={`px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer border shadow-xs whitespace-nowrap shrink-0 ${
               isAvailable
-                ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
-                : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 hover:border-rose-300'
+                : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300'
             }`}
           >
             {isAvailable ? 'Vô hiệu hóa học sinh' : 'Kích hoạt lại học sinh'}
@@ -405,9 +411,9 @@ function StudentDetailPageContent() {
       </Card>
 
       {/* Main Grid: Info + QR Code */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Info Column (2 spans) */}
-        <div className="md:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-6">
           {/* Card: Thông tin chi tiết */}
           <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
             <h2 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-3 flex items-center gap-2">
@@ -415,71 +421,75 @@ function StudentDetailPageContent() {
               Thông tin học sinh
             </h2>
 
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div>
-                <dt className="text-slate-400 font-medium">Họ và tên</dt>
-                <dd className="text-slate-800 font-semibold mt-0.5">{student.fullName}</dd>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="p-3 rounded-xl bg-slate-50/70 border border-slate-100">
+                <span className="text-slate-400 font-medium block text-[11px]">Họ và tên</span>
+                <span className="text-slate-800 font-semibold mt-0.5 block">{student.fullName}</span>
               </div>
 
-              <div>
-                <dt className="text-slate-400 font-medium">Mã học sinh</dt>
-                <dd className="font-mono font-semibold text-slate-900 mt-0.5">{student.code}</dd>
+              <div className="p-3 rounded-xl bg-slate-50/70 border border-slate-100">
+                <span className="text-slate-400 font-medium block text-[11px]">Mã học sinh</span>
+                <span className="font-mono font-bold text-slate-900 mt-0.5 block">{student.code}</span>
               </div>
 
-              <div>
-                <dt className="text-slate-400 font-medium">Số điện thoại phụ huynh</dt>
-                <dd className="text-slate-800 font-semibold mt-0.5 flex items-center gap-1.5">
+              <div className="p-3 rounded-xl bg-slate-50/70 border border-slate-100">
+                <span className="text-slate-400 font-medium block text-[11px]">Số điện thoại phụ huynh</span>
+                <span className="text-slate-800 font-semibold mt-0.5 flex items-center gap-1.5">
                   <PhoneIcon className="w-3.5 h-3.5 text-slate-400" />
                   <span>{student.guardianPhone}</span>
-                </dd>
+                </span>
               </div>
 
-              <div>
-                <dt className="text-slate-400 font-medium">Trường học</dt>
-                <dd className="text-slate-800 font-semibold mt-0.5 flex items-center gap-1.5">
+              <div className="p-3 rounded-xl bg-slate-50/70 border border-slate-100">
+                <span className="text-slate-400 font-medium block text-[11px]">Trường học</span>
+                <span className="text-slate-800 font-semibold mt-0.5 flex items-center gap-1.5">
                   <SchoolIcon className="w-3.5 h-3.5 text-amber-500" />
                   <span>{student.schoolName || 'Trường học'}</span>
-                </dd>
+                </span>
               </div>
 
-              <div>
-                <dt className="text-slate-400 font-medium">Tình trạng địa chỉ</dt>
-                <dd className="mt-1">
+              <div className="p-3 rounded-xl bg-slate-50/70 border border-slate-100">
+                <span className="text-slate-400 font-medium block text-[11px]">Tình trạng địa chỉ</span>
+                <div className="mt-1">
                   {student.hasAddress ? (
-                    <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                       Đã có địa chỉ
                     </Badge>
                   ) : (
-                    <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                    <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                       Chưa có địa chỉ
                     </Badge>
                   )}
-                </dd>
+                </div>
               </div>
 
-              <div>
-                <dt className="text-slate-400 font-medium">Trạng thái tài khoản</dt>
-                <dd className="mt-1">
+              <div className="p-3 rounded-xl bg-slate-50/70 border border-slate-100">
+                <span className="text-slate-400 font-medium block text-[11px]">Trạng thái tài khoản</span>
+                <div className="mt-1">
                   {isAvailable ? (
-                    <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                       Khả dụng
                     </Badge>
                   ) : (
-                    <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-300">
+                    <Badge className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-300">
                       Đã vô hiệu hóa
                     </Badge>
                   )}
-                </dd>
+                </div>
               </div>
-            </dl>
+            </div>
 
             {addressUpdateError && !isEditingAddress && <p role="alert" className="text-sm text-rose-700">{addressUpdateError}</p>}
             {/* Address Details & Direct Update */}
-            <div className="border-t border-slate-100 pt-3">
-              <div className="flex items-center justify-between mb-1">
-                <dt className="text-slate-400 font-medium text-xs">Địa chỉ đón trả</dt>
+            <div className="border-t border-slate-100 pt-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-slate-700 font-bold text-xs flex items-center gap-1.5">
+                  <MapPinIcon className="w-3.5 h-3.5 text-amber-500" />
+                  Địa chỉ đón trả
+                </span>
                 {isAvailable && !isEditingAddress && (
                   <Button
                     type="button"
@@ -498,12 +508,23 @@ function StudentDetailPageContent() {
 
               {!isEditingAddress ? (
                 student.addressText ? (
-                  <div className="flex items-start gap-2 text-xs text-slate-800 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                    <MapPinIcon className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                    <span>{student.addressText}</span>
+                  <div className="flex items-start gap-3 text-xs text-slate-800 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/80">
+                    <div className="p-1.5 rounded-lg bg-amber-50 border border-amber-200/60 text-amber-600 shrink-0 mt-0.5">
+                      <MapPinIcon className="w-4 h-4" />
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="font-medium text-slate-800 block leading-relaxed">{student.addressText}</span>
+                      {student.latitude && student.longitude && (
+                        <span className="text-[11px] font-mono text-slate-400 block">
+                          Tọa độ: {student.latitude.toFixed(6)}, {student.longitude.toFixed(6)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-400 italic">Chưa cập nhật địa chỉ nhà cho học sinh này.</p>
+                  <div className="p-3 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs text-slate-400 italic text-center">
+                    Chưa cập nhật địa chỉ nhà cho học sinh này.
+                  </div>
                 )
               ) : (
                 <div className="space-y-3 bg-amber-50/30 p-4 rounded-xl border border-amber-200 mt-2">
@@ -590,10 +611,22 @@ function StudentDetailPageContent() {
         {/* QR Code Column (1 span) */}
         <div className="space-y-6">
           <StudentRfidCard student={student} onUpdated={() => undefined} />
-          <QRCodeDisplay
-            studentCode={student.code}
-            studentName={student.fullName}
-          />
+          <Card className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col items-center space-y-3">
+            <div className="w-full flex items-center justify-between border-b border-slate-100 pb-3">
+              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <QrCodeIcon className="w-4 h-4 text-amber-500" />
+                Mã QR điểm danh
+              </h2>
+              <span className="text-[11px] text-slate-400 font-medium">Cá nhân</span>
+            </div>
+            <QRCodeDisplay
+              studentCode={student.code}
+              studentName={student.fullName}
+            />
+            <p className="text-[11px] text-slate-400 text-center leading-relaxed">
+              Dùng để quét điểm danh khi lên và xuống xe buýt.
+            </p>
+          </Card>
         </div>
       </div>
 
@@ -603,57 +636,67 @@ function StudentDetailPageContent() {
 
       {/* Request History Section */}
       <Card className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3">
           <div>
             <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <StudentIcon className="w-4 h-4 text-amber-500" />
+              <RequestIcon className="w-4 h-4 text-amber-500" />
               Lịch sử yêu cầu cập nhật của học sinh
-            </h2>{historyError && <div role="alert" className="text-sm text-rose-700">{historyError}<Button variant="outline" size="sm" onClick={() => void fetchHistoryRequests()}>Thử lại</Button></div>}
+            </h2>
             <p className="text-xs text-slate-500 mt-0.5">
               Theo dõi và xử lý các yêu cầu cập nhật thông tin và địa chỉ gửi từ phụ huynh.
             </p>
           </div>
+          {historyError && (
+            <div role="alert" className="text-xs text-rose-700 flex items-center gap-2">
+              <span>{historyError}</span>
+              <Button variant="outline" size="sm" onClick={() => void fetchHistoryRequests()}>
+                Thử lại
+              </Button>
+            </div>
+          )}
+        </div>
 
-          {/* Filters */}
+        {/* Filters */}
+        <div>
           <FilterToolbar
-        hasActiveFilters={Boolean(historyTypeFilter || historyStatusFilter)}
-        onReset={() => {
-          setHistoryTypeFilter('');
-          setHistoryStatusFilter('');
-          setHistoryPage(1);
-        }}
-      >
-        <FilterField label="Loại yêu cầu">
-          <Select
-              value={historyTypeFilter}
-              onChange={(e) => {
-                setHistoryTypeFilter(e.target.value as RequestType | '');
-                setHistoryPage(1);
-              }}
-              className="w-full"
-            >
-              <option value="">Tất cả loại yêu cầu</option>
-              <option value="INFORMATION_UPDATE">Cập nhật thông tin</option>
-              <option value="ADDRESS_UPDATE">Cập nhật địa chỉ</option>
-            </Select>
-        </FilterField>
+            hasActiveFilters={Boolean(historyTypeFilter || historyStatusFilter)}
+            onReset={() => {
+              setHistoryTypeFilter('');
+              setHistoryStatusFilter('');
+              setHistoryPage(1);
+            }}
+          >
+            <FilterField label="Loại yêu cầu">
+              <Select
+                value={historyTypeFilter}
+                onChange={(e) => {
+                  setHistoryTypeFilter(e.target.value as RequestType | '');
+                  setHistoryPage(1);
+                }}
+                className="w-full sm:w-48 text-xs"
+              >
+                <option value="">Tất cả loại yêu cầu</option>
+                <option value="INFORMATION_UPDATE">Cập nhật thông tin</option>
+                <option value="ADDRESS_UPDATE">Cập nhật địa chỉ</option>
+              </Select>
+            </FilterField>
 
-        <FilterField label="Trạng thái">
-          <Select
-              value={historyStatusFilter}
-              onChange={(e) => {
-                setHistoryStatusFilter(e.target.value as RequestStatus | '');
-                setHistoryPage(1);
-              }}
-              className="w-full"
-            >
-              <option value="">Tất cả trạng thái</option>
-              <option value="PENDING">Chờ duyệt</option>
-              <option value="APPROVED">Đã duyệt</option>
-              <option value="REJECTED">Đã từ chối</option>
-            </Select>
-        </FilterField>
-      </FilterToolbar>
+            <FilterField label="Trạng thái">
+              <Select
+                value={historyStatusFilter}
+                onChange={(e) => {
+                  setHistoryStatusFilter(e.target.value as RequestStatus | '');
+                  setHistoryPage(1);
+                }}
+                className="w-full sm:w-48 text-xs"
+              >
+                <option value="">Tất cả trạng thái</option>
+                <option value="PENDING">Chờ duyệt</option>
+                <option value="APPROVED">Đã duyệt</option>
+                <option value="REJECTED">Đã từ chối</option>
+              </Select>
+            </FilterField>
+          </FilterToolbar>
         </div>
 
         {/* Request History Table */}
@@ -681,8 +724,16 @@ function StudentDetailPageContent() {
 
               {!isLoadingHistory && !historyError && historyRequests.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="p-6 text-center text-slate-400 italic">
-                    Chưa có yêu cầu cập nhật nào cho học sinh này.
+                  <td colSpan={5} className="py-12 px-4 text-center">
+                    <div className="flex flex-col items-center justify-center max-w-sm mx-auto text-slate-400 space-y-1.5">
+                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-1">
+                        <RequestIcon className="w-5 h-5 text-slate-400" />
+                      </div>
+                      <p className="text-xs font-semibold text-slate-700">Chưa có yêu cầu cập nhật</p>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Chưa có yêu cầu thay đổi thông tin hay địa chỉ nào được ghi nhận cho học sinh này.
+                      </p>
+                    </div>
                   </td>
                 </tr>
               )}

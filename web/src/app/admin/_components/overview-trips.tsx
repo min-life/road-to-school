@@ -86,19 +86,23 @@ export function OverviewTrips({
                         {trip.scheduledStartTime || '—'}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 leading-relaxed">
                       <ContextLink
                         href={`/admin/trips/${trip.id}`}
-                        className="font-semibold text-foreground hover:underline"
+                        className="block font-semibold text-foreground hover:underline"
                       >
                         {trip.name}
                       </ContextLink>
-                      <span className="mt-0.5 block text-xs text-slate-500">
-                        {trip.schoolName} · {trip.vehiclePlate}
-                      </span>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+                        <span>{trip.schoolName}</span>
+                        <span>·</span>
+                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-700">
+                          {trip.vehiclePlate}
+                        </span>
+                      </div>
                     </td>
-                    <td className="px-4 py-3">
-                      <span className="block text-foreground">{trip.driverName}</span>
+                    <td className="px-4 py-3 leading-relaxed">
+                      <span className="block font-medium text-foreground">{trip.driverName}</span>
                       <span className="mt-0.5 block text-xs text-slate-500">
                         {trip.attendantName}
                       </span>
@@ -129,9 +133,15 @@ export function OverviewTrips({
 
       {/* Danh sách theo dõi chuyến trong ngày */}
       {items.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-slate-500 min-h-[160px]">
-          Không có chuyến để theo dõi trong ngày
-        </div>
+        overdue.length > 0 ? (
+          <div className="border-t border-slate-100 bg-slate-50/50 px-5 py-3.5 text-center text-xs text-slate-500">
+            Không có chuyến phát sinh cần theo dõi thêm trong ngày hôm nay
+          </div>
+        ) : (
+          <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-slate-500 min-h-[160px]">
+            Không có chuyến để theo dõi trong ngày
+          </div>
+        )
       ) : (
         <div className="relative overflow-x-auto flex-1">
           <Table className="w-full text-left text-sm" minWidth={750}>
