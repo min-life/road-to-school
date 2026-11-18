@@ -129,6 +129,9 @@ export function useEsp32() {
 
   async function connect(forFlashing = false) {
     return run('Đang kết nối', async () => {
+      if (session.current) {
+        await disconnect();
+      }
       const current = new Esp32Session(); session.current = current;
       let info: UsbChip;
       try { info = await current.connect(); }
@@ -148,15 +151,14 @@ export function useEsp32() {
   }
 
   async function flash() {
-    if (!window.confirm('Nạp firmware lên ESP32 đang kết nối? Cấu hình trên thiết bị có thể bị thay thế.')) return;
     return run('Đang nạp firmware', async () => {
       const current = session.current;
-      if (!current) return;
+      if (!current) throw new Error('Chưa kết nối ESP32.');
       setProgress(0);
       const binary = await iotApi.firmware();
       if (!active.current || session.current !== current) return;
       await current.flash(new Uint8Array(binary), value => { if (active.current) setProgress(value); });
-      log('Đã nạp và kiểm tra MD5. Bấm Chạy thiết bị để hoàn tất.');
+      log('Đã nạp và kiểm tra MD5. Bấm Chạy và kiểm tra để hoàn tất.');
     });
   }
 
@@ -197,7 +199,7 @@ export function useEsp32() {
 
   return { chip, mode, firmwareVersion, busy, error, progress, provisioned, wifiStatus, logs, supported,
     backendUrl, wifiScanSupported, vehicleAssignmentSupported, networks, scanStatus,
-    connect, disconnect, openConsole, flash, provision, scanWifi, configureWifi, clearLogs: () => setLogs([]) };
+    connect, disconnect, openConsole, flash, provision, scanWifi, configureWifi, clearLogs: () => setLogs([]), clearError: () => setError('') };
 }
 
 export type Esp32Controls = ReturnType<typeof useEsp32>;

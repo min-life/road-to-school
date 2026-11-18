@@ -10,6 +10,7 @@ import { SchoolSelectFilter } from '@/components/admin/common/school-select-filt
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { vietnamDateKey } from '@/lib/business-improvements';
 
 interface ManualGenerateTripsModalProps {
   isOpen: boolean;
@@ -40,57 +41,48 @@ export function ManualGenerateTripsModal({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<GenerateTripsResponse | null>(null);
 
-  // Helper: Format YYYY-MM-DD
-  const formatUtcYmd = (d: Date) => {
-    const y = d.getUTCFullYear();
-    const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(d.getUTCDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  };
-
   // Reset or load school details when modal opens or schoolId changes
   useEffect(() => {
-    if (isOpen) {
-      setResult(null);
-      setError(null);
-      const activeId = initialSchoolId || schoolId;
-      if (activeId) {
-        apiClient
-          .getSchoolDetail(activeId)
-          .then((school: any) => {
-            if (school) {
-              setSelectedSchool(school);
-              if (school.contractStartDate && school.contractEndDate) {
-                const start = school.contractStartDate.split('T')[0];
-                const end = school.contractEndDate.split('T')[0];
-                setContractBounds({ start, end });
-
-                // Initialize default dates: tomorrow to +7 days, clamped within contract
-                const now = new Date();
-                const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-                const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-                const tomorrowStr = formatUtcYmd(tomorrow);
-                const nextWeekStr = formatUtcYmd(nextWeek);
-
-                const clampedFrom = tomorrowStr < start ? start : tomorrowStr > end ? start : tomorrowStr;
-                const clampedTo = nextWeekStr > end ? end : nextWeekStr < clampedFrom ? clampedFrom : nextWeekStr;
-
-                setFromDate(clampedFrom);
-                setToDate(clampedTo);
-              }
-            }
-          })
-          .catch(() => {});
-      } else {
-        setSelectedSchool(null);
-        setContractBounds({});
-        setFromDate('');
-        setToDate('');
-      }
+    if (!isOpen) return;
+    setResult(null);
+    setError(null);
+    setContractBounds({});
+    setFromDate('');
+    setToDate('');
+    const activeId = initialSchoolId || schoolId;
+    if (!activeId) {
+      setSelectedSchool(null);
+      return;
     }
+
+    let current = true;
+    apiClient.getSchoolDetail(activeId)
+      .then((school) => {
+        if (!current || !school) return;
+        setSelectedSchool(school);
+        if (!school.contractStartDate || !school.contractEndDate) return;
+
+        const start = school.contractStartDate.split('T')[0];
+        const end = school.contractEndDate.split('T')[0];
+        setContractBounds({ start, end });
+
+        const now = new Date();
+        const today = vietnamDateKey(0, now);
+        const firstDay = today < start ? start : today;
+        if (firstDay > end) return;
+        const nextWeek = vietnamDateKey(7, now);
+        setFromDate(firstDay);
+        setToDate(nextWeek < firstDay ? firstDay : nextWeek > end ? end : nextWeek);
+      })
+      .catch(() => {});
+    return () => { current = false; };
   }, [isOpen, initialSchoolId, schoolId]);
 
   if (!isOpen) return null;
+
+  const today = vietnamDateKey();
+  const earliestDate = contractBounds.start && contractBounds.start > today ? contractBounds.start : today;
+  const hasAvailableDates = !contractBounds.end || earliestDate <= contractBounds.end;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,8 +98,8 @@ export function ManualGenerateTripsModal({
       setError('Ngày bắt đầu không được sau ngày kết thúc');
       return;
     }
-    if (contractBounds.start && fromDate < contractBounds.start) {
-      setError(`Ngày bắt đầu (${fromDate}) không được trước ngày bắt đầu hợp đồng (${contractBounds.start})`);
+    if (fromDate < earliestDate) {
+      setError(`Ngày bắt đầu phải từ ${earliestDate.split('-').reverse().join('/')} trở đi`);
       return;
     }
     if (contractBounds.end && toDate > contractBounds.end) {
@@ -124,7 +116,11 @@ export function ManualGenerateTripsModal({
         fromDate,
         toDate,
       });
-      if (res.failedCount > 0) { toast.warning(`Đã tạo ${res.createdCount} chuyến; ${res.failedCount} chuyến chưa thể tạo. Xem chi tiết trong hộp thoại.`); } else { toast.success(`Đã tạo ${res.createdCount} chuyến, bỏ qua ${res.skippedCount} chuyến đã có.`); }
+      if (res.failedCount > 0) {
+        toast.warning(`Đã tạo ${res.createdCount} chuyến, ${res.failedCount} chuyến chưa thể tạo. Xem chi tiết trong hộp thoại.`);
+      } else if (res.totalEligible > 0) {
+        toast.success(`Đã tạo ${res.createdCount} chuyến, bỏ qua ${res.skippedCount} chuyến đã có.`);
+      }
       setResult(res);
       onSuccess();
     } catch (err: any) {
@@ -134,7 +130,8 @@ export function ManualGenerateTripsModal({
     }
   };
 
-  const isFormValid = !!schoolId && !!fromDate && !!toDate && fromDate <= toDate;
+  const isFormValid = !!schoolId && hasAvailableDates && fromDate >= earliestDate && fromDate <= toDate &&
+    (!contractBounds.end || toDate <= contractBounds.end);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in">
@@ -152,7 +149,7 @@ export function ManualGenerateTripsModal({
         {!result ? (
           <form onSubmit={handleSubmit} className="space-y-4">
             <p className="text-xs text-slate-500 leading-relaxed">
-              Tạo chuyến theo lịch học của phương án đang hoạt động. Bỏ qua chuyến đã có.
+              Tạo chuyến theo lịch học của phương án đang hoạt động. Với hôm nay, chỉ xét chuyến chưa tới giờ khởi hành.
             </p>
 
             {/* School selector */}
@@ -194,9 +191,9 @@ export function ManualGenerateTripsModal({
                 <Input
                   type="date"
                   value={fromDate}
-                  min={contractBounds.start}
+                  min={earliestDate}
                   max={contractBounds.end}
-                  disabled={!schoolId}
+                  disabled={!schoolId || !hasAvailableDates}
                   onChange={(e) => setFromDate(e.target.value)}
                   required
                   className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:opacity-50"
@@ -210,15 +207,17 @@ export function ManualGenerateTripsModal({
                 <Input
                   type="date"
                   value={toDate}
-                  min={contractBounds.start}
+                  min={fromDate > earliestDate ? fromDate : earliestDate}
                   max={contractBounds.end}
-                  disabled={!schoolId}
+                  disabled={!schoolId || !hasAvailableDates}
                   onChange={(e) => setToDate(e.target.value)}
                   required
                   className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:opacity-50"
                 />
               </div>
             </div>
+
+            {!hasAvailableDates && <p className="text-xs text-slate-600">Hợp đồng đã hết ngày phục vụ.</p>}
 
             {error && (
               <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-start gap-2">
@@ -249,10 +248,15 @@ export function ManualGenerateTripsModal({
         ) : (
           /* Result Summary */
           <div className="space-y-4">
-            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-2">
-              <h4 className="text-xs font-bold text-emerald-950 uppercase tracking-wider">
+            <div className={`p-4 rounded-xl border space-y-2 ${result.createdCount > 0
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+              : 'bg-slate-50 border-slate-200 text-slate-800'}`}>
+              <h4 className="text-xs font-bold uppercase tracking-wider">
                 Kết quả sinh chuyến xe
               </h4>
+              {result.totalEligible === 0 && result.failedCount === 0 && (
+                <p className="text-xs">Không có chuyến đủ điều kiện trong khoảng ngày đã chọn.</p>
+              )}
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div>
                   Tổng chuyến đủ điều kiện: <strong>{result.totalEligible}</strong>

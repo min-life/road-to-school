@@ -15,6 +15,7 @@ interface PaginationControlProps {
   onLimitChange: (newLimit: number) => void;
   loading?: boolean;
   limitOptions?: number[];
+  hideNavigationWhenSinglePage?: boolean;
 }
 
 export function PaginationControl({
@@ -26,6 +27,7 @@ export function PaginationControl({
   onLimitChange,
   loading = false,
   limitOptions = [10, 20, 50, 100],
+  hideNavigationWhenSinglePage = false,
 }: PaginationControlProps) {
   if (total === 0) {
     return null;
@@ -41,12 +43,14 @@ export function PaginationControl({
         Hiển thị <strong>{startRecord}</strong> – <strong>{endRecord}</strong> trên{' '}
         <strong>{total}</strong> bản ghi
       </span>
-      <PageNavigation
-        page={page}
-        totalPages={effectiveTotalPages}
-        onPageChange={onPageChange}
-        loading={loading}
-      />
+      {!(hideNavigationWhenSinglePage && effectiveTotalPages <= 1) && (
+        <PageNavigation
+          page={page}
+          totalPages={effectiveTotalPages}
+          onPageChange={onPageChange}
+          loading={loading}
+        />
+      )}
       <label className="ui-pagination-size">
         <span>Số dòng:</span>
         <Select

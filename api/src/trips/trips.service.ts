@@ -69,12 +69,12 @@ import {
   MobileTripItemDto,
 } from './dto/mobile-schedule-response.dto.js';
 import {
-  combineDateAndTimeUtc,
+  calculateTripTiming,
   formatDateToVnYmd,
   getDayOfWeekKey,
   getDayOfWeekVietnamese,
-  secondsToTimeStr,
   timeStrToSeconds,
+  tripClockTime,
 } from './utils/trip-time.util.js';
 import {
   buildTripRouteSnapshot,
@@ -284,11 +284,14 @@ export class TripsService {
       }
       const plan = trip.route.routePlan;
       const date = trip.serviceDate.toISOString().slice(0, 10);
-      const day = plan.activatedAt && await this.planServiceDay(tx, plan, trip.route.school, date);
+      const day = plan.activatedAt && date > formatDateToVnYmd(plan.activatedAt)
+        ? await this.planServiceDay(tx, plan, trip.route.school, date)
+        : null;
       if (!day?.start || !day.end) {
         throw new ConflictException('Phương án hoặc ngày phục vụ không còn hiệu lực');
       }
-      const { timing, studentIds, snapshot } = await this.prepareTrip(tx, trip.route, day, date, 'MANUAL');
+      const timing = calculateTripTiming(trip.route.direction, trip.route.estimatedDurationSeconds, day, date);
+      const { studentIds, snapshot } = await this.prepareTrip(tx, trip.route, timing, 'MANUAL');
       if (new Date() >= timing.scheduledStartAt) {
         throw new ConflictException('Giờ xuất phát theo lịch hiện hành đã qua');
       }
@@ -512,36 +515,18 @@ export class TripsService {
     school: Pick<import('@prisma/client').School, 'id' | 'contractStartDate' | 'contractEndDate' | 'isActive'>,
     date: string,
   ) {
+    const today = formatDateToVnYmd(new Date());
     const activationDay = plan.activatedAt ? formatDateToVnYmd(plan.activatedAt) : '1970-01-01';
-    if (plan.status !== RoutePlanStatus.ACTIVE || plan.needsReoptimization || date <= activationDay ||
-        isContractExpired(school.contractEndDate) || !canServeOnDate(school, date) ||
+    if (plan.status !== RoutePlanStatus.ACTIVE || plan.needsReoptimization || date < today || date < activationDay ||
+        isContractExpired(school.contractEndDate, today) || !canServeOnDate(school, date) ||
         await pendingParkingChange(db, date)) return null;
     return serviceDay(db, school.id, date, plan.createdAt);
-  }
-
-  private tripTiming(direction: RouteDirection, duration: number, day: { start: string; end: string }, date: string) {
-    const start = direction === RouteDirection.TO_SCHOOL
-      ? timeStrToSeconds(day.start) - duration
-      : timeStrToSeconds(day.end);
-    const end = start + duration;
-    const midnight = combineDateAndTimeUtc(date, '00:00').getTime();
-    return {
-      scheduledStartTime: this.tripClockTime(start),
-      scheduledEndTime: this.tripClockTime(end),
-      scheduledStartAt: new Date(midnight + start * 1000),
-      scheduledEndAt: new Date(midnight + end * 1000),
-    };
-  }
-
-  private tripClockTime(seconds: number): string {
-    return secondsToTimeStr(((seconds % 86400) + 86400) % 86400);
   }
 
   private async prepareTrip(
     tx: Prisma.TransactionClient,
     route: Prisma.RouteGetPayload<{ include: { school: true; stops: { include: { student: true } } } }>,
-    day: { start: string; end: string },
-    serviceDate: string,
+    timing: ReturnType<typeof calculateTripTiming>,
     snapshotReason: 'GENERATION' | 'MANUAL',
   ) {
     const studentIds = [...new Set(route.stops.flatMap(stop => stop.studentId ? [stop.studentId] : []))];
@@ -551,7 +536,6 @@ export class TripsService {
     }
 
     const duration = route.estimatedDurationSeconds;
-    const timing = this.tripTiming(route.direction, duration, day, serviceDate);
     const { scheduledStartTime, scheduledEndTime } = timing;
     const parking = await tx.systemSetting.findUnique({ where: { key: 'PARKING_LOT' } });
     const delta = timeStrToSeconds(scheduledStartTime) - timeStrToSeconds(route.departureTime ?? scheduledStartTime);
@@ -576,13 +560,13 @@ export class TripsService {
       stops: route.stops.map(stop => ({
         ...stop,
         plannedArrivalTime: stop.plannedArrivalTime
-          ? this.tripClockTime(timeStrToSeconds(stop.plannedArrivalTime) + delta)
+          ? tripClockTime(timeStrToSeconds(stop.plannedArrivalTime) + delta)
           : null,
       })),
       snapshotReason,
     });
 
-    return { timing, studentIds, snapshot };
+    return { studentIds, snapshot };
   }
 
   private async generateTripsInternal(
@@ -602,9 +586,11 @@ export class TripsService {
     let skippedCount = 0;
     let failedCount = 0;
     const failures: TripGenerationFailureDto[] = [];
+    const today = formatDateToVnYmd(new Date());
+    const serviceDates = this.getDateRangeArray(fromDate < today ? today : fromDate, toDate);
 
     for (const candidate of candidates) {
-      for (const serviceDate of this.getDateRangeArray(fromDate, toDate)) {
+      for (const serviceDate of serviceDates) {
         try {
           const result = await this.prisma.$transaction(async tx => {
             await lockOperations(tx);
@@ -619,6 +605,8 @@ export class TripsService {
             if (!route || (schoolId && route.schoolId !== schoolId)) return 'ineligible';
             const day = await this.planServiceDay(tx, route.routePlan, route.school, serviceDate);
             if (!day) return 'ineligible';
+            const timing = calculateTripTiming(route.direction, route.estimatedDurationSeconds, day, serviceDate);
+            if (timing.scheduledStartAt.getTime() <= Date.now()) return 'ineligible';
 
             totalEligible++;
             const date = new Date(serviceDate + 'T00:00:00.000Z');
@@ -630,13 +618,17 @@ export class TripsService {
             if (!vehicleId || !driverId || !busAttendantId) {
               throw new ConflictException('Tuyến chưa có đầy đủ Xe, Tài xế hoặc Giáo viên mặc định');
             }
-            const { timing, studentIds, snapshot } = await this.prepareTrip(tx, route, day, serviceDate, 'GENERATION');
+            const { studentIds, snapshot } = await this.prepareTrip(tx, route, timing, 'GENERATION');
             const targetTrip = { id: '', serviceDate: date, ...timing };
 
             await assertVehicleAvailableForTrip(tx, vehicleId, route.schoolId, targetTrip, studentIds.length);
             await assertStaffAvailableForTrip(tx, { staffId: driverId, expectedRole: Role.DRIVER, schoolId: route.schoolId, tripId: '', targetTrip });
             await assertStaffAvailableForTrip(tx, { staffId: busAttendantId, expectedRole: Role.BUS_ATTENDANT, schoolId: route.schoolId, tripId: '', targetTrip });
 
+            if (timing.scheduledStartAt.getTime() <= Date.now()) {
+              totalEligible--;
+              return 'ineligible';
+            }
             await tx.trip.create({ data: {
               routeId: route.id,
               schoolId: route.schoolId,
@@ -830,7 +822,8 @@ export class TripsService {
             continue;
           }
 
-          const timing = this.tripTiming(route.direction, route.estimatedDurationSeconds, daySched, serviceDateStr);
+          const timing = calculateTripTiming(route.direction, route.estimatedDurationSeconds, daySched, serviceDateStr);
+          if (timing.scheduledStartAt.getTime() <= Date.now()) continue;
           const { scheduledStartTime: depTimeStr, scheduledEndTime: arrTimeStr } = timing;
 
           const studentIds = new Set(route.stops.map((s) => s.studentId).filter(Boolean));
@@ -1570,7 +1563,8 @@ export class TripsService {
             const key = `${route.id}_${serviceDateStr}`;
             if (persistedKeySet.has(key)) continue;
 
-            const timing = this.tripTiming(route.direction, route.estimatedDurationSeconds, daySched, serviceDateStr);
+            const timing = calculateTripTiming(route.direction, route.estimatedDurationSeconds, daySched, serviceDateStr);
+            if (timing.scheduledStartAt.getTime() <= Date.now()) continue;
             const { scheduledStartTime: depTimeStr, scheduledEndTime: arrTimeStr } = timing;
 
             const studentIds = new Set(route.stops.map((s) => s.studentId).filter(Boolean));

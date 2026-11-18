@@ -11,7 +11,7 @@ export class GenerateTripsDto {
   schoolId: string;
 
   @ApiProperty({
-    description: 'Ngày bắt đầu sinh chuyến (YYYY-MM-DD)',
+    description: 'Ngày bắt đầu sinh chuyến (YYYY-MM-DD). Các ngày đã qua theo giờ Việt Nam được bỏ qua trong khoảng hợp lệ.',
     example: '2026-10-26',
   })
   @IsNotEmpty({ message: 'fromDate không được để trống' })
@@ -42,7 +42,7 @@ export class TripGenerationFailureDto {
 }
 
 export class GenerateTripsResponseDto {
-  @ApiProperty({ example: 20 })
+  @ApiProperty({ example: 20, description: 'Số chuyến qua điều kiện phương án, lịch và giờ khởi hành trước khi kiểm tra trùng và nguồn lực.' })
   totalEligible: number;
 
   @ApiProperty({ example: 16 })

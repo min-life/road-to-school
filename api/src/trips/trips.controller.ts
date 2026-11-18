@@ -108,7 +108,7 @@ export class TripsController {
   @ApiOperation({
     summary: 'Sinh chuyến xe thủ công theo ngày hoặc khoảng ngày (Chỉ SYSTEM_ADMIN)',
     description:
-      'Tạo các bản ghi Trip cho các phương án ACTIVE trong khoảng ngày chỉ định. Bỏ qua các chuyến đã tạo (Idempotent). Bắt đầu từ ngày học sau ngày kích hoạt.',
+      'Tạo chuyến cho phương án ACTIVE từ ngày hiện tại theo giờ Việt Nam, kể cả ngày kích hoạt. Chỉ xét chuyến có giờ khởi hành dự kiến còn ở phía trước. Các chuyến đủ điều kiện đã tồn tại được bỏ qua.',
   })
   @ApiResponse({
     status: 200,
@@ -127,7 +127,7 @@ export class TripsController {
   @ApiOperation({
     summary: 'Danh sách lịch trình chuyến xe hợp nhất (Persisted + Virtual Occurrences)',
     description:
-      'Lấy danh sách các chuyến xe đã lập lịch và các lịch dự kiến trong tương lai. Hỗ trợ lọc theo trường, khoảng ngày, trạng thái, phân trang server-side.',
+      'Lấy chuyến xe đã lập lịch và lịch dự kiến chưa tới giờ khởi hành từ ngày hiện tại theo giờ Việt Nam. Hỗ trợ lọc theo trường, khoảng ngày, trạng thái và phân trang.',
   })
   @ApiResponse({
     status: 200,

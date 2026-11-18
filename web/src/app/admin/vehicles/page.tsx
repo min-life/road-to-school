@@ -1,84 +1,123 @@
 'use client';
 
-import { ResourceStatusDialog } from '@/components/admin/common/resource-status-dialog';
-import type { ResourceTarget } from '@/lib/resource-status';
-import { Select } from '@/components/ui/select';
-import { TableActions } from '@/components/admin/common/table-actions';
-import { toast } from '@/stores/toast-store';
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { apiClient } from '@/lib/api-client';
-import { Vehicle } from '@/lib/types';
-import { AddVehicleModal } from './_components/add-vehicle-modal';
+import type { Vehicle } from '@/lib/types';
+import type { ResourceTarget } from '@/lib/resource-status';
+import { ResourceStatusDialog } from '@/components/admin/common/resource-status-dialog';
 import { PaginationControl } from '@/components/admin/common/pagination-control';
-import {
-  VehicleIcon,
-  SpinnerIcon,
-  SearchIcon,
-  AlertIcon,
-} from '@/components/icons';
-import { Card } from '@/components/ui/card';
+import { AddVehicleModal } from './_components/add-vehicle-modal';
+import { VehicleIotModal } from './_components/vehicle-iot-modal';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
-import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
+import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { Table } from '@/components/ui/table';
-import { VehicleIotModal } from './_components/vehicle-iot-modal';
 import { Badge } from '@/components/ui/badge';
+import { FilterToolbar, FilterField } from '@/components/ui/filter-toolbar';
+import { VehicleIcon, SpinnerIcon, SearchIcon, AlertIcon } from '@/components/icons';
+import { toast } from '@/stores/toast-store';
 
 export default function VehiclesPage() {
   const { user } = useAuth();
-  const [statusTarget, setStatusTarget] = useState<ResourceTarget | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
+
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Dialog states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [iotVehicle, setIotVehicle] = useState<Vehicle | null>(null);
+  const [statusTarget, setStatusTarget] = useState<ResourceTarget | null>(null);
 
+  const addBtnRef = useRef<HTMLButtonElement>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sequenceRef = useRef(0);
 
   // Debounce search
   const handleSearchChange = (val: string) => {
     setSearch(val);
-    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
     searchTimeoutRef.current = setTimeout(() => {
       setDebouncedSearch(val);
       setPage(1);
     }, 300);
   };
 
+  const handleClearFilters = () => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    setSearch('');
+    setDebouncedSearch('');
+    setStatusFilter('ALL');
+    setPage(1);
+  };
+
   const fetchVehicles = useCallback(async () => {
     if (!user || user.role !== 'SYSTEM_ADMIN') return;
+    const currentSeq = ++sequenceRef.current;
     setIsLoading(true);
     setErrorMessage(null);
+
     try {
       const data = await apiClient.listVehicles({
         page,
         limit,
-        search: debouncedSearch,
+        search: debouncedSearch.trim() || undefined,
         status: statusFilter,
       });
-      setVehicles(data.items || []);
-      setTotalItems(data.total || 0);
-      setTotalPages(data.totalPages || 1);
-    } catch (err: any) {
-      setErrorMessage(err?.message || 'Không thể tải danh sách phương tiện');
+
+      if (currentSeq !== sequenceRef.current) return;
+
+      const items = data.items || [];
+      const total = data.total || 0;
+      const pages = Math.max(1, data.totalPages || 1);
+
+      setVehicles(items);
+      setTotalItems(total);
+      setTotalPages(pages);
+
+      // Adjust page if total shrank and current page exceeds totalPages
+      if (page > pages) {
+        setPage(pages);
+      }
+    } catch (err: unknown) {
+      if (currentSeq === sequenceRef.current) {
+        setErrorMessage(err instanceof Error ? err.message : 'Không thể tải danh sách phương tiện');
+        setVehicles([]);
+        setTotalItems(0);
+        setTotalPages(1);
+      }
     } finally {
-      setIsLoading(false);
+      if (currentSeq === sequenceRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [user, page, limit, debouncedSearch, statusFilter]);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     fetchVehicles();
+    /* eslint-enable react-hooks/set-state-in-effect */
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
   }, [fetchVehicles]);
 
   if (!user || user.role !== 'SYSTEM_ADMIN') {
@@ -90,135 +129,290 @@ export default function VehiclesPage() {
     );
   }
 
+  const hasActiveFilters = Boolean(search || statusFilter !== 'ALL');
+
+  const formatVietnamDate = (isoString?: string) => {
+    if (!isoString) return '—';
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) return '—';
+    return date.toLocaleDateString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      timeZone: 'Asia/Ho_Chi_Minh',
+    });
+  };
+
   return (
-    <div className="ui-list-page">
+    <div className="ui-list-page space-y-5">
       {/* Page Header */}
-      <PageHeader title="Phương tiện" actions={<Button variant="primary" size="default"
-          type="button"
-          onClick={() => setIsAddModalOpen(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary hover:bg-amber-400 text-sm font-bold text-foreground transition-colors cursor-pointer shadow-xs self-start sm:self-auto"
-        >
-          <span>+ Thêm phương tiện</span>
-        </Button>} />
-
-      {/* Success / Error Feedback */}
-
-
-      {errorMessage && (
-        <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <AlertIcon className="w-5 h-5 text-red-600 shrink-0" />
-            <span>{errorMessage}</span>
-          </div>
+      <PageHeader
+        title="Phương tiện"
+        actions={
           <Button
+            ref={addBtnRef}
+            variant="primary"
+            size="default"
             type="button"
-            onClick={() => setErrorMessage(null)}
-            className="text-red-600 hover:text-red-800 text-xs font-semibold cursor-pointer"
+            onClick={() => setIsAddModalOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary hover:bg-amber-400 text-sm font-bold text-foreground transition-colors cursor-pointer shadow-xs"
           >
-            Đóng
+            <span>+ Thêm phương tiện</span>
           </Button>
+        }
+      />
+
+      {/* Single Consolidated Card Container */}
+      <Card className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden space-y-4 p-4">
+        {/* Header & Filter Toolbar */}
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <h2 className="text-sm font-bold text-slate-800">Danh sách phương tiện</h2>
+              <Badge className="bg-slate-100 text-slate-700 border-slate-200 text-xs font-semibold">
+                {totalItems} phương tiện
+              </Badge>
+            </div>
+
+            {hasActiveFilters && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleClearFilters}
+                className="text-xs text-slate-600 hover:text-slate-900 self-start sm:self-auto"
+              >
+                Xóa bộ lọc
+              </Button>
+            )}
+          </div>
+
+          <FilterToolbar
+            hasActiveFilters={hasActiveFilters}
+            onReset={handleClearFilters}
+          >
+            <FilterField label="Tìm kiếm" grow icon={<SearchIcon />}>
+              <Input
+                type="text"
+                value={search}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                placeholder="Tìm theo biển số hoặc hãng xe..."
+                className="w-full text-xs"
+              />
+            </FilterField>
+
+            <FilterField label="Trạng thái">
+              <Select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value as typeof statusFilter);
+                  setPage(1);
+                }}
+                className="w-full text-xs"
+              >
+                <option value="ALL">Tất cả trạng thái</option>
+                <option value="ACTIVE">Đang hoạt động</option>
+                <option value="INACTIVE">Ngừng hoạt động</option>
+              </Select>
+            </FilterField>
+          </FilterToolbar>
         </div>
-      )}
 
-      {/* Search Bar & Total */}
-      <FilterToolbar
-        hasActiveFilters={Boolean(search || statusFilter !== 'ALL')}
-        onReset={() => {
-          handleSearchChange(''); setStatusFilter('ALL');
-        }}
-      >
-        <FilterField label="Tìm kiếm" grow icon={<SearchIcon />}>
-          <Input
-            type="text"
-            value={search}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="Tìm theo hãng xe, biển số..."
-            className="w-full"
-          />
-        </FilterField>
+        {/* Error state */}
+        {errorMessage && (
+          <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-center justify-between" role="alert">
+            <div className="flex items-center gap-2">
+              <AlertIcon className="w-4 h-4 text-red-600 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={fetchVehicles}
+              className="text-xs"
+            >
+              Thử lại
+            </Button>
+          </div>
+        )}
 
-<FilterField label="Trạng thái"><Select value={statusFilter} onChange={event => { setStatusFilter(event.target.value as typeof statusFilter); setPage(1); }}><option value="ALL">Tất cả trạng thái</option><option value="ACTIVE">Đang hoạt động</option><option value="INACTIVE">Ngừng hoạt động</option></Select></FilterField>
-<div className="ui-filter-meta">
-          Tổng số phương tiện: <strong className="text-slate-800">{totalItems}</strong>
-        </div>
-      </FilterToolbar>
-
-      {/* Vehicle Table */}
-      <Card className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-xs">
-        <div className="overflow-x-auto">
-          <Table className="w-full text-left text-sm" minWidth={1490}>
-            <colgroup>
-              <col />
-              <col style={{ width: 180 }} />
-              <col style={{ width: 180 }} />
-              <col style={{ width: 150 }} />
-              <col style={{ width: 180 }} />
-              <col style={{ width: 240 }} />
-              <col style={{ width: 180 }} />
-              <col style={{ width: 190 }} />
-            </colgroup>
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-xs uppercase tracking-wider">
-              <tr>
-                <th className="py-3.5 px-4">Hãng xe</th>
-                <th className="py-3.5 px-4">Biển số</th>
-                <th className="py-3.5 px-4">
-                  <div className="flex items-center gap-1.5" title="Số lượng ghế khả dụng để chở học sinh, không gồm ghế tài xế và nhân sự">
-                    <span>Số ghế học sinh</span>
-                    <span className="cursor-help text-amber-600 text-[11px] bg-amber-100 rounded-full w-4 h-4 inline-flex items-center justify-center font-bold">
+        {/* Desktop & Tablet Table (>= 768px) */}
+        <div className="hidden md:block overflow-x-auto min-w-0" role="region" aria-label="Bảng danh sách phương tiện">
+          <Table minWidth={880}>
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50/70 text-slate-700 text-xs font-bold">
+                <th className="py-3 px-4 text-left">Phương tiện</th>
+                <th className="py-3 px-4 text-left">
+                  <div className="flex items-center gap-1.5">
+                    <span>Ghế học sinh</span>
+                    <button
+                      type="button"
+                      className="cursor-help text-slate-400 hover:text-slate-600 text-xs inline-flex items-center"
+                      title="Số lượng ghế khả dụng để chở học sinh, không gồm ghế tài xế và nhân sự"
+                      aria-label="Số lượng ghế khả dụng để chở học sinh, không gồm ghế tài xế và nhân sự"
+                    >
                       ℹ
-                    </span>
+                    </button>
                   </div>
                 </th>
-                <th className="py-3.5 px-4">Màu sắc</th>
-                <th className="py-3.5 px-4">Ngày đăng ký</th>
-                <th className="px-4 py-3 text-left">Thiết bị IoT</th>
-                <th>Trạng thái</th>
-                <th className="text-right">Thao tác</th>
+                <th className="py-3 px-4 text-left">Màu xe</th>
+                <th className="py-3 px-4 text-left">Thiết bị IoT</th>
+                <th className="py-3 px-4 text-left">Trạng thái</th>
+                <th className="py-3 px-4 text-left">Ngày thêm</th>
+                <th className="py-3 px-4 text-right">Thao tác</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
-                    <SpinnerIcon className="w-6 h-6 animate-spin mx-auto text-amber-500 mb-2" />
-                    <span className="text-xs">Đang tải dữ liệu phương tiện...</span>
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                    <div className="inline-flex items-center gap-2">
+                      <SpinnerIcon className="w-5 h-5 animate-spin text-amber-500" />
+                      <span>Đang tải dữ liệu phương tiện...</span>
+                    </div>
                   </td>
                 </tr>
               ) : vehicles.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
-                    <VehicleIcon className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-                    <p className="text-sm font-semibold text-slate-600">Không tìm thấy phương tiện nào</p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      {debouncedSearch ? 'Thử tìm kiếm với từ khóa khác' : 'Nhấn nút "Thêm phương tiện" để bắt đầu'}
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                    <VehicleIcon className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p className="font-semibold text-slate-700 text-sm">
+                      {hasActiveFilters ? 'Không tìm thấy phương tiện phù hợp' : 'Chưa có phương tiện nào'}
                     </p>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      {hasActiveFilters
+                        ? 'Thử tìm kiếm với từ khóa khác hoặc bấm Xóa bộ lọc.'
+                        : 'Nhấn nút "+ Thêm phương tiện" phía trên để bắt đầu thêm xe.'}
+                    </p>
+                    {hasActiveFilters && (
+                      <div className="mt-3">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleClearFilters}
+                          className="text-xs"
+                        >
+                          Xóa bộ lọc
+                        </Button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ) : (
                 vehicles.map((v) => (
-                  <tr key={v.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3.5 px-4 font-semibold text-slate-800">
-                      {v.brand}
+                  <tr key={v.id} className="hover:bg-slate-50/70 transition-colors">
+                    {/* 1. Phương tiện (Biển số in đậm, Hãng xe dòng phụ) */}
+                    <td className="py-3 px-4">
+                      <div className="space-y-0.5">
+                        <div className="font-mono font-bold text-slate-900 text-sm">
+                          {v.licensePlate}
+                        </div>
+                        <div className="text-xs text-slate-500 font-medium">
+                          {v.brand}
+                        </div>
+                      </div>
                     </td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-slate-700">
-                      <Button type="button" variant="ghost" size="sm" onClick={() => setIotVehicle(v)} aria-label={`Quản lý thiết bị IoT xe ${v.licensePlate}`}>
-                        {v.licensePlate}
-                      </Button>
+
+                    {/* 2. Ghế học sinh (Số trung tính) */}
+                    <td className="py-3 px-4">
+                      <span className="font-semibold text-slate-800 text-sm">
+                        {v.seatCount} chỗ
+                      </span>
                     </td>
-                    <td className="py-3.5 px-4">
-                      <Badge className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                        {v.seatCount} chỗ học sinh
+
+                    {/* 3. Màu xe */}
+                    <td className="py-3 px-4">
+                      <span className="text-slate-700 font-medium">
+                        {v.color}
+                      </span>
+                    </td>
+
+                    {/* 4. Thiết bị IoT (Đã gán / Chưa gán + mã + thao tác) */}
+                    <td className="py-3 px-4">
+                      <div className="flex flex-col items-start gap-1">
+                        {v.iotDevice ? (
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-1.5">
+                              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-semibold">
+                                Đã gán
+                              </Badge>
+                              <span className="font-mono text-[11px] text-slate-600">
+                                {v.iotDevice.deviceId}
+                              </span>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setIotVehicle(v)}
+                              className="text-xs text-amber-700 hover:text-amber-800 hover:bg-amber-50 h-auto py-0.5 px-1.5 -ml-1 font-semibold"
+                            >
+                              Quản lý IoT
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="space-y-0.5">
+                            <Badge className="bg-slate-100 text-slate-600 border-slate-200 text-[10px] font-medium">
+                              Chưa gán
+                            </Badge>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setIotVehicle(v)}
+                              className="text-xs text-amber-700 hover:text-amber-800 hover:bg-amber-50 h-auto py-0.5 px-1.5 -ml-1 font-semibold block"
+                            >
+                              Gán thiết bị IoT
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* 5. Trạng thái */}
+                    <td className="py-3 px-4">
+                      <Badge
+                        className={`text-[11px] font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
+                          v.isActive
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-slate-100 text-slate-600 border-slate-200'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${v.isActive ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                        <span>{v.isActive ? 'Đang hoạt động' : 'Ngừng hoạt động'}</span>
                       </Badge>
                     </td>
-                    <td className="py-3.5 px-4 text-slate-600">
-                      {v.color}
+
+                    {/* 6. Ngày thêm */}
+                    <td className="py-3 px-4 text-slate-500">
+                      {formatVietnamDate(v.createdAt)}
                     </td>
-                    <td className="py-3.5 px-4 text-xs text-slate-500">
-                      {new Date(v.createdAt).toLocaleDateString('vi-VN')}
+
+                    {/* 7. Thao tác (Nút outline trực tiếp) */}
+                    <td className="py-3 px-4 text-right">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setStatusTarget({
+                            kind: 'vehicle',
+                            id: v.id,
+                            name: v.licensePlate,
+                            isActive: v.isActive,
+                          })
+                        }
+                        className={`text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors ${
+                          v.isActive
+                            ? 'border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700'
+                            : 'border-slate-300 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        {v.isActive ? 'Ngừng hoạt động' : 'Kích hoạt'}
+                      </Button>
                     </td>
-                    <td className="py-3.5 px-4 text-xs"><Button type="button" variant="ghost" size="sm" onClick={() => setIotVehicle(v)}>{v.iotDevice?.deviceId || 'Gán thiết bị IoT'}</Button></td>
-                    <td><Badge className={v.isActive ? 'text-emerald-700 bg-emerald-50' : 'text-slate-600 bg-slate-100'}>{v.isActive ? 'Đang hoạt động' : 'Ngừng hoạt động'}</Badge></td>
-                    <td><TableActions actions={[{ label: v.isActive ? 'Ngừng hoạt động' : 'Kích hoạt', warning: v.isActive, onClick: () => setStatusTarget({ kind: 'vehicle', id: v.id, name: v.licensePlate, isActive: v.isActive }) }]} /></td>
                   </tr>
                 ))
               )}
@@ -226,30 +420,155 @@ export default function VehiclesPage() {
           </Table>
         </div>
 
+        {/* Mobile Viewport Cards (< 768px) */}
+        <div className="md:hidden space-y-3">
+          {isLoading ? (
+            <div className="py-12 text-center text-slate-400">
+              <SpinnerIcon className="w-5 h-5 animate-spin mx-auto text-amber-500 mb-2" />
+              <p className="text-xs">Đang tải dữ liệu phương tiện...</p>
+            </div>
+          ) : vehicles.length === 0 ? (
+            <div className="py-12 text-center text-slate-400">
+              <VehicleIcon className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+              <p className="font-semibold text-slate-700 text-sm">
+                {hasActiveFilters ? 'Không tìm thấy phương tiện phù hợp' : 'Chưa có phương tiện nào'}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-1">
+                {hasActiveFilters
+                  ? 'Thử tìm kiếm với từ khóa khác hoặc bấm Xóa bộ lọc.'
+                  : 'Nhấn nút "+ Thêm phương tiện" phía trên để bắt đầu thêm xe.'}
+              </p>
+            </div>
+          ) : (
+            vehicles.map((v) => (
+              <div
+                key={v.id}
+                className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/40 space-y-2.5 text-xs text-slate-700"
+              >
+                {/* Header card: Biển số & Trạng thái */}
+                <div className="flex items-center justify-between">
+                  <div className="font-mono font-bold text-slate-900 text-base">
+                    {v.licensePlate}
+                  </div>
+                  <Badge
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                      v.isActive
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-slate-100 text-slate-600 border-slate-200'
+                    }`}
+                  >
+                    {v.isActive ? 'Đang hoạt động' : 'Ngừng hoạt động'}
+                  </Badge>
+                </div>
+
+                {/* Info row: Hãng xe · Ghế học sinh · Màu xe */}
+                <div className="text-slate-600 flex items-center gap-2">
+                  <span className="font-medium text-slate-800">{v.brand}</span>
+                  <span>·</span>
+                  <span>{v.seatCount} chỗ học sinh</span>
+                  <span>·</span>
+                  <span>{v.color}</span>
+                </div>
+
+                {/* IoT & Ngày thêm */}
+                <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
+                  <div className="flex items-center gap-1.5">
+                    <span>IoT:</span>
+                    {v.iotDevice ? (
+                      <span className="font-mono font-semibold text-emerald-700">
+                        {v.iotDevice.deviceId}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">Chưa gán</span>
+                    )}
+                  </div>
+                  <div>Thêm: {formatVietnamDate(v.createdAt)}</div>
+                </div>
+
+                {/* Actions row */}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIotVehicle(v)}
+                    className="text-xs font-semibold text-amber-700 hover:text-amber-800 hover:bg-amber-50 px-2 py-1"
+                  >
+                    {v.iotDevice ? 'Quản lý IoT' : 'Gán IoT'}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setStatusTarget({
+                        kind: 'vehicle',
+                        id: v.id,
+                        name: v.licensePlate,
+                        isActive: v.isActive,
+                      })
+                    }
+                    className={`text-xs font-semibold px-3 py-1 rounded-lg ${
+                      v.isActive
+                        ? 'border-rose-200 text-rose-600 hover:bg-rose-50'
+                        : 'border-slate-300 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {v.isActive ? 'Ngừng hoạt động' : 'Kích hoạt'}
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
         {/* Pagination Footer */}
-        <PaginationControl
-          page={page}
-          totalPages={totalPages}
-          total={totalItems}
-          limit={limit}
-          loading={isLoading}
-          onPageChange={(newPage) => setPage(newPage)}
-          onLimitChange={(newLimit) => {
-            setLimit(newLimit);
-            setPage(1);
-          }}
-        />
+        <div className="border-t border-slate-100 pt-2">
+          <PaginationControl
+            page={page}
+            totalPages={totalPages}
+            total={totalItems}
+            limit={limit}
+            loading={isLoading}
+            hideNavigationWhenSinglePage={true}
+            onPageChange={(newPage) => setPage(newPage)}
+            onLimitChange={(newLimit) => {
+              setLimit(newLimit);
+              setPage(1);
+            }}
+          />
+        </div>
       </Card>
 
-      {statusTarget && <ResourceStatusDialog key={statusTarget.id} target={statusTarget} onClose={() => setStatusTarget(null)} onSuccess={() => void fetchVehicles()} />}
+      {/* Resource Status Dialog */}
+      {statusTarget && (
+        <ResourceStatusDialog
+          key={statusTarget.id}
+          target={statusTarget}
+          onClose={() => setStatusTarget(null)}
+          onSuccess={() => void fetchVehicles()}
+        />
+      )}
+
+      {/* IoT Management Modal */}
+      {iotVehicle && (
+        <VehicleIotModal
+          key={iotVehicle.id}
+          vehicle={iotVehicle}
+          onClose={() => setIotVehicle(null)}
+          onUpdated={fetchVehicles}
+        />
+      )}
+
       {/* Add Vehicle Modal */}
-      {iotVehicle && <VehicleIotModal key={iotVehicle.id} vehicle={iotVehicle} onClose={() => setIotVehicle(null)} onUpdated={fetchVehicles} />}
       <AddVehicleModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
+        triggerRef={addBtnRef}
         onSuccess={() => {
           toast.success('Thêm phương tiện mới thành công');
-          fetchVehicles();
+          void fetchVehicles();
         }}
       />
     </div>

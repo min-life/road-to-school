@@ -109,6 +109,29 @@ export function timeStrToSeconds(timeStr: string): number {
   return (h || 0) * 3600 + (m || 0) * 60;
 }
 
+export function tripClockTime(seconds: number): string {
+  return secondsToTimeStr(((seconds % 86400) + 86400) % 86400);
+}
+
+export function calculateTripTiming(
+  direction: 'TO_SCHOOL' | 'TO_PARKING',
+  duration: number,
+  day: { start: string; end: string },
+  serviceDate: string,
+) {
+  const start = direction === 'TO_SCHOOL'
+    ? timeStrToSeconds(day.start) - duration
+    : timeStrToSeconds(day.end);
+  const end = start + duration;
+  const midnight = combineDateAndTimeUtc(serviceDate, '00:00').getTime();
+  return {
+    scheduledStartTime: tripClockTime(start),
+    scheduledEndTime: tripClockTime(end),
+    scheduledStartAt: new Date(midnight + start * 1000),
+    scheduledEndAt: new Date(midnight + end * 1000),
+  };
+}
+
 /**
  * Determines whether two time intervals overlap: [startA, endA) and [startB, endB)
  * Two intervals overlap if: startA < endB && startB < endA
