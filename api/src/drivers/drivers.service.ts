@@ -10,7 +10,6 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { Prisma, Role, User, RoutePlanStatus, TripStatus } from '@prisma/client';
-import * as crypto from 'node:crypto';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
@@ -167,8 +166,8 @@ export class DriversService {
       );
     }
 
-    // 3. Sinh mật khẩu ngẫu nhiên an toàn bằng node:crypto và băm bằng bcryptjs
-    const tempPassword = crypto.randomBytes(9).toString('base64url'); // 12 ký tự
+    // 3. Sinh và băm mật khẩu ban đầu
+    const tempPassword = this.credentials.generateTemporaryPassword();
     const passwordHash = await bcrypt.hash(tempPassword, 10);
 
     // 4. Lưu tài khoản mới vào PostgreSQL

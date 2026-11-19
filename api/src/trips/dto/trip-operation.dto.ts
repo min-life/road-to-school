@@ -451,7 +451,7 @@ export class ParentHomeCardItemDto {
 
   @ApiProperty({ example: false })
   childIsAlighted: boolean;
-  @ApiProperty({ example: false, description: 'Báo cáo chưa xử lý cho chính học sinh trên thẻ, khi con vẫn còn trên xe.' })
+  @ApiProperty({ example: false, description: 'Báo cáo không có người đón còn mở của học sinh trên thẻ, kể cả khi đã xuống xe hoặc chuyến đã kết thúc.' })
   noGuardianAtStop: boolean;
 
   @ApiPropertyOptional({ example: null })

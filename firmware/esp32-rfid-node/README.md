@@ -1,6 +1,9 @@
 # ESP32 + RC522 — RoadToSchool Lean POC
 
-Firmware `1.4.0-poc`, Serial protocol v1, ESP32 DevKit V1 / CP2102, flash4MiB.
+Source firmware `1.5.0-poc`, Serial protocol v1, ESP32 DevKit V1 / CP2102, flash 4 MiB.
+Bản binary đóng gói trong repo là `1.4.0-poc`.
+API hỗ trợ đầu đọc 1.4.x đã gắn xe dùng chế độ đăng ký thẻ khi xe rảnh.
+Source 1.5.0 hỗ trợ xác nhận trực tiếp cấu hình đăng ký thẻ có định danh gán xe.
 Không có Wi-Fi, device key, UID, student hoặc trip mẫu được hardcode trong binary.
 Không dùng MQTT, OTA, offline queue hoặc PostgreSQL. Backend nhận raw UID qua HTTP.
 

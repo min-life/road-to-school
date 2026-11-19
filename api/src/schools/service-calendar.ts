@@ -1,26 +1,6 @@
-import { createRequire } from 'node:module';
 import type { ServiceCalendarEntry } from '@prisma/client';
+import lunar from 'amlich.js';
 
-const lunar = createRequire(import.meta.url)('amlich.js') as {
-  computeDateToLunarDate(
-    d: number,
-    m: number,
-    y: number,
-    tz: number,
-  ): {
-    lunarDay: number;
-    lunarMonth: number;
-    lunarYear: number;
-    lunarLeap: number;
-  };
-  computeDateFromLunarDate(
-    d: number,
-    m: number,
-    y: number,
-    leap: number,
-    tz: number,
-  ): { day: number; month: number; year: number } | number[];
-};
 type CalendarDate = Pick<
   ServiceCalendarEntry,
   'calendar' | 'year' | 'month' | 'day' | 'leapMonth' | 'recurrence'

@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger, BadRequestException } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
+import { httpCorsOptions } from './cors.config.js';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -34,11 +35,7 @@ async function bootstrap() {
   );
 
   // CORS configuration
-  app.enableCors({
-    origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    credentials: true,
-  });
+  app.enableCors(httpCorsOptions);
 
   // Swagger OpenAPI documentation
   const swaggerConfig = new DocumentBuilder()

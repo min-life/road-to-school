@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="740" viewBox="0 0 1440 740" role="img" aria-labelledby="title" font-family="Segoe UI, Arial, sans-serif">
+  <title id="title">Tab Chuyến xe trong hồ sơ trường</title>
+  <rect width="1440" height="740" fill="#FFFDF6"/>
+  <rect width="183" height="740" fill="#193652"/>
+  <g font-size="14" font-weight="600" fill="#FFFFFF">
+    <text x="22" y="34" font-size="19" font-weight="750">RoadToSchool</text>
+    <text x="25" y="87">Tổng quan</text>
+    <rect x="13" y="103" width="157" height="34" rx="7" fill="#FFCB56"/>
+    <text x="25" y="125" fill="#193652" font-weight="750">Trường học</text>
+    <text x="25" y="163">Tài xế</text><text x="25" y="200">Phương tiện</text>
+    <text x="25" y="237">Thiết bị IoT</text><text x="25" y="274">Phương án tuyến</text>
+    <text x="25" y="311">Chuyến xe</text><text x="25" y="348">Báo nghỉ</text>
+    <text x="25" y="385">Sự cố</text><text x="25" y="422">Yêu cầu</text><text x="25" y="459">Cài đặt</text>
+  </g>
+  <rect x="183" width="1257" height="52" fill="#FFFFFF" stroke="#DCE5EF"/>
+  <g fill="#193652">
+    <text x="209" y="32" font-size="14" font-weight="700">Cổng quản trị</text>
+    <text x="1412" y="32" text-anchor="end" font-size="13" font-weight="650">Quản trị hệ thống</text>
+    <text x="208" y="82" font-size="13" font-weight="650">‹  Quay lại danh sách trường</text>
+    <text x="208" y="117" font-size="25" font-weight="750">Mầm non Ánh Dương</text>
+    <text x="208" y="139" font-size="13" fill="#536981">Hợp đồng · 19/11/2026 – 31/12/2026</text>
+    <path d="M208 191h1204" stroke="#DCE5EF"/>
+    <g font-size="13" font-weight="650">
+      <text x="220" y="179">Lịch vận hành</text><text x="337" y="179">Nhân viên trường</text>
+      <text x="479" y="179">Học sinh</text><text x="565" y="179">Phương án tuyến</text>
+      <rect x="696" y="157" width="96" height="31" rx="7" fill="#FFCB56"/>
+      <text x="744" y="178" text-anchor="middle" font-weight="750">Chuyến xe</text>
+    </g>
+    <rect x="208" y="207" width="1204" height="496" rx="12" fill="#FFFFFF" stroke="#DCE5EF"/>
+    <rect x="1234" y="245" width="157" height="36" rx="7" fill="#FFCB56"/>
+    <text x="1312" y="268" font-size="13" font-weight="750" text-anchor="middle">Tạo chuyến thủ công</text>
+    <text x="228" y="239" font-size="13" font-weight="650">Từ ngày</text>
+    <text x="398" y="239" font-size="13" font-weight="650">Đến ngày</text>
+    <text x="568" y="239" font-size="13" font-weight="650">Trạng thái</text>
+    <g fill="#FFFFFF" stroke="#B7C9DD">
+      <rect x="228" y="247" width="156" height="34" rx="7"/><rect x="398" y="247" width="156" height="34" rx="7"/><rect x="568" y="247" width="196" height="34" rx="7"/>
+    </g>
+    <g font-size="13">
+      <text x="239" y="269">19/11/2026</text><text x="409" y="269">26/11/2026</text><text x="579" y="269">Tất cả trạng thái</text>
+      <path d="M744 261l4 4 4-4M358 258h13v12h-13zm0 3h13m-9-5v4m5-4v4M528 258h13v12h-13zm0 3h13m-9-5v4m5-4v4" fill="none" stroke="#536981" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <rect x="209" y="299" width="1202" height="38" fill="#F3F6FA"/>
+    <g fill="#536981" font-size="12" font-weight="700">
+      <text x="231" y="323">Tuyến và chiều</text><text x="474" y="323">Khung giờ</text>
+      <text x="650" y="323">Xe và nhân sự</text><text x="997" y="323" text-anchor="middle">Học sinh</text>
+      <text x="1075" y="323">Trạng thái</text><text x="1390" y="323" text-anchor="end">Thao tác</text>
+    </g>
+    <rect x="209" y="337" width="1202" height="32" fill="#F8FAFC"/>
+    <rect x="209" y="489" width="1202" height="32" fill="#F8FAFC"/>
+    <g font-size="13" font-weight="750"><text x="231" y="358">Thứ 6 · 20/11/2026</text><text x="231" y="510">Thứ 2 · 23/11/2026</text></g>
+    <path d="M209 369h1202m-1202 60h1202m-1202 60h1202m-1202 32h1202m-1202 60h1202m-1202 60h1202" stroke="#DCE5EF"/>
+  </g>
+  <g transform="translate(0 369)" font-size="13" fill="#193652">
+<circle cx="236" cy="31" r="4" fill="#255DDB"/>
+<text x="249" y="35" font-weight="750">Tuyến đi 01</text>
+<text x="474" y="35" font-weight="750">06:45 – 07:00</text>
+<text x="650" y="25" font-weight="750">51B-23819</text>
+<text x="650" y="44" font-size="12" fill="#536981">Tài xế Nguyễn Văn An · Giáo viên Trần Thị Mai</text>
+<text x="997" y="35" text-anchor="middle" font-weight="700">4</text>
+<rect x="1075" y="17" width="105" height="26" rx="13" fill="#E7F5EF"/>
+<text x="1127" y="34" text-anchor="middle" font-size="12" font-weight="650" fill="#086449">Đã lên lịch</text>
+<rect x="1287" y="14" width="104" height="33" rx="7" fill="#FFFFFF" stroke="#B7C9DD"/><text x="1339" y="35" text-anchor="middle" font-size="12" font-weight="700" fill="#193652">Xem chuyến ↗</text>
+</g>
+<g transform="translate(0 429)" font-size="13" fill="#193652">
+<circle cx="236" cy="31" r="4" fill="#8651BD"/>
+<text x="249" y="35" font-weight="750">Tuyến về 01</text>
+<text x="474" y="35" font-weight="750">17:00 – 17:14</text>
+<text x="650" y="25" font-weight="750">51B-23819</text>
+<text x="650" y="44" font-size="12" fill="#536981">Tài xế Nguyễn Văn An · Giáo viên Trần Thị Mai</text>
+<text x="997" y="35" text-anchor="middle" font-weight="700">4</text>
+<rect x="1075" y="17" width="105" height="26" rx="13" fill="#E7F5EF"/>
+<text x="1127" y="34" text-anchor="middle" font-size="12" font-weight="650" fill="#086449">Đã lên lịch</text>
+<rect x="1287" y="14" width="104" height="33" rx="7" fill="#FFFFFF" stroke="#B7C9DD"/><text x="1339" y="35" text-anchor="middle" font-size="12" font-weight="700" fill="#193652">Xem chuyến ↗</text>
+</g>
+<g transform="translate(0 521)" font-size="13" fill="#193652">
+<circle cx="236" cy="31" r="4" fill="#255DDB"/>
+<text x="249" y="35" font-weight="750">Tuyến đi 01</text>
+<text x="474" y="35" font-weight="750">06:45 – 07:00</text>
+<text x="650" y="25" font-weight="750">51B-23819</text>
+<text x="650" y="44" font-size="12" fill="#536981">Tài xế Nguyễn Văn An · Giáo viên Trần Thị Mai</text>
+<text x="997" y="35" text-anchor="middle" font-weight="700">4</text>
+<rect x="1075" y="17" width="105" height="26" rx="13" fill="#EDF2F7"/>
+<text x="1127" y="34" text-anchor="middle" font-size="12" font-weight="650" fill="#40546C">Dự kiến</text>
+<text x="1390" y="35" text-anchor="end" fill="#536981">—</text>
+</g>
+<g transform="translate(0 581)" font-size="13" fill="#193652">
+<circle cx="236" cy="31" r="4" fill="#8651BD"/>
+<text x="249" y="35" font-weight="750">Tuyến về 01</text>
+<text x="474" y="35" font-weight="750">17:00 – 17:14</text>
+<text x="650" y="25" font-weight="750">51B-23819</text>
+<text x="650" y="44" font-size="12" fill="#536981">Tài xế Nguyễn Văn An · Giáo viên Trần Thị Mai</text>
+<text x="997" y="35" text-anchor="middle" font-weight="700">4</text>
+<rect x="1075" y="17" width="105" height="26" rx="13" fill="#EDF2F7"/>
+<text x="1127" y="34" text-anchor="middle" font-size="12" font-weight="650" fill="#40546C">Dự kiến</text>
+<text x="1390" y="35" text-anchor="end" fill="#536981">—</text>
+</g>
+  <g fill="#536981" font-size="12">
+    <text x="230" y="676">Hiển thị 1–4 trên 4 mục</text>
+    <text x="1300" y="676">Số dòng</text>
+  </g>
+  <g font-size="12" text-anchor="middle">
+    <rect x="799" y="654" width="28" height="28" rx="6" fill="#193652"/><text x="813" y="672" fill="#FFFFFF">1</text>
+    <rect x="1351" y="653" width="40" height="29" rx="6" fill="#FFFFFF" stroke="#B7C9DD"/><text x="1371" y="672" fill="#193652">10</text>
+  </g>
+</svg>

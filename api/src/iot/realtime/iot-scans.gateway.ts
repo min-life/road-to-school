@@ -3,13 +3,20 @@ import { ExecutionContextHost } from '@nestjs/core/helpers/execution-context-hos
 import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import type { OnGatewayInit } from '@nestjs/websockets';
 import type { Namespace, Socket } from 'socket.io';
+import type { IncomingMessage } from 'node:http';
 import { AuthGuard } from '../../auth/auth.guard.js';
+import { corsOrigin, isAllowedCorsOrigin } from '../../cors.config.js';
 import type { IotScanResponseDto } from '../dto/iot-response.dto.js';
 
 @Injectable()
 @WebSocketGateway({
   namespace: '/iot', transports: ['websocket'], maxHttpBufferSize: 16384,
-  cors: { origin: ['http://localhost:5173', 'http://127.0.0.1:5173'] },
+  cors: { origin: corsOrigin },
+  // WebSocket upgrades need an explicit origin check in addition to HTTP CORS.
+  allowRequest: (request: IncomingMessage, callback) => {
+    const origin = request.headers.origin;
+    callback(null, origin === undefined || isAllowedCorsOrigin(origin));
+  },
 })
 export class IotScansGateway implements OnGatewayInit<Namespace> {
   @WebSocketServer() private server: Namespace;

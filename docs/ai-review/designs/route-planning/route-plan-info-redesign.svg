@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="990" height="450" viewBox="0 0 990 450" role="img" aria-labelledby="title" font-family="Segoe UI, Arial, sans-serif">
+  <title id="title">Hộp thông tin phương án trên desktop và màn hình hẹp</title>
+  <rect width="990" height="450" fill="#E9EDF1"/>
+  <g fill="#193652" font-weight="650" font-size="13">
+    <text x="32" y="37">Desktop</text>
+    <text x="620" y="37">Màn hình hẹp · 360 px</text>
+  </g>
+  <rect x="32" y="57" width="516" height="345" rx="16" fill="#FFFFFF" stroke="#D3DEE9"/>
+  <rect x="620" y="57" width="338" height="345" rx="16" fill="#FFFFFF" stroke="#D3DEE9"/>
+  <g fill="#193652">
+    <text x="56" y="97" font-size="22" font-weight="750">Thông tin phương án</text>
+    <text x="56" y="123" font-size="14" fill="#536981">Mầm non Ánh Dương</text>
+    <text x="640" y="97" font-size="20" font-weight="750">Thông tin phương án</text>
+    <text x="640" y="123" font-size="14" fill="#536981">Mầm non Ánh Dương</text>
+  </g>
+  <path d="M507 86l10 10m0-10-10 10M917 86l10 10m0-10-10 10" fill="none" stroke="#536981" stroke-width="2" stroke-linecap="round"/>
+  <path d="M32 143h516M620 143h338" stroke="#DCE5EF"/>
+  <rect x="56" y="162" width="468" height="69" rx="10" fill="#F3F7FB"/>
+  <rect x="640" y="162" width="298" height="69" rx="10" fill="#F3F7FB"/>
+  <g font-size="13" font-weight="600" fill="#536981">
+    <text x="70" y="184">Ngày phục vụ đầu tiên</text>
+    <text x="654" y="184">Ngày phục vụ đầu tiên</text>
+  </g>
+  <g font-size="20" font-weight="750" fill="#193652">
+    <text x="70" y="212">19/11/2026</text>
+    <text x="654" y="212">19/11/2026</text>
+  </g>
+  <rect x="396" y="185" width="114" height="24" rx="12" fill="#E7F7EF"/>
+  <rect x="810" y="185" width="114" height="24" rx="12" fill="#E7F7EF"/>
+  <g font-size="11" font-weight="700" text-anchor="middle" fill="#07624A">
+    <text x="453" y="201">Đang hoạt động</text>
+    <text x="867" y="201">Đang hoạt động</text>
+  </g>
+  <g font-size="14" font-weight="750" fill="#193652">
+    <text x="56" y="264">Các mốc xử lý</text>
+    <text x="640" y="264">Các mốc xử lý</text>
+  </g>
+  <path d="M56 277h468m-468 44h468M640 277h298m-298 44h298" stroke="#DCE5EF"/>
+  <g font-size="14" font-weight="650" fill="#193652">
+    <text x="56" y="304">Đã tạo</text><text x="524" y="304" text-anchor="end">19/11/2026 · 13:07</text>
+    <text x="56" y="348">Đã duyệt</text><text x="524" y="348" text-anchor="end">19/11/2026 · 16:50</text>
+    <text x="640" y="304">Đã tạo</text><text x="938" y="304" text-anchor="end">19/11/2026 · 13:07</text>
+    <text x="640" y="348">Đã duyệt</text><text x="938" y="348" text-anchor="end">19/11/2026 · 16:50</text>
+  </g>
+  <g font-size="13" fill="#536981">
+    <text x="56" y="371">Người duyệt · Nguyễn Văn Hùng</text>
+    <text x="640" y="371">Người duyệt · Nguyễn Văn Hùng</text>
+  </g>
+</svg>

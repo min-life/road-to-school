@@ -90,7 +90,7 @@ kiểm tra import trước khi tạo file style mới. Entry dưới `src/app/ad
 School giữ nguyên logic từ nhánh mới. CSS System có scope `.system-route-plan-workspace`
 để không đổi giao diện School. Hai nhánh vẫn dùng quyền và component phân công hiện có.
 `saved-plan-routes-panel.tsx` trong `_components`: tab con Chiều đi/Chiều về, card đầy đủ thông tin và vùng cuộn điểm dừng của System workspace; chọn chiều/card không thay visibility trên map.
-`route-plan-assignments.tsx` trong `_components`: nhóm xe, handlers ứng viên/phân công;
+`route-plan-assignments.tsx` trong `_components`: nhóm xe (accordion theo định danh ổn định, lọc Tất cả / Cần xử lý, nút Xem trên bản đồ ↗, banner 3 bước, CSS độc lập `route-plan-assignments.css`), handlers ứng viên/phân công;
 `compact` là opt-in của workspace. `route-plan-assignment-state.ts` trong shared domain:
 tiến độ nhà xe và tab mặc định, không phải readiness phê duyệt. `approval-readiness-card.tsx`
 vẫn được legacy dùng và nằm cạnh workspace; không xoá nếu chưa kiểm tra caller.

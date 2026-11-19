@@ -110,9 +110,18 @@ export class OtpService {
   }
 
   /**
-   * Sinh chuỗi OTP ngẫu nhiên an toàn (hỗ trợ số 0 ở đầu)
+   * Dùng mã cố định cho kênh console hoặc sinh mã ngẫu nhiên theo cấu hình.
    */
-  generateOtp(): string {
+  generateOtp(channels: readonly DeliveryChannel[] = []): string {
+    try {
+      if (channels.length > 0 && channels.every((channel) => this.isConsole(channel))) {
+        return '000000';
+      }
+    } catch (error) {
+      if (!(error instanceof DeliveryError)) throw error;
+      // Let delivery handle invalid modes without issuing a fixed code.
+    }
+
     const length = this.getOtpLength();
     let otp = '';
     for (let i = 0; i < length; i++) {
@@ -198,7 +207,7 @@ export class OtpService {
     const ttlSeconds = this.getOtpTtlSeconds();
     const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
 
-    const otp = this.generateOtp();
+    const otp = this.generateOtp([channel]);
     const otpHash = this.hashOtp(otp);
 
     const challenge = await this.prisma.otpChallenge.create({
@@ -318,7 +327,7 @@ export class OtpService {
     }
 
     // 2. Sinh mã OTP và băm SHA-256
-    const otp = this.generateOtp();
+    const otp = this.generateOtp([DeliveryChannel.SMS]);
     const otpHash = this.hashOtp(otp);
     const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
 
@@ -437,7 +446,7 @@ export class OtpService {
     }
 
     // 2. Sinh mã OTP và băm SHA-256
-    const otp = this.generateOtp();
+    const otp = this.generateOtp([DeliveryChannel.SMS]);
     const otpHash = this.hashOtp(otp);
     const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
 
@@ -538,7 +547,7 @@ export class OtpService {
       );
     }
 
-    const otp = this.generateOtp();
+    const otp = this.generateOtp(contacts.map((contact) => contact.channel));
     const otpHash = this.hashOtp(otp);
     const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
 

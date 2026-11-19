@@ -6,14 +6,14 @@ Source API là contract cuối cùng khi tài liệu tích hợp có chỗ khác
 
 Vào **Cài đặt → Bãi xe**, hoặc `/admin/settings?tab=parking`.
 
-1. Chọn địa chỉ/tọa độ mới và ngày hiệu lực từ ngày mai trở đi.
-2. Bấm **Xem tác động / Lưu địa chỉ**. Nếu chỉ đổi nhãn địa chỉ, tọa độ giữ nguyên và không có lịch đang hẹn, API cập nhật trực tiếp.
-3. Khi đổi tọa độ, đọc số phương án cần tối ưu lại, số chuyến hủy từ ngày hiệu lực và số chuyến trước ngày đó giữ nguyên. Nhập lý do rồi xác nhận.
+1. Chọn địa chỉ/tọa độ mới và ngày hiệu lực từ hôm nay theo giờ Việt Nam. Mặc định là ngày mai.
+2. Bấm **Xem tác động** khi đổi vị trí hoặc **Lưu địa chỉ** khi giữ nguyên tọa độ. Dùng **Sửa bán kính** để cập nhật riêng phạm vi phục vụ.
+3. Khi đổi tọa độ, xem số chuyến hôm nay và số chuyến các ngày sau dự kiến hủy, cùng số phương án cần tối ưu lại. Nhập lý do rồi xác nhận.
 4. Vị trí hiện tại chưa đổi. Khối **Thay đổi đã hẹn** hiển thị địa chỉ mới và ngày hiệu lực; form đổi tiếp tạm khóa để tránh ghi đè lịch đang hẹn.
-5. Đến ngày hiệu lực, bấm **Áp dụng vị trí mới** và xác nhận. Web chỉ báo đã áp dụng khi API trả `applied=true`.
-6. Có thể **Hủy lịch thay đổi**, nhưng thao tác này không tự phục hồi các chuyến đã hủy hoặc xóa các cờ cần tối ưu lại.
+5. Đến ngày hiệu lực, backend đối soát mỗi phút. Có thể bấm **Áp dụng vị trí mới** khi lịch đến hạn vẫn đang chờ. Web chỉ báo đã áp dụng khi API trả `applied=true`.
+6. Có thể **Hủy lịch thay đổi** trước ngày hiệu lực. Lịch chọn hôm nay đến hạn ngay sau xác nhận.
 
-Chưa thấy cron gọi hàm apply trong source hiện tại: Web không hứa tự động áp dụng và không tự gọi mutation bằng timer/render. Số chuyến hủy theo impact API; không tự tuyên bố mọi SCHEDULED đã sẵn sàng đều được giữ trong luồng dời bãi.
+Từ ngày hiệu lực, API hủy chuyến SCHEDULED chưa đóng băng. Các chuyến đã sẵn sàng, đã điểm danh, đang chạy hoặc đã hoàn thành được giữ. Chuyến bị hủy không tự sinh lại.
 
 ## 2. Phương án cần tối ưu lại — hai vai trò
 
@@ -71,7 +71,7 @@ Web không có nút tạo cho các sự cố này vì endpoint tạo thuộc Mob
 
 ### Cài đặt bãi
 - Chưa cấu hình: chọn địa chỉ và tọa độ, nhập bán kính >0 và <=500 km, bấm **Lưu cấu hình bãi**. Tâm map không phải tọa độ bãi đã chọn.
-- Đã cấu hình: đổi tọa độ cần xem tác động và ngày hiệu lực từ ngày mai. Đặt lịch chưa hủy chuyến; đến hạn API mới đối soát. Hủy lịch trước hạn giữ các chuyến hiện tại.
+- Đã cấu hình: đổi tọa độ cần xem tác động và chọn ngày hiệu lực từ hôm nay, mặc định ngày mai. API hủy chuyến đủ điều kiện khi đối soát lịch đến hạn. Có thể hủy lịch trước ngày hiệu lực.
 - Bán kính lấy từ cấu hình hiện hành; lần đầu API mặc định 50 km.
 
 ### Kết thúc sự cố

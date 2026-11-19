@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" font-family="Segoe UI, Arial, sans-serif" role="img" aria-labelledby="title"><title id="title">Xem trước kết quả tối ưu phương án tuyến</title>
+<rect x="0" y="0" width="1440" height="900" rx="0" fill="#F5F6F8" stroke="none"/>
+<text x="30" y="42" font-size="14" font-weight="600" fill="#52657A" text-anchor="start">‹  Phương án tuyến của trường</text>
+<text x="30" y="83" font-size="30" font-weight="750" fill="#263243" text-anchor="start">Xem trước phương án tuyến</text>
+<text x="30" y="111" font-size="15" font-weight="550" fill="#52657A" text-anchor="start">Trường Tiểu học Minh Hòa</text>
+<rect x="30" y="132" width="1380" height="63" rx="12" fill="white" stroke="#DCE4EC"/>
+<rect x="48" y="147" width="34" height="34" rx="10" fill="#F1F3F6" stroke="none"/>
+<text x="65" y="171" font-size="21" font-weight="800" fill="#455469" text-anchor="middle">✓</text>
+<text x="94" y="171" font-size="17" font-weight="700" fill="#263243" text-anchor="start">4/4 học sinh đã xếp đủ hai chiều</text>
+<path d="M419 149L419 179" stroke="#DCE4EC" stroke-width="1"/>
+<text x="440" y="171" font-size="15" font-weight="650" fill="#263243" text-anchor="start">1 tuyến đi</text>
+<text x="525" y="171" font-size="15" font-weight="650" fill="#52657A" text-anchor="start">·</text>
+<text x="541" y="171" font-size="15" font-weight="650" fill="#263243" text-anchor="start">1 tuyến về</text>
+<rect x="30" y="213" width="878" height="590" rx="12" fill="white" stroke="#DCE4EC"/>
+<text x="48" y="250" font-size="16" font-weight="700" fill="#263243" text-anchor="start">Bản đồ tuyến</text>
+<rect x="447" y="224" width="122" height="37" rx="8" fill="white" stroke="#DCE4EC"/>
+<text x="508" y="247" font-size="13" font-weight="650" fill="#263243" text-anchor="middle">Xem toàn cảnh</text>
+<rect x="581" y="224" width="307" height="37" rx="9" fill="#F1F3F6" stroke="none"/>
+<rect x="584" y="227" width="154" height="31" rx="7" fill="white" stroke="#DCE4EC"/>
+<text x="661" y="247" font-size="13" font-weight="700" fill="#263243" text-anchor="middle">Tuyến đang xem</text>
+<text x="813" y="247" font-size="13" font-weight="600" fill="#52657A" text-anchor="middle">Cả hai chiều</text>
+<defs><clipPath id="map"><rect x="31" y="271" width="876" height="531" rx="11"/></clipPath><pattern id="blocks" width="93" height="75" patternUnits="userSpaceOnUse" patternTransform="rotate(-22)"><rect width="93" height="75" fill="#F1F3F6"/><rect x="5" y="6" width="79" height="57" rx="7" fill="#F1F3F6"/><path d="M0 0H93M0 0V75M49 7V63" fill="none" stroke="#fff" stroke-width="5"/></pattern></defs>
+<g clip-path="url(#map)"><rect x="31" y="271" width="876" height="531" fill="url(#blocks)"/>
+<path d="M212 267L343 265L358 347L284 405L237 366Z M720 564L789 609L823 755L743 797L683 712Z M39 584L122 549L173 602L163 669L33 725Z" fill="#ECEEF2"/>
+<path d="M878 248C777 341 869 406 797 459C718 515 630 483 584 548C515 648 666 688 655 773C647 837 553 860 497 899" fill="none" stroke="#DFE4EB" stroke-width="72"/>
+<path d="M34 511C218 438 315 522 437 464S631 345 889 362M139 805C231 668 325 589 417 576S603 626 783 582M333 271C400 377 449 559 524 801" fill="none" stroke="white" stroke-width="17"/>
+<path d="M45 722L178 631L349 531L495 415L649 298M674 269L623 422L614 548L672 688L816 798" fill="none" stroke="#FFFFFF" stroke-width="9"/>
+<path d="M169 375L199 406L233 468L275 513L352 483L404 527L482 488L568 514L510 576L571 628L605 610L704 684L742 662" fill="none" stroke="white" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M169 375L199 406L233 468L275 513L352 483L404 527L482 488L568 514L510 576L571 628L605 610L704 684L742 662" fill="none" stroke="#455469" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="84" y="450" font-size="14" font-weight="600" fill="#F1F3F6" text-anchor="start">Khu dân cư</text>
+<text x="325" y="362" font-size="14" font-weight="600" fill="#F1F3F6" text-anchor="start">Công viên</text>
+<text x="712" y="421" font-size="13" font-weight="600" fill="#F1F3F6" text-anchor="start">Đường nội khu</text>
+</g>
+<g transform="translate(154,340)"><path transform="scale(.75)" d="M20 2C10.06 2 2 10.06 2 20c0 11.15 10.47 16.37 16.2 24.45a2.2 2.2 0 0 0 3.6 0C27.53 36.37 38 31.15 38 20 38 10.06 29.94 2 20 2Z" fill="#263243" stroke="white" stroke-width="3"/>
+<text x="15" y="20" font-size="18" font-weight="800" fill="white" text-anchor="middle">P</text>
+</g>
+<g transform="translate(260,478)"><path transform="scale(.75)" d="M20 2C10.06 2 2 10.06 2 20c0 11.15 10.47 16.37 16.2 24.45a2.2 2.2 0 0 0 3.6 0C27.53 36.37 38 31.15 38 20 38 10.06 29.94 2 20 2Z" fill="#455469" stroke="white" stroke-width="3"/>
+<circle cx="15" cy="11.5" r="2.7" fill="white"/><path d="M10 20v-1a5 5 0 0 1 10 0v1Z" fill="white"/>
+<circle cx="28" cy="5" r="8" fill="#263243" stroke="white"/>
+<text x="28" y="8" font-size="10" font-weight="800" fill="white" text-anchor="middle">2</text>
+</g>
+<circle cx="404" cy="507" r="19" fill="white" stroke="#455469" stroke-width="2"/>
+<g transform="translate(389,492)"><path transform="scale(.75)" d="M20 2C10.06 2 2 10.06 2 20c0 11.15 10.47 16.37 16.2 24.45a2.2 2.2 0 0 0 3.6 0C27.53 36.37 38 31.15 38 20 38 10.06 29.94 2 20 2Z" fill="#455469" stroke="white" stroke-width="3"/>
+<circle cx="15" cy="11.5" r="2.7" fill="white"/><path d="M10 20v-1a5 5 0 0 1 10 0v1Z" fill="white"/>
+<circle cx="28" cy="5" r="8" fill="#263243" stroke="white"/>
+<text x="28" y="8" font-size="10" font-weight="800" fill="white" text-anchor="middle">3</text>
+</g>
+<g transform="translate(553,479)"><path transform="scale(.75)" d="M20 2C10.06 2 2 10.06 2 20c0 11.15 10.47 16.37 16.2 24.45a2.2 2.2 0 0 0 3.6 0C27.53 36.37 38 31.15 38 20 38 10.06 29.94 2 20 2Z" fill="#455469" stroke="white" stroke-width="3"/>
+<circle cx="15" cy="11.5" r="2.7" fill="white"/><path d="M10 20v-1a5 5 0 0 1 10 0v1Z" fill="white"/>
+<circle cx="28" cy="5" r="8" fill="#263243" stroke="white"/>
+<text x="28" y="8" font-size="10" font-weight="800" fill="white" text-anchor="middle">4</text>
+</g>
+<g transform="translate(590,575)"><path transform="scale(.75)" d="M20 2C10.06 2 2 10.06 2 20c0 11.15 10.47 16.37 16.2 24.45a2.2 2.2 0 0 0 3.6 0C27.53 36.37 38 31.15 38 20 38 10.06 29.94 2 20 2Z" fill="#455469" stroke="white" stroke-width="3"/>
+<circle cx="15" cy="11.5" r="2.7" fill="white"/><path d="M10 20v-1a5 5 0 0 1 10 0v1Z" fill="white"/>
+<circle cx="28" cy="5" r="8" fill="#263243" stroke="white"/>
+<text x="28" y="8" font-size="10" font-weight="800" fill="white" text-anchor="middle">5</text>
+</g>
+<g transform="translate(727,627)"><path transform="scale(.75)" d="M20 2C10.06 2 2 10.06 2 20c0 11.15 10.47 16.37 16.2 24.45a2.2 2.2 0 0 0 3.6 0C27.53 36.37 38 31.15 38 20 38 10.06 29.94 2 20 2Z" fill="#DAE0E8" stroke="white" stroke-width="3"/>
+<text x="15" y="20" font-size="18" font-weight="800" fill="#263243" text-anchor="middle">⌂</text>
+</g>
+<rect x="840" y="287" width="44" height="83" rx="9" fill="white" stroke="#DCE4EC"/>
+<text x="862" y="314" font-size="23" font-weight="600" fill="#263243" text-anchor="middle">+</text>
+<path d="M846 329L878 329" stroke="#DCE4EC" stroke-width="1"/>
+<text x="862" y="356" font-size="23" font-weight="600" fill="#263243" text-anchor="middle">−</text>
+<rect x="48" y="743" width="349" height="42" rx="9" fill="white" stroke="#DCE4EC"/>
+<path d="M64 764L83 764" stroke="#455469" stroke-width="4"/>
+<text x="89" y="769" font-size="13" font-weight="650" fill="#263243" text-anchor="start">Tuyến đi 01</text>
+<circle cx="177" cy="764" r="4" fill="#263243"/>
+<text x="186" y="769" font-size="12" font-weight="550" fill="#52657A" text-anchor="start">Bãi xe</text>
+<circle cx="248" cy="764" r="4" fill="#DAE0E8"/>
+<text x="257" y="769" font-size="12" font-weight="550" fill="#52657A" text-anchor="start">Trường</text>
+<circle cx="317" cy="764" r="4" fill="#455469"/>
+<text x="326" y="769" font-size="12" font-weight="550" fill="#52657A" text-anchor="start">Học sinh</text>
+<rect x="928" y="213" width="482" height="590" rx="12" fill="white" stroke="#DCE4EC"/>
+<rect x="944" y="228" width="225" height="36" rx="7" fill="#F1F3F6" stroke="none"/>
+<text x="1056" y="251" font-size="14" font-weight="700" fill="#263243" text-anchor="middle">Tuyến (2)</text>
+<text x="1281" y="251" font-size="14" font-weight="600" fill="#52657A" text-anchor="middle">Học sinh (4)</text>
+<path d="M928 276L1410 276" stroke="#DCE4EC" stroke-width="1"/>
+<rect x="946" y="290" width="446" height="37" rx="8" fill="#F1F3F6" stroke="none"/>
+<rect x="948" y="292" width="221" height="33" rx="7" fill="white" stroke="#DCE4EC"/>
+<text x="1058" y="314" font-size="13" font-weight="700" fill="#263243" text-anchor="middle">Chiều đi (1)</text>
+<text x="1281" y="314" font-size="13" font-weight="600" fill="#52657A" text-anchor="middle">Chiều về (1)</text>
+<rect x="946" y="341" width="446" height="85" rx="9" fill="#F1F3F6" stroke="#F1F3F6"/>
+<circle cx="963" cy="363" r="4" fill="#455469"/>
+<text x="974" y="369" font-size="16" font-weight="750" fill="#263243" text-anchor="start">Tuyến đi 01</text>
+<text x="1375" y="369" font-size="14" font-weight="700" fill="#263243" text-anchor="end">51B-23819</text>
+<text x="958" y="396" font-size="14" font-weight="750" fill="#263243" text-anchor="start">06:42 – 07:00</text>
+<text x="1067" y="396" font-size="13" font-weight="600" fill="#52657A" text-anchor="start">5,3 km</text>
+<text x="1133" y="396" font-size="13" font-weight="600" fill="#52657A" text-anchor="start">4/14 chỗ</text>
+<text x="1375" y="396" font-size="13" font-weight="650" fill="#263243" text-anchor="end">T2–T6</text>
+<text x="947" y="457" font-size="16" font-weight="750" fill="#263243" text-anchor="start">Điểm dừng</text>
+<text x="1390" y="457" font-size="12" font-weight="650" fill="#52657A" text-anchor="end">Giờ dự kiến</text>
+<path d="M947 468L1391 468" stroke="#DCE4EC" stroke-width="1"/>
+<path d="M959 493L959 738" stroke="#F1F3F6" stroke-width="2"/>
+<circle cx="959" cy="495" r="10" fill="#263243" stroke="white" stroke-width="1.5"/>
+<text x="959" y="499" font-size="11" font-weight="800" fill="white" text-anchor="middle">P</text>
+<text x="980" y="498" font-size="14" font-weight="700" fill="#263243" text-anchor="start">Bãi xe trung tâm</text>
+<text x="980" y="515" font-size="12" font-weight="500" fill="#52657A" text-anchor="start">Cổng số 5</text>
+<text x="1378" y="498" font-size="16" font-weight="750" fill="#263243" text-anchor="end">06:42</text>
+<circle cx="959" cy="546" r="10" fill="#455469" stroke="white" stroke-width="1.5"/>
+<text x="959" y="550" font-size="11" font-weight="800" fill="white" text-anchor="middle">2</text>
+<text x="980" y="549" font-size="14" font-weight="700" fill="#263243" text-anchor="start">Học sinh 01</text>
+<text x="980" y="566" font-size="12" font-weight="500" fill="#52657A" text-anchor="start">Khu dân cư S9.01</text>
+<text x="1378" y="549" font-size="16" font-weight="750" fill="#263243" text-anchor="end">06:43</text>
+<rect x="946" y="578" width="446" height="48" rx="7" fill="#F1F3F6" stroke="none"/>
+<circle cx="959" cy="597" r="10" fill="#455469" stroke="white" stroke-width="1.5"/>
+<text x="959" y="601" font-size="11" font-weight="800" fill="white" text-anchor="middle">3</text>
+<text x="980" y="600" font-size="14" font-weight="700" fill="#263243" text-anchor="start">Học sinh 02</text>
+<text x="980" y="617" font-size="12" font-weight="500" fill="#52657A" text-anchor="start">Khu dân cư S1.05</text>
+<text x="1378" y="600" font-size="16" font-weight="750" fill="#263243" text-anchor="end">06:47</text>
+<circle cx="959" cy="648" r="10" fill="#455469" stroke="white" stroke-width="1.5"/>
+<text x="959" y="652" font-size="11" font-weight="800" fill="white" text-anchor="middle">4</text>
+<text x="980" y="651" font-size="14" font-weight="700" fill="#263243" text-anchor="start">Học sinh 03</text>
+<text x="980" y="668" font-size="12" font-weight="500" fill="#52657A" text-anchor="start">Khu dân cư S6.06</text>
+<text x="1378" y="651" font-size="16" font-weight="750" fill="#263243" text-anchor="end">06:51</text>
+<circle cx="959" cy="699" r="10" fill="#455469" stroke="white" stroke-width="1.5"/>
+<text x="959" y="703" font-size="11" font-weight="800" fill="white" text-anchor="middle">5</text>
+<text x="980" y="702" font-size="14" font-weight="700" fill="#263243" text-anchor="start">Học sinh 04</text>
+<text x="980" y="719" font-size="12" font-weight="500" fill="#52657A" text-anchor="start">Khu dân cư BS11</text>
+<text x="1378" y="702" font-size="16" font-weight="750" fill="#263243" text-anchor="end">06:55</text>
+<circle cx="959" cy="750" r="10" fill="#DAE0E8" stroke="white" stroke-width="1.5"/>
+<text x="959" y="754" font-size="11" font-weight="800" fill="#263243" text-anchor="middle">S</text>
+<text x="980" y="753" font-size="14" font-weight="700" fill="#263243" text-anchor="start">Trường Tiểu học Minh Hòa</text>
+<text x="980" y="770" font-size="12" font-weight="500" fill="#52657A" text-anchor="start">Cổng chính</text>
+<text x="1378" y="753" font-size="16" font-weight="750" fill="#263243" text-anchor="end">07:00</text>
+<rect x="30" y="821" width="1380" height="56" rx="11" fill="white" stroke="#DCE4EC"/>
+<text x="49" y="855" font-size="14" font-weight="550" fill="#52657A" text-anchor="start">Sau khi lưu, chuyển sang phân công nguồn lực.</text>
+<rect x="1049" y="831" width="131" height="37" rx="8" fill="white" stroke="#DCE4EC"/>
+<text x="1114.5" y="854" font-size="13" font-weight="650" fill="#263243" text-anchor="middle">Sửa thiết lập</text>
+<rect x="1190" y="831" width="203" height="37" rx="8" fill="#DAE0E8" stroke="#F1F3F6"/>
+<text x="1291.5" y="854" font-size="13" font-weight="650" fill="#263243" text-anchor="middle">Lưu phương án chưa duyệt</text>
+</svg>

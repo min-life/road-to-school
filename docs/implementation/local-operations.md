@@ -39,7 +39,7 @@ Mỗi lệnh một terminal, đúng thư mục:
 | web | npm run dev (5173) | npm run build; npm run lint; typecheck tương tự |
 | mobile | npm start (Expo) | typecheck; node node_modules/expo/bin/cli export --platform all --output-dir PATH_NGOAI_REPO |
 
-API: http://localhost:3000/api/v1/health và /health/db; Swagger http://localhost:3000/api/docs. main.ts CORS hiện chỉ cho localhost/127.0.0.1:5173; Expo Web origin khác có thể bị CORS, đừng chẩn đoán nhầm lỗi auth. Native fetch không cùng mô hình browser CORS. Trên iPhone dùng cùng LAN với Metro/API; kiểm tra firewall và địa chỉ API trước khi đổi auth logic. Không khởi động server trùng port đang dùng.
+Kiểm tra API tại http://localhost:3000/api/v1/health và /health/db, Swagger tại http://localhost:3000/api/docs. Đặt `CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173` trong `api/.env` cho Web Admin local. Thêm origin của Expo Web hoặc Web Admin triển khai vào biến của môi trường tương ứng, phân cách bằng dấu phẩy và dùng đúng giao thức, host và port. Danh sách áp dụng cho HTTP API và Socket.IO IoT. Khi để trống, API không cấp quyền CORS cho trình duyệt. Native fetch dùng kết nối HTTP trực tiếp. Trên iPhone dùng cùng LAN với Metro/API và kiểm tra firewall nếu không kết nối được.
 
 ## API mẫu và lỗi
 

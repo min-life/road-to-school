@@ -1912,6 +1912,11 @@ export class TripsService {
     for (const link of links) {
       const student = link.student;
       const roster = { studentId: student.id, excludedAt: null };
+      const openNoGuardianIncident = {
+        type: TripIncidentType.NO_GUARDIAN_AT_STOP,
+        status: { in: [TripIncidentStatus.WAITING_ASSIGNMENT, TripIncidentStatus.WAITING_CONFIRMATION] },
+        context: { path: ['studentId'], equals: student.id },
+      } satisfies Prisma.TripIncidentWhereInput;
       const include = {
         school: { select: { name: true } },
         assignedVehicle: { select: { licensePlate: true } },
@@ -1919,11 +1924,7 @@ export class TripsService {
         route: { select: { name: true } },
         attendances: { where: roster },
         incidents: {
-          where: {
-            type: TripIncidentType.NO_GUARDIAN_AT_STOP,
-            status: TripIncidentStatus.WAITING_ASSIGNMENT,
-            context: { path: ['studentId'], equals: student.id },
-          },
+          where: openNoGuardianIncident,
           select: { id: true },
           take: 1,
         },
@@ -1959,7 +1960,13 @@ export class TripsService {
       );
       const history = await this.prisma.trip.findMany({
         where: {
-          ...homeTripHistoryWhere(primary, now),
+          OR: [
+            homeTripHistoryWhere(primary, now),
+            {
+              incidents: { some: openNoGuardianIncident },
+              ...(primary && { id: { not: primary.id } }),
+            },
+          ],
           attendances: { some: roster },
         },
         include,
@@ -1990,9 +1997,7 @@ export class TripsService {
           absenceReason: attendance?.status === AttendanceStatus.ABSENT ? attendance.absenceReason : null,
           childIsAlighted: Boolean(attendance?.alightedAt),
           childAlightedAt: attendance?.alightedAt?.toISOString() ?? null,
-          noGuardianAtStop: trip.status === TripStatus.IN_PROGRESS
-            && attendance?.status === AttendanceStatus.PRESENT && !attendance.alightedAt
-            && Boolean(trip.incidents?.length),
+          noGuardianAtStop: Boolean(trip.incidents?.length),
           canReportLeave,
           hasLeaveNotice: Boolean(activeNotice),
           leaveNoticeId: activeNotice?.id ?? null,
@@ -2638,6 +2643,7 @@ export class TripsService {
           where: {
             tripId,
             status: TripIncidentStatus.WAITING_CONFIRMATION,
+            type: { not: TripIncidentType.NO_GUARDIAN_AT_STOP },
           },
           data: {
             status: TripIncidentStatus.CLOSED,

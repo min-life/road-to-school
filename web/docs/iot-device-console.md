@@ -117,23 +117,31 @@ vehicle-first flow; static tests/build không thay kiểm tra browser hoặc th�
 
 ## Student RFID — giai đoạn3
 
-Đăng ký ở hồ sơ học sinh SYSADMIN: Trường học→Học sinh→Thẻ RFID→Đăng ký thẻ.
-Chọn device unbound/không enrollmentBusy; mở phiên5phút, quẹt thật, xem UID rồi Xác nhận đăng ký.
+Đăng ký ở hồ sơ học sinh, mục **Thẻ RFID → Đăng ký thẻ**. SYSTEM_ADMIN dùng
+hồ sơ trong mục Trường học. SCHOOL_ADMIN đăng ký cho học sinh của trường mình.
+Chọn **ESP32 qua USB** để trình duyệt nhận thiết bị đang cắm vào máy thao tác.
+Modal đọc thông tin nhận diện trên Serial và tra đúng thiết bị đã đăng ký.
+Với ESP32 đã gắn xe, cần firmware từ 1.4.0 và xe không có chuyến sẵn sàng, đã điểm danh hoặc đang chạy.
+Mở phiên 5 phút, đợi thiết bị nhận phiên, quẹt thẻ, kiểm tra mã rồi chọn **Xác nhận đăng ký**.
 Modal poll session2s, không lấy latest UID từ rfid_scans hoặc đọc UID từ localStorage. Có thông báo
 thẻ đã đăng ký/thẻ đã đọc, giữ candidate đầu; retry poll không lặp thông báo. Pending202 có nút
 Kiểm tra kết quả (đối soát PG read-only), không cho hủy hoặc mở phiên thay thế. Đóng modal pending
 chỉ đóng giao diện, không tự xóa giữ chỗ; mở lại hồ sơ lấy đúng active session để tiếp tục.
-School Admin đọc card/status, không mở enrollment; disable giải phóng UID và UI clear ngay, bật lại
-không khôi phục. Chỉ System Admin được gán RFID qua API riêng, không cấp quyền sửa hồ sơ khác.
+SCHOOL_ADMIN quản lý phiên đăng ký do mình mở và nhận diện đầu đọc qua USB.
+API xác thực thiết bị khi mở phiên. Danh bạ thiết bị, đổi thẻ và hủy liên kết
+thuộc quyền SYSTEM_ADMIN. Vô hiệu hóa học sinh giải phóng UID, bật lại không khôi phục UID.
 Vehicles selector disabled device đang enroll; admin có nút đối soát pending từ metadata để giải phóng
 slot khi creator không thao tác được, không viết UID mới. Native modal/busy/Escape/viewport-scroll dùng
 cùng design hiện có; các viewport/browser và các Student mutations thật vẫn cần UAT riêng.
-Firmware1.3 mới hỗ trợ phiên; Wi-Fi/USB/nạp vẫn ở IoT. Không coi raw scan là điểm danh.
+Nếu xe cần thiết bị để phục vụ chuyến, phiên chưa xác nhận sẽ kết thúc khi hệ thống đối soát chế độ.
+ESP32 vẫn dùng Wi-Fi để gửi lượt quẹt và không bị tháo khỏi xe khi dùng cho đăng ký thẻ.
+Nếu rút USB trước khi đọc thẻ, modal thử hủy phiên đang chờ và báo lại trạng thái.
+Thiết lập Wi-Fi và nạp firmware vẫn thực hiện ở trang Thiết bị IoT.
 
 ### Đổi thẻ / Hủy liên kết
 
 Trong hồ sơ học sinh, SYSTEM_ADMIN thấy Đổi thẻ và Hủy liên kết khi đã có UID.
-Đổi thẻ: ESP chưa gắn xe -> mở phiên -> quẹt thẻ mới -> Xác nhận đổi thẻ. Hủy phiên/hết hạn giữ thẻ cũ.
+Đổi thẻ: chọn ESP32 qua USB theo cùng điều kiện, mở phiên, quẹt thẻ mới và xác nhận. Hủy hoặc hết phiên giữ thẻ cũ.
 Hủy liên kết: hộp xác nhận -> gỡ UID, không xóa học sinh hoặc disable. Không cần ESP cho thao tác hủy.
 Chặn hủy khi có phiên active/pending; phiên khác người mở cần người đó xử lý, pending cần đối soát.
 Trang cũ có UID/version khác bị từ chối; đóng rồi tải lại hồ sơ trước khi thử tiếp.

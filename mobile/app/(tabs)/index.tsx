@@ -261,7 +261,7 @@ export default function HomeScreen() {
                   </Text> : undefined}
                   studentStatus={studentStatus}
                   readiness={readiness}
-                  noGuardianAtStop={card.noGuardianAtStop && !isHistory && !student.childIsAlighted}
+                  noGuardianAtStop={card.noGuardianAtStop}
                   hasIncident={tripTelemetry?.incidents?.some(i => i.type !== 'NO_GUARDIAN_AT_STOP' && activeJourneyIncident(i.status))}
                   attention={student.attendanceStatus === 'UNMARKED' && student.tripStatus !== 'CANCELLED' && student.tripStatus !== 'COMPLETED'}
                   stale={tripTelemetry?.operationUnavailable || tripTelemetry?.incidentsUnavailable}

@@ -106,6 +106,10 @@ không phải lý do đổi primary của ứng dụng. Không sửa hàng loạ
 
 - Bản đồ hành trình dùng `RouteMap` trên MapLibre/VietMap; chọn địa điểm dùng `VietMapPicker`.
   Không cài/sao chép Google Maps hoặc API địa điểm từ repo tham chiếu để làm lại cùng tác vụ.
+- Bãi xe và trường học dùng SVG trong `web/public/map-markers/`. Mobile WebView nhúng cùng hình trong
+  `mobile/utils/trip-map-icons.ts`. Neo ở mũi ghim. So sánh bãi hiện tại với bãi mới dùng cùng ghim bãi xe và gắn nhãn riêng.
+- Học sinh dùng ghim teal 30 × 36 trên Web và Mobile. Điểm đón/trả có thứ tự dùng số ở góc ghim.
+  Chi tiết học sinh giữ theo quyền hiện tại, ảnh của con chỉ xuất hiện trong chi tiết điểm dừng của phụ huynh được liên kết.
 - Tách **route visibility** (0/nhiều đường) với **inspected route** (một tuyến đang xem) và
   **assignment target** (nhóm xe đang thao tác). Chọn một trạng thái không tự sửa trạng thái khác.
 - Workspace phương án đã lưu: `RouteMapVisibilityControl` nằm trên bản đồ, checkbox theo tuyến,

@@ -8,6 +8,7 @@ import { VehiclesModule } from '../vehicles/vehicles.module.js';
 import { HealthModule } from '../health/health.module.js';
 import { IotModule } from './iot.module.js';
 import { isIotEnabled } from './iot.constants.js';
+import { httpCorsOptions } from '../cors.config.js';
 
 // Local acceptance runtime: reuse real authentication, without importing business cron modules.
 // The normal application still integrates IoT through AppModule; it is not replaced.
@@ -34,10 +35,7 @@ async function bootstrap() {
         message: messages[0] || 'Dữ liệu đầu vào không hợp lệ', errors: messages });
     },
   }));
-  app.enableCors({
-    origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], credentials: true,
-  });
+  app.enableCors(httpCorsOptions);
   const document = SwaggerModule.createDocument(app, new DocumentBuilder()
     .setTitle('RoadToSchool IoT — Local acceptance')
     .setDescription('IoT, Health và xác thực thật; không khởi chạy các cron nghiệp vụ.')

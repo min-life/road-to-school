@@ -357,6 +357,46 @@ describe('TripsService Business Rules', () => {
       }
     });
 
+    it('retains a completed trip with an open no-guardian report after the child alights', async () => {
+      vi.setSystemTime(new Date('2026-11-21T03:00:00Z'));
+      prismaMock.parentStudentLink.findMany.mockResolvedValue([{ student: { id: 'child', fullName: 'Child' } }]);
+      const attendance = { status: AttendanceStatus.PRESENT, alightedAt: new Date('2026-11-20T10:00:00Z') };
+      const completed = {
+        ...homeTrip('previous', TripStatus.COMPLETED),
+        direction: RouteDirection.TO_PARKING,
+        attendances: [attendance],
+        incidents: [{ id: 'open-report' }],
+      };
+      prismaMock.trip.findMany
+        .mockResolvedValueOnce([homeTrip('running', TripStatus.IN_PROGRESS, tomorrow)])
+        .mockResolvedValueOnce([completed, {
+          ...homeTrip('closed', TripStatus.COMPLETED, tomorrow),
+          attendances: [attendance],
+          incidents: [],
+        }]);
+
+      const { items } = await service.getParentHomeCards(mockParentUser as any);
+
+      expect(items).toEqual([
+        expect.objectContaining({ tripId: 'running', noGuardianAtStop: false }),
+        expect.objectContaining({ tripId: 'previous', childIsAlighted: true, noGuardianAtStop: true }),
+        expect.objectContaining({ tripId: 'closed', childIsAlighted: true, noGuardianAtStop: false }),
+      ]);
+      expect(prismaMock.trip.findMany).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        where: expect.objectContaining({
+          attendances: { some: { studentId: 'child', excludedAt: null } },
+          OR: expect.arrayContaining([{
+            id: { not: 'running' },
+            incidents: { some: {
+              type: TripIncidentType.NO_GUARDIAN_AT_STOP,
+              status: { in: [TripIncidentStatus.WAITING_ASSIGNMENT, TripIncidentStatus.WAITING_CONFIRMATION] },
+              context: { path: ['studentId'], equals: 'child' },
+            } },
+          }]),
+        }),
+      }));
+    });
+
     it('selects history per linked student and ranks cards across children', async () => {
       vi.setSystemTime(new Date('2026-11-20T03:00:00Z'));
       prismaMock.parentStudentLink.findMany.mockResolvedValue([
@@ -381,10 +421,16 @@ describe('TripsService Business Rules', () => {
         where: { parentId: mockParentUser.id },
       }));
       expect(prismaMock.trip.findMany).toHaveBeenNthCalledWith(2, expect.objectContaining({
-        where: expect.objectContaining({ serviceDate: today, attendances: { some: { studentId: 'child-one', excludedAt: null } } }),
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([expect.objectContaining({ serviceDate: today })]),
+          attendances: { some: { studentId: 'child-one', excludedAt: null } },
+        }),
       }));
       expect(prismaMock.trip.findMany).toHaveBeenNthCalledWith(4, expect.objectContaining({
-        where: expect.objectContaining({ serviceDate: tomorrow, attendances: { some: { studentId: 'child-two', excludedAt: null } } }),
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([expect.objectContaining({ serviceDate: tomorrow })]),
+          attendances: { some: { studentId: 'child-two', excludedAt: null } },
+        }),
       }));
     });
   });
@@ -979,6 +1025,39 @@ describe('TripsService Business Rules', () => {
 
       const res = await service.completeTrip('trip-school-1', mockDriverUser as any);
       expect(res.trip.status).toBe(TripStatus.COMPLETED);
+    });
+
+    it('records alighting and completes a return trip while preserving the no-guardian report', async () => {
+      const tripId = 'trip-home';
+      const attendance = { studentId: 's1', status: AttendanceStatus.PRESENT, alightedAt: null as Date | null };
+      prismaMock.trip.findUnique.mockResolvedValue({
+        id: tripId,
+        direction: RouteDirection.TO_PARKING,
+        status: TripStatus.IN_PROGRESS,
+        assignedDriverId: mockDriverUser.id,
+        assignedBusAttendantId: mockAttendantUser.id,
+        attendances: [attendance],
+      });
+      prismaMock.tripAttendance.findUnique.mockResolvedValue(attendance);
+      prismaMock.tripAttendance.update.mockImplementation(async ({ data }: { data: { alightedAt: Date | null } }) => {
+        attendance.alightedAt = data.alightedAt;
+        return attendance;
+      });
+      prismaMock.trip.update.mockResolvedValue({ id: tripId, status: TripStatus.COMPLETED });
+      prismaMock.tripIncident = { updateMany: vi.fn().mockResolvedValue({ count: 0 }) };
+
+      await expect(service.updateAlighting(tripId, attendance.studentId, { isAlighted: true }, mockAttendantUser as any))
+        .resolves.toMatchObject({ isAlighted: true });
+      expect(prismaMock.tripIncident.updateMany).not.toHaveBeenCalled();
+      await expect(service.completeTrip(tripId, mockDriverUser as any))
+        .resolves.toMatchObject({ trip: { status: TripStatus.COMPLETED } });
+      expect(prismaMock.tripIncident.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: {
+          tripId,
+          status: TripIncidentStatus.WAITING_CONFIRMATION,
+          type: { not: TripIncidentType.NO_GUARDIAN_AT_STOP },
+        },
+      }));
     });
 
     it('TO_PARKING: should block Driver start until 100% boarded at school (BF-08, BF-09, BF-10)', async () => {

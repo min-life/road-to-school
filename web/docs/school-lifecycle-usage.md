@@ -37,9 +37,13 @@ Bố cục hai tab được hiển thị dưới dạng bảng dữ liệu chuy�
 ## 2. Hẹn thay đổi trường và gia hạn
 
 1. Vào **Trường học → Chi tiết → Chỉnh sửa trường & vị trí**.
-2. Sửa vị trí hoặc lịch học, chọn **Ngày áp dụng thay đổi vị trí / lịch học** trong giới hạn hợp đồng hiện tại, rồi lưu.
+2. Đổi địa điểm mở ô **Ngày áp dụng địa điểm** ngay dưới địa chỉ ở bước 2, mặc định **Hôm nay**. Nếu chỉ đổi lịch học, mở ô ngày trong phần **Lịch học theo tuần** ở bước 3, mặc định **Ngày mai**. Bấm ô để chọn ngày đến hết hợp đồng hiện hành, hoặc bấm **Về hôm nay**. Nếu đổi cả hai, bước 3 hiển thị ngày chung và liên kết **Sửa ngày** về bước 2. Ngừng hoạt động trường vẫn chọn sớm nhất từ ngày mai.
 3. Vào **Lịch vận hành → Thay đổi đã hẹn** để kiểm tra ngày, nội dung và trạng thái.
-4. Nếu cần hủy trước ngày hiệu lực, chọn **Hủy lịch hẹn** và xác nhận. Hủy hẹn không phục hồi chuyến đã hủy.
+4. Nếu cần hủy trước ngày hiệu lực, chọn **Hủy lịch hẹn** và xác nhận.
+
+Chỉ sửa chữ trong địa chỉ giữ nguyên phương án và chuyến. Đổi tọa độ đánh dấu phương án **Cần tối ưu lại**, hủy chuyến chưa vận hành từ ngày hiệu lực và giữ chuyến đã sẵn sàng, điểm danh, đang chạy hoặc đã hoàn thành. Đổi lịch tuần cập nhật giờ chuyến phù hợp, hủy chuyến khi ngày học bị bỏ hoặc giờ mới đã qua và đánh dấu phương án khi thời lượng tuyến không khớp khung giờ. Phương án cần tối ưu lại phải được nhà xe tối ưu, sau đó trường duyệt lại. Sinh chuyến chỉ xử lý giờ khởi hành tương lai. Nếu có bản ghi chuyến bị hủy do đổi thông tin trường, hệ thống dùng lại bản ghi có lưu vết và kiểm tra phân công.
+
+FE có thể xem trước tác động vị trí qua `GET /schools/:id/location-impact?latitude=…&longitude=…&effectiveDate=YYYY-MM-DD`, hoặc tác động lịch tuần qua `POST /schools/:id/schedule-impact` với `{ weeklySchedule, effectiveDate }`. Hai API trả số phương án cần tối ưu lại, chuyến bị hủy (tổng và hôm nay), chuyến đổi giờ, chuyến giữ và `expectedFingerprint`. Gửi fingerprint vào PATCH tương ứng để nhận 409 khi tác động thay đổi. PATCH trả `APPLIED` nếu áp dụng hôm nay và `PENDING` nếu đặt lịch.
 
 Với gia hạn khi đã có phương án chưa duyệt/đang hoạt động: giữ ngày bắt đầu,
 kéo dài ngày kết thúc; API kiểm tra xe/tài xế/giáo viên. Gia hạn không khôi phục

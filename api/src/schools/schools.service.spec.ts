@@ -10,6 +10,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { Role, Prisma, RoutePlanStatus, TripStatus, RouteDirection, LeaveNoticeStatus } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
 import { SchoolsService } from './schools.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CloudinaryService } from './cloudinary.service.js';
@@ -905,6 +906,13 @@ describe('SchoolsService', () => {
     });
 
     it('tạo SCHOOL_ADMIN thành công khi cung cấp cả email và phone', async () => {
+      const deliverCreatedUser = vi.fn().mockResolvedValue('CONSOLE');
+      Object.assign(service, {
+        credentials: {
+          generateTemporaryPassword: () => 'Pass@123',
+          deliverCreatedUser,
+        },
+      });
       vi.mocked(prisma.school.findUnique).mockResolvedValue(activeSchool as any);
       vi.mocked(prisma.user.findFirst).mockResolvedValue(null);
       vi.mocked(prisma.user.create).mockResolvedValue({
@@ -927,6 +935,10 @@ describe('SchoolsService', () => {
 
       expect(result.email).toBe('mai@school.edu.vn');
       expect(result.phone).toBe('0988777666');
+      expect(result.credentialDeliveryStatus).toBe('CONSOLE');
+      const [created] = vi.mocked(prisma.user.create).mock.calls;
+      await expect(bcrypt.compare('Pass@123', created[0].data.passwordHash!)).resolves.toBe(true);
+      expect(deliverCreatedUser).toHaveBeenCalledWith(expect.objectContaining({ id: result.id }), 'Pass@123');
     });
 
     it('ném lỗi ConflictException nếu email đã tồn tại trong hệ thống (pre-check)', async () => {

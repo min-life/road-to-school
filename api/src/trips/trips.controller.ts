@@ -273,7 +273,7 @@ export class TripsController {
   @ApiOperation({
     summary: 'Danh sách thẻ chuyến xe trang chủ dành cho Phụ huynh',
     description:
-      'Với mỗi học sinh đã liên kết, lấy tối đa một chuyến IN_PROGRESS hoặc SCHEDULED đủ điều kiện và các chuyến COMPLETED, CANCELLED cùng ngày phục vụ. Nếu không có chuyến chính của học sinh, lấy chuyến đã kết thúc của hôm nay theo giờ Việt Nam. Danh sách ưu tiên theo thứ tự IN_PROGRESS, SCHEDULED, COMPLETED, CANCELLED.',
+      'Với mỗi học sinh đã liên kết, lấy tối đa một chuyến chính IN_PROGRESS hoặc SCHEDULED đủ điều kiện và các chuyến COMPLETED, CANCELLED cùng ngày phục vụ. Nếu không có chuyến chính, lấy chuyến đã kết thúc của hôm nay theo giờ Việt Nam. Các chuyến có báo cáo không có người đón còn mở của học sinh vẫn xuất hiện qua các ngày. Danh sách ưu tiên theo thứ tự IN_PROGRESS, SCHEDULED, COMPLETED, CANCELLED.',
   })
   @ApiResponse({
     status: 200,

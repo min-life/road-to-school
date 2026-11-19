@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { EmailDeliveryService } from './email-delivery.service.js';
 import type { CredentialDeliveryStatus } from './email-delivery.service.js';
 import { CredentialDeliveryResultDto } from './credential-delivery.dto.js';
+import { DeliveryError } from './delivery-error.js';
 
 @Injectable()
 export class PersonnelCredentialsService {
@@ -14,6 +15,16 @@ export class PersonnelCredentialsService {
   private readonly pending = new Set<string>();
 
   constructor(private readonly prisma: PrismaService, private readonly email: EmailDeliveryService) {}
+
+  generateTemporaryPassword(): string {
+    try {
+      if (this.email.isConsole()) return 'Pass@123';
+    } catch (error) {
+      if (!(error instanceof DeliveryError)) throw error;
+      // Keep a random password when delivery is misconfigured.
+    }
+    return randomBytes(9).toString('base64url');
+  }
 
   async deliverCreatedUser(target: User, password: string): Promise<CredentialDeliveryStatus> {
     if (this.pending.has(target.id)) return 'FAILED';
@@ -52,7 +63,7 @@ export class PersonnelCredentialsService {
       const target = await this.prisma.user.findUnique({ where: { id } });
       if (!target) throw new NotFoundException('Không tìm thấy nhân sự');
       this.assertAccess(target, actor, schoolId);
-      const password = randomBytes(9).toString('base64url');
+      const password = this.generateTemporaryPassword();
       const passwordHash = await bcrypt.hash(password, 10);
       const changed = await this.prisma.user.updateMany({
         where: { id, passwordHash: target.passwordHash, updatedAt: target.updatedAt,

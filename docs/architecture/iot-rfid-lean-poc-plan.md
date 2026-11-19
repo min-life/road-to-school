@@ -797,7 +797,20 @@ UAT vehicle-first và chuyển A→B→A/thẻ thật vẫn chờ người dùng
 
 <a id="student-rfid-enrollment-plan"></a>
 
-## K. ĐĂNG KÝ THẺ RFID CHO HỌC SINH — PHIÊN RIÊNG, ESP32 CHƯA GẮN XE
+## K. ĐĂNG KÝ THẺ RFID CHO HỌC SINH — PHIÊN RIÊNG
+
+**Cập nhật 19/11/2026.** Modal đăng ký và đổi thẻ nhận ESP32 từ cổng USB của
+máy chạy trình duyệt. ESP32 đã gắn xe dùng được khi xe chưa có chuyến sẵn sàng,
+đã điểm danh hoặc đang chạy. Liên kết xe trong PostgreSQL được giữ, và API kiểm
+tra lại trạng thái chuyến khi mở phiên, nhận lượt quẹt và xác nhận.
+Firmware 1.4.x dùng cấu hình phiên tương thích, còn firmware 1.5.0 giữ định danh
+lần gán xe trong cấu hình đăng ký. Hai trường hợp đều dùng API và dữ liệu phiên
+hiện có. Xem [hướng dẫn Web](../../web/docs/iot-device-console.md#student-rfid--giai-đoạn3).
+Các yêu cầu ESP32 chưa gắn xe trong các mục ghi ngày cũ bên dưới mô tả thiết kế trước thay đổi này.
+
+Quản trị trường có thể đăng ký thẻ mới cho học sinh của trường mình và thao tác
+trên phiên do chính mình mở. Đổi thẻ, hủy liên kết đã lưu và quản lý thiết bị
+thuộc quyền quản trị hệ thống.
 
 **Ngày lập/cập nhật:** 06/11/2026. **Trạng thái:** `SOURCE_IMPLEMENTED — WAITING_STUDENT_CARD_UAT`.
 **Điều chỉnh mới nhất của PO:** phiên đăng ký ở MongoDB; PostgreSQL chỉ sửa bảng Student,

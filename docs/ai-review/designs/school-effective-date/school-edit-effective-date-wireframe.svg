@@ -1,0 +1,290 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1456" height="1280" viewBox="0 0 1456 1280" font-family="Segoe UI, Arial, sans-serif" role="img" aria-labelledby="title"><title id="title">Chọn ngày áp dụng khi chỉnh sửa trường</title>
+<rect x="0" y="0" width="1456" height="1280" rx="0" fill="#ECEEF2" stroke="none"/>
+<g transform="translate(24 54)">
+<text x="0" y="-17" font-size="14" font-weight="700" fill="#263244" text-anchor="start">Đổi địa điểm · Áp dụng hôm nay</text>
+<rect x="0" y="0" width="688" height="576" rx="11" fill="#FFFFFF" stroke="#CCD4DF"/>
+<text x="20" y="32" font-size="20" font-weight="720" fill="#263244" text-anchor="start">Chỉnh sửa thông tin trường học</text>
+<text x="657" y="32" font-size="22" font-weight="500" fill="#46566B" text-anchor="middle">×</text>
+<rect x="20" y="50" width="648" height="48" rx="8" fill="#FFFFFF" stroke="#AAB8CB"/>
+<circle cx="45" cy="74" r="15" fill="#EAEEF3" stroke="none" />
+<text x="45" y="79" font-size="13" font-weight="700" fill="#465870" text-anchor="middle">1</text>
+<text x="68" y="78" font-size="12" font-weight="700" fill="#263244" text-anchor="start">Thông tin trường</text>
+<circle cx="255" cy="74" r="15" fill="#465870" stroke="none" />
+<text x="255" y="79" font-size="13" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<text x="278" y="78" font-size="12" font-weight="700" fill="#263244" text-anchor="start">Địa chỉ &amp; vị trí</text>
+<circle cx="467" cy="74" r="15" fill="#EAEEF3" stroke="none" />
+<text x="467" y="79" font-size="13" font-weight="700" fill="#465870" text-anchor="middle">3</text>
+<text x="490" y="78" font-size="12" font-weight="700" fill="#263244" text-anchor="start">Hợp đồng &amp; lịch học</text>
+<path d="M216 74L233 74" fill="none" stroke="#CCD4DF" stroke-width="1" />
+<path d="M427 74L444 74" fill="none" stroke="#CCD4DF" stroke-width="1" />
+<path d="M0 523L688 523" fill="none" stroke="#CCD4DF" stroke-width="1" />
+<rect x="20" y="533" width="69" height="34" rx="7" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="54.5" y="554" font-size="12" font-weight="650" fill="#263244" text-anchor="middle">Hủy bỏ</text>
+<rect x="408" y="533" width="66" height="34" rx="7" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="441" y="554" font-size="12" font-weight="650" fill="#263244" text-anchor="middle">Quay lại</text>
+<rect x="480" y="533" width="72" height="34" rx="7" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="516" y="554" font-size="12" font-weight="650" fill="#263244" text-anchor="middle">Tiếp tục</text>
+<rect x="560" y="533" width="108" height="34" rx="7" fill="#DEE3EB" stroke="none"/>
+<text x="614" y="554" font-size="12" font-weight="650" fill="#263244" text-anchor="middle">Lưu thay đổi</text>
+<text x="32" y="126" font-size="15" font-weight="720" fill="#263244" text-anchor="start">Địa chỉ &amp; vị trí</text>
+<text x="32" y="152" font-size="12" font-weight="650" fill="#263244" text-anchor="start">Địa chỉ chi tiết</text>
+<text x="655" y="152" font-size="11" font-weight="650" fill="#475568" text-anchor="end">✓ Vị trí khớp bản đồ</text>
+<rect x="32" y="161" width="624" height="32" rx="6" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="42" y="181" font-size="12" font-weight="500" fill="#263244" text-anchor="start">VinSchool Grand Park, Phường Long Bình, Thành phố Hồ Chí Minh</text>
+<path d="M32 211H656" stroke="#CCD4DF"/>
+<text x="32" y="244" font-size="12" font-weight="650" fill="#263244">Ngày áp dụng địa điểm</text>
+<rect x="452" y="224" width="204" height="34" rx="7" fill="#FFFFFF" stroke="#CCD4DF"/>
+<rect x="464" y="236" width="13" height="12" rx="2" fill="none" stroke="#46566B"/>
+<path d="M465 240h11M468 234 v4M473 234 v4" fill="none" stroke="#46566B" stroke-linecap="round"/>
+<text x="487" y="245" font-size="12" font-weight="650" fill="#263244">Hôm nay · 19/11/2026</text>
+<path d="M32 271H656" stroke="#CCD4DF"/>
+<text x="32" y="298" font-size="12" font-weight="650" fill="#263244" text-anchor="start">Vị trí trên bản đồ</text>
+<clipPath id="mapA"><rect x="32" y="306" width="624" height="201" rx="8"/></clipPath><g clip-path="url(#mapA)">
+<rect x="32" y="306" width="624" height="201" rx="0" fill="#EBEEF2" stroke="none"/>
+<path d="M40 318L120 316L133 363L70 381L38 361Z M539 436L571 405L611 417L615 450L574 480L543 469Z" fill="#E3E7ED"/>
+<path d="M0 452L180 388L306 320L390 290" fill="none" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round" />
+<path d="M32 385L196 477L390 510L680 474" fill="none" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round" />
+<path d="M160 290L227 367L309 429L475 467L676 460" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" />
+<path d="M102 500L176 420L225 352L240 301" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" />
+<path d="M253 500L284 451L380 391L569 299" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" />
+<path d="M470 305L484 351L489 398L515 456L577 504" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" />
+<path d="M405 303L380 359L391 401L431 446L462 510" fill="none" stroke="#DCE2EA" stroke-width="29" stroke-linecap="round" />
+<path d="M540 318L674 402L665 464L609 510" fill="none" stroke="#DCE2EA" stroke-width="23" stroke-linecap="round" />
+<path d="M301 305L282 381L304 417L363 490" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" />
+<path d="M36 342L91 326L129 327L183 349" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" />
+<path d="M491 340L559 351L612 341L651 311" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" />
+<path d="M479 443L536 407L570 370L598 307" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" />
+<text x="63" y="351" font-size="11" font-weight="600" fill="#46566B" text-anchor="start">Công viên</text>
+<text x="206" y="399" font-size="11" font-weight="550" fill="#46566B" text-anchor="start">Đường nội khu</text>
+<text x="382" y="467" font-size="11" font-weight="500" fill="#46566B" text-anchor="start">Sông Tắc</text>
+<text x="514" y="383" font-size="11" font-weight="650" fill="#263244" text-anchor="start">Cổng trường</text>
+<g transform="translate(470 371)"><path d="M0 20C-4 13-14 8-14-2C-14-10-8-16 0-16C8-16 14-10 14-2C14 8 4 13 0 20Z" fill="#DEE3EB" stroke="#FFFFFF" stroke-width="2"/><path d="M-7 4V-3L0-8L7-3V4H-7M-2 4V0H2V4" fill="none" stroke="#263244" stroke-width="1.5" stroke-linejoin="round"/></g>
+<rect x="615" y="315" width="29" height="54" rx="5" fill="#FFFFFF" stroke="#CCD4DF"/>
+<text x="629" y="336" font-size="17" font-weight="700" fill="#263244" text-anchor="middle">+</text>
+<path d="M618 342L641 342" fill="none" stroke="#CCD4DF" stroke-width="1" />
+<text x="629" y="359" font-size="16" font-weight="650" fill="#263244" text-anchor="middle">−</text>
+</g>
+</g>
+<g transform="translate(744 54)">
+<text x="0" y="-17" font-size="14" font-weight="700" fill="#263244" text-anchor="start">Đổi địa điểm · Hẹn ngày khác</text>
+<rect x="0" y="0" width="688" height="576" rx="11" fill="#FFFFFF" stroke="#CCD4DF"/>
+<text x="20" y="32" font-size="20" font-weight="720" fill="#263244" text-anchor="start">Chỉnh sửa thông tin trường học</text>
+<text x="657" y="32" font-size="22" font-weight="500" fill="#46566B" text-anchor="middle">×</text>
+<rect x="20" y="50" width="648" height="48" rx="8" fill="#FFFFFF" stroke="#AAB8CB"/>
+<circle cx="45" cy="74" r="15" fill="#EAEEF3" stroke="none" />
+<text x="45" y="79" font-size="13" font-weight="700" fill="#465870" text-anchor="middle">1</text>
+<text x="68" y="78" font-size="12" font-weight="700" fill="#263244" text-anchor="start">Thông tin trường</text>
+<circle cx="255" cy="74" r="15" fill="#465870" stroke="none" />
+<text x="255" y="79" font-size="13" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<text x="278" y="78" font-size="12" font-weight="700" fill="#263244" text-anchor="start">Địa chỉ &amp; vị trí</text>
+<circle cx="467" cy="74" r="15" fill="#EAEEF3" stroke="none" />
+<text x="467" y="79" font-size="13" font-weight="700" fill="#465870" text-anchor="middle">3</text>
+<text x="490" y="78" font-size="12" font-weight="700" fill="#263244" text-anchor="start">Hợp đồng &amp; lịch học</text>
+<path d="M216 74L233 74" fill="none" stroke="#CCD4DF" stroke-width="1" />
+<path d="M427 74L444 74" fill="none" stroke="#CCD4DF" stroke-width="1" />
+<path d="M0 523L688 523" fill="none" stroke="#CCD4DF" stroke-width="1" />
+<rect x="20" y="533" width="69" height="34" rx="7" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="54.5" y="554" font-size="12" font-weight="650" fill="#263244" text-anchor="middle">Hủy bỏ</text>
+<rect x="408" y="533" width="66" height="34" rx="7" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="441" y="554" font-size="12" font-weight="650" fill="#263244" text-anchor="middle">Quay lại</text>
+<rect x="480" y="533" width="72" height="34" rx="7" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="516" y="554" font-size="12" font-weight="650" fill="#263244" text-anchor="middle">Tiếp tục</text>
+<rect x="560" y="533" width="108" height="34" rx="7" fill="#DEE3EB" stroke="none"/>
+<text x="614" y="554" font-size="12" font-weight="650" fill="#263244" text-anchor="middle">Lưu thay đổi</text>
+<text x="32" y="126" font-size="15" font-weight="720" fill="#263244" text-anchor="start">Địa chỉ &amp; vị trí</text>
+<text x="32" y="152" font-size="12" font-weight="650" fill="#263244" text-anchor="start">Địa chỉ chi tiết</text>
+<text x="655" y="152" font-size="11" font-weight="650" fill="#475568" text-anchor="end">✓ Vị trí khớp bản đồ</text>
+<rect x="32" y="161" width="624" height="32" rx="6" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="42" y="181" font-size="12" font-weight="500" fill="#263244" text-anchor="start">VinSchool Grand Park, Phường Long Bình, Thành phố Hồ Chí Minh</text>
+<path d="M32 211H656" stroke="#CCD4DF"/>
+<text x="32" y="244" font-size="12" font-weight="650" fill="#263244">Ngày áp dụng địa điểm</text>
+<text x="438" y="244" font-size="11" font-weight="650" fill="#465870" text-anchor="end">Về hôm nay</text>
+<rect x="452" y="224" width="204" height="34" rx="7" fill="#FFFFFF" stroke="#CCD4DF"/>
+<rect x="464" y="236" width="13" height="12" rx="2" fill="none" stroke="#46566B"/>
+<path d="M465 240h11M468 234 v4M473 234 v4" fill="none" stroke="#46566B" stroke-linecap="round"/>
+<text x="487" y="245" font-size="12" font-weight="650" fill="#263244">26/11/2026</text>
+<path d="M32 271H656" stroke="#CCD4DF"/>
+<text x="32" y="298" font-size="12" font-weight="650" fill="#263244" text-anchor="start">Vị trí trên bản đồ</text>
+<clipPath id="mapB"><rect x="32" y="306" width="624" height="201" rx="8"/></clipPath><g clip-path="url(#mapB)">
+<rect x="32" y="306" width="624" height="201" rx="0" fill="#EBEEF2" stroke="none"/>
+<path d="M40 318L120 316L133 363L70 381L38 361Z M539 436L571 405L611 417L615 450L574 480L543 469Z" fill="#E3E7ED"/>
+<path d="M0 452L180 388L306 320L390 290" fill="none" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round" />
+<path d="M32 385L196 477L390 510L680 474" fill="none" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round" />
+<path d="M160 290L227 367L309 429L475 467L676 460" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" />
+<path d="M102 500L176 420L225 352L240 301" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" />
+<path d="M253 500L284 451L380 391L569 299" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" />
+<path d="M470 305L484 351L489 398L515 456L577 504" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" />
+<path d="M405 303L380 359L391 401L431 446L462 510" fill="none" stroke="#DCE2EA" stroke-width="29" stroke-linecap="round" />
+<path d="M540 318L674 402L665 464L609 510" fill="none" stroke="#DCE2EA" stroke-width="23" stroke-linecap="round" />
+<path d="M301 305L282 381L304 417L363 490" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" />
+<path d="M36 342L91 326L129 327L183 349" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" />
+<path d="M491 340L559 351L612 341L651 311" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" />
+<path d="M479 443L536 407L570 370L598 307" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" />
+<text x="63" y="351" font-size="11" font-weight="600" fill="#46566B" text-anchor="start">Công viên</text>
+<text x="206" y="399" font-size="11" font-weight="550" fill="#46566B" text-anchor="start">Đường nội khu</text>
+<text x="382" y="467" font-size="11" font-weight="500" fill="#46566B" text-anchor="start">Sông Tắc</text>
+<text x="514" y="383" font-size="11" font-weight="650" fill="#263244" text-anchor="start">Cổng trường</text>
+<g transform="translate(470 371)"><path d="M0 20C-4 13-14 8-14-2C-14-10-8-16 0-16C8-16 14-10 14-2C14 8 4 13 0 20Z" fill="#DEE3EB" stroke="#FFFFFF" stroke-width="2"/><path d="M-7 4V-3L0-8L7-3V4H-7M-2 4V0H2V4" fill="none" stroke="#263244" stroke-width="1.5" stroke-linejoin="round"/></g>
+<rect x="615" y="315" width="29" height="54" rx="5" fill="#FFFFFF" stroke="#CCD4DF"/>
+<text x="629" y="336" font-size="17" font-weight="700" fill="#263244" text-anchor="middle">+</text>
+<path d="M618 342L641 342" fill="none" stroke="#CCD4DF" stroke-width="1" />
+<text x="629" y="359" font-size="16" font-weight="650" fill="#263244" text-anchor="middle">−</text>
+</g>
+</g>
+<g transform="translate(24 676)">
+<text x="0" y="-17" font-size="14" font-weight="700" fill="#263244" text-anchor="start">Chỉ đổi lịch học</text>
+<rect x="0" y="0" width="688" height="576" rx="11" fill="#FFFFFF" stroke="#CCD4DF"/>
+<text x="20" y="32" font-size="20" font-weight="720" fill="#263244" text-anchor="start">Chỉnh sửa thông tin trường học</text>
+<text x="657" y="32" font-size="22" font-weight="500" fill="#46566B" text-anchor="middle">×</text>
+<rect x="20" y="50" width="648" height="48" rx="8" fill="#FFFFFF" stroke="#AAB8CB"/>
+<circle cx="45" cy="74" r="15" fill="#EAEEF3" stroke="none" />
+<text x="45" y="79" font-size="13" font-weight="700" fill="#465870" text-anchor="middle">1</text>
+<text x="68" y="78" font-size="12" font-weight="700" fill="#263244" text-anchor="start">Thông tin trường</text>
+<circle cx="255" cy="74" r="15" fill="#EAEEF3" stroke="none" />
+<text x="255" y="79" font-size="13" font-weight="700" fill="#465870" text-anchor="middle">2</text>
+<text x="278" y="78" font-size="12" font-weight="700" fill="#263244" text-anchor="start">Địa chỉ &amp; vị trí</text>
+<circle cx="467" cy="74" r="15" fill="#465870" stroke="none" />
+<text x="467" y="79" font-size="13" font-weight="700" fill="#FFFFFF" text-anchor="middle">3</text>
+<text x="490" y="78" font-size="12" font-weight="700" fill="#263244" text-anchor="start">Hợp đồng &amp; lịch học</text>
+<path d="M216 74L233 74" fill="none" stroke="#CCD4DF" stroke-width="1" />
+<path d="M427 74L444 74" fill="none" stroke="#CCD4DF" stroke-width="1" />
+<path d="M0 523L688 523" fill="none" stroke="#CCD4DF" stroke-width="1" />
+<rect x="20" y="533" width="69" height="34" rx="7" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="54.5" y="554" font-size="12" font-weight="650" fill="#263244" text-anchor="middle">Hủy bỏ</text>
+<rect x="486" y="533" width="66" height="34" rx="7" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="519" y="554" font-size="12" font-weight="650" fill="#263244" text-anchor="middle">Quay lại</text>
+<rect x="560" y="533" width="108" height="34" rx="7" fill="#DEE3EB" stroke="none"/>
+<text x="614" y="554" font-size="12" font-weight="650" fill="#263244" text-anchor="middle">Lưu thay đổi</text>
+<rect x="27" y="111" width="634" height="111" rx="8" fill="#FFFFFF" stroke="#CCD4DF"/>
+<text x="40" y="136" font-size="14" font-weight="700" fill="#263244" text-anchor="start">Thời hạn hợp đồng</text>
+<text x="40" y="162" font-size="11" font-weight="650" fill="#46566B" text-anchor="start">Ngày bắt đầu</text>
+<text x="352" y="162" font-size="11" font-weight="650" fill="#46566B" text-anchor="start">Ngày kết thúc</text>
+<rect x="40" y="170" width="296" height="32" rx="6" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="50" y="190" font-size="12" font-weight="500" fill="#263244" text-anchor="start">19/11/2026</text>
+<rect x="352" y="170" width="296" height="32" rx="6" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="362" y="190" font-size="12" font-weight="500" fill="#263244" text-anchor="start">31/12/2026</text>
+<rect x="310" y="181" width="13" height="12" rx="2" fill="none" stroke="#46566B"/>
+<path d="M311 185L322 185" fill="none" stroke="#46566B" stroke-width="1" />
+<path d="M314 179L314 183" fill="none" stroke="#46566B" stroke-width="1" />
+<path d="M319 179L319 183" fill="none" stroke="#46566B" stroke-width="1" />
+<rect x="623" y="181" width="13" height="12" rx="2" fill="none" stroke="#46566B"/>
+<path d="M624 185L635 185" fill="none" stroke="#46566B" stroke-width="1" />
+<path d="M627 179L627 183" fill="none" stroke="#46566B" stroke-width="1" />
+<path d="M632 179L632 183" fill="none" stroke="#46566B" stroke-width="1" />
+<rect x="27" y="234" width="634" height="279" rx="8" fill="#FFFFFF" stroke="#CCD4DF"/>
+<text x="40" y="257" font-size="14" font-weight="700" fill="#263244" text-anchor="start">Lịch học theo tuần</text>
+<path d="M40 270H648" stroke="#CCD4DF"/>
+<text x="40" y="302" font-size="12" font-weight="650" fill="#263244">Ngày áp dụng lịch học</text>
+<text x="431" y="305" font-size="11" font-weight="650" fill="#465870" text-anchor="end">Về hôm nay</text>
+<rect x="444" y="285" width="204" height="34" rx="7" fill="#FFFFFF" stroke="#CCD4DF"/>
+<rect x="456" y="297" width="13" height="12" rx="2" fill="none" stroke="#46566B"/>
+<path d="M457 301h11M460 295 v4M465 295 v4" fill="none" stroke="#46566B" stroke-linecap="round"/>
+<text x="479" y="306" font-size="12" font-weight="650" fill="#263244">Ngày mai · 20/11/2026</text>
+<path d="M40 336H648" stroke="#CCD4DF"/>
+<text x="41" y="360" font-size="11" font-weight="650" fill="#46566B" text-anchor="start">Ngày học</text>
+<text x="165" y="360" font-size="11" font-weight="650" fill="#46566B" text-anchor="start">Giờ bắt đầu học</text>
+<text x="402" y="360" font-size="11" font-weight="650" fill="#46566B" text-anchor="start">Giờ kết thúc học</text>
+<path d="M41 368L647 368" fill="none" stroke="#CCD4DF" stroke-width="1" />
+<rect x="43" y="384" width="13" height="13" rx="3" fill="#DEE3EB" stroke="#DEE3EB"/>
+<text x="49.5" y="394" font-size="9" font-weight="700" fill="#263244" text-anchor="middle">✓</text>
+<text x="66" y="395" font-size="12" font-weight="650" fill="#263244" text-anchor="start">Thứ 2</text>
+<rect x="164" y="377" width="220" height="32" rx="6" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="174" y="397" font-size="12" font-weight="500" fill="#263244" text-anchor="start">07:00</text>
+<rect x="401" y="377" width="235" height="32" rx="6" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="411" y="397" font-size="12" font-weight="500" fill="#263244" text-anchor="start">17:00</text>
+<path d="M43 414L646 414" fill="none" stroke="#CCD4DF" stroke-width="1" />
+<rect x="43" y="427" width="13" height="13" rx="3" fill="#DEE3EB" stroke="#DEE3EB"/>
+<text x="49.5" y="437" font-size="9" font-weight="700" fill="#263244" text-anchor="middle">✓</text>
+<text x="66" y="438" font-size="12" font-weight="650" fill="#263244" text-anchor="start">Thứ 3</text>
+<rect x="164" y="420" width="220" height="32" rx="6" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="174" y="440" font-size="12" font-weight="500" fill="#263244" text-anchor="start">07:00</text>
+<rect x="401" y="420" width="235" height="32" rx="6" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="411" y="440" font-size="12" font-weight="500" fill="#263244" text-anchor="start">17:00</text>
+<path d="M43 457L646 457" fill="none" stroke="#CCD4DF" stroke-width="1" />
+<rect x="43" y="470" width="13" height="13" rx="3" fill="#DEE3EB" stroke="#DEE3EB"/>
+<text x="49.5" y="480" font-size="9" font-weight="700" fill="#263244" text-anchor="middle">✓</text>
+<text x="66" y="481" font-size="12" font-weight="650" fill="#263244" text-anchor="start">Thứ 4</text>
+<rect x="164" y="463" width="220" height="32" rx="6" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="174" y="483" font-size="12" font-weight="500" fill="#263244" text-anchor="start">07:00</text>
+<rect x="401" y="463" width="235" height="32" rx="6" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="411" y="483" font-size="12" font-weight="500" fill="#263244" text-anchor="start">17:00</text>
+<path d="M43 500L646 500" fill="none" stroke="#CCD4DF" stroke-width="1" />
+</g>
+<g transform="translate(744 676)">
+<text x="0" y="-17" font-size="14" font-weight="700" fill="#263244" text-anchor="start">Đổi địa điểm và lịch học</text>
+<rect x="0" y="0" width="688" height="576" rx="11" fill="#FFFFFF" stroke="#CCD4DF"/>
+<text x="20" y="32" font-size="20" font-weight="720" fill="#263244" text-anchor="start">Chỉnh sửa thông tin trường học</text>
+<text x="657" y="32" font-size="22" font-weight="500" fill="#46566B" text-anchor="middle">×</text>
+<rect x="20" y="50" width="648" height="48" rx="8" fill="#FFFFFF" stroke="#AAB8CB"/>
+<circle cx="45" cy="74" r="15" fill="#EAEEF3" stroke="none" />
+<text x="45" y="79" font-size="13" font-weight="700" fill="#465870" text-anchor="middle">1</text>
+<text x="68" y="78" font-size="12" font-weight="700" fill="#263244" text-anchor="start">Thông tin trường</text>
+<circle cx="255" cy="74" r="15" fill="#EAEEF3" stroke="none" />
+<text x="255" y="79" font-size="13" font-weight="700" fill="#465870" text-anchor="middle">2</text>
+<text x="278" y="78" font-size="12" font-weight="700" fill="#263244" text-anchor="start">Địa chỉ &amp; vị trí</text>
+<circle cx="467" cy="74" r="15" fill="#465870" stroke="none" />
+<text x="467" y="79" font-size="13" font-weight="700" fill="#FFFFFF" text-anchor="middle">3</text>
+<text x="490" y="78" font-size="12" font-weight="700" fill="#263244" text-anchor="start">Hợp đồng &amp; lịch học</text>
+<path d="M216 74L233 74" fill="none" stroke="#CCD4DF" stroke-width="1" />
+<path d="M427 74L444 74" fill="none" stroke="#CCD4DF" stroke-width="1" />
+<path d="M0 523L688 523" fill="none" stroke="#CCD4DF" stroke-width="1" />
+<rect x="20" y="533" width="69" height="34" rx="7" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="54.5" y="554" font-size="12" font-weight="650" fill="#263244" text-anchor="middle">Hủy bỏ</text>
+<rect x="486" y="533" width="66" height="34" rx="7" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="519" y="554" font-size="12" font-weight="650" fill="#263244" text-anchor="middle">Quay lại</text>
+<rect x="560" y="533" width="108" height="34" rx="7" fill="#DEE3EB" stroke="none"/>
+<text x="614" y="554" font-size="12" font-weight="650" fill="#263244" text-anchor="middle">Lưu thay đổi</text>
+<rect x="27" y="111" width="634" height="111" rx="8" fill="#FFFFFF" stroke="#CCD4DF"/>
+<text x="40" y="136" font-size="14" font-weight="700" fill="#263244" text-anchor="start">Thời hạn hợp đồng</text>
+<text x="40" y="162" font-size="11" font-weight="650" fill="#46566B" text-anchor="start">Ngày bắt đầu</text>
+<text x="352" y="162" font-size="11" font-weight="650" fill="#46566B" text-anchor="start">Ngày kết thúc</text>
+<rect x="40" y="170" width="296" height="32" rx="6" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="50" y="190" font-size="12" font-weight="500" fill="#263244" text-anchor="start">19/11/2026</text>
+<rect x="352" y="170" width="296" height="32" rx="6" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="362" y="190" font-size="12" font-weight="500" fill="#263244" text-anchor="start">31/12/2026</text>
+<rect x="310" y="181" width="13" height="12" rx="2" fill="none" stroke="#46566B"/>
+<path d="M311 185L322 185" fill="none" stroke="#46566B" stroke-width="1" />
+<path d="M314 179L314 183" fill="none" stroke="#46566B" stroke-width="1" />
+<path d="M319 179L319 183" fill="none" stroke="#46566B" stroke-width="1" />
+<rect x="623" y="181" width="13" height="12" rx="2" fill="none" stroke="#46566B"/>
+<path d="M624 185L635 185" fill="none" stroke="#46566B" stroke-width="1" />
+<path d="M627 179L627 183" fill="none" stroke="#46566B" stroke-width="1" />
+<path d="M632 179L632 183" fill="none" stroke="#46566B" stroke-width="1" />
+<rect x="27" y="234" width="634" height="279" rx="8" fill="#FFFFFF" stroke="#CCD4DF"/>
+<text x="40" y="257" font-size="14" font-weight="700" fill="#263244" text-anchor="start">Lịch học theo tuần</text>
+<path d="M40 270H648" stroke="#CCD4DF"/>
+<text x="40" y="302" font-size="12" font-weight="650" fill="#263244">Ngày áp dụng lịch học</text>
+<text x="40" y="319" font-size="11" fill="#46566B">Cùng ngày với thay đổi địa điểm</text>
+<text x="456" y="310" font-size="12" font-weight="650" fill="#263244">26/11/2026</text>
+<text x="648" y="310" font-size="11" font-weight="650" fill="#465870" text-anchor="end">Sửa ngày</text>
+<path d="M40 336H648" stroke="#CCD4DF"/>
+<text x="41" y="360" font-size="11" font-weight="650" fill="#46566B" text-anchor="start">Ngày học</text>
+<text x="165" y="360" font-size="11" font-weight="650" fill="#46566B" text-anchor="start">Giờ bắt đầu học</text>
+<text x="402" y="360" font-size="11" font-weight="650" fill="#46566B" text-anchor="start">Giờ kết thúc học</text>
+<path d="M41 368L647 368" fill="none" stroke="#CCD4DF" stroke-width="1" />
+<rect x="43" y="384" width="13" height="13" rx="3" fill="#DEE3EB" stroke="#DEE3EB"/>
+<text x="49.5" y="394" font-size="9" font-weight="700" fill="#263244" text-anchor="middle">✓</text>
+<text x="66" y="395" font-size="12" font-weight="650" fill="#263244" text-anchor="start">Thứ 2</text>
+<rect x="164" y="377" width="220" height="32" rx="6" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="174" y="397" font-size="12" font-weight="500" fill="#263244" text-anchor="start">07:00</text>
+<rect x="401" y="377" width="235" height="32" rx="6" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="411" y="397" font-size="12" font-weight="500" fill="#263244" text-anchor="start">17:00</text>
+<path d="M43 414L646 414" fill="none" stroke="#CCD4DF" stroke-width="1" />
+<rect x="43" y="427" width="13" height="13" rx="3" fill="#DEE3EB" stroke="#DEE3EB"/>
+<text x="49.5" y="437" font-size="9" font-weight="700" fill="#263244" text-anchor="middle">✓</text>
+<text x="66" y="438" font-size="12" font-weight="650" fill="#263244" text-anchor="start">Thứ 3</text>
+<rect x="164" y="420" width="220" height="32" rx="6" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="174" y="440" font-size="12" font-weight="500" fill="#263244" text-anchor="start">07:00</text>
+<rect x="401" y="420" width="235" height="32" rx="6" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="411" y="440" font-size="12" font-weight="500" fill="#263244" text-anchor="start">17:00</text>
+<path d="M43 457L646 457" fill="none" stroke="#CCD4DF" stroke-width="1" />
+<rect x="43" y="470" width="13" height="13" rx="3" fill="#DEE3EB" stroke="#DEE3EB"/>
+<text x="49.5" y="480" font-size="9" font-weight="700" fill="#263244" text-anchor="middle">✓</text>
+<text x="66" y="481" font-size="12" font-weight="650" fill="#263244" text-anchor="start">Thứ 4</text>
+<rect x="164" y="463" width="220" height="32" rx="6" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="174" y="483" font-size="12" font-weight="500" fill="#263244" text-anchor="start">07:00</text>
+<rect x="401" y="463" width="235" height="32" rx="6" fill="#FFFFFF" stroke="#AAB8CB"/>
+<text x="411" y="483" font-size="12" font-weight="500" fill="#263244" text-anchor="start">17:00</text>
+<path d="M43 500L646 500" fill="none" stroke="#CCD4DF" stroke-width="1" />
+</g>
+</svg>
