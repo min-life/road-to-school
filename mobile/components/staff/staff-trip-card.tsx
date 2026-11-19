@@ -27,10 +27,12 @@ export function StaffTripCard({
   const attendanceColor = isAttendant ? accent : journeyTones.info.text;
   const presentColor = isAttendant ? journeyTones.success.text : colors.mutedText;
   const headingStyle = isAttendant && styles.attendantHeading;
-  const statusBadge = trip.assignmentStatus === 'WAITING_ASSIGNMENT'
+  const operation = trip.operationalState;
+  const isHistory = trip.status === 'COMPLETED' || trip.status === 'CANCELLED';
+  const statusBadge = !isHistory && trip.assignmentStatus === 'WAITING_ASSIGNMENT'
     ? { label: 'Chờ phân công', bg: journeyTones.warning.bg, text: journeyTones.warning.text }
     : getStatusBadge(trip.status);
-  const primaryBtnLabel = isAttendant
+  const primaryBtnLabel = isHistory ? 'Xem chi tiết' : isAttendant
     ? 'Xem chi tiết & Điểm danh'
     : 'Xem chi tiết & Vận hành';
 
@@ -42,7 +44,7 @@ export function StaffTripCard({
       status={statusBadge}
       staffTheme={staffTheme}
       titleColor={isAttendant ? colors.navigationShadow : undefined}
-      accessibilityLabel={`${trip.routeName}, ${trip.schoolName}, ${statusBadge.label}, ${trip.direction === 'TO_SCHOOL' ? 'Đến trường' : 'Về trạm'}, ${trip.scheduledTime}`}
+      accessibilityLabel={`${trip.routeName}, ${trip.schoolName}, ${statusBadge.label}, ${trip.direction === 'TO_SCHOOL' ? 'Đến trường' : 'Về trạm'}, ${trip.displayTime}`}
       leading={
         <View style={[styles.busIcon, buttons?.secondary]}>
           <Ionicons name="bus-outline" size={25} color={staffTheme?.colors.primary ?? colors.foreground} accessible={false} />
@@ -60,7 +62,7 @@ export function StaffTripCard({
           </View>
           <View style={styles.tag}>
             <Ionicons name="time-outline" size={14} color={journeyTones.warning.text} accessible={false} />
-            <Text style={styles.tagText}>{trip.scheduledTime}</Text>
+            <Text style={styles.tagText}>{trip.displayTime}</Text>
           </View>
         </View>
       }
@@ -100,35 +102,35 @@ export function StaffTripCard({
           </View>
         </View>
 
-        {trip.status === 'SCHEDULED' ? (
-          <View style={[styles.operation, trip.operationalState.isAttendantReady ? styles.ready : styles.pending]}>
-            <Ionicons name={trip.operationalState.isAttendantReady ? 'checkmark-circle-outline' : 'alert-circle-outline'}
-              size={18} color={trip.operationalState.isAttendantReady ? journeyTones.success.text : journeyTones.warning.text} accessible={false} />
-            <Text style={[styles.operationText, { color: trip.operationalState.isAttendantReady ? journeyTones.success.text : journeyTones.warning.text }]}>
-              {trip.operationalState.isAttendantReady
+        {trip.status === 'SCHEDULED' && operation ? (
+          <View style={[styles.operation, operation.isAttendantReady ? styles.ready : styles.pending]}>
+            <Ionicons name={operation.isAttendantReady ? 'checkmark-circle-outline' : 'alert-circle-outline'}
+              size={18} color={operation.isAttendantReady ? journeyTones.success.text : journeyTones.warning.text} accessible={false} />
+            <Text style={[styles.operationText, { color: operation.isAttendantReady ? journeyTones.success.text : journeyTones.warning.text }]}>
+              {operation.isAttendantReady
                 ? 'Giáo viên đã xác nhận sẵn sàng khởi hành'
                 : isAttendant
                   ? 'Vui lòng xác nhận sẵn sàng trước khi xe chạy'
                   : 'Chờ giáo viên giám sát xác nhận sẵn sàng'}
             </Text>
           </View>
-        ) : trip.status === 'IN_PROGRESS' ? (
+        ) : trip.status === 'IN_PROGRESS' && operation ? (
           <View style={[styles.attendance, isAttendant && styles.attendantAttendance]}>
             <View style={styles.attendanceHeader}>
               <View style={styles.attendanceTitle}>
                 <Ionicons name="clipboard-outline" size={16} color={attendanceColor} accessible={false} />
                 <Text style={[styles.attendanceLabel, headingStyle]}>Điểm danh</Text>
               </View>
-              <Text style={[styles.attendanceCount, headingStyle]}>{trip.operationalState.markedCount}/{trip.operationalState.totalStudents} học sinh</Text>
+              <Text style={[styles.attendanceCount, headingStyle]}>{operation.markedCount}/{operation.totalStudents} học sinh</Text>
             </View>
             <View style={styles.attendanceTotals}>
               <View style={styles.total}>
                 <Ionicons name="checkmark-circle-outline" size={14} color={presentColor} accessible={false} />
-                <Text style={[styles.secondary, isAttendant && styles.presentCount]}>{trip.operationalState.presentCount} có mặt</Text>
+                <Text style={[styles.secondary, isAttendant && styles.presentCount]}>{operation.presentCount} có mặt</Text>
               </View>
               <View style={styles.total}>
                 <Ionicons name="remove-circle-outline" size={14} color={colors.mutedText} accessible={false} />
-                <Text style={styles.secondary}>{trip.operationalState.absentCount} vắng</Text>
+                <Text style={styles.secondary}>{operation.absentCount} vắng</Text>
               </View>
             </View>
           </View>

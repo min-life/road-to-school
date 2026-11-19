@@ -986,6 +986,7 @@ export interface TripItem {
   schoolName: string;
   scheduledStartTime: string;
   scheduledEndTime: string;
+  displayTime: string;
   scheduledStartAt?: string;
   scheduledEndAt?: string;
   vehiclePlate?: string | null;
@@ -1135,6 +1136,7 @@ export interface TripDetail {
   status: TripStatus;
   scheduledStartTime: string;
   scheduledEndTime: string;
+  displayTime: string;
   scheduledStartAt: string;
   scheduledEndAt: string;
   vehicleId: string;
@@ -1258,4 +1260,16 @@ export interface LocationOptions {
   provinces: { id: string; name: string }[];
   wards: { id: string; name: string; provinceId: string }[];
 }
-export interface ReopenTripRequest { reason: string; vehicleId?: string; driverId?: string; busAttendantId?: string }
+export interface ReopenTripRequest {
+  reason: string;
+  vehicleId?: string;
+  driverId?: string;
+  busAttendantId?: string;
+  confirmedStaffLeaveNoticeIds?: string[];
+}
+
+export interface ReopenStaffLeaveNotice {
+  id: string;
+  staffId: string;
+  kind: 'DRIVER' | 'BUS_ATTENDANT';
+}

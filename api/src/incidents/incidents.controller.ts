@@ -85,9 +85,9 @@ export class IncidentsController {
   @Roles(Role.DRIVER, Role.BUS_ATTENDANT)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Báo thủ công sự cố thiếu nhân sự cho chuyến xe (Chỉ DRIVER hoặc BUS_ATTENDANT)',
+    summary: 'Báo sự cố thiếu nhân sự hoặc không có người đón',
     description:
-      'Driver chỉ được báo ATTENDANT_MISSING; Bus Attendant chỉ được báo DRIVER_MISSING. Yêu cầu Trip SCHEDULED chưa chạy.',
+      'Tài xế báo ATTENDANT_MISSING và phụ xe báo DRIVER_MISSING trước khi khởi hành. Trên chuyến chiều về đang chạy, phụ xe báo NO_GUARDIAN_AT_STOP riêng cho từng học sinh còn trên xe.',
   })
   @ApiParam({ name: 'id', description: 'ID chuyến xe (UUID)' })
   @ApiResponse({ status: 200, type: TripIncidentResponseDto })
@@ -107,7 +107,7 @@ export class IncidentsController {
   @ApiOperation({
     summary: 'Danh sách sự cố trong Tab xem của một chuyến xe (Có Privacy Masking cho Phụ huynh)',
     description:
-      'Hiển thị tất cả sự cố của chuyến xe bao gồm cả trạng thái chờ xử lý. Phụ huynh chỉ thấy loại, thời điểm và trạng thái.',
+      'Phụ huynh thấy loại, thời điểm và trạng thái của sự cố chung. Tên học sinh chỉ hiện trong báo cáo không có người đón của con mình.',
   })
   @ApiParam({ name: 'id', description: 'ID chuyến xe (UUID)' })
   @ApiResponse({ status: 200, type: TripIncidentsTabResponseDto })
@@ -168,7 +168,7 @@ export class IncidentsController {
   @Roles(Role.DRIVER, Role.BUS_ATTENDANT, Role.PARENT, Role.SCHOOL_ADMIN, Role.SYSTEM_ADMIN)
   @ApiOperation({
     summary: 'Chi tiết một sự cố vận hành theo ID',
-    description: 'Áp dụng phân quyền và Privacy Masking cho Phụ huynh.',
+    description: 'Áp dụng phân quyền cho phụ huynh. Báo cáo không có người đón hiển thị tên học sinh đã liên kết.',
   })
   @ApiParam({ name: 'id', description: 'ID sự cố (UUID)' })
   @ApiResponse({ status: 200, type: TripIncidentResponseDto })

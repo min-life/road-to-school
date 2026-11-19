@@ -18,6 +18,7 @@ import {
   ForbiddenException,
   BadRequestException,
   UnprocessableEntityException,
+  HttpException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
@@ -36,6 +37,7 @@ import {
   LeaveNoticeStatus,
   TripIncidentType,
   TripIncidentStatus,
+  type Trip,
   User,
 } from '@prisma/client';
 import {
@@ -45,10 +47,12 @@ import {
   ArriveAtSchoolResponseDto,
   VerifyQrDto,
   VerifyQrResponseDto,
+  ScanQrResponseDto,
   TripAttendanceStudentItemDto,
   TripAttendanceListResponseDto,
   OperationalStateResponseDto,
   HomeTripResponseDto,
+  MobileHomeTripDto,
   ParentHomeCardsResponseDto,
   ParentHomeCardItemDto,
 } from './dto/trip-operation.dto.js';
@@ -70,12 +74,14 @@ import {
   MobileTripItemDto,
 } from './dto/mobile-schedule-response.dto.js';
 import {
+  actualTripClock,
   calculateTripTiming,
   formatDateToVnYmd,
   getDayOfWeekKey,
   getDayOfWeekVietnamese,
   timeStrToSeconds,
   tripClockTime,
+  tripDisplayTime,
 } from './utils/trip-time.util.js';
 import {
   buildTripRouteSnapshot,
@@ -84,6 +90,7 @@ import {
 } from './utils/trip-snapshot-resolver.js';
 import { isTripFrozen } from '../overview/operations-policy.js';
 import { assertStaffAvailableForTrip, assertVehicleAvailableForTrip } from './utils/staff-availability.helper.js';
+import { compareHomeTrips, homeTripCandidateWhere, homeTripHistoryWhere, selectHomeTrip } from './utils/home-trip-selection.js';
 
 @Injectable()
 export class TripsService {
@@ -182,6 +189,25 @@ export class TripsService {
     });
   }
 
+  async cancelTrip(id: string, dto: TripReasonDto, user: User) {
+    if (user.role !== Role.SYSTEM_ADMIN)
+      throw new ForbiddenException('Chỉ nhà xe được hủy chuyến bằng thao tác này');
+    return this.withTripLock(id, async (tx) => {
+      const trip = await tx.trip.findUnique({ where: { id }, include: { attendances: true } });
+      if (!trip) throw new NotFoundException('Không tìm thấy chuyến');
+      if (trip.status !== TripStatus.SCHEDULED || this.hasTripOperated(trip)) {
+        throw new ConflictException('Chỉ hủy được chuyến chờ khởi hành chưa xuất phát hoặc nhận, trả học sinh');
+      }
+      await this.recordTripCancellation(tx, trip, dto, user.id, 'CANCELLED_BY_ADMIN');
+      return { message: 'Đã hủy chuyến' };
+    });
+  }
+
+  private hasTripOperated(trip: Pick<Prisma.TripGetPayload<{ include: { attendances: true } }>, 'actualStartTime' | 'actualEndTime' | 'attendances'>) {
+    return !!(trip.actualStartTime || trip.actualEndTime ||
+      trip.attendances.some(a => a.status === AttendanceStatus.PRESENT || a.alightedAt));
+  }
+
   async cancelAllAbsent(id: string, dto: TripReasonDto, user: User) {
     return this.withTripLock(id, async (tx) => {
       const trip = await tx.trip.findUnique({
@@ -214,42 +240,43 @@ export class TripsService {
           'Chỉ hủy chiều về đã Ready khi toàn bộ học sinh được ghi vắng có lý do',
         );
       }
-      const now = new Date();
-      await tx.trip.update({
-        where: { id },
-        data: {
-          status: TripStatus.CANCELLED,
-          cancelledAt: now,
-          cancelledById: user.id,
-          cancellationReason: dto.reason,
-          operationAudit: [
-            ...(Array.isArray(trip.operationAudit) ? trip.operationAudit : []),
-            {
-              action: 'CANCEL_ALL_ABSENT',
-              reason: dto.reason,
-              actorId: user.id,
-              occurredAt: now.toISOString(),
-            },
-          ] as Prisma.InputJsonArray,
-        },
-      });
-      await tx.leaveNotice.updateMany({
-        where: { tripId: id, status: LeaveNoticeStatus.PENDING_REPLACEMENT },
-        data: {
-          status: LeaveNoticeStatus.TRIP_CANCELLED,
-          processedAt: now,
-          processedById: user.id,
-        },
-      });
-      await closeCancelledTripTasks(tx, [id]);
-      await notifyCancelledTrips(
-        tx,
-        [id],
-        'all-absent:' + id + ':' + now.toISOString(),
-        user.id,
-      );
+      await this.recordTripCancellation(tx, trip, dto, user.id, 'CANCEL_ALL_ABSENT');
       return { message: 'Đã hủy chuyến do toàn bộ học sinh vắng mặt' };
     });
+  }
+
+  private async recordTripCancellation(
+    tx: Prisma.TransactionClient,
+    { id, operationAudit }: Pick<Trip, 'id' | 'operationAudit'>,
+    dto: TripReasonDto,
+    actorId: string,
+    action: 'CANCEL_ALL_ABSENT' | 'CANCELLED_BY_ADMIN',
+  ) {
+    const now = new Date();
+    await tx.trip.update({
+      where: { id },
+      data: {
+        status: TripStatus.CANCELLED,
+        cancelledAt: now,
+        cancelledById: actorId,
+        cancellationReason: dto.reason,
+        operationAudit: [
+          ...(Array.isArray(operationAudit) ? operationAudit : []),
+          { action, reason: dto.reason, actorId, occurredAt: now.toISOString() },
+        ] as Prisma.InputJsonArray,
+      },
+    });
+    await tx.leaveNotice.updateMany({
+      where: { tripId: id, status: LeaveNoticeStatus.PENDING_REPLACEMENT },
+      data: {
+        status: LeaveNoticeStatus.TRIP_CANCELLED,
+        processedAt: now,
+        processedById: actorId,
+      },
+    });
+    await closeCancelledTripTasks(tx, [id]);
+    const event = action === 'CANCEL_ALL_ABSENT' ? 'all-absent' : 'admin-cancel';
+    await notifyCancelledTrips(tx, [id], `${event}:${id}:${now.toISOString()}`, actorId);
   }
 
   async reopenTrip(id: string, dto: ReopenTripDto, user: User) {
@@ -259,6 +286,42 @@ export class TripsService {
       await lockOperations(tx);
       return this.reopenCancelledTrip(tx, id, dto, user.id);
     });
+  }
+
+  async getReopenStaffLeaveNotices(id: string, user: User) {
+    if (user.role !== Role.SYSTEM_ADMIN)
+      throw new ForbiddenException('Chỉ nhà xe được xem thông tin mở lại chuyến');
+    const trip = await this.prisma.trip.findUnique({ where: { id }, select: { status: true } });
+    if (!trip) throw new NotFoundException('Không tìm thấy chuyến');
+    if (trip.status !== TripStatus.CANCELLED) {
+      throw new ConflictException('Chỉ xem báo nghỉ để mở lại chuyến đã hủy');
+    }
+    const notices = await this.findReopenStaffLeaveNotices(this.prisma, id);
+    return { items: notices.map(({ id, kind, reportedById }) => ({ id, kind, staffId: reportedById })) };
+  }
+
+  private async findReopenStaffLeaveNotices(tx: Prisma.TransactionClient, tripId: string) {
+    const notices = await tx.leaveNotice.findMany({
+      where: {
+        tripId,
+        kind: { in: [LeaveNoticeKind.DRIVER, LeaveNoticeKind.BUS_ATTENDANT] },
+      },
+      select: { id: true, kind: true, reportedById: true, status: true },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      distinct: ['kind', 'reportedById'],
+    });
+    return notices.filter(notice => notice.status !== LeaveNoticeStatus.WITHDRAWN);
+  }
+
+  private async checkReopenResource(code: string, check: () => Promise<void>) {
+    try {
+      await check();
+    } catch (error) {
+      if (error instanceof BadRequestException || error instanceof ConflictException) {
+        throw new HttpException({ message: error.message, code }, error.getStatus());
+      }
+      throw error;
+    }
   }
 
   private async reopenCancelledTrip(tx: Prisma.TransactionClient, id: string, dto: ReopenTripDto, actorId?: string, fromSchoolChange = false) {
@@ -278,15 +341,23 @@ export class TripsService {
         trip.status !== TripStatus.CANCELLED ||
         (!fromSchoolChange && (!trip.scheduledStartAt || new Date() >= trip.scheduledStartAt)) ||
         (fromSchoolChange && isTripFrozen(trip)) ||
-        trip.actualStartTime ||
-        trip.actualEndTime ||
-        trip.attendances.some(
-          (a) => a.status === AttendanceStatus.PRESENT || a.alightedAt,
-        )
+        this.hasTripOperated(trip)
       ) {
         throw new ConflictException(
           'Chỉ mở lại chuyến đã hủy trước giờ chạy, chưa nhận trẻ hoặc xuất phát',
         );
+      }
+      const vehicleId = dto.vehicleId ?? trip.assignedVehicleId;
+      const driverId = dto.driverId ?? trip.assignedDriverId;
+      const busAttendantId = dto.busAttendantId ?? trip.assignedBusAttendantId;
+      const staffLeaveConfirmations = fromSchoolChange ? [] :
+        (await this.findReopenStaffLeaveNotices(tx, id)).filter(notice =>
+          notice.reportedById === (notice.kind === LeaveNoticeKind.DRIVER ? driverId : busAttendantId));
+      if (staffLeaveConfirmations.some(notice => !dto.confirmedStaffLeaveNoticeIds?.includes(notice.id))) {
+        throw new ConflictException({
+          code: 'REOPEN_STAFF_LEAVE',
+          message: 'Hãy chọn người thay hoặc xác nhận nhân sự đã báo nghỉ có thể làm chuyến.',
+        });
       }
       const plan = trip.route.routePlan;
       const date = trip.serviceDate.toISOString().slice(0, 10);
@@ -302,30 +373,27 @@ export class TripsService {
         throw new ConflictException('Giờ xuất phát theo lịch hiện hành đã qua');
       }
       const targetTrip = { ...trip, ...timing };
-      const vehicleId = dto.vehicleId ?? trip.assignedVehicleId;
-      const driverId = dto.driverId ?? trip.assignedDriverId;
-      const busAttendantId = dto.busAttendantId ?? trip.assignedBusAttendantId;
-      await assertVehicleAvailableForTrip(
+      await this.checkReopenResource('REOPEN_VEHICLE', () => assertVehicleAvailableForTrip(
         tx,
         vehicleId,
         trip.schoolId,
         targetTrip,
         studentIds.length,
-      );
-      await assertStaffAvailableForTrip(tx, {
+      ));
+      await this.checkReopenResource('REOPEN_DRIVER', () => assertStaffAvailableForTrip(tx, {
         staffId: driverId,
         expectedRole: Role.DRIVER,
         schoolId: trip.schoolId,
         tripId: id,
         targetTrip,
-      });
-      await assertStaffAvailableForTrip(tx, {
+      }));
+      await this.checkReopenResource('REOPEN_ATTENDANT', () => assertStaffAvailableForTrip(tx, {
         staffId: busAttendantId,
         expectedRole: Role.BUS_ATTENDANT,
         schoolId: trip.schoolId,
         tripId: id,
         targetTrip,
-      });
+      }));
       const notices = await tx.leaveNotice.findMany({
         where: {
           tripId: id,
@@ -402,8 +470,18 @@ export class TripsService {
           after: JSON.parse(JSON.stringify(after)),
           previousCancellationReason: trip.cancellationReason,
           previousCancelledAt: trip.cancelledAt?.toISOString() ?? null,
+          ...(staffLeaveConfirmations.length ? { staffLeaveConfirmations: staffLeaveConfirmations.map(({ id, kind, reportedById }) => ({
+            noticeId: id, kind, staffId: reportedById,
+          })) } : {}),
         },
       ];
+      if (!fromSchoolChange) {
+        // Close staff tasks left pending by older cancellations before restoring the schedule.
+        await tx.leaveNotice.updateMany({
+          where: { tripId: id, kind: { in: [LeaveNoticeKind.DRIVER, LeaveNoticeKind.BUS_ATTENDANT] }, status: LeaveNoticeStatus.PENDING_REPLACEMENT },
+          data: { status: LeaveNoticeStatus.TRIP_CANCELLED, processedAt: now, processedById: actorId },
+        });
+      }
       await tx.trip.update({
         where: { id },
         data: {
@@ -787,6 +865,7 @@ export class TripsService {
         scheduledEndAt: pt.scheduledEndAt,
         scheduledStartTime: pt.scheduledStartTime,
         scheduledEndTime: pt.scheduledEndTime,
+        displayTime: tripDisplayTime(pt),
         vehicleId: pt.assignedVehicle.id,
         vehiclePlate: pt.assignedVehicle.licensePlate,
         vehicleBrand: pt.assignedVehicle.brand,
@@ -865,6 +944,7 @@ export class TripsService {
             scheduledEndAt: timing.scheduledEndAt,
             scheduledStartTime: depTimeStr,
             scheduledEndTime: arrTimeStr,
+            displayTime: tripDisplayTime({ status: 'NOT_CREATED', scheduledStartTime: depTimeStr, scheduledEndTime: arrTimeStr }),
             vehicleId: route.proposedVehicle?.id,
             vehiclePlate: route.proposedVehicle?.licensePlate || 'Chưa gán',
             vehicleBrand: route.proposedVehicle?.brand || null,
@@ -1036,6 +1116,7 @@ export class TripsService {
       scheduledEndAt: trip.scheduledEndAt,
       scheduledStartTime: trip.scheduledStartTime,
       scheduledEndTime: trip.scheduledEndTime,
+      displayTime: tripDisplayTime(trip),
       vehicleId: trip.assignedVehicle.id,
       vehiclePlate: trip.assignedVehicle.licensePlate,
       vehicleBrand: trip.assignedVehicle.brand,
@@ -1305,6 +1386,7 @@ export class TripsService {
         scheduledStartTime: pt.scheduledStartTime,
         scheduledEndTime: pt.scheduledEndTime,
         scheduledTime: `${pt.scheduledStartTime} - ${pt.scheduledEndTime}`,
+        displayTime: tripDisplayTime(pt),
         vehiclePlate: pt.assignedVehicle.licensePlate,
         vehicleBrand: pt.assignedVehicle.brand,
         busAttendantName: pt.assignedBusAttendant.fullName,
@@ -1396,6 +1478,7 @@ export class TripsService {
         scheduledStartTime: pt.scheduledStartTime,
         scheduledEndTime: pt.scheduledEndTime,
         scheduledTime: `${pt.scheduledStartTime} - ${pt.scheduledEndTime}`,
+        displayTime: tripDisplayTime(pt),
         vehiclePlate: pt.assignedVehicle.licensePlate,
         vehicleBrand: pt.assignedVehicle.brand,
         driverName: pt.assignedDriver.fullName,
@@ -1526,6 +1609,8 @@ export class TripsService {
         scheduledStartTime: t.scheduledStartTime,
         scheduledEndTime: t.scheduledEndTime,
         scheduledTime: `${t.scheduledStartTime} - ${t.scheduledEndTime}`,
+        displayTime: tripDisplayTime(t),
+        actualDestinationTime: actualTripClock(t.direction === RouteDirection.TO_SCHOOL ? t.arrivedAtSchoolAt : myAtt?.alightedAt),
         vehiclePlate: t.assignedVehicle.licensePlate,
         vehicleBrand: t.assignedVehicle.brand,
         driverName: t.assignedDriver.fullName,
@@ -1599,6 +1684,7 @@ export class TripsService {
               scheduledStartTime: depTimeStr,
               scheduledEndTime: arrTimeStr,
               scheduledTime: `${depTimeStr} - ${arrTimeStr}`,
+              displayTime: tripDisplayTime({ status: 'SCHEDULED', scheduledStartTime: depTimeStr, scheduledEndTime: arrTimeStr }),
               vehiclePlate: route.proposedVehicle?.licensePlate || 'Chờ phân công',
               vehicleBrand: route.proposedVehicle?.brand || '',
               driverName: route.defaultDriver?.fullName || 'Chờ phân công',
@@ -1651,7 +1737,6 @@ export class TripsService {
       detail.studentCount = myChildIds.size;
       detail.operationAudit = undefined;
       detail.parkingLocation = undefined;
-      detail.polylineGeometry = '';
       detail.stops = detail.stops.filter((s) =>
         s.studentId ? myChildIds.has(s.studentId) :
           s.stopType === RouteStopType.SCHOOL_ARRIVAL || s.stopType === RouteStopType.SCHOOL_DEPARTURE,
@@ -1704,8 +1789,7 @@ export class TripsService {
   }
 
   /**
-   * Lấy duy nhất 1 chuyến xe ưu tiên cho Tài xế hoặc Giáo viên phụ xe trên Trang chủ (BR-02 & D06).
-   * Loại bỏ các chuyến đã quá thời gian kết thúc dự kiến (scheduledEndAt < now).
+   * Lấy chuyến ưu tiên và các chuyến đã hoàn thành hoặc đã hủy cùng ngày của nhân sự.
    */
   async getHomeTrip(currentUser: User): Promise<HomeTripResponseDto> {
     if (currentUser.role !== Role.DRIVER && currentUser.role !== Role.BUS_ATTENDANT) {
@@ -1713,51 +1797,22 @@ export class TripsService {
     }
 
     const now = new Date();
-    const startOfToday = new Date(now);
-    startOfToday.setHours(0, 0, 0, 0);
-
-    // D311-01 / Bug B-01 / R04: Lấy các chuyến IN_PROGRESS (không lọc giờ) và SCHEDULED hôm nay/chưa quá giờ để tính giờ hiệu lực
-    const where: any = {
-      OR: [
-        { status: TripStatus.IN_PROGRESS },
-        {
-          status: TripStatus.SCHEDULED,
-          OR: [
-            { serviceDate: { gte: startOfToday } },
-            { scheduledEndAt: { gte: now } },
-            { scheduledEndAt: null },
-          ],
-        },
-      ],
-    };
-
-    if (currentUser.role === Role.DRIVER) {
-      where.assignedDriverId = currentUser.id;
-    } else {
-      where.assignedBusAttendantId = currentUser.id;
-    }
+    const assignment: Prisma.TripWhereInput = currentUser.role === Role.DRIVER
+      ? { assignedDriverId: currentUser.id }
+      : { assignedBusAttendantId: currentUser.id };
+    const include = {
+      school: { select: { name: true } },
+      assignedVehicle: true,
+      assignedDriver: true,
+      assignedBusAttendant: true,
+      route: { select: { id: true, name: true, polylineGeometry: true } },
+      _count: { select: { attendances: true } },
+    } satisfies Prisma.TripInclude;
 
     const candidateTrips = await this.prisma.trip.findMany({
-      where,
-      include: {
-        school: { select: { id: true, name: true } },
-        assignedVehicle: true,
-        assignedDriver: true,
-        assignedBusAttendant: true,
-        route: {
-          select: {
-            id: true,
-            name: true,
-            polylineGeometry: true,
-          },
-        },
-        attendances: true,
-      },
+      where: { ...assignment, ...homeTripCandidateWhere(now) },
+      include,
     });
-
-    if (candidateTrips.length === 0) {
-      return { hasTrip: false, trip: null };
-    }
 
     // R04: Áp dụng effectiveTripTiming cho các chuyến SCHEDULED trước khi lọc và sắp xếp
     for (const trip of candidateTrips) {
@@ -1769,82 +1824,64 @@ export class TripsService {
       }
     }
 
-    // Lọc lại: giữ lại IN_PROGRESS, và SCHEDULED chỉ giữ nếu chưa quá scheduledEndAt
-    const validTrips = candidateTrips.filter((t) => {
-      if (t.status === TripStatus.IN_PROGRESS) return true;
-      if (t.status === TripStatus.SCHEDULED) {
-        return !t.scheduledEndAt || t.scheduledEndAt >= now;
-      }
-      return false;
+    const primary = selectHomeTrip(candidateTrips, now);
+    const history = await this.prisma.trip.findMany({
+      where: { ...assignment, ...homeTripHistoryWhere(primary, now) },
+      include,
     });
-
-    if (validTrips.length === 0) {
-      return { hasTrip: false, trip: null };
-    }
-
-    // Sắp xếp ưu tiên:
-    // 1. IN_PROGRESS lên đầu
-    // 2. SCHEDULED theo thời gian bắt đầu gần nhất (đã tính theo effectiveTripTiming)
-    validTrips.sort((a, b) => {
-      if (a.status === TripStatus.IN_PROGRESS && b.status !== TripStatus.IN_PROGRESS) return -1;
-      if (b.status === TripStatus.IN_PROGRESS && a.status !== TripStatus.IN_PROGRESS) return 1;
-      const tA = a.scheduledStartAt ? a.scheduledStartAt.getTime() : 0;
-      const tB = b.scheduledStartAt ? b.scheduledStartAt.getTime() : 0;
-      return tA - tB;
+    const toCard = (selected: typeof candidateTrips[number]): MobileHomeTripDto => ({
+      id: selected.id,
+      routeId: selected.route.id,
+      routeName: selected.route.name,
+      direction: selected.direction,
+      schoolName: selected.school.name,
+      serviceDate: formatDateToVnYmd(new Date(selected.serviceDate)),
+      scheduledStartTime: selected.scheduledStartTime,
+      scheduledEndTime: selected.scheduledEndTime,
+      scheduledTime: `${selected.scheduledStartTime || ''} - ${selected.scheduledEndTime || ''}`,
+      displayTime: tripDisplayTime(selected),
+      status: selected.status,
+      vehiclePlate: selected.assignedVehicle.licensePlate,
+      vehicleBrand: selected.assignedVehicle.brand,
+      vehicleSeats: selected.assignedVehicle.seatCount,
+      studentCount: selected._count.attendances,
+      polylineGeometry: selected.route.polylineGeometry,
+      driver: {
+        id: selected.assignedDriver.id,
+        fullName: selected.assignedDriver.fullName,
+        phone: selected.assignedDriver.phone,
+        isCurrentUser: currentUser.id === selected.assignedDriver.id,
+      },
+      busAttendant: {
+        id: selected.assignedBusAttendant.id,
+        fullName: selected.assignedBusAttendant.fullName,
+        phone: selected.assignedBusAttendant.phone,
+        isCurrentUser: currentUser.id === selected.assignedBusAttendant.id,
+      },
+      canReportLeave: false,
+      leaveNoticeId: null,
     });
+    const items = history.sort(compareHomeTrips).map(toCard);
+    if (!primary) return { hasTrip: false, trip: null, items };
 
-    const selected = validTrips[0];
-    const operationalState = await this.getOperationalState(selected.id, currentUser);
+    const operationalState = await this.getOperationalState(primary.id, currentUser);
     const userNotice = await this.prisma.leaveNotice.findFirst({
       where: {
-        tripId: selected.id,
+        tripId: primary.id,
         reportedById: currentUser.id,
         status: { in: [LeaveNoticeStatus.RECORDED, LeaveNoticeStatus.PENDING_REPLACEMENT] },
       },
     });
-    const canReportLeave =
-      !await tripBlockReason(this.prisma, selected.id) &&
-      !userNotice &&
-      selected.status === TripStatus.SCHEDULED &&
-      !selected.actualStartTime &&
-      !selected.attendantReadyAt;
-
-    return {
-      hasTrip: true,
-      trip: {
-        id: selected.id,
-        routeId: selected.route.id,
-        routeName: selected.route.name,
-        direction: selected.direction,
-        schoolName: selected.school.name,
-        serviceDate: formatDateToVnYmd(new Date(selected.serviceDate)),
-        scheduledStartTime: selected.scheduledStartTime,
-        scheduledEndTime: selected.scheduledEndTime,
-        scheduledTime: `${selected.scheduledStartTime || ''} - ${selected.scheduledEndTime || ''}`,
-        status: selected.status,
-        vehiclePlate: selected.assignedVehicle.licensePlate,
-        vehicleBrand: selected.assignedVehicle.brand,
-        vehicleSeats: selected.assignedVehicle.seatCount,
-        studentCount: selected.attendances.length,
-        polylineGeometry: selected.route.polylineGeometry,
-        driver: {
-          id: selected.assignedDriver.id,
-          fullName: selected.assignedDriver.fullName,
-          phone: selected.assignedDriver.phone,
-          isCurrentUser: currentUser.id === selected.assignedDriver.id,
-        },
-        busAttendant: {
-          id: selected.assignedBusAttendant.id,
-          fullName: selected.assignedBusAttendant.fullName,
-          phone: selected.assignedBusAttendant.phone,
-          isCurrentUser: currentUser.id === selected.assignedBusAttendant.id,
-        },
-        operationalState,
-        assignmentStatus: operationalState.assignmentStatus,
-        canReportLeave,
-        leaveNoticeId: userNotice?.id || null,
-      },
+    const trip = {
+      ...toCard(primary),
+      operationalState,
+      assignmentStatus: operationalState.assignmentStatus,
+      canReportLeave: primary.status === TripStatus.SCHEDULED
+        && !primary.actualStartTime && !primary.attendantReadyAt && !userNotice
+        && !await tripBlockReason(this.prisma, primary.id),
+      leaveNoticeId: userNotice?.id ?? null,
     };
+    return { hasTrip: true, trip, items: [trip, ...items] };
   }
 
   /**
@@ -1867,42 +1904,45 @@ export class TripsService {
     });
 
     const now = new Date();
-    const startOfToday = new Date(now);
-    startOfToday.setHours(0, 0, 0, 0);
-    const items: ParentHomeCardItemDto[] = [];
+    const cards: {
+      trip: { status: TripStatus; scheduledStartAt: Date | null };
+      card: ParentHomeCardItemDto;
+    }[] = [];
 
     for (const link of links) {
       const student = link.student;
-      // D311-01 / Bug B-01 / R04: Chuyến IN_PROGRESS luôn giữ vị trí ưu tiên số 1, SCHEDULED áp dụng effectiveTripTiming trước khi lọc
+      const roster = { studentId: student.id, excludedAt: null };
+      const include = {
+        school: { select: { name: true } },
+        assignedVehicle: { select: { licensePlate: true } },
+        assignedDriver: { select: { fullName: true } },
+        route: { select: { name: true } },
+        attendances: { where: roster },
+        incidents: {
+          where: {
+            type: TripIncidentType.NO_GUARDIAN_AT_STOP,
+            status: TripIncidentStatus.WAITING_ASSIGNMENT,
+            context: { path: ['studentId'], equals: student.id },
+          },
+          select: { id: true },
+          take: 1,
+        },
+        leaveNotices: {
+          where: {
+            studentId: student.id,
+            status: { in: [LeaveNoticeStatus.RECORDED, LeaveNoticeStatus.PENDING_REPLACEMENT] },
+          },
+          select: { id: true },
+          take: 1,
+        },
+      } satisfies Prisma.TripInclude;
       const trips = await this.prisma.trip.findMany({
         where: {
-          OR: [
-            { status: TripStatus.IN_PROGRESS },
-            {
-              status: TripStatus.SCHEDULED,
-              OR: [
-                { serviceDate: { gte: startOfToday } },
-                { scheduledEndAt: { gte: now } },
-                { scheduledEndAt: null },
-              ],
-            },
-          ],
-          attendances: {
-            some: { studentId: student.id, excludedAt: null },
-          },
+          ...homeTripCandidateWhere(now),
+          attendances: { some: roster },
         },
-        include: {
-          school: true,
-          assignedVehicle: true,
-          assignedDriver: true,
-          route: true,
-          attendances: {
-            where: { studentId: student.id, excludedAt: null },
-          },
-        },
+        include,
       });
-
-      if (trips.length === 0) continue;
 
       // R04: Áp dụng effectiveTripTiming cho các chuyến SCHEDULED
       for (const trip of trips) {
@@ -1914,80 +1954,53 @@ export class TripsService {
         }
       }
 
-      const validTrips = trips.filter((t) => {
-        if (t.status === TripStatus.IN_PROGRESS) return true;
-        if (t.status === TripStatus.SCHEDULED) {
-          return !t.scheduledEndAt || t.scheduledEndAt >= now;
-        }
-        return false;
-      });
-
-      if (validTrips.length === 0) continue;
-
-      // Sắp xếp ưu tiên:
-      // 1. IN_PROGRESS + con chưa điểm danh (UNMARKED)
-      // 2. IN_PROGRESS + con đã điểm danh
-      // 3. SCHEDULED theo giờ gần nhất (đã tính theo effectiveTripTiming)
-      validTrips.sort((a, b) => {
-        const aIsRunning = a.status === TripStatus.IN_PROGRESS;
-        const bIsRunning = b.status === TripStatus.IN_PROGRESS;
-        const aAtt = a.attendances[0];
-        const bAtt = b.attendances[0];
-        const aUnmarked = !aAtt || aAtt.status === AttendanceStatus.UNMARKED;
-        const bUnmarked = !bAtt || bAtt.status === AttendanceStatus.UNMARKED;
-
-        if (aIsRunning && !bIsRunning) return -1;
-        if (!aIsRunning && bIsRunning) return 1;
-        if (aIsRunning && bIsRunning) {
-          if (aUnmarked && !bUnmarked) return -1;
-          if (!aUnmarked && bUnmarked) return 1;
-        }
-        const tA = a.scheduledStartAt ? a.scheduledStartAt.getTime() : 0;
-        const tB = b.scheduledStartAt ? b.scheduledStartAt.getTime() : 0;
-        return tA - tB;
-      });
-
-      const bestTrip = validTrips[0];
-      const myAtt = bestTrip.attendances[0];
-      const activeNotice = await this.prisma.leaveNotice.findFirst({
+      const primary = selectHomeTrip(trips, now, trip =>
+        (trip.attendances[0]?.status ?? AttendanceStatus.UNMARKED) === AttendanceStatus.UNMARKED,
+      );
+      const history = await this.prisma.trip.findMany({
         where: {
-          tripId: bestTrip.id,
-          studentId: student.id,
-          status: { in: [LeaveNoticeStatus.RECORDED, LeaveNoticeStatus.PENDING_REPLACEMENT] },
+          ...homeTripHistoryWhere(primary, now),
+          attendances: { some: roster },
         },
+        include,
       });
-      const canReportLeave =
-        !await tripBlockReason(this.prisma, bestTrip.id) &&
-        !activeNotice &&
-        bestTrip.status === TripStatus.SCHEDULED &&
-        !bestTrip.actualStartTime &&
-        !bestTrip.attendantReadyAt;
 
-      items.push({
-        studentId: student.id,
-        studentName: student.fullName,
-        studentAvatar: student.avatarUrl,
-        schoolName: bestTrip.school.name,
-        tripId: bestTrip.id,
-        routeName: bestTrip.route.name,
-        direction: bestTrip.direction,
-        serviceDate: formatDateToVnYmd(new Date(bestTrip.serviceDate)),
-        scheduledTime: `${bestTrip.scheduledStartTime || ''} - ${bestTrip.scheduledEndTime || ''}`,
-        tripStatus: bestTrip.status,
-        vehiclePlate: bestTrip.assignedVehicle.licensePlate,
-        driverName: bestTrip.assignedDriver.fullName,
-        attendanceStatus: myAtt ? myAtt.status : AttendanceStatus.UNMARKED,
-        markedAt: myAtt?.markedAt ? myAtt.markedAt.toISOString() : null,
-        absenceReason: myAtt?.status === AttendanceStatus.ABSENT ? myAtt.absenceReason : null,
-        childIsAlighted: Boolean(myAtt?.alightedAt),
-        childAlightedAt: myAtt?.alightedAt ? myAtt.alightedAt.toISOString() : null,
-        canReportLeave,
-        hasLeaveNotice: Boolean(activeNotice),
-        leaveNoticeId: activeNotice?.id || null,
-      });
+      for (const trip of primary ? [primary, ...history] : history) {
+        const attendance = trip.attendances[0];
+        const activeNotice = trip.leaveNotices[0];
+        const canReportLeave = trip.status === TripStatus.SCHEDULED
+          && !trip.actualStartTime && !trip.attendantReadyAt && !activeNotice
+          && !await tripBlockReason(this.prisma, trip.id);
+        cards.push({ trip, card: {
+          studentId: student.id,
+          studentName: student.fullName,
+          studentAvatar: student.avatarUrl,
+          schoolName: trip.school.name,
+          tripId: trip.id,
+          routeName: trip.route.name,
+          direction: trip.direction,
+          serviceDate: formatDateToVnYmd(trip.serviceDate),
+          scheduledTime: `${trip.scheduledStartTime || ''} - ${trip.scheduledEndTime || ''}`,
+          displayTime: tripDisplayTime(trip),
+          tripStatus: trip.status,
+          vehiclePlate: trip.assignedVehicle.licensePlate,
+          driverName: trip.assignedDriver.fullName,
+          attendanceStatus: attendance?.status ?? AttendanceStatus.UNMARKED,
+          markedAt: attendance?.markedAt?.toISOString() ?? null,
+          absenceReason: attendance?.status === AttendanceStatus.ABSENT ? attendance.absenceReason : null,
+          childIsAlighted: Boolean(attendance?.alightedAt),
+          childAlightedAt: attendance?.alightedAt?.toISOString() ?? null,
+          noGuardianAtStop: trip.status === TripStatus.IN_PROGRESS
+            && attendance?.status === AttendanceStatus.PRESENT && !attendance.alightedAt
+            && Boolean(trip.incidents?.length),
+          canReportLeave,
+          hasLeaveNotice: Boolean(activeNotice),
+          leaveNoticeId: activeNotice?.id ?? null,
+        } });
+      }
     }
 
-    return { items };
+    return { items: cards.sort((first, second) => compareHomeTrips(first.trip, second.trip)).map(({ card }) => card) };
   }
 
   /**
@@ -2426,12 +2439,37 @@ export class TripsService {
     dto: VerifyQrDto,
     currentUser: User,
   ): Promise<VerifyQrResponseDto> {
+    await this.assertTripOperationAllowed(tripId);
+    return this.resolveQrAttendance(this.prisma, tripId, dto, currentUser);
+  }
+
+  async scanQrAttendance(
+    tripId: string,
+    dto: VerifyQrDto,
+    currentUser: User,
+  ): Promise<ScanQrResponseDto> {
+    return this.withTripLock(tripId, async (tx) => {
+      const student = await this.resolveQrAttendance(tx, tripId, dto, currentUser);
+      if (student.currentStatus === AttendanceStatus.ABSENT)
+        throw new ConflictException('Học sinh đã ghi vắng. Vui lòng xử lý bằng điểm danh thủ công.');
+      const alreadyRecorded = student.currentStatus === AttendanceStatus.PRESENT;
+      if (!alreadyRecorded) {
+        await writeBoarding(tx, tripId, student.studentId, { status: AttendanceStatus.PRESENT }, currentUser);
+      }
+      return { ...student, currentStatus: AttendanceStatus.PRESENT, absenceReason: null, alreadyRecorded };
+    });
+  }
+
+  private async resolveQrAttendance(
+    db: Prisma.TransactionClient,
+    tripId: string,
+    dto: VerifyQrDto,
+    currentUser: User,
+  ): Promise<VerifyQrResponseDto> {
     if (currentUser.role !== Role.BUS_ATTENDANT) {
       throw new ForbiddenException('Chỉ giáo viên phụ xe mới có quyền quét mã điểm danh');
     }
-
-    await this.assertTripOperationAllowed(tripId);
-    const trip = await this.prisma.trip.findUnique({
+    const trip = await db.trip.findUnique({
       where: { id: tripId },
       include: {
         route: {
@@ -2472,20 +2510,20 @@ export class TripsService {
       }
     }
 
-    const student = await this.prisma.student.findUnique({
+    const student = await db.student.findUnique({
       where: { code: dto.qrData },
+      include: { school: { select: { isActive: true } } },
     });
 
     if (!student) {
-      throw new NotFoundException(`Không tìm thấy học sinh với mã ${dto.qrData}`);
+      throw new NotFoundException('Không tìm thấy học sinh trong danh sách chuyến xe');
     }
 
     const attendance = trip.attendances.find((a) => a.studentId === student.id);
-    if (!attendance) {
-      throw new BadRequestException(
-        `Học sinh ${student.fullName} (${student.code}) không thuộc danh sách chuyến xe này`,
-      );
-    }
+    if (!attendance || attendance.excludedAt || student.schoolId !== trip.schoolId)
+      throw new NotFoundException('Không tìm thấy học sinh trong danh sách chuyến xe');
+    if (student.status !== 'AVAILABLE' || !student.school.isActive)
+      throw new ConflictException('Học sinh hoặc trường đã ngừng hoạt động.');
 
     const stop = trip.route.stops.find((s) => s.studentId === student.id);
 

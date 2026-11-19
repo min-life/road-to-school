@@ -24,7 +24,7 @@ export const ParentStudentJourney = memo(function ParentStudentJourney({ card, t
   const outbound = card.direction === 'TO_SCHOOL';
   const variance = journeyMinutesBeforeSchedule(card.serviceDate, times.plannedArrival, times.comparisonArrivalAt);
   const arrivalNote = variance === null ? null : variance > 0 ? 'Sớm ' + variance + ' phút' : variance < 0 ? 'Trễ ' + Math.abs(variance) + ' phút' : 'Đúng giờ';
-  const incidents = telemetry?.incidents?.filter(i => activeJourneyIncident(i.status)) ?? [];
+  const incidents = telemetry?.incidents?.filter(i => i.type !== 'NO_GUARDIAN_AT_STOP' && activeJourneyIncident(i.status)) ?? [];
   return <>
     <StudentJourneyRouteHeader routeName={card.routeName} outbound={card.direction === 'TO_SCHOOL'} serviceDate={showServiceDate ? card.serviceDate : undefined} />
     <StudentJourneyDiagram stagePosition={stagePosition} outbound={outbound} active={active}
@@ -136,7 +136,6 @@ function JourneyTimeBadge({ title, time }: { title: string; time: JourneyTime })
       <Text style={styles.timeTitle}>{title}</Text>
       <Text style={styles.timeValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{time.value ?? '—:—'}</Text>
       <Text style={styles.timeKind}>{time.value ? time.kind === 'actual' ? 'Thực tế' : 'Dự kiến' : 'Chưa có giờ'}</Text>
-      {time.kind === 'actual' && time.scheduledValue && <Text style={styles.plannedTime}>Lịch {time.scheduledValue}</Text>}
     </View>
     <View style={styles.timeStem} />
   </View>;
@@ -156,7 +155,6 @@ const styles = StyleSheet.create({
   timeTitle: { fontSize: 10, lineHeight: 15, color: colors.mutedText, textAlign: 'center' },
   timeValue: { alignSelf: 'stretch', fontSize: 18, lineHeight: 24, fontWeight: '800', fontVariant: ['tabular-nums'], color: colors.foreground, textAlign: 'center' },
   timeKind: { fontSize: 9, lineHeight: 14, color: colors.navigationActive, textAlign: 'center' },
-  plannedTime: { fontSize: 9, lineHeight: 14, color: colors.mutedText, textAlign: 'center' },
   variance: { fontSize: 9, lineHeight: 14, fontWeight: '700', color: journeyTones.success.text, textAlign: 'center' },
   late: { color: journeyTones.danger.text },
   timeStem: { width: 1, height: 30, backgroundColor: colors.border },

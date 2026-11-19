@@ -69,7 +69,7 @@ export function SchoolProfileTripRows({ trips, loading, error, invalid, filters 
                     </div>
                   </div>
                 </td>
-                <td className="school-trip-time">{trip.scheduledStartTime || '—'} – {trip.scheduledEndTime || '—'}</td>
+                <td className="school-trip-time">{trip.displayTime}</td>
                 <td>
                   <strong>{trip.vehiclePlate || 'Chưa gán xe'}</strong>
                   <small>Tài xế {trip.driverName || 'chưa gán'} · Giáo viên {trip.busAttendantName || 'chưa gán'}</small>

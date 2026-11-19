@@ -2,16 +2,49 @@ import { Prisma } from '@prisma/client';
 import { vietnamToday } from '../schools/school-effective-state.js';
 import { ConflictException } from '@nestjs/common';
 import { metresBetween } from '../trips/utils/navigation-state.js';
+import { provinceForCoordinates } from '../schools/location-province.js';
 
-export function configuredParking(value: Prisma.JsonValue | null | undefined) {
+export function effectiveParking(
+  value: Prisma.JsonValue | null | undefined,
+  today = vietnamToday(),
+) {
   const parking = value as Prisma.JsonObject | null;
-  if (typeof parking?.latitude !== 'number' || typeof parking.longitude !== 'number' ||
-      !Number.isFinite(parking.latitude) || !Number.isFinite(parking.longitude) ||
-      Math.abs(parking.latitude) > 90 || Math.abs(parking.longitude) > 180) {
+  if (!parking || typeof parking !== 'object') {
+    return null;
+  }
+  const scheduled = parking.scheduledChange as Prisma.JsonObject | null;
+  const isDue = !!scheduled?.effectiveDate && String(scheduled.effectiveDate) <= today;
+
+  const lat = Number(isDue ? scheduled?.newLatitude : parking.latitude);
+  const lng = Number(isDue ? scheduled?.newLongitude : parking.longitude);
+  const addressText = String(isDue ? (scheduled?.newAddressText ?? '') : (parking.addressText ?? ''));
+  const maxOperatingRadiusKm = Number(parking.maxOperatingRadiusKm ?? 50);
+
+  if (
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng) ||
+    Math.abs(lat) > 90 ||
+    Math.abs(lng) > 180 ||
+    !Number.isFinite(maxOperatingRadiusKm) ||
+    maxOperatingRadiusKm <= 0
+  ) {
+    return null;
+  }
+
+  return {
+    latitude: lat,
+    longitude: lng,
+    addressText,
+    maxOperatingRadiusKm,
+  };
+}
+
+export function configuredParking(value: Prisma.JsonValue | null | undefined, today = vietnamToday()) {
+  const effective = effectiveParking(value, today);
+  if (!effective) {
     throw new ConflictException('Cần cấu hình bãi trung tâm trước khi lập lịch phục vụ');
   }
-  return { latitude: parking.latitude, longitude: parking.longitude,
-    addressText: String(parking.addressText ?? ''), maxOperatingRadiusKm: Number(parking.maxOperatingRadiusKm ?? 50) };
+  return effective;
 }
 
 export async function pendingParkingChange(
@@ -27,21 +60,28 @@ export async function pendingParkingChange(
 }
 
 export async function assertLocationWithinServiceArea(
-  db: Prisma.TransactionClient,
+  db: Pick<Prisma.TransactionClient, 'school' | 'systemSetting'>,
   schoolId: string,
   location: { latitude: number; longitude: number; province?: string | null },
+  today = vietnamToday(),
 ): Promise<void> {
   const school = await db.school.findUnique({ where: { id: schoolId } });
   const setting = await db.systemSetting.findUnique({
     where: { key: 'PARKING_LOT' },
   });
-  const parking = configuredParking(setting?.value);
+  const parking = configuredParking(setting?.value, today);
   const { latitude, longitude } = parking;
+
+  const schoolProvince = school?.province?.trim();
+  let studentProvince = location.province?.trim();
+  if (!studentProvince && schoolProvince) {
+    studentProvince = (await provinceForCoordinates(location.latitude, location.longitude))?.trim() ?? undefined;
+  }
+
   if (
-    school?.province &&
-    location.province &&
-    school.province.trim().toLowerCase() !==
-      location.province.trim().toLowerCase()
+    schoolProvince &&
+    studentProvince &&
+    schoolProvince.toLowerCase() !== studentProvince.toLowerCase()
   ) {
     throw new ConflictException('Điểm đón khác tỉnh/thành với trường');
   }

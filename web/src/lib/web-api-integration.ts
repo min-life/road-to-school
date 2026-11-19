@@ -12,12 +12,18 @@ export function canCancelAllAbsent(trip: TripDetail, roster: TripAttendanceRoste
     && roster?.tripId === trip.id && roster.students.length > 0
     && roster.students.every(student => student.status === 'ABSENT' && !!student.absenceReason?.trim() && !student.isAlighted && !student.alightedAt);
 }
-export function canReopenTrip(trip: TripDetail, roster: TripAttendanceRoster | null, role?: Role, now = Date.now()) {
-  return role === 'SYSTEM_ADMIN' && trip.status === 'CANCELLED'
-    && trip.actualStartTime === null && trip.actualEndTime === null
-    && Number.isFinite(Date.parse(trip.scheduledStartAt)) && now < Date.parse(trip.scheduledStartAt)
+function canVerifyTripHasNotOperated(trip: TripDetail, roster: TripAttendanceRoster | null) {
+  return trip.actualStartTime === null && trip.actualEndTime === null
     && roster?.tripId === trip.id
     && !roster.students.some(student => student.status === 'PRESENT' || student.isAlighted || !!student.alightedAt);
+}
+export function canCancelTrip(trip: TripDetail, roster: TripAttendanceRoster | null, role?: Role) {
+  return role === 'SYSTEM_ADMIN' && trip.status === 'SCHEDULED' && canVerifyTripHasNotOperated(trip, roster);
+}
+export function canReopenTrip(trip: TripDetail, roster: TripAttendanceRoster | null, role?: Role, now = Date.now()) {
+  return role === 'SYSTEM_ADMIN' && trip.status === 'CANCELLED'
+    && Number.isFinite(Date.parse(trip.scheduledStartAt)) && now < Date.parse(trip.scheduledStartAt)
+    && canVerifyTripHasNotOperated(trip, roster);
 }
 export interface OperationAuditItem {
   action: string; reason?: string; actorId?: string; occurredAt?: string; studentId?: string;

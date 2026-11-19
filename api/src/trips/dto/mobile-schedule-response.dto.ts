@@ -33,6 +33,12 @@ export class MobileTripItemDto {
   @ApiProperty({ example: '06:15 - 07:10' })
   scheduledTime: string;
 
+  @ApiProperty({ example: '06:48 – …', description: 'Khung giờ hiển thị theo giờ Việt Nam. Dùng giờ thực tế cho chuyến đang chạy hoặc đã hoàn thành.' })
+  displayTime: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true, example: '07:04', description: 'Giờ đến trường hoặc giờ xuống xe của con, dành cho lịch phụ huynh.' })
+  actualDestinationTime?: string | null;
+
   @ApiProperty({ example: '51B-731.33' })
   vehiclePlate: string;
 

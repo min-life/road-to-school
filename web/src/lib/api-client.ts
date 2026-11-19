@@ -103,8 +103,14 @@ class ApiClient {
   async cancelAllAbsent(id: string, reason: string): Promise<{ message: string }> {
     return this.request(`/trips/${id}/cancel-all-absent`, { method: 'POST', body: JSON.stringify({ reason }) });
   }
+  async cancelTrip(id: string, reason: string): Promise<{ message: string }> {
+    return this.request(`/trips/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) });
+  }
   async reopenTrip(id: string, dto: import('./types').ReopenTripRequest): Promise<{ message: string; tripId: string }> {
     return this.request(`/trips/${id}/reopen`, { method: 'POST', body: JSON.stringify(dto) });
+  }
+  async getReopenStaffLeaveNotices(id: string, signal: AbortSignal): Promise<{ items: import('./types').ReopenStaffLeaveNotice[] }> {
+    return this.request(`/trips/${id}/reopen/staff-leave-notices`, { method: 'GET', signal, cache: 'no-store' });
   }
   async getSchoolOperatingSettings(schoolId: string): Promise<import('./school-lifecycle').SchoolOperatingSettings> {
     return this.request(`/schools/${schoolId}/settings`, { method: 'GET' });

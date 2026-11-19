@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { canCloseIncident, canCancelAllAbsent, canReopenTrip, operationAuditItems, overviewTaskHref, selectVisibleStudents } from './web-api-integration.ts';
+import { canCloseIncident, canCancelAllAbsent, canCancelTrip, canReopenTrip, operationAuditItems, overviewTaskHref, selectVisibleStudents } from './web-api-integration.ts';
 import type { TripDetail, TripAttendanceRoster, TripIncident } from './types';
 const trip = { id: 'trip', schoolId: 'school', direction: 'TO_PARKING', status: 'SCHEDULED', actualStartTime: null, actualEndTime: null, attendantReadyAt: 'ready' } as TripDetail;
 const roster = { tripId: 'trip', students: [{ status: 'ABSENT', absenceReason: 'reason', isAlighted: false }] } as TripAttendanceRoster;
@@ -13,6 +13,16 @@ test('cancel-all-absent fails closed for missing roster, wrong scope, missing Re
   assert.equal(canCancelAllAbsent({ ...trip, attendantReadyAt: null }, roster, 'SYSTEM_ADMIN'), false);
   assert.equal(canCancelAllAbsent({ ...trip, direction: 'TO_SCHOOL' }, roster, 'SYSTEM_ADMIN'), false);
   assert.equal(canCancelAllAbsent(trip, { ...roster, students: [{ ...roster.students[0], absenceReason: ' ' }] }, 'SYSTEM_ADMIN'), false);
+});
+test('general cancellation is offered to System Admin before operation, even without Ready or a populated roster', () => {
+  const outbound = { ...trip, direction: 'TO_SCHOOL', attendantReadyAt: null } as TripDetail;
+  const emptyRoster = { ...roster, students: [] };
+  assert.equal(canCancelTrip(outbound, emptyRoster, 'SYSTEM_ADMIN'), true);
+  assert.equal(canCancelTrip(trip, roster, 'SYSTEM_ADMIN'), true);
+  assert.equal(canCancelTrip(outbound, emptyRoster, 'SCHOOL_ADMIN'), false);
+  assert.equal(canCancelTrip(outbound, null, 'SYSTEM_ADMIN'), false);
+  assert.equal(canCancelTrip({ ...outbound, actualStartTime: 'started' }, emptyRoster, 'SYSTEM_ADMIN'), false);
+  assert.equal(canCancelTrip(outbound, { ...roster, students: [{ ...roster.students[0], status: 'PRESENT' }] }, 'SYSTEM_ADMIN'), false);
 });
 test('reopen only offers system admin a future unoperated cancelled trip', () => {
   const cancelled = { ...trip, status: 'CANCELLED', scheduledStartAt: '2026-11-20T00:00:00Z' } as TripDetail;

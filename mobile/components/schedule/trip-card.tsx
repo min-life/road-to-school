@@ -38,7 +38,7 @@ export function ScheduleTripCard({ trip, directionLabel, actionLabel, onOpen, on
         <View style={styles.timeBadge}>
           <Ionicons name="time-outline" size={14} color="#1E293B" />
           <Text style={styles.timeText}>
-            {trip.scheduledStartTime} – {trip.scheduledEndTime}
+            {trip.displayTime}
           </Text>
         </View>
 

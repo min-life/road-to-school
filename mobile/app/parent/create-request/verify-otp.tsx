@@ -92,10 +92,29 @@ export default function VerifyOtpRequestScreen() {
         ]
       );
     } catch (err: any) {
-      setErrorMessage(
+      const msg =
         err?.message ||
-          'Mã xác thực không chính xác hoặc đã hết hạn. Vui lòng thử lại.'
-      );
+        'Mã xác thực không chính xác hoặc đã hết hạn. Vui lòng thử lại.';
+      const isServiceAreaError =
+        msg.includes('bán kính phục vụ') ||
+        msg.includes('vượt quá bán kính') ||
+        msg.includes('tỉnh/thành phố') ||
+        msg.includes('bãi xe');
+
+      if (type === 'ADDRESS_UPDATE' && isServiceAreaError) {
+        Alert.alert(
+          'Phạm vi phục vụ đã thay đổi',
+          msg,
+          [
+            {
+              text: 'Chọn lại điểm đón',
+              onPress: () => router.back(),
+            },
+          ]
+        );
+      } else {
+        setErrorMessage(msg);
+      }
     } finally {
       setIsVerifying(false);
     }

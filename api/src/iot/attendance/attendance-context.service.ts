@@ -31,6 +31,9 @@ export class AttendanceContextService {
     private readonly secrets: IotSecretsService,
     private readonly config: ConfigService,
   ) {}
+  private get isTestMode() {
+    return this.config.get<string>('TRIP_OPERATION_MODE') === 'TEST';
+  }
   encode(context: AttendanceContext) {
     const payload = Buffer.from(JSON.stringify(context)).toString('base64url');
     return payload + '.' + this.secrets.attendanceSignature(payload);
@@ -82,7 +85,11 @@ export class AttendanceContextService {
   }
   async eligible(tx: Prisma.TransactionClient, t: Trip) {
     const phase = attendancePhase(t);
-    if (!phase || contractDate(t.serviceDate) !== vietnamToday()) return false;
+    if (
+      !phase ||
+      (!this.isTestMode && contractDate(t.serviceDate) !== vietnamToday())
+    )
+      return false;
     if (await tripBlockReason(tx, t.id)) return false;
     if (
       !(await tx.tripAttendance.count({
@@ -100,10 +107,7 @@ export class AttendanceContextService {
       attendant.schoolId !== t.schoolId
     )
       return false;
-    if (
-      t.status === 'SCHEDULED' &&
-      this.config.get<string>('TRIP_OPERATION_MODE') !== 'TEST'
-    ) {
+    if (t.status === 'SCHEDULED' && !this.isTestMode) {
       const timing = await effectiveTripTiming(tx, t.id);
       const start = timing?.scheduledStartAt ?? t.scheduledStartAt,
         end = timing?.scheduledEndAt ?? t.scheduledEndAt;
@@ -132,7 +136,12 @@ export class AttendanceContextService {
     const trips = await tx.trip.findMany({
       where: {
         assignedVehicleId: vehicleId,
-        serviceDate: new Date(vietnamToday()),
+        ...(this.isTestMode
+          ? {
+              attendantReadyAt: { not: null },
+              OR: [{ status: 'IN_PROGRESS' }, { direction: 'TO_PARKING' }],
+            }
+          : { serviceDate: new Date(vietnamToday()) }),
         status: { in: ['SCHEDULED', 'IN_PROGRESS'] },
       },
       take: 21,

@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDateString, IsDefined, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { IsBoolean, IsDateString, IsDefined, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 
 export const LOCATION_SOURCES = ['LIVE', 'TEST_AUTO', 'TEST_JOYSTICK'] as const;
 export type LocationSource = typeof LOCATION_SOURCES[number];
@@ -32,6 +32,8 @@ export class PublishPositionDto extends NavigationSampleDto {
 
 export class NavigationSegmentDto {
   @ApiProperty({ enum: ['CURRENT', 'ADVANCE'] }) @IsIn(['CURRENT', 'ADVANCE']) action!: 'CURRENT' | 'ADVANCE';
+  @ApiPropertyOptional({ description: 'ADVANCE trong TEST_AUTO giữ nguyên hình học của tuyến đã tải.' })
+  @IsOptional() @IsBoolean() keepGeometry?: boolean;
   @ApiProperty() @IsString() @MaxLength(80) runId!: string;
   @ApiProperty() @IsString() @MaxLength(80) routeVersion!: string;
   @ApiProperty() @IsString() @MaxLength(80) expectedTargetStopId!: string;
@@ -53,7 +55,7 @@ export class LocationPointDto {
   @ApiProperty() latitude!: number;
   @ApiProperty() longitude!: number;
   @ApiProperty({ format: 'date-time', description: 'Server acceptance timestamp, not reconstructed device history.' }) recordedAt!: Date;
-  @ApiProperty({ description: 'Opaque continuity token; break the rendered line when it changes.' }) runId!: string;
+  @ApiProperty({ description: 'Mã phiên điều hướng. Kiểm tra tính liên tục của thời gian, tọa độ và sequence khi dựng đường.' }) runId!: string;
 }
 export class NavigationCheckpointDto {
   @ApiProperty() runId!: string;
@@ -71,6 +73,7 @@ export class NavigationStateDto {
   @ApiProperty() canPublish!: boolean;
   @ApiProperty() testMode!: boolean;
   @ApiProperty({ type: NavigationCheckpointDto, nullable: true, description: 'Only current owner receives a resumable checkpoint; no Session ID exposed.' }) checkpoint!: NavigationCheckpointDto | null;
+  @ApiPropertyOptional({ type: String, nullable: true, description: 'Điểm đang hướng tới, chỉ trả cho giáo viên phụ xe được phân công.' }) attendanceTargetStopId?: string | null;
   @ApiProperty() nextSequence!: number;
   @ApiProperty({ type: String, nullable: true, description: 'Assigned Driver only: opaque CAS token for an explicit START; never a Session ID.' }) controlRunId!: string | null;
   @ApiProperty({ default: 5000 }) publishIntervalMs!: number;
@@ -92,7 +95,11 @@ export class NavigationRouteDto {
   @ApiProperty() segmentVersion!: string;
   @ApiProperty({ nullable: true, type: String }) targetStopId!: string | null;
   @ApiProperty() routeVersion!: string;
-  @ApiProperty({ description: 'Polyline5; empty only when finished=true.' }) geometry!: string;
+  @ApiProperty({ description: 'Polyline5 qua các điểm còn lại. Rỗng khi kết thúc hoặc chỉ cập nhật con trỏ.' }) geometry!: string;
+  @ApiPropertyOptional({ description: 'Điểm cuối của polyline cũng là điểm đang hướng tới.' })
+  targetAtRouteEnd?: boolean;
+  @ApiPropertyOptional({ description: 'Chỉ cập nhật điểm đang hướng tới, tiếp tục dùng hình học đã tải.' })
+  cursorOnly?: boolean;
   @ApiProperty({ type: [NavigationInstructionDto] }) instructions!: NavigationInstructionDto[];
   @ApiProperty() distanceMeters!: number;
   @ApiProperty() durationSeconds!: number;

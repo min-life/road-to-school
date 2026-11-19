@@ -8,11 +8,14 @@ export interface Checkpoint { runId: string; enabled: boolean; activeSource: Loc
 export interface NavigationState {
   status: string; routeVersion: string; latestPosition: LocationPoint | null; freshness: 'NONE' | 'FRESH' | 'STALE';
   serverNow: string; canPublish: boolean; testMode: boolean; checkpoint: Checkpoint | null;
+  attendanceTargetStopId?: string | null;
   controlRunId: string | null; nextSequence: number; publishIntervalMs: number;
 }
 export interface Instruction { interval: [number, number]; text: string; streetName: string; sign: number; distance: number }
 export interface NavigationSegment {
   segmentVersion: string; routeVersion: string; targetStopId: string | null; geometry: string;
+  targetAtRouteEnd?: boolean;
+  cursorOnly?: boolean;
   instructions: Instruction[]; distanceMeters: number; durationSeconds: number; finished: boolean;
 }
 export interface HistoryPage { points: LocationPoint[]; nextCursor: number; snapshotMaxSequence: number; hasMore: boolean }
@@ -22,9 +25,9 @@ export const navigationApi = {
   state: (id: string) => mobileApiClient.request<NavigationState>(`${path(id)}/navigation`),
   session: (id: string, action: 'START' | 'RESUME' | 'STOP' | 'SWITCH', expectedRunId: string | null, source?: LocationSource) =>
     mobileApiClient.request<NavigationState>(`${path(id)}/navigation/session`, { method: 'PUT', body: JSON.stringify({ action, expectedRunId, source }) }),
-  segment: (id: string, cp: Checkpoint, position: PositionSample, action: 'CURRENT' | 'ADVANCE') =>
+  segment: (id: string, cp: Checkpoint, position: PositionSample, action: 'CURRENT' | 'ADVANCE', keepGeometry?: boolean) =>
     mobileApiClient.request<NavigationSegment>(`${path(id)}/navigation/segment`, { method: 'POST', body: JSON.stringify({
-      action, runId: cp.runId, routeVersion: cp.routeVersion, expectedTargetStopId: cp.targetStopId, position,
+      action, runId: cp.runId, routeVersion: cp.routeVersion, expectedTargetStopId: cp.targetStopId, position, keepGeometry,
     }) }, 0, 13000),
   publish: (id: string, cp: Checkpoint, sequence: number, sample: PositionSample) =>
     mobileApiClient.request<{ nextSequence: number }>(`${path(id)}/navigation/position`, { method: 'PUT', body: JSON.stringify({ runId: cp.runId, sequence, ...sample }) }),

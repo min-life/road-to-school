@@ -1,11 +1,12 @@
 import { closeCancelledTripTasks } from '../trips/utils/close-cancelled-trip-tasks.js';
-import { assertLocationWithinServiceArea } from '../system-settings/parking-policy.js';
-import { administrativeLocationForCoordinates } from '../schools/location-province.js';
+import { assertLocationWithinServiceArea, effectiveParking } from '../system-settings/parking-policy.js';
+import { administrativeLocationForCoordinates, provinceForCoordinates } from '../schools/location-province.js';
 import { captureTripSnapshots } from '../trips/utils/capture-trip-snapshots.js';
 import { frozenTripWhere } from '../overview/operations-policy.js';
 import { vietnamToday } from '../schools/school-effective-state.js';
+import { metresBetween } from '../trips/utils/navigation-state.js';
 import { lockOperations } from '../trips/utils/operations-lock.js';
-import { assertSchoolWritable } from '../schools/school-policy.js';
+import { assertSchoolWritable, effectiveSchool } from '../schools/school-policy.js';
 import { notifyCancelledTrips } from '../notifications/notification-writer.js';
 import { notifyRequest } from '../notifications/notification-events.js';
 import { actionableRequestWhere } from '../overview/operations-policy.js';
@@ -49,6 +50,9 @@ import {
   StudentAddressRoutingPreviewResponseDto,
   ApproveAddressRequestDto,
   RouteFeasibilityItemDto,
+  ParentServiceAreaCheckDto,
+  ParentServiceAreaCheckResponseDto,
+  ServiceAreaStatus,
 } from './dto/index.js';
 
 /**
@@ -245,6 +249,113 @@ export class StudentRequestsService {
   // =========================================================================
 
   /**
+   * Kiểm tra phạm vi phục vụ của địa chỉ học sinh (Chỉ đọc, dành cho phụ huynh liên kết)
+   */
+  async checkParentServiceArea(
+    parentId: string,
+    studentId: string,
+    dto: ParentServiceAreaCheckDto,
+  ): Promise<ParentServiceAreaCheckResponseDto> {
+    const link = await this.prisma.parentStudentLink.findUnique({
+      where: {
+        parentId_studentId: { parentId, studentId },
+      },
+      include: {
+        student: true,
+      },
+    });
+
+    if (!link) {
+      throw new ForbiddenException(
+        'Bạn không có quyền kiểm tra phạm vi phục vụ cho học sinh này',
+      );
+    }
+
+    const student = link.student;
+    if (student.status === StudentStatus.DISABLED) {
+      throw new BadRequestException(
+        'Học sinh đang bị vô hiệu hóa (DISABLED). Không thể kiểm tra phạm vi phục vụ.',
+      );
+    }
+
+    const today = vietnamToday();
+    const school = await effectiveSchool(this.prisma, student.schoolId, today);
+    if (!school) {
+      throw new NotFoundException('Không tìm thấy thông tin trường học của học sinh');
+    }
+
+    const setting = await this.prisma.systemSetting.findUnique({
+      where: { key: 'PARKING_LOT' },
+    });
+    const parking = effectiveParking(setting?.value, today);
+    if (!parking) {
+      return {
+        status: ServiceAreaStatus.UNAVAILABLE,
+        message: 'Chưa thể kiểm tra phạm vi phục vụ do bãi xe chưa được cấu hình',
+      };
+    }
+
+    const maxRadiusKm = parking.maxOperatingRadiusKm;
+    const maxRadiusMeters = maxRadiusKm * 1000;
+    const distanceMeters = Math.round(
+      metresBetween(
+        { latitude: parking.latitude, longitude: parking.longitude },
+        { latitude: dto.latitude, longitude: dto.longitude },
+      ),
+    );
+    const distanceKm = Math.round(distanceMeters / 100) / 10;
+
+    const boundary = {
+      center: { latitude: parking.latitude, longitude: parking.longitude },
+      radiusMeters: maxRadiusMeters,
+      radiusKm: maxRadiusKm,
+    };
+
+    // Haversine radius check: chấp nhận điểm đúng rìa bán kính (distanceMeters <= maxRadiusMeters)
+    if (distanceMeters > maxRadiusMeters) {
+      return {
+        status: ServiceAreaStatus.OUT_OF_SERVICE_AREA,
+        distanceMeters,
+        distanceKm,
+        maxOperatingRadiusKm: maxRadiusKm,
+        boundary,
+        message: `Vị trí vượt quá bán kính phục vụ của nhà xe (${distanceKm}km / tối đa ${maxRadiusKm}km)`,
+      };
+    }
+
+    // Province check: so sánh tỉnh/thành nếu trường có thông tin tỉnh
+    const schoolProvince = school.province?.trim();
+    if (schoolProvince) {
+      const studentProvince = (
+        await provinceForCoordinates(dto.latitude, dto.longitude)
+      )?.trim();
+
+      if (
+        studentProvince &&
+        schoolProvince.toLowerCase() !== studentProvince.toLowerCase()
+      ) {
+        return {
+          status: ServiceAreaStatus.OUT_OF_SERVICE_AREA,
+          distanceMeters,
+          distanceKm,
+          maxOperatingRadiusKm: maxRadiusKm,
+          boundary,
+          message: `Điểm đón thuộc ${studentProvince}, khác tỉnh/thành với trường (${schoolProvince})`,
+        };
+      }
+    }
+
+    return {
+      status: ServiceAreaStatus.IN_SERVICE_AREA,
+      distanceMeters,
+      distanceKm,
+      maxOperatingRadiusKm: maxRadiusKm,
+      boundary,
+      message: 'Trong bán kính phục vụ',
+    };
+  }
+
+  /**
    * API A: Phụ huynh yêu cầu mã OTP để cập nhật thông tin/địa chỉ học sinh
    */
   async requestOtp(
@@ -273,6 +384,13 @@ export class StudentRequestsService {
 
     // 1. Kiểm tra tính hợp lệ và thay đổi thực sự của dữ liệu đề xuất
     this.validateProposedData(dto.type, dto.proposedData, student);
+
+    // Kiểm tra phạm vi phục vụ trước khi gửi OTP cho ADDRESS_UPDATE
+    if (dto.type === RequestType.ADDRESS_UPDATE) {
+      const lat = Number(dto.proposedData.latitude);
+      const lng = Number(dto.proposedData.longitude);
+      await assertLocationWithinServiceArea(this.prisma, student.schoolId, { latitude: lat, longitude: lng });
+    }
 
     // 2. Kiểm tra quy tắc duy nhất một yêu cầu PENDING cho mỗi loại yêu cầu (Section 1.4)
     const existingPending = await this.prisma.studentUpdateRequest.findFirst({
@@ -371,6 +489,11 @@ export class StudentRequestsService {
           throw new ConflictException('Liên kết hoặc trạng thái học sinh đã thay đổi');
         }
         this.validateProposedData(dto.type, dto.proposedData, currentLink.student);
+        if (dto.type === RequestType.ADDRESS_UPDATE) {
+          const lat = Number(dto.proposedData.latitude);
+          const lng = Number(dto.proposedData.longitude);
+          await assertLocationWithinServiceArea(tx, currentLink.student.schoolId, { latitude: lat, longitude: lng });
+        }
         beforeData = dto.type === RequestType.INFORMATION_UPDATE
           ? { fullName: currentLink.student.fullName, guardianPhone: currentLink.student.guardianPhone }
           : { addressText: currentLink.student.addressText, latitude: Number(currentLink.student.latitude), longitude: Number(currentLink.student.longitude) };
@@ -989,6 +1112,10 @@ export class StudentRequestsService {
         const newAddressText = String(proposed.addressText).trim();
         const newLatitude = Number(proposed.latitude);
         const newLongitude = Number(proposed.longitude);
+        if (proposed.latitude == null || proposed.longitude == null || !Number.isFinite(newLatitude) || !Number.isFinite(newLongitude)
+          || Math.abs(newLatitude) > 90 || Math.abs(newLongitude) > 180) {
+          throw new BadRequestException('Tọa độ địa chỉ đề xuất mới không hợp lệ');
+        }
 
         // Kiểm tra xem học sinh có thuộc tuyến DRAFT hoặc ACTIVE nào không
         const routeStops = await tx.routeStop.findMany({
@@ -1011,6 +1138,7 @@ export class StudentRequestsService {
           );
         }
 
+        await assertLocationWithinServiceArea(tx, request.schoolId, { latitude: newLatitude, longitude: newLongitude, province });
         const sourceFingerprintBefore = await this.addressSourceFingerprint(tx, requestId);
 
         await captureTripSnapshots(tx, routeStops.map(s => s.routeId));
@@ -1109,7 +1237,6 @@ export class StudentRequestsService {
               );
             }
 
-            await assertLocationWithinServiceArea(tx, request.schoolId, { latitude: newLatitude, longitude: newLongitude, province });
             const currentFingerprint = sourceFingerprintBefore;
             if (Date.now() - previewSession.createdAt >= 10 * 60 * 1000 ||
                 previewSession.requestId !== requestId || previewSession.studentId !== request.studentId ||

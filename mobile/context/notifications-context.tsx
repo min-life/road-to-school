@@ -8,7 +8,7 @@ import { useRootNavigationState, useRouter, useSegments, type Href } from 'expo-
 import { useAuth } from './auth-context';
 import { notificationApi, type NotificationSummary } from '../services/notifications';
 import { createRefreshLoop } from '../utils/refresh-loop';
-import { subscribeNotificationRefresh } from '../utils/notification-refresh';
+import { invalidateNotifications, subscribeNotificationRefresh } from '../utils/notification-refresh';
 
 type PushModule = typeof import('expo-notifications');
 
@@ -154,7 +154,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           if (typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id)) setPendingId(id);
         };
         if (typeof module.addNotificationReceivedListener === 'function') {
-          subscriptions.push(module.addNotificationReceivedListener(refresh));
+          subscriptions.push(module.addNotificationReceivedListener(invalidateNotifications));
         }
         if (typeof module.addNotificationResponseReceivedListener === 'function') {
           subscriptions.push(module.addNotificationResponseReceivedListener(receive));

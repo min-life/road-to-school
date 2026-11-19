@@ -3,7 +3,7 @@ vi.mock('../notifications/notification-writer.js', () => ({ notifyTrip: vi.fn().
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { TripsService } from './trips.service.js';
 import { AttendanceStatus, Role, RouteDirection, RoutePlanStatus, TripStatus, TripIncidentType, TripIncidentStatus } from '@prisma/client';
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { formatDateToVnYmd } from './utils/trip-time.util.js';
 
 describe('TripsService Business Rules', () => {
@@ -46,6 +46,30 @@ describe('TripsService Business Rules', () => {
     role: Role.BUS_ATTENDANT,
     schoolId: null,
   };
+
+  it('records QR boarding immediately, ignores repeat scans and preserves recorded absences', async () => {
+    const tripId = 'trip';
+    const attendee = { id: 'row', studentId: 'student', status: AttendanceStatus.UNMARKED as AttendanceStatus };
+    prismaMock.trip.findUnique.mockResolvedValue({
+      id: tripId, schoolId: 'school-1', assignedBusAttendantId: mockAttendantUser.id,
+      direction: RouteDirection.TO_SCHOOL, status: TripStatus.IN_PROGRESS,
+      route: { stops: [] }, attendances: [attendee],
+    });
+    prismaMock.student = { findUnique: vi.fn().mockResolvedValue({
+      id: attendee.studentId, code: 'TEST', schoolId: 'school-1',
+      school: { isActive: true }, status: 'AVAILABLE',
+    }) };
+    prismaMock.tripAttendance.findUnique.mockResolvedValue(attendee);
+    prismaMock.tripAttendance.update.mockResolvedValue({ ...attendee, status: AttendanceStatus.PRESENT });
+    const scan = () => service.scanQrAttendance(tripId, { qrData: 'TEST' }, mockAttendantUser as never);
+
+    await expect(scan()).resolves.toMatchObject({ currentStatus: AttendanceStatus.PRESENT, alreadyRecorded: false });
+    attendee.status = AttendanceStatus.PRESENT;
+    await expect(scan()).resolves.toMatchObject({ currentStatus: AttendanceStatus.PRESENT, alreadyRecorded: true });
+    attendee.status = AttendanceStatus.ABSENT;
+    await expect(scan()).rejects.toBeInstanceOf(ConflictException);
+    expect(prismaMock.tripAttendance.update).toHaveBeenCalledTimes(1);
+  });
 
   beforeEach(() => {
     prismaMock = {
@@ -119,6 +143,251 @@ describe('TripsService Business Rules', () => {
   });
 
   afterEach(() => vi.useRealTimers());
+
+  describe('System Admin cancellation before operation', () => {
+    const trip = {
+      id: 'trip-1',
+      status: TripStatus.SCHEDULED,
+      direction: RouteDirection.TO_SCHOOL,
+      actualStartTime: null,
+      actualEndTime: null,
+      attendantReadyAt: null,
+      attendances: [],
+    };
+    const dto = { reason: 'Điều chỉnh lịch phục vụ' };
+
+    it.each([
+      {},
+      { attendantReadyAt: new Date(), attendances: [{ status: AttendanceStatus.ABSENT, markedAt: new Date() }] },
+    ])('cancels an unoperated trip and closes pending tasks', async (overrides) => {
+      prismaMock.trip.findUnique.mockResolvedValue({ ...trip, ...overrides });
+      prismaMock.trip.findMany.mockResolvedValue([{ id: trip.id }]);
+      prismaMock.leaveNotice = { updateMany: vi.fn() };
+      prismaMock.tripIncident = { updateMany: vi.fn() };
+
+      await expect(service.cancelTrip(trip.id, dto, mockAdminUser as any)).resolves.toEqual({ message: 'Đã hủy chuyến' });
+      expect(prismaMock.trip.update).toHaveBeenCalledWith({
+        where: { id: trip.id },
+        data: expect.objectContaining({
+          status: TripStatus.CANCELLED,
+          cancelledById: mockAdminUser.id,
+          cancellationReason: dto.reason,
+          operationAudit: [expect.objectContaining({ action: 'CANCELLED_BY_ADMIN' })],
+        }),
+      });
+      expect(prismaMock.leaveNotice.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ status: 'TRIP_CANCELLED' }),
+      }));
+      expect(prismaMock.tripIncident.updateMany).toHaveBeenCalled();
+    });
+
+    it.each([
+      { status: TripStatus.IN_PROGRESS }, { status: TripStatus.CANCELLED }, { status: TripStatus.COMPLETED },
+      { actualStartTime: new Date() }, { actualEndTime: new Date() },
+      { attendances: [{ status: AttendanceStatus.PRESENT }] }, { attendances: [{ alightedAt: new Date() }] },
+    ])('blocks cancellation after operation or a terminal status', async (overrides) => {
+      prismaMock.trip.findUnique.mockResolvedValue({ ...trip, ...overrides });
+      await expect(service.cancelTrip(trip.id, dto, mockAdminUser as any)).rejects.toThrow(ConflictException);
+      expect(prismaMock.trip.update).not.toHaveBeenCalled();
+    });
+
+    it('denies School Admin access to the general cancellation action', async () => {
+      await expect(service.cancelTrip(trip.id, dto, mockSchoolAdminUser as any)).rejects.toThrow(ForbiddenException);
+      expect(prismaMock.trip.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Staff leave when reopening trips', () => {
+    const id = 'cancelled-trip';
+    const driverNotice = { id: 'driver-notice', kind: 'DRIVER', reportedById: 'd1', status: 'TRIP_CANCELLED' };
+    const attendantNotice = { id: 'attendant-notice', kind: 'BUS_ATTENDANT', reportedById: 'ba1', status: 'REPLACED' };
+    const trip = {
+      id, schoolId: 'school-1', status: TripStatus.CANCELLED, attendances: [],
+      assignedVehicleId: 'vehicle-1', assignedDriverId: 'd1', assignedBusAttendantId: 'ba1',
+      serviceDate: new Date('2026-11-20'), scheduledStartAt: new Date('2026-11-20T01:00:00Z'),
+      route: { direction: RouteDirection.TO_SCHOOL, estimatedDurationSeconds: 900,
+        routePlan: { activatedAt: new Date('2026-11-18') }, school: {} },
+    };
+    const dto = { reason: 'Hủy nhầm' };
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-11-19T00:00:00Z'));
+      prismaMock.trip.findUnique.mockResolvedValue(trip);
+      prismaMock.leaveNotice = { findMany: vi.fn().mockResolvedValueOnce([driverNotice, attendantNotice]).mockResolvedValue([]), updateMany: vi.fn() };
+    });
+
+    function mockReopenSchedule() {
+      vi.spyOn(service as any, 'planServiceDay').mockResolvedValue({ start: '08:00', end: '17:00' });
+      vi.spyOn(service as any, 'prepareTrip').mockResolvedValue({ studentIds: [], snapshot: {} });
+      prismaMock.trip.findMany.mockResolvedValue([]);
+      prismaMock.school.findUnique.mockResolvedValue({ id: trip.schoolId });
+      prismaMock.tripAttendance.updateMany = vi.fn();
+      prismaMock.tripAttendance.findMany.mockResolvedValue([]);
+    }
+
+    it('shows only necessary notice fields, omits withdrawn notices and restricts access', async () => {
+      await expect(service.getReopenStaffLeaveNotices(id, mockSchoolAdminUser as any)).rejects.toThrow(ForbiddenException);
+      prismaMock.leaveNotice.findMany.mockReset().mockResolvedValue([
+        driverNotice, { ...attendantNotice, status: 'WITHDRAWN' },
+      ]);
+      await expect(service.getReopenStaffLeaveNotices(id, mockAdminUser as any)).resolves.toEqual({
+        items: [{ id: driverNotice.id, kind: 'DRIVER', staffId: 'd1' }],
+      });
+    });
+
+    it('rejects partial or outdated confirmation before updating the trip', async () => {
+      await expect(service.reopenTrip(id, { ...dto, confirmedStaffLeaveNoticeIds: [driverNotice.id, 'older-notice'] }, mockAdminUser as any))
+        .rejects.toMatchObject({ response: { code: 'REOPEN_STAFF_LEAVE' } });
+      expect(prismaMock.trip.update).not.toHaveBeenCalled();
+    });
+
+    it('records confirmation for retained staff and accepts a replacement without confirming the old notice', async () => {
+      mockReopenSchedule();
+      prismaMock.user.findUnique.mockResolvedValueOnce({ id: 'd2', role: Role.DRIVER, isActive: true });
+      await expect(service.reopenTrip(id, { ...dto, driverId: 'd2', confirmedStaffLeaveNoticeIds: [attendantNotice.id] }, mockAdminUser as any))
+        .resolves.toMatchObject({ tripId: id });
+      expect(prismaMock.trip.update.mock.calls[0][0].data).toMatchObject({
+        status: TripStatus.SCHEDULED, assignedDriverId: 'd2', assignedBusAttendantId: 'ba1',
+        operationAudit: [{ actorId: mockAdminUser.id, staffLeaveConfirmations: [{ noticeId: attendantNotice.id, kind: 'BUS_ATTENDANT', staffId: 'ba1' }] }],
+      });
+    });
+
+    it('still checks resource availability after staff confirmation', async () => {
+      mockReopenSchedule();
+      prismaMock.vehicle.findUnique.mockResolvedValue(null);
+      await expect(service.reopenTrip(id, { ...dto, confirmedStaffLeaveNoticeIds: [driverNotice.id, attendantNotice.id] }, mockAdminUser as any))
+        .rejects.toMatchObject({ response: { code: 'REOPEN_VEHICLE' } });
+      expect(prismaMock.trip.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Mobile home trips', () => {
+    const today = new Date('2026-11-20T00:00:00Z');
+    const tomorrow = new Date('2026-11-21T00:00:00Z');
+
+    function homeTrip(id: string, status: TripStatus, serviceDate = today, hour = '01') {
+      const dateKey = serviceDate.toISOString().slice(0, 10);
+      return {
+        id, status, serviceDate,
+        scheduledStartAt: new Date(`${dateKey}T${hour}:00:00Z`),
+        scheduledEndAt: new Date(`${dateKey}T${hour}:30:00Z`),
+        direction: RouteDirection.TO_SCHOOL,
+        school: { name: 'School' },
+        route: { id: 'route', name: 'Route', polylineGeometry: '' },
+        assignedVehicle: { licensePlate: '51B-00000', brand: 'Bus', seatCount: 14 },
+        assignedDriver: { id: mockDriverUser.id, fullName: 'Driver' },
+        assignedBusAttendant: { id: mockAttendantUser.id, fullName: 'Attendant' },
+        _count: { attendances: 1 },
+        attendances: [{ status: AttendanceStatus.UNMARKED }],
+        leaveNotices: [],
+      };
+    }
+
+    it.each([
+      [mockDriverUser, 'assignedDriverId'],
+      [mockAttendantUser, 'assignedBusAttendantId'],
+    ])('keeps the priority trip and queries same-day history in the staff assignment scope', async (user, assignmentField) => {
+      vi.setSystemTime(new Date('2026-11-20T03:00:00Z'));
+      vi.spyOn(service, 'getOperationalState').mockResolvedValue({ assignmentStatus: 'ASSIGNED' } as any);
+      prismaMock.leaveNotice = { findFirst: vi.fn().mockResolvedValue(null) };
+      prismaMock.trip.findMany
+        .mockResolvedValueOnce([homeTrip('future', TripStatus.SCHEDULED, tomorrow), homeTrip('running', TripStatus.IN_PROGRESS)])
+        .mockResolvedValueOnce([
+          homeTrip('cancelled', TripStatus.CANCELLED),
+          homeTrip('completed-later', TripStatus.COMPLETED, today, '02'),
+          homeTrip('completed-earlier', TripStatus.COMPLETED),
+        ]);
+
+      const response = await service.getHomeTrip(user as any);
+
+      expect(response.hasTrip).toBe(true);
+      expect(response.trip?.id).toBe('running');
+      expect(response.items.map(item => item.id)).toEqual(['running', 'completed-earlier', 'completed-later', 'cancelled']);
+      expect(prismaMock.trip.findMany).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        where: {
+          [assignmentField]: user.id,
+          id: { not: 'running' },
+          serviceDate: today,
+          status: { in: [TripStatus.COMPLETED, TripStatus.CANCELLED] },
+        },
+      }));
+      expect(response.items[1]).toMatchObject({ canReportLeave: false });
+      expect(service.getOperationalState).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows staff history on the current Vietnam service date if no live trip remains', async () => {
+      vi.setSystemTime(new Date('2026-11-19T18:00:00Z'));
+      prismaMock.trip.findMany.mockResolvedValueOnce([])
+        .mockResolvedValueOnce([homeTrip('cancelled', TripStatus.CANCELLED)]);
+
+      const response = await service.getHomeTrip(mockDriverUser as any);
+
+      expect(response).toMatchObject({ hasTrip: false, trip: null, items: [{ id: 'cancelled' }] });
+      expect(prismaMock.trip.findMany).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        where: expect.objectContaining({ serviceDate: today, assignedDriverId: mockDriverUser.id }),
+      }));
+    });
+
+    it('shows no-guardian status only on the matching child’s card on a shared trip', async () => {
+      vi.setSystemTime(new Date('2026-11-19T03:00:00Z'));
+      prismaMock.parentStudentLink.findMany.mockResolvedValue([
+        { student: { id: 'first', fullName: 'First' } },
+        { student: { id: 'second', fullName: 'Second' } },
+      ]);
+      const trip = { ...homeTrip('shared', TripStatus.IN_PROGRESS), direction: RouteDirection.TO_PARKING,
+        attendances: [{ status: AttendanceStatus.PRESENT, alightedAt: null }] };
+      prismaMock.trip.findMany
+        .mockResolvedValueOnce([{ ...trip, incidents: [{ id: 'report' }] }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ ...trip, incidents: [] }])
+        .mockResolvedValueOnce([]);
+
+      const { items } = await service.getParentHomeCards(mockParentUser as any);
+
+      expect(items.map(card => [card.studentId, card.noGuardianAtStop])).toEqual([['first', true], ['second', false]]);
+      for (const [call, studentId] of [[1, 'first'], [3, 'second']] as const) {
+        expect(prismaMock.trip.findMany).toHaveBeenNthCalledWith(call, expect.objectContaining({
+          include: expect.objectContaining({
+            incidents: expect.objectContaining({
+              where: expect.objectContaining({ context: { path: ['studentId'], equals: studentId } }),
+            }),
+          }),
+        }));
+      }
+    });
+
+    it('selects history per linked student and ranks cards across children', async () => {
+      vi.setSystemTime(new Date('2026-11-20T03:00:00Z'));
+      prismaMock.parentStudentLink.findMany.mockResolvedValue([
+        { student: { id: 'child-one', fullName: 'Child one' } },
+        { student: { id: 'child-two', fullName: 'Child two' } },
+      ]);
+      prismaMock.trip.findMany
+        .mockResolvedValueOnce([homeTrip('expired', TripStatus.SCHEDULED)])
+        .mockResolvedValueOnce([homeTrip('cancelled', TripStatus.CANCELLED)])
+        .mockResolvedValueOnce([
+          { ...homeTrip('marked', TripStatus.IN_PROGRESS), attendances: [{ status: AttendanceStatus.PRESENT }] },
+          homeTrip('unmarked', TripStatus.IN_PROGRESS, tomorrow),
+        ])
+        .mockResolvedValueOnce([homeTrip('completed', TripStatus.COMPLETED, tomorrow)]);
+
+      const response = await service.getParentHomeCards(mockParentUser as any);
+
+      expect(response.items.map(item => [item.studentId, item.tripId])).toEqual([
+        ['child-two', 'unmarked'], ['child-two', 'completed'], ['child-one', 'cancelled'],
+      ]);
+      expect(prismaMock.parentStudentLink.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: { parentId: mockParentUser.id },
+      }));
+      expect(prismaMock.trip.findMany).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        where: expect.objectContaining({ serviceDate: today, attendances: { some: { studentId: 'child-one', excludedAt: null } } }),
+      }));
+      expect(prismaMock.trip.findMany).toHaveBeenNthCalledWith(4, expect.objectContaining({
+        where: expect.objectContaining({ serviceDate: tomorrow, attendances: { some: { studentId: 'child-two', excludedAt: null } } }),
+      }));
+    });
+  });
 
   describe('Trip generation time eligibility (Rule 7.2)', () => {
     it.each(['2026-10-25T23:30:00Z', '2026-10-26T03:00:00Z'])('should skip a same-day trip at or after departure (%s)', async (now) => {
@@ -407,7 +676,7 @@ describe('TripsService Business Rules', () => {
   });
 
   describe('Parent Student Privacy Masking (Rule 12.4)', () => {
-    it('should MASK other students information in mobile trip detail', async () => {
+    it('shares the stored route geometry while hiding other students’ stops and information', async () => {
       prismaMock.trip.findUnique.mockResolvedValue({
         id: 'trip-1',
         schoolId: 'school-1',
@@ -425,6 +694,7 @@ describe('TripsService Business Rules', () => {
         route: {
           id: 'route-1',
           name: 'Tuyến 1',
+          polylineGeometry: 'stored-trip-polyline',
           routePlanId: 'plan-1',
           routePlan: { id: 'plan-1', name: 'Phương án 1' },
           direction: RouteDirection.TO_SCHOOL,
@@ -462,6 +732,7 @@ describe('TripsService Business Rules', () => {
       ]);
 
       const result = await service.getMobileTripDetail('trip-1', mockParentUser as any);
+      expect(result.polylineGeometry).toBe('stored-trip-polyline');
 
       const stops = result.stops;
       expect(stops).toHaveLength(1);

@@ -30,6 +30,9 @@ export class OverviewTripDto {
   @ApiProperty() status!: string;
   @ApiProperty({ nullable: true, type: String }) scheduledStartTime!: string | null;
   @ApiProperty({ nullable: true, type: String }) scheduledEndTime!: string | null;
+
+  @ApiProperty({ example: '06:48 – …', description: 'Khung giờ hiển thị theo giờ Việt Nam. Dùng giờ thực tế cho chuyến đang chạy hoặc đã hoàn thành.' })
+  displayTime!: string;
   @ApiProperty() driverName!: string;
   @ApiProperty() attendantName!: string;
   @ApiProperty() vehiclePlate!: string;

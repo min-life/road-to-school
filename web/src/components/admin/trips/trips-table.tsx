@@ -447,7 +447,7 @@ export function TripsTable({
                       </td>
 
                       <td className="py-3 px-4 text-center font-mono font-semibold text-slate-800 whitespace-nowrap">
-                        {trip.scheduledStartTime} – {trip.scheduledEndTime}
+                        {trip.displayTime}
                       </td>
 
                       <td className="py-3 px-4 font-medium text-slate-800">

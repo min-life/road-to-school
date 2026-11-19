@@ -23,6 +23,10 @@ interface VietMapPickerProps {
   disabled?: boolean;
   height?: number;
   markerKind?: 'student';
+  serviceAreaBoundary?: {
+    center: { latitude: number; longitude: number };
+    radiusMeters: number;
+  } | null;
 }
 
 // Tọa độ mặc định viewport (TP. Hồ Chí Minh) nếu chưa có tọa độ
@@ -36,6 +40,7 @@ export function VietMapPicker({
   disabled = false,
   height = 280,
   markerKind,
+  serviceAreaBoundary,
 }: VietMapPickerProps) {
   const webViewRef = useRef<WebView | null>(null);
 
@@ -60,6 +65,15 @@ export function VietMapPicker({
       webViewRef.current.injectJavaScript(script);
     }
   }, [latitude, longitude, isMapReady]);
+
+  // Cập nhật ranh giới phục vụ trên bản đồ
+  useEffect(() => {
+    if (isMapReady && webViewRef.current) {
+      const boundaryJson = JSON.stringify(serviceAreaBoundary || null);
+      const script = `if (window.updateServiceBoundary) { window.updateServiceBoundary(${boundaryJson}); } true;`;
+      webViewRef.current.injectJavaScript(script);
+    }
+  }, [serviceAreaBoundary, isMapReady]);
 
   // Đổi Map Style trực tiếp trong Map instance hiện có
   const handleChangeStyle = (styleKey: VietMapStyleKey) => {
@@ -178,6 +192,7 @@ export function VietMapPicker({
       var initialLat = ${initialLat};
       var hasMarker = ${hasCoords ? 'true' : 'false'};
       var disabled = ${disabled ? 'true' : 'false'};
+      var initialBoundary = ${JSON.stringify(serviceAreaBoundary || null)};
 
       function sendToApp(payload) {
         if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
@@ -289,9 +304,74 @@ export function VietMapPicker({
           marker.setLngLat([initialLng, initialLat]).addTo(map);
         }
 
+        function createGeoJSONCircle(center, radiusInMeters, points) {
+          if (!points) points = 64;
+          var km = radiusInMeters / 1000;
+          var ret = [];
+          var distanceX = km / (111.32 * Math.cos(center.latitude * Math.PI / 180));
+          var distanceY = km / 110.574;
+          for (var i = 0; i < points; i++) {
+            var theta = (i / points) * (2 * Math.PI);
+            var x = distanceX * Math.cos(theta);
+            var y = distanceY * Math.sin(theta);
+            ret.push([center.longitude + x, center.latitude + y]);
+          }
+          ret.push(ret[0]);
+          return {
+            type: 'Feature',
+            geometry: {
+              type: 'Polygon',
+              coordinates: [ret]
+            }
+          };
+        }
+
+        function updateServiceBoundary(boundary) {
+          if (!map) return;
+          var source = map.getSource('service-area-boundary');
+          if (!boundary || !boundary.center || !boundary.radiusMeters) {
+            if (source) {
+              source.setData({ type: 'FeatureCollection', features: [] });
+            }
+            return;
+          }
+          var circleFeature = createGeoJSONCircle(boundary.center, boundary.radiusMeters);
+          var data = { type: 'FeatureCollection', features: [circleFeature] };
+          if (source) {
+            source.setData(data);
+          } else {
+            try {
+              map.addSource('service-area-boundary', {
+                type: 'geojson',
+                data: data
+              });
+              map.addLayer({
+                id: 'service-area-fill',
+                type: 'fill',
+                source: 'service-area-boundary',
+                paint: {
+                  'fill-color': '#FFCB56',
+                  'fill-opacity': 0.12
+                }
+              });
+              map.addLayer({
+                id: 'service-area-line',
+                type: 'line',
+                source: 'service-area-boundary',
+                paint: {
+                  'line-color': '#D97706',
+                  'line-width': 1.5,
+                  'line-dasharray': [2, 2]
+                }
+              });
+            } catch (e) {}
+          }
+        }
+
         map.on('load', function() {
           map.resize();
           setTimeout(function() { map.resize(); }, 120);
+          updateServiceBoundary(initialBoundary);
           sendToApp({ type: 'MAP_READY' });
         });
 
@@ -343,6 +423,8 @@ export function VietMapPicker({
           if (!map) return;
           map.setStyle(buildStyleUrl(newStyleUrl), { diff: true });
         };
+
+        window.updateServiceBoundary = updateServiceBoundary;
 
       } catch (err) {
         sendToApp({ type: 'MAP_ERROR', message: err.message || 'Không thể khởi tạo bản đồ' });

@@ -20,7 +20,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { TripsService } from './trips.service.js';
-import { AttendanceCorrectionDto, AttendanceCorrectionResponseDto, ReopenTripDto, ReopenTripResponseDto, TripActionMessageDto, TripReasonDto } from './dto/trip-actions.dto.js';
+import { AttendanceCorrectionDto, AttendanceCorrectionResponseDto, ReopenStaffLeaveNoticesDto, ReopenTripDto, ReopenTripResponseDto, TripActionMessageDto, TripReasonDto } from './dto/trip-actions.dto.js';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { RolesGuard } from '../auth/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
@@ -50,6 +50,7 @@ import {
   ArriveAtSchoolResponseDto,
   VerifyQrDto,
   VerifyQrResponseDto,
+  ScanQrResponseDto,
 } from './dto/trip-operation.dto.js';
 
 @ApiResponse({ status: 400, description: 'Dữ liệu hoặc điều kiện vận hành không hợp lệ' })
@@ -80,6 +81,23 @@ export class TripsController {
     return this.tripsService.correctAttendance(id, studentId, dto, user);
   }
 
+  @Post(':id/cancel')
+  @Roles(Role.SYSTEM_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Hủy chuyến chưa vận hành (System Admin)',
+    description: 'Áp dụng cho chuyến chờ khởi hành chưa có giờ chạy thực tế và chưa ghi nhận học sinh lên hoặc xuống xe. Lưu lý do và gửi thông báo hủy.',
+  })
+  @ApiParam({ name: 'id' })
+  @ApiResponse({ status: 200, type: TripActionMessageDto, description: 'Đã hủy chuyến' })
+  @ApiResponse({ status: 400, description: 'Lý do hủy không hợp lệ' })
+  @ApiResponse({ status: 403, description: 'Chỉ System Admin được thực hiện' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy chuyến' })
+  @ApiResponse({ status: 409, description: 'Chuyến không còn chờ khởi hành hoặc đã vận hành' })
+  cancelTrip(@Param('id') id: string, @Body() dto: TripReasonDto, @CurrentUser() user: User) {
+    return this.tripsService.cancelTrip(id, dto, user);
+  }
+
   @Post(':id/cancel-all-absent')
   @Roles(Role.BUS_ATTENDANT, Role.SCHOOL_ADMIN, Role.SYSTEM_ADMIN)
   @HttpCode(HttpStatus.OK)
@@ -91,13 +109,23 @@ export class TripsController {
     return this.tripsService.cancelAllAbsent(id, dto, user);
   }
 
+  @Get(':id/reopen/staff-leave-notices')
+  @Roles(Role.SYSTEM_ADMIN)
+  @ApiOperation({ summary: 'Xem báo nghỉ nhân sự cần kiểm tra khi mở lại chuyến' })
+  @ApiParam({ name: 'id' })
+  @ApiResponse({ status: 200, type: ReopenStaffLeaveNoticesDto })
+  @ApiResponse({ status: 409, description: 'Chuyến không ở trạng thái đã hủy' })
+  getReopenStaffLeaveNotices(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.tripsService.getReopenStaffLeaveNotices(id, user);
+  }
+
   @Post(':id/reopen')
   @Roles(Role.SYSTEM_ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Mở lại chuyến CANCELLED trước giờ chạy, kiểm lịch, nguồn lực và lưu operationAudit' })
   @ApiParam({ name: 'id' })
   @ApiResponse({ status: 200, type: ReopenTripResponseDto, description: 'Đã mở lại với lộ trình, giờ và danh sách học sinh hiện hành. Giữ báo nghỉ còn hiệu lực và lưu audit trước–sau.' })
-  @ApiResponse({ status: 409, description: 'Đã đến giờ xuất phát cũ hoặc mới, chuyến đã vận hành, phương án không phù hợp hoặc nguồn lực không khả dụng' })
+  @ApiResponse({ status: 409, description: 'Đã đến giờ xuất phát, chuyến đã vận hành, phương án hoặc nguồn lực không phù hợp, hoặc còn báo nghỉ chưa xử lý (REOPEN_STAFF_LEAVE)' })
   reopenTrip(@Param('id') id: string, @Body() dto: ReopenTripDto, @CurrentUser() user: User) {
     return this.tripsService.reopenTrip(id, dto, user);
   }
@@ -225,9 +253,9 @@ export class TripsController {
   @Get('mobile/home-trip')
   @Roles(Role.DRIVER, Role.BUS_ATTENDANT)
   @ApiOperation({
-    summary: 'Chuyến xe ưu tiên hiển thị trên Trang chủ (Tài xế & Giáo viên)',
+    summary: 'Chuyến xe trang chủ của tài xế và giáo viên phụ xe',
     description:
-      'Lấy một chuyến xe ưu tiên hiển thị trên Trang chủ. Chuyến xe đang chạy (IN_PROGRESS) luôn được giữ ưu tiên cao nhất bất kể thời gian dự kiến; các chuyến SCHEDULED chưa đóng băng được tự động tính giờ hiệu lực theo lịch trường và lọc bỏ khi đã quá giờ kết thúc.',
+      'items gồm tối đa một chuyến IN_PROGRESS hoặc SCHEDULED đủ điều kiện và các chuyến COMPLETED, CANCELLED cùng ngày phục vụ. Nếu không có chuyến chính, lấy các chuyến đã kết thúc của hôm nay theo giờ Việt Nam. trip và hasTrip tiếp tục biểu thị chuyến chính.',
   })
   @ApiResponse({
     status: 200,
@@ -245,7 +273,7 @@ export class TripsController {
   @ApiOperation({
     summary: 'Danh sách thẻ chuyến xe trang chủ dành cho Phụ huynh',
     description:
-      'Lấy một chuyến xe ưu tiên cho mỗi học sinh phụ huynh đang theo dõi. Chuyến IN_PROGRESS luôn ưu tiên hiển thị; chuyến SCHEDULED được tính theo giờ hiệu lực và lọc bỏ khi đã kết thúc.',
+      'Với mỗi học sinh đã liên kết, lấy tối đa một chuyến IN_PROGRESS hoặc SCHEDULED đủ điều kiện và các chuyến COMPLETED, CANCELLED cùng ngày phục vụ. Nếu không có chuyến chính của học sinh, lấy chuyến đã kết thúc của hôm nay theo giờ Việt Nam. Danh sách ưu tiên theo thứ tự IN_PROGRESS, SCHEDULED, COMPLETED, CANCELLED.',
   })
   @ApiResponse({
     status: 200,
@@ -263,7 +291,7 @@ export class TripsController {
   @ApiOperation({
     summary: 'Chi tiết chuyến xe trên Mobile (Có Privacy Masking)',
     description:
-      'Lấy chi tiết chuyến xe cho tài xế, giáo viên hoặc phụ huynh. Phụ huynh chỉ nhận điểm của con mình và trường; không trả điểm bãi, điểm học sinh khác hoặc polyline đầy đủ.',
+      'Dùng chung đường tuyến dự kiến đã lưu của chuyến. Phụ huynh chỉ nhận danh sách điểm dừng của con mình và trường.',
   })
   @ApiParam({ name: 'id', description: 'ID chuyến xe (Trip UUID)' })
   @ApiResponse({
@@ -496,6 +524,17 @@ export class TripsController {
     @CurrentUser() currentUser: User,
   ): Promise<VerifyQrResponseDto> {
     return this.tripsService.verifyQrAttendance(id, dto, currentUser);
+  }
+
+  @Post(':id/attendance/scan-qr')
+  @Roles(Role.BUS_ATTENDANT)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Quét QR và ghi điểm danh lên xe ngay' })
+  @ApiParam({ name: 'id', description: 'Chuyến được phân công cho phụ xe' })
+  @ApiResponse({ status: 200, type: ScanQrResponseDto })
+  @ApiResponse({ status: 409, description: 'Chuyến bị chặn hoặc học sinh đã ghi vắng hay ngừng hoạt động' })
+  scanQrAttendance(@Param('id') id: string, @Body() dto: VerifyQrDto, @CurrentUser() user: User) {
+    return this.tripsService.scanQrAttendance(id, dto, user);
   }
 
   @ApiResponse({ status: 422, description: 'INCOMPLETE_ATTENDANCE: roster còn UNMARKED' })

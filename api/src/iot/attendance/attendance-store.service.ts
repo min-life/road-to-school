@@ -93,6 +93,7 @@ export class AttendanceStore {
                 processingState: {
                   $in: [
                     'WAITING_CONFIRMATION',
+                    'APPLIED',
                     'REJECTED',
                     'ALREADY_RECORDED',
                   ] as const,
@@ -117,6 +118,12 @@ export class AttendanceStore {
       this.io(() => this.scans.countDocuments(filter).maxTimeMS(1500).exec()),
     ]);
     return { data, total };
+  }
+  pendingForPhase(tripId: string, phase: 'BOARDING' | 'ALIGHTING') {
+    return this.io(() => this.scans.findOne({
+      purpose: 'ATTENDANCE', tripId, phase,
+      processingState: { $in: ['COMMITTING', 'RECONCILING'] },
+    }).sort({ createdAt: 1, scanId: 1 }).maxTimeMS(1500).lean().exec());
   }
   response(s: IotRfidScan, current = false) {
     const expired =

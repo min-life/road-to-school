@@ -66,12 +66,14 @@ export class AttendanceEventDto {
 export class AttendanceReaderDto {
   @ApiProperty({ type: String, nullable: true }) deviceId: string | null;
   @ApiProperty({ enum: ['NO_DEVICE', 'PENDING', 'READY'] }) status: string;
+  @ApiProperty({ enum: ['NO_DEVICE', 'TRIP_NOT_ELIGIBLE', 'DEVICE_UNREACHABLE', 'AWAITING_ACK', 'READY'] }) reason: string;
   @ApiProperty({ type: String, nullable: true, format: 'date-time' })
   lastAckAt: string | null;
 }
 export class AttendanceListDto {
   @ApiProperty({ type: () => AttendanceReaderDto }) reader: AttendanceReaderDto;
   @ApiProperty({ type: [AttendanceEventDto] }) data: AttendanceEventDto[];
+  @ApiProperty({ type: () => AttendanceEventDto, nullable: true, description: 'Lượt đang đối soát trong pha hiện tại, độc lập với trang lịch sử.' }) pendingEvent: AttendanceEventDto | null;
   @ApiProperty() total: number;
   @ApiProperty() page: number;
   @ApiProperty() limit: number;

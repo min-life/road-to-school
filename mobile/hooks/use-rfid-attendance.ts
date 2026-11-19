@@ -34,8 +34,7 @@ export function useRfidAttendance(
   const [error, setError] = useState(''),
     [message, setMessage] = useState(''),
     [denied, setDenied] = useState(false);
-  const [busyId, setBusyId] = useState<string | null>(null),
-    [lastEvent, setLastEvent] = useState<RfidAttendanceEvent | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [held, setHeld] = useState<{
     event: RfidAttendanceEvent;
     unknown: boolean;
@@ -46,8 +45,8 @@ export function useRfidAttendance(
     locked = useRef(false),
     blocked = useRef(false);
   const retryAt = useRef(0),
-    failures = useRef(0),
-    receivedAt = useRef(0);
+    failures = useRef(0);
+  const latestApplied = useRef<string | null>(null);
   const updateRef = useRef(onUpdated);
   useLayoutEffect(() => {
     updateRef.current = onUpdated;
@@ -80,7 +79,6 @@ export function useRfidAttendance(
     setDenied(true);
     setData(null);
     setHeld(null);
-    setLastEvent(null);
   };
   const scope = JSON.stringify([identity, view, page]);
   const refresh = useActiveRefresh(
@@ -92,7 +90,11 @@ export function useRfidAttendance(
         const result = await rfidAttendanceApi.list(tripId, view, page);
         if (!isCurrent()) return;
         setData(result);
-        receivedAt.current = Date.now();
+        const applied = result.data.find(item => item.state === 'APPLIED' && item.current);
+        if (view === 'queue' && page === 1 && applied && applied.scanId !== latestApplied.current) {
+          latestApplied.current = applied.scanId;
+          updateRef.current();
+        }
         setError('');
         setLoading(false);
         failures.current = 0;
@@ -115,13 +117,9 @@ export function useRfidAttendance(
     },
     2000,
   );
-  async function action(
-    event: RfidAttendanceEvent,
-    kind: 'confirm' | 'dismiss',
-  ) {
+  async function checkResult(event: RfidAttendanceEvent) {
     if (!active.current || blocked.current || locked.current) return;
-    if (held && (kind !== 'confirm' || held.event.scanId !== event.scanId))
-      return;
+    if (!isRfidPending(event.state) || (held && held.event.scanId !== event.scanId)) return;
     locked.current = true;
     setBusyId(event.scanId);
     setMessage('');
@@ -130,10 +128,9 @@ export function useRfidAttendance(
       active.current && mounted.current && version === generation.current;
     try {
       const result = await refresh.mutate(() =>
-        runMutation(() => rfidAttendanceApi[kind](tripId, event.scanId)),
+        runMutation(() => rfidAttendanceApi.checkResult(tripId, event.scanId)),
       );
       if (!current()) return;
-      setLastEvent(result);
       setMessage(
         [result.studentName, rfidOutcome(result)].filter(Boolean).join(' · '),
       );
@@ -150,10 +147,9 @@ export function useRfidAttendance(
         )
       )
         revokeAccess();
-      else if ((e as { statusCode?: number })?.statusCode === 410) {
+      else if ((e as { statusCode?: number })?.statusCode === 410)
         setHeld(null);
-        setLastEvent({ ...event, state: 'EXPIRED', current: false });
-      } else if (kind === 'confirm' && rfidResultUnknown(e))
+      else if (rfidResultUnknown(e))
         setHeld({ event, unknown: true });
       updateRef.current();
     } finally {
@@ -175,13 +171,8 @@ export function useRfidAttendance(
     denied,
     busyId,
     held,
-    lastEvent,
     view,
     page,
-    serverNow: data
-      ? new Date(data.serverTime).getTime() +
-        Math.max(0, Date.now() - receivedAt.current)
-      : Date.now(),
     clearMessage: () => setMessage(''),
     retry: refresh.refresh,
     setPage: changePage,
@@ -192,7 +183,6 @@ export function useRfidAttendance(
         setLoading(true);
       }
     },
-    confirm: (event: RfidAttendanceEvent) => action(event, 'confirm'),
-    dismiss: (event: RfidAttendanceEvent) => action(event, 'dismiss'),
+    checkResult,
   };
 }

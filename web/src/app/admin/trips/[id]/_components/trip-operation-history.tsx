@@ -3,7 +3,7 @@ import type { TripDetail } from '@/lib/types';
 export function TripOperationHistory({ trip }: { trip: TripDetail }) {
   const items = operationAuditItems(trip.operationAudit);
   if (!items.length) return null;
-  const names: Record<string, string> = { REOPENED: 'Mở lại chuyến', CANCEL_ALL_ABSENT: 'Hủy do học sinh vắng', ATTENDANCE_CORRECTION: 'Đính chính điểm danh' };
+  const names: Record<string, string> = { REOPENED: 'Mở lại chuyến', CANCELLED_BY_ADMIN: 'Hủy chuyến', CANCEL_ALL_ABSENT: 'Hủy do học sinh vắng', ATTENDANCE_CORRECTION: 'Đính chính điểm danh' };
   return <section aria-label="Lịch sử xử lý" className="mt-3 text-sm">
     <h3 className="font-semibold">Lịch sử xử lý</h3>
     <ul className="mt-2 max-h-48 overflow-y-auto space-y-2">{items.slice().reverse().map((item, index) => <li key={index} className="border-t border-slate-100 py-2">

@@ -1,27 +1,38 @@
 'use client';
-import { canDirectlyUpdateAddress } from '@/lib/school-admin';
+import { canDirectlyUpdateAddress, validCoordinates } from '@/lib/school-admin';
+import { addressApprovalOutcome, isServiceAreaRejection, validateRoutingInputs } from '@/lib/address-request-review';
 
 import { toast } from '@/stores/toast-store';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useId, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { apiClient } from '@/lib/api-client';
 import type { StudentUpdateRequestDetail, UserRole, SystemRequestRoutingPreviewResponse } from '@/lib/types';
 import {
   SpinnerIcon,
   AlertIcon,
-  CheckIcon,
-  MapPinIcon,
-  StudentIcon,
-  PhoneIcon,
-  CloseIcon,
-  RouteIcon,
 } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table } from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { LifecycleDialog } from '@/components/admin/common/lifecycle-dialog';
+import { AddressRoutingReview } from './address-routing-review';
+import type { MapPoint } from '@/components/admin/routes/route-map';
+
+const RouteMap = dynamic(() => import('@/components/admin/routes/route-map').then(module => module.RouteMap), {
+  ssr: false, loading: () => <p role="status" className="p-3">Đang tải bản đồ…</p>,
+});
+const requestDateTime = new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Ho_Chi_Minh' });
+const outcomeLabels = { DIRECT_UPDATE: 'Duyệt cập nhật địa chỉ', REOPTIMIZED: 'Duyệt địa chỉ và tuyến mới', REMOVED_FROM_ROUTES: 'Duyệt địa chỉ và loại khỏi tuyến' };
+
+function requestMapPoint(data: Record<string, unknown> | undefined, id: string, title: string, order: number): MapPoint | null {
+  const lat = data?.latitude;
+  const lng = data?.longitude;
+  const latitude = typeof lat === 'number' || (typeof lat === 'string' && lat.trim()) ? Number(lat) : NaN;
+  const longitude = typeof lng === 'number' || (typeof lng === 'string' && lng.trim()) ? Number(lng) : NaN;
+  return validCoordinates(latitude, longitude) ? { id, title, order, latitude, longitude, type: 'STUDENT' } : null;
+}
 
 interface RequestDetailModalProps {
   isOpen: boolean;
@@ -32,8 +43,12 @@ interface RequestDetailModalProps {
   onActionSuccess: () => void;
 }
 
-export function RequestDetailModal({
-  isOpen,
+export function RequestDetailModal(props: RequestDetailModalProps) {
+  if (!props.isOpen || !props.requestId) return null;
+  return <RequestDetailModalContent key={`${props.role}:${props.schoolId}:${props.requestId}`} {...props} />;
+}
+
+function RequestDetailModalContent({
   requestId,
   role,
   schoolId,
@@ -43,6 +58,8 @@ export function RequestDetailModal({
   const [detail, setDetail] = useState<StudentUpdateRequestDetail | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showMap, setShowMap] = useState(false);
+  const mapId = useId();
 
   // Approve dialog
   const [isConfirmingApprove, setIsConfirmingApprove] = useState(false);
@@ -52,43 +69,37 @@ export function RequestDetailModal({
   const [isConfirmingReject, setIsConfirmingReject] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [isSubmittingReject, setIsSubmittingReject] = useState(false);
+  const confirmationRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (isConfirmingApprove || isConfirmingReject) confirmationRef.current?.focus();
+  }, [isConfirmingApprove, isConfirmingReject]);
 
   // Routing Preview state (for SYSTEM_ADMIN on ADDRESS_UPDATE)
   const [routingPreview, setRoutingPreview] = useState<SystemRequestRoutingPreviewResponse | null>(null);
   const [isLoadingRoutingPreview, setIsLoadingRoutingPreview] = useState(false);
   const [routingError, setRoutingError] = useState<string | null>(null);
-  const [maxRouteDurationMinutes, setMaxRouteDurationMinutes] = useState(90);
-  const [defaultStopServiceSeconds, setDefaultStopServiceSeconds] = useState(60);
+  const [minutes, setMinutes] = useState('90');
+  const [seconds, setSeconds] = useState('60');
+  const [hasCheckedRouting, setHasCheckedRouting] = useState(false);
   const [selectedOutcome, setSelectedOutcome] = useState<'DIRECT_UPDATE' | 'REOPTIMIZED' | 'REMOVED_FROM_ROUTES'>('DIRECT_UPDATE');
 
   const [membership, setMembership] = useState<{ key: string; allowed: boolean; error?: string } | null>(null);
   const [membershipRevision, setMembershipRevision] = useState(0);
   const membershipKey = `${schoolId}:${detail?.id}`;
+  const membershipStudentId = detail?.studentId;
   const requiresMembership = role === 'SCHOOL_ADMIN' && detail?.type === 'ADDRESS_UPDATE' && detail.status === 'PENDING';
   const schoolCanApprove = !requiresMembership || (membership?.key === membershipKey && membership.allowed);
   useEffect(() => {
     let current = true;
-    if (!isOpen || !requiresMembership || !detail || !schoolId) return;
-    apiClient.getStudentDisableImpact(schoolId, detail.studentId)
+    if (!requiresMembership || !membershipStudentId || !schoolId) return;
+    apiClient.getStudentDisableImpact(schoolId, membershipStudentId)
       .then(impact => { if (current) setMembership({ key: membershipKey, allowed: canDirectlyUpdateAddress(impact) }); })
       .catch(error => { if (current) setMembership({ key: membershipKey, allowed: false, error: error instanceof Error ? error.message : 'Không thể kiểm tra tuyến.' }); });
     return () => { current = false; };
-  }, [isOpen, requiresMembership, detail?.studentId, schoolId, membershipKey, membershipRevision]);
+  }, [requiresMembership, membershipStudentId, schoolId, membershipKey, membershipRevision]);
 
   // Load detail
   useEffect(() => {
-    if (!isOpen || !requestId) {
-      setDetail(null);
-      setMembership(null);
-      setError(null);
-      setIsConfirmingApprove(false);
-      setIsConfirmingReject(false);
-      setRejectReason('');
-      setRoutingPreview(null);
-      setRoutingError(null);
-      return;
-    }
-
     let isMounted = true;
     async function fetchDetail() {
       try {
@@ -106,9 +117,9 @@ export function RequestDetailModal({
         if (isMounted) {
           setDetail(data);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (isMounted) {
-          setError(err?.message || 'Không thể tải chi tiết yêu cầu cập nhật.');
+          setError(err instanceof Error ? err.message : 'Không thể tải chi tiết yêu cầu cập nhật.');
         }
       } finally {
         if (isMounted) {
@@ -121,27 +132,37 @@ export function RequestDetailModal({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, requestId, role, schoolId]);
+  }, [requestId, role, schoolId]);
 
-  if (!isOpen) return null;
+  const isAddress = detail?.type === 'ADDRESS_UPDATE';
+  const requiresRoutingPreview = isAddress && role === 'SYSTEM_ADMIN';
+  const canReview = detail?.status === 'PENDING' && !detail.isStale;
+  const outsideArea = isServiceAreaRejection(routingError);
+  const routingOutcome = addressApprovalOutcome(routingPreview);
+  const inputs = validateRoutingInputs(minutes, seconds);
+  const currentPoint = requestMapPoint(detail?.isStale ? detail.currentStudentData : detail?.beforeData, 'current', 'Địa chỉ hiện tại', 1);
+  const proposedPoint = requestMapPoint(detail?.proposedData, 'proposed', 'Địa chỉ đề xuất', 2);
+  const mapPoints = [currentPoint, proposedPoint].filter((point): point is MapPoint => point !== null);
+  const isSubmitting = isSubmittingApprove || isSubmittingReject;
+
+  const invalidateRouting = () => {
+    setRoutingPreview(null);
+    setIsConfirmingApprove(false);
+    if (!outsideArea) setRoutingError(null);
+  };
 
   const handleCheckRouting = async () => {
-    if (!detail) return;
+    if (!detail || !canReview || !requiresRoutingPreview || outsideArea || isLoadingRoutingPreview || inputs.minutesError || inputs.secondsError) return;
     setIsLoadingRoutingPreview(true);
+    setHasCheckedRouting(true);
+    setRoutingPreview(null);
     setRoutingError(null);
     try {
       const res = await apiClient.getSystemRequestRoutingPreview(detail.id, {
-        maxRouteDurationMinutes,
-        defaultStopServiceSeconds,
+        maxRouteDurationMinutes: inputs.maxRouteDurationMinutes,
+        defaultStopServiceSeconds: inputs.defaultStopServiceSeconds,
       });
       setRoutingPreview(res);
-      if (res.overallFeasibility === 'FEASIBLE') {
-        setSelectedOutcome('REOPTIMIZED');
-      } else if (res.overallFeasibility === 'INFEASIBLE') {
-        setSelectedOutcome('REMOVED_FROM_ROUTES');
-      } else if (res.routes.length === 0) {
-        setSelectedOutcome('DIRECT_UPDATE');
-      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Không thể kiểm tra định tuyến';
       setRoutingError(msg);
@@ -150,12 +171,12 @@ export function RequestDetailModal({
     }
   };
 
-  const handleApprove = async (outcomeOverride?: 'DIRECT_UPDATE' | 'REOPTIMIZED' | 'REMOVED_FROM_ROUTES') => {
-    if (!detail || !schoolCanApprove) return;
+  const handleApprove = async () => {
+    if (!detail || !canReview || !schoolCanApprove || isSubmitting || (requiresRoutingPreview && selectedOutcome !== routingOutcome)) return;
     try {
       setIsSubmittingApprove(true);
       setError(null);
-      const outcome = outcomeOverride || selectedOutcome;
+      const outcome = selectedOutcome;
       if (role === 'SYSTEM_ADMIN' && outcome === 'REOPTIMIZED' && (!routingPreview?.previewToken || !routingPreview?.expectedFingerprint)) {
         setError('Vui lòng kiểm tra định tuyến lại trước khi duyệt.');
         setIsSubmittingApprove(false);
@@ -168,21 +189,22 @@ export function RequestDetailModal({
           previewToken: routingPreview?.previewToken || undefined,
           expectedFingerprint: routingPreview?.expectedFingerprint || undefined,
         });
-      toast.success('Đã duyệt yêu cầu.');
       } else if (schoolId) {
         if (detail.type === 'ADDRESS_UPDATE') {
           const impact = await apiClient.getStudentDisableImpact(schoolId, detail.studentId);
           if (!canDirectlyUpdateAddress(impact)) { setMembership({ key: membershipKey, allowed: false }); throw new Error('Chờ nhà xe xử lý lộ trình.'); }
         }
         await apiClient.approveSchoolRequest(schoolId, detail.id);
-      toast.success('Đã duyệt yêu cầu.');
       }
+      toast.success('Đã duyệt yêu cầu.');
       setIsConfirmingApprove(false);
       onActionSuccess();
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setRoutingPreview(null);
-      setError(err?.message || 'Không thể phê duyệt yêu cầu. Vui lòng thử lại.');
+      const message = err instanceof Error ? err.message : 'Không thể phê duyệt yêu cầu. Vui lòng thử lại.';
+      if (isServiceAreaRejection(message)) setRoutingError(message);
+      if (!requiresRoutingPreview || !isServiceAreaRejection(message)) setError(message);
       setIsConfirmingApprove(false);
       // Refresh to get updated status/isStale
       if (role === 'SYSTEM_ADMIN') {
@@ -196,7 +218,7 @@ export function RequestDetailModal({
   };
 
   const handleReject = async () => {
-    if (!detail) return;
+    if (!detail || detail.status !== 'PENDING' || isSubmitting) return;
     try {
       setIsSubmittingReject(true);
       setError(null);
@@ -205,18 +227,17 @@ export function RequestDetailModal({
         await apiClient.rejectSystemAdminRequest(detail.id, {
           rejectionReason: reasonTrimmed,
         });
-      toast.success('Đã từ chối yêu cầu.');
       } else if (schoolId) {
         await apiClient.rejectSchoolRequest(schoolId, detail.id, {
           rejectionReason: reasonTrimmed,
         });
-      toast.success('Đã từ chối yêu cầu.');
       }
+      toast.success('Đã từ chối yêu cầu.');
       setIsConfirmingReject(false);
       onActionSuccess();
       onClose();
-    } catch (err: any) {
-      setError(err?.message || 'Không thể từ chối yêu cầu. Vui lòng thử lại.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Không thể từ chối yêu cầu. Vui lòng thử lại.');
       setIsConfirmingReject(false);
       if (role === 'SYSTEM_ADMIN') {
         apiClient.getSystemAdminRequestDetail(detail.id).then(setDetail).catch(() => {});
@@ -259,44 +280,50 @@ export function RequestDetailModal({
     }
   };
 
-  const getTypeBadge = (type: string) => {
-    if (type === 'ADDRESS_UPDATE') {
-      return (
-        <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-          <MapPinIcon className="w-3 h-3" />
-          Cập nhật địa chỉ
-        </Badge>
-      );
-    }
-    return (
-      <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
-        <StudentIcon className="w-3 h-3" />
-        Cập nhật thông tin
-      </Badge>
-    );
+  const checkLabel = isLoadingRoutingPreview ? 'Đang kiểm tra…'
+    : routingError || routingPreview ? 'Thử lại' : hasCheckedRouting ? 'Kiểm tra lại tuyến' : 'Kiểm tra tuyến';
+  const startApproval = (outcome: keyof typeof outcomeLabels) => {
+    setSelectedOutcome(outcome);
+    setIsConfirmingApprove(true);
   };
+  const footer = isConfirmingApprove || isConfirmingReject ? <>
+    <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => {
+      setIsConfirmingApprove(false);
+      setIsConfirmingReject(false);
+    }}>Quay lại</Button>
+    {isConfirmingReject
+      ? <Button type="button" variant="danger" disabled={isSubmitting} onClick={handleReject}>Xác nhận từ chối</Button>
+      : <Button type="button" variant={selectedOutcome === 'REMOVED_FROM_ROUTES' ? 'danger' : 'primary'}
+          disabled={isSubmitting || !canReview || !schoolCanApprove || (requiresRoutingPreview && selectedOutcome !== routingOutcome)}
+          onClick={handleApprove}>Xác nhận phê duyệt</Button>}
+  </> : detail?.status === 'PENDING' && !isLoading ? <>
+    {requiresMembership && !schoolCanApprove && <div role="status" className="basis-full text-sm text-amber-800">
+      {membership?.key !== membershipKey ? 'Đang kiểm tra tuyến…' : membership.error || 'Chờ nhà xe xử lý lộ trình.'}
+      {membership?.error && <Button type="button" variant="outline" size="sm" className="ml-2" onClick={() => { setMembership(null); setMembershipRevision(value => value + 1); }}>Thử lại</Button>}
+    </div>}
+    <Button type="button" variant="outline" className="mr-auto !text-rose-700" disabled={isSubmitting}
+      onClick={() => setIsConfirmingReject(true)}>Từ chối</Button>
+    {requiresRoutingPreview
+      ? routingOutcome
+        ? <Button type="button" variant="primary" disabled={!canReview || isSubmitting}
+            onClick={() => startApproval(routingOutcome)}>{outcomeLabels[routingOutcome]}</Button>
+        : !outsideArea && <Button type="button" variant="primary"
+            disabled={!canReview || isSubmitting || isLoadingRoutingPreview || !!inputs.minutesError || !!inputs.secondsError}
+            onClick={handleCheckRouting}>{checkLabel}</Button>
+      : <Button type="button" variant="primary" disabled={!canReview || !schoolCanApprove || outsideArea || isSubmitting}
+          onClick={() => startApproval('DIRECT_UPDATE')}>{isAddress ? outcomeLabels.DIRECT_UPDATE : 'Phê duyệt'}</Button>}
+  </> : undefined;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200">
-      <Card className="ui-dialog-panel ui-dialog-panel-body bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/50">
-          <div className="flex items-center gap-3">
-            <h2 className="text-base font-bold text-slate-900">Chi tiết yêu cầu cập nhật</h2>
-            {detail && getStatusBadge(detail.status)}
-            {detail && getTypeBadge(detail.type)}
-          </div>
-          <Button
-            onClick={onClose}
-            type="button"
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-          >
-            <CloseIcon className="w-5 h-5" />
-          </Button>
-        </div>
-
-        {/* Content Body */}
-        <div className="ui-dialog-body p-6 overflow-y-auto space-y-5 text-xs text-slate-600 flex-1">
+    <LifecycleDialog open title={isAddress ? 'Yêu cầu đổi địa chỉ đón trả' : 'Yêu cầu cập nhật thông tin học sinh'} onClose={onClose}
+      busy={isSubmitting} footer={footer} className={isAddress ? '!w-[min(630px,calc(100vw_-_24px))]' : ''}
+      summary={detail && <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm text-slate-600">
+        <p><strong className="text-slate-900">{detail.studentName || 'Học sinh'}</strong>
+          {isAddress && <> · Gửi lúc {requestDateTime.format(new Date(detail.createdAt))}</>}
+        </p>
+        {getStatusBadge(detail.status)}
+      </div>}>
+        <div className="space-y-5 text-xs text-slate-700">
           {isLoading && (
             <div className="py-12 flex flex-col items-center justify-center text-slate-400">
               <SpinnerIcon className="w-6 h-6 animate-spin text-amber-500 mb-2" />
@@ -305,7 +332,7 @@ export function RequestDetailModal({
           )}
 
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 flex items-start gap-2">
+            <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 flex items-start gap-2">
               <AlertIcon className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
@@ -313,29 +340,11 @@ export function RequestDetailModal({
 
           {detail && !isLoading && (
             <>
-              {/* Meta information card */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
-                <div>
-                  <span className="text-slate-400 block font-medium">Học sinh</span>
-                  <span className="font-semibold text-slate-800">{detail.studentName || 'N/A'}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block font-medium">Mã học sinh</span>
-                  <span className="font-mono font-semibold text-slate-800">{detail.studentCode || 'N/A'}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block font-medium">Thời gian gửi</span>
-                  <span className="font-medium text-slate-700">
-                    {new Date(detail.createdAt).toLocaleString('vi-VN')}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block font-medium">Thời gian xử lý</span>
-                  <span className="font-medium text-slate-700">
-                    {detail.reviewedAt ? new Date(detail.reviewedAt).toLocaleString('vi-VN') : '—'}
-                  </span>
-                </div>
-              </div>
+              {(!isAddress || detail.reviewedAt) && <dl className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+                {!isAddress && <div><dt className="text-slate-600">Mã học sinh</dt><dd className="font-medium text-slate-900">{detail.studentCode || '—'}</dd></div>}
+                {!isAddress && <div><dt className="text-slate-600">Thời gian gửi</dt><dd>{requestDateTime.format(new Date(detail.createdAt))}</dd></div>}
+                {detail.reviewedAt && <div><dt className="text-slate-600">Thời gian xử lý</dt><dd>{requestDateTime.format(new Date(detail.reviewedAt))}</dd></div>}
+              </dl>}
 
               {/* Stale warning banner */}
               {detail.isStale && (
@@ -361,52 +370,40 @@ export function RequestDetailModal({
 
               {/* Comparison Section */}
               <div className="space-y-3">
-                <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">So sánh dữ liệu thay đổi</h3>
-
-                {/* Case 1: ADDRESS_UPDATE */}
-                {detail.type === 'ADDRESS_UPDATE' && (
-                  <div className="border border-slate-200 rounded-xl overflow-hidden">
-                    {detail.isStale ? (
-                      <Table className="w-full text-left border-collapse ui-table-comparison">
-                        <thead>
-                          <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
-                            <th className="p-3 w-1/3">Lúc gửi yêu cầu</th>
-                            <th className="p-3 w-1/3 bg-amber-50/40 text-amber-900">Hiện tại trên hệ thống</th>
-                            <th className="p-3 w-1/3 bg-emerald-50/40 text-emerald-900">Đề xuất cập nhật</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          <tr>
-                            <td className="p-3 align-top text-slate-600">
-                              {detail.beforeData?.addressText || 'Chưa có địa chỉ'}
-                            </td>
-                            <td className="p-3 align-top bg-amber-50/20 text-amber-900 font-medium">
-                              {detail.currentStudentData?.addressText || 'Chưa có địa chỉ'}
-                            </td>
-                            <td className="p-3 align-top bg-emerald-50/20 text-emerald-900 font-bold">
-                              {detail.proposedData?.addressText || '—'}
-                            </td>
-                          </tr>
-                        </tbody>
-                      </Table>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
-                        <div className="p-4 space-y-1 bg-slate-50/50">
-                          <span className="text-[11px] font-semibold text-slate-400 block uppercase">Địa chỉ ban đầu</span>
-                          <p className="text-xs text-slate-700 font-medium">
-                            {detail.beforeData?.addressText || 'Chưa có địa chỉ'}
-                          </p>
-                        </div>
-                        <div className="p-4 space-y-1 bg-emerald-50/20">
-                          <span className="text-[11px] font-semibold text-emerald-700 block uppercase">Địa chỉ đề xuất mới</span>
-                          <p className="text-xs text-emerald-900 font-bold">
-                            {detail.proposedData?.addressText || '—'}
-                          </p>
-                        </div>
-                      </div>
-                    )}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-slate-900">{isAddress ? 'Địa chỉ đón trả' : 'So sánh dữ liệu thay đổi'}</h3>
+                  {isAddress && mapPoints.length > 0 && <button type="button" aria-expanded={showMap} aria-controls={mapId}
+                    className="rounded text-sm font-semibold text-blue-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2"
+                    onClick={() => setShowMap(value => !value)}>
+                    {showMap ? 'Ẩn bản đồ' : mapPoints.length === 2 ? 'Xem hai điểm trên bản đồ' : 'Xem điểm trên bản đồ'}
+                  </button>}
+                </div>
+                {isAddress && <div className={`grid divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-slate-50/50 sm:divide-x sm:divide-y-0 ${detail.isStale ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+                  {detail.isStale && <div className="space-y-1 p-3.5">
+                    <h4 className="font-medium text-slate-600">Lúc gửi yêu cầu</h4>
+                    <p className="break-words text-sm text-slate-900">{detail.beforeData?.addressText || 'Chưa có địa chỉ'}</p>
+                  </div>}
+                  <div className="space-y-1 p-3.5">
+                    <h4 className="font-medium text-slate-600">Địa chỉ hiện tại</h4>
+                    <p className="break-words text-sm text-slate-900">{(detail.isStale ? detail.currentStudentData : detail.beforeData)?.addressText || 'Chưa có địa chỉ'}</p>
                   </div>
-                )}
+                  <div className="space-y-1 p-3.5">
+                    <h4 className="font-medium text-slate-600">Địa chỉ đề xuất</h4>
+                    <p className="break-words text-sm font-medium text-slate-900">{detail.proposedData?.addressText || 'Chưa có địa chỉ'}</p>
+                    {(requiresRoutingPreview || outsideArea) && detail.status === 'PENDING' && <p role="status" className={routingPreview ? 'font-semibold text-emerald-800' : outsideArea ? 'font-semibold text-amber-900' : 'text-slate-600'}>
+                      {routingPreview ? 'Trong phạm vi phục vụ' : outsideArea ? 'Ngoài phạm vi phục vụ' : isLoadingRoutingPreview ? 'Đang xác minh phạm vi…' : 'Chưa xác minh phạm vi'}
+                    </p>}
+                  </div>
+                </div>}
+                {isAddress && mapPoints.length > 0 && <div id={mapId} hidden={!showMap}>
+                  {showMap && <section aria-label="Vị trí đón trả" className="overflow-hidden rounded-xl border border-slate-200">
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 px-3 py-2">
+                      {mapPoints.map(point => <span key={point.id} className="font-medium">{point.order}. {point.title}</span>)}
+                      {mapPoints.length === 1 && <span>Chưa có tọa độ của {currentPoint ? 'địa chỉ đề xuất' : 'địa chỉ hiện tại'}.</span>}
+                    </div>
+                    <RouteMap height="270px" points={mapPoints} />
+                  </section>}
+                </div>}
 
                 {/* Case 2: INFORMATION_UPDATE (School Admin Only) */}
                 {detail.type === 'INFORMATION_UPDATE' && (
@@ -498,327 +495,33 @@ export function RequestDetailModal({
                   </div>
                 )}
 
-                {/* Routing Feasibility Check (System Admin on ADDRESS_UPDATE) */}
-                {role === 'SYSTEM_ADMIN' && detail.type === 'ADDRESS_UPDATE' && detail.status === 'PENDING' && (
-                  <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/40 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <RouteIcon className="w-4 h-4 text-amber-600" />
-                        <span className="font-bold text-xs text-slate-800">
-                          Kiểm tra tác động phân tuyến
-                        </span>
-                      </div>
-                      <Button
-                        type="button"
-                        disabled={isLoadingRoutingPreview}
-                        onClick={handleCheckRouting}
-                        className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                      >
-                        {isLoadingRoutingPreview && <SpinnerIcon className="w-3.5 h-3.5 animate-spin" />}
-                        <span>{routingPreview ? 'Kiểm tra lại' : 'Kiểm tra tuyến'}</span>
-                      </Button>
-                    </div>
-
-                    {/* Hai tiêu chí tối ưu đúng nghiệp vụ */}
-                    <div className="grid grid-cols-2 gap-3 text-xs">
-                      <div>
-                        <label className="block text-[11px] text-slate-700 font-semibold mb-1">
-                          Thời gian tối đa tuyến (phút)
-                        </label>
-                        <Input
-                          type="number"
-                          min={10}
-                          max={180}
-                          value={maxRouteDurationMinutes}
-                          onChange={(e) => {
-                            setMaxRouteDurationMinutes(Number(e.target.value) || 10);
-                            setRoutingPreview(null);
-                            setRoutingError(null);
-                          }}
-                          className="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg bg-white"
-                        />
-                        <span className="text-[10px] text-slate-500">Giới hạn tổng di chuyển & dừng</span>
-                      </div>
-                      <div>
-                        <label className="block text-[11px] text-slate-700 font-semibold mb-1">
-                          Thời gian dừng tại điểm (giây)
-                        </label>
-                        <Input
-                          type="number"
-                          min={10}
-                          max={300}
-                          value={defaultStopServiceSeconds}
-                          onChange={(e) => {
-                            setDefaultStopServiceSeconds(Number(e.target.value) || 60);
-                            setRoutingPreview(null);
-                            setRoutingError(null);
-                          }}
-                          className="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg bg-white"
-                        />
-                        <span className="text-[10px] text-slate-500">Thời gian phục vụ đón/trả</span>
-                      </div>
-                    </div>
-
-                    {routingError && (
-                      <div className="p-2 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700">
-                        {routingError}
-                      </div>
-                    )}
-
-                    {/* Routing Check Result */}
-                    {routingPreview && (
-                      <Card className="p-3 bg-white rounded-xl border border-slate-200 space-y-2.5 text-xs">
-                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                          <span className="font-semibold text-slate-700">Tình trạng kiểm tra:</span>
-                          {routingPreview.overallFeasibility === 'FEASIBLE' ? (
-                            <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <CheckIcon className="w-3 h-3" /> Khả thi trên mọi tuyến
-                            </Badge>
-                          ) : routingPreview.overallFeasibility === 'INFEASIBLE' ? (
-                            <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                              <AlertIcon className="w-3 h-3" /> Không khả thi trên ít nhất 1 tuyến
-                            </Badge>
-                          ) : (
-                            <Badge className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                              <AlertIcon className="w-3 h-3" /> Dịch vụ định tuyến tạm gián đoạn
-                            </Badge>
-                          )}
-                        </div>
-
-                        {routingPreview.routes.length === 0 ? (
-                          <p className="text-slate-500 italic">
-                            Học sinh chưa tham gia tuyến chưa duyệt hoặc đang hoạt động nào. Có thể duyệt cập nhật hồ sơ trực tiếp.
-                          </p>
-                        ) : (
-                          <div className="space-y-1.5">
-                            <p className="font-medium text-slate-700">Các tuyến liên quan:</p>
-                            {routingPreview.routes.map((rt) => (
-                              <div
-                                key={rt.routeId}
-                                className={`p-2 rounded-lg border flex items-center justify-between text-xs ${
-                                  rt.feasibility === 'FEASIBLE'
-                                    ? 'bg-emerald-50/40 border-emerald-200 text-emerald-900'
-                                    : 'bg-rose-50/40 border-rose-200 text-rose-900'
-                                }`}
-                              >
-                                <div>
-                                  <span className="font-bold">{rt.routeName}</span> ({rt.direction === 'TO_SCHOOL' ? 'Đến trường' : 'Về nhà'})
-                                  {rt.newPlannedArrivalTime && (
-                                    <span className="block text-[11px] text-slate-600">
-                                      Giờ dự kiến mới: {rt.newPlannedArrivalTime}
-                                    </span>
-                                  )}
-                                  {rt.infeasibilityReason && (
-                                    <span className="block text-[11px] text-rose-700 font-medium">
-                                      Lý do: {rt.infeasibilityReason}
-                                    </span>
-                                  )}
-                                </div>
-                                <span className="font-semibold">{rt.feasibility}</span>
-                              </div>
-                            ))}
-
-                            <div className="text-[11px] text-slate-500 pt-1">
-                              {routingPreview.affectedScheduledTripsCount} chuyến đã lên lịch sẽ cập nhật • {routingPreview.preservedTripsCount} chuyến đã đóng băng giữ nguyên dữ liệu cũ.
-                            </div>
-                          </div>
-                        )}
-                      </Card>
-                    )}
-                  </div>
-                )}
+                {requiresRoutingPreview && canReview && <AddressRoutingReview preview={routingPreview} busy={isLoadingRoutingPreview}
+                  error={routingError} hasChecked={hasCheckedRouting} minutes={minutes} seconds={seconds}
+                  minutesError={inputs.minutesError} secondsError={inputs.secondsError}
+                  onMinutes={value => { setMinutes(value); invalidateRouting(); }} onSeconds={value => { setSeconds(value); invalidateRouting(); }} />}
               </div>
 
-              {/* Rejection Form Input */}
-              {isConfirmingReject && (
-                <div className="p-4 bg-rose-50/50 border border-rose-200 rounded-xl space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-rose-800 text-xs">Xác nhận từ chối yêu cầu</span>
-                    <Button
-                      type="button"
-                      onClick={() => setIsConfirmingReject(false)}
-                      className="text-xs text-slate-500 hover:text-slate-700"
-                    >
-                      Hủy bỏ
-                    </Button>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                      Lý do từ chối (Tùy chọn)
-                    </label>
-                    <Textarea
-                      value={rejectReason}
-                      onChange={(e) => setRejectReason(e.target.value)}
-                      rows={2}
-                      placeholder="Nhập lý do gửi đến phụ huynh..."
-                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-rose-400 bg-white"
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      type="button"
-                      onClick={() => setIsConfirmingReject(false)}
-                      className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg"
-                    >
-                      Đóng
-                    </Button>
-                    <Button
-                      type="button"
-                      disabled={isSubmittingReject}
-                      onClick={handleReject}
-                      className="px-4 py-1.5 text-xs font-semibold bg-rose-600 text-white rounded-lg hover:bg-rose-700 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
-                    >
-                      {isSubmittingReject && <SpinnerIcon className="w-3.5 h-3.5 animate-spin" />}
-                      Xác nhận từ chối
-                    </Button>
-                  </div>
-                </div>
-              )}
+              {isConfirmingReject && <section ref={confirmationRef} tabIndex={-1} className="space-y-2 rounded-xl border border-rose-200 bg-rose-50/50 p-3">
+                <h3 className="text-sm font-semibold text-rose-900">Từ chối yêu cầu</h3>
+                <label className="block space-y-1">
+                  <span>Lý do từ chối (tùy chọn)</span>
+                  <Textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} rows={2}
+                    placeholder="Nhập lý do gửi đến phụ huynh…" disabled={isSubmitting} className="w-full" />
+                </label>
+              </section>}
 
-              {/* Approve Confirmation Dialog */}
-              {isConfirmingApprove && (
-                <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-emerald-900 text-xs">
-                      Xác nhận phê duyệt ({selectedOutcome === 'REOPTIMIZED' ? 'Cập nhật tuyến mới' : selectedOutcome === 'REMOVED_FROM_ROUTES' ? 'Loại khỏi tuyến' : 'Cập nhật trực tiếp'})
-                    </span>
-                    <Button
-                      type="button"
-                      onClick={() => setIsConfirmingApprove(false)}
-                      className="text-xs text-slate-500 hover:text-slate-700"
-                    >
-                      Hủy bỏ
-                    </Button>
-                  </div>
-                  <p className="text-xs text-emerald-800">
-                    {selectedOutcome === 'REOPTIMIZED'
-                      ? `Phê duyệt và áp dụng tuyến mới cho học sinh ${detail.studentName}. Chuyến chưa vận hành từ ngày mai sẽ được cập nhật; chuyến hôm nay và lịch sử giữ nguyên.`
-                      : selectedOutcome === 'REMOVED_FROM_ROUTES'
-                      ? `Phê duyệt cập nhật địa chỉ và loại học sinh ${detail.studentName} khỏi mọi tuyến chưa duyệt hoặc đang hoạt động hiện tại.`
-                      : `Dữ liệu của học sinh ${detail.studentName} sẽ được cập nhật trực tiếp trên hệ thống.`}
-                  </p>
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      type="button"
-                      onClick={() => setIsConfirmingApprove(false)}
-                      className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg"
-                    >
-                      Hủy
-                    </Button>
-                    <Button
-                      type="button"
-                      disabled={isSubmittingApprove}
-                      onClick={() => handleApprove()}
-                      className="px-4 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
-                    >
-                      {isSubmittingApprove && <SpinnerIcon className="w-3.5 h-3.5 animate-spin" />}
-                      Xác nhận
-                    </Button>
-                  </div>
-                </div>
-              )}
+              {isConfirmingApprove && <section ref={confirmationRef} tabIndex={-1} className={`space-y-1 rounded-xl border p-3 text-sm ${selectedOutcome === 'REMOVED_FROM_ROUTES' ? 'border-amber-200 bg-amber-50 text-amber-950' : 'border-slate-200 bg-slate-50 text-slate-800'}`}>
+                <h3 className="font-semibold">{isAddress ? outcomeLabels[selectedOutcome] : 'Xác nhận phê duyệt'}</h3>
+                <p>{selectedOutcome === 'REOPTIMIZED'
+                  ? 'Địa chỉ và tuyến mới sẽ áp dụng cho các chuyến đủ điều kiện cập nhật.'
+                  : selectedOutcome === 'REMOVED_FROM_ROUTES'
+                    ? `Địa chỉ của ${detail.studentName} sẽ được cập nhật và học sinh sẽ bị loại khỏi các tuyến chưa duyệt hoặc đang hoạt động.`
+                    : isAddress ? 'Địa chỉ đón trả mới sẽ được lưu vào hồ sơ học sinh.' : 'Thông tin đề xuất sẽ được lưu vào hồ sơ học sinh.'}</p>
+              </section>}
             </>
           )}
         </div>
 
-        {/* Footer Actions */}
-        <div className="flex items-center justify-between p-4 border-t border-slate-100 bg-slate-50/50">
-          <Button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-          >
-            Đóng
-          </Button>
-
-          {requiresMembership && !schoolCanApprove && <div role="status" className="text-sm text-amber-800 p-3">
-            {membership?.key !== membershipKey ? 'Đang kiểm tra tuyến…' : membership.error || 'Chờ nhà xe xử lý lộ trình.'}
-            <Button variant="outline" size="sm" onClick={() => { setMembership(null); setMembershipRevision(v => v + 1); }}>Kiểm tra lại</Button>
-          </div>}
-          {detail && detail.status === 'PENDING' && !isConfirmingApprove && !isConfirmingReject && (
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm"
-                type="button"
-                onClick={() => setIsConfirmingReject(true)}
-                className="px-4 py-2 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition-colors cursor-pointer"
-              >
-                Từ chối
-              </Button>
-
-              {/* Phê duyệt theo ngữ cảnh: System Admin có tuyến vs không có tuyến */}
-              {role === 'SYSTEM_ADMIN' && detail.type === 'ADDRESS_UPDATE' ? (
-                !routingPreview ? (
-                  <Button
-                    type="button"
-                    disabled={isLoadingRoutingPreview}
-                    onClick={handleCheckRouting}
-                    className="px-4 py-2 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-                  >
-                    {isLoadingRoutingPreview && <SpinnerIcon className="w-3.5 h-3.5 animate-spin" />}
-                    <span>Kiểm tra tuyến</span>
-                  </Button>
-                ) : routingPreview.overallFeasibility === 'FEASIBLE' ? (
-                  <Button
-                    type="button"
-                    disabled={detail.isStale || !schoolCanApprove}
-                    onClick={() => {
-                      setSelectedOutcome('REOPTIMIZED');
-                      setIsConfirmingApprove(true);
-                    }}
-                    className="px-4 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-                  >
-                    <CheckIcon className="w-4 h-4" />
-                    <span>Xác nhận tuyến mới</span>
-                  </Button>
-                ) : routingPreview.overallFeasibility === 'INFEASIBLE' ? (
-                  <Button
-                    type="button"
-                    disabled={detail.isStale || !schoolCanApprove}
-                    onClick={() => {
-                      setSelectedOutcome('REMOVED_FROM_ROUTES');
-                      setIsConfirmingApprove(true);
-                    }}
-                    className="px-4 py-2 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-                  >
-                    <AlertIcon className="w-4 h-4" />
-                    <span>Duyệt & Loại khỏi tuyến</span>
-                  </Button>
-                ) : routingPreview.routes.length === 0 ? (
-                  <Button
-                    type="button"
-                    disabled={detail.isStale || !schoolCanApprove}
-                    onClick={() => {
-                      setSelectedOutcome('DIRECT_UPDATE');
-                      setIsConfirmingApprove(true);
-                    }}
-                    className="px-4 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-                  >
-                    <CheckIcon className="w-4 h-4" />
-                    <span>Duyệt trực tiếp</span>
-                  </Button>
-                ) : null
-              ) : (
-                <Button
-                  type="button"
-                  disabled={detail.isStale || !schoolCanApprove}
-                  onClick={() => {
-                    setSelectedOutcome('DIRECT_UPDATE');
-                    setIsConfirmingApprove(true);
-                  }}
-                  className={`px-4 py-2 text-xs font-semibold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer ${
-                    detail.isStale
-                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
-                      : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs'
-                  }`}
-                >
-                  <CheckIcon className="w-4 h-4" />
-                  Phê duyệt
-                </Button>
-              )}
-            </div>
-          )}
-        </div>
-      </Card>
-    </div>
+    </LifecycleDialog>
   );
 }

@@ -50,7 +50,7 @@ export async function writeBoarding(
   tripId: string,
   studentId: string,
   dto: MarkAttendanceDto,
-  currentUser: User,
+  currentUser: Pick<User, 'id' | 'role'>,
 ) {
   if (currentUser.role !== Role.BUS_ATTENDANT) {
     throw new ForbiddenException('Chỉ giáo viên phụ xe mới có quyền điểm danh');
@@ -192,7 +192,7 @@ export async function writeAlighting(
   tripId: string,
   studentId: string,
   dto: UpdateAlightingDto,
-  currentUser: User,
+  currentUser: Pick<User, 'id' | 'role'>,
 ) {
   if (currentUser.role !== Role.BUS_ATTENDANT) {
     throw new ForbiddenException(

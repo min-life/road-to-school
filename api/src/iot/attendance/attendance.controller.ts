@@ -50,10 +50,9 @@ export class AttendanceDeviceController {
   @HttpCode(200)
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary:
-      'Capture RFID theo context; chỉ tạo candidate/rejection, chưa ghi điểm danh PG',
+    summary: 'Quẹt RFID và ghi điểm danh ngay theo pha của thiết bị',
     description:
-      '200 WAITING_CONFIRMATION, REJECTED hoặc ALREADY_RECORDED; retry cùng payload idempotent. Không gửi Student PII về ESP.',
+      'Lượt mới trả APPLIED, ALREADY_RECORDED hoặc REJECTED. Gửi lại cùng payload để đối soát theo scanId; lượt cũ có thể giữ trạng thái trước đây. Phản hồi không chứa thông tin học sinh.',
   })
   @ApiResponse({ status: 200, type: AttendanceCaptureAckDto })
   @ApiIotErrors(400, 401, 404, 409, 503, 500)
@@ -90,7 +89,7 @@ export class AttendanceTripController {
   @ApiParam({ name: 'scanId', format: 'uuid' })
   @ApiOperation({
     summary:
-      'Phụ xe xác nhận; retry pending đọc PG receipt, không áp dụng lại lượt cũ',
+      'Đối soát kết quả RFID hoặc xác nhận thủ công lượt cũ',
     description:
       'Không nhận UID/Student/phase trong body. 200 APPLIED/ALREADY_RECORDED/historical hoặc REJECTED sau đối soát; 202 pending. current=false sau manual override.',
   })

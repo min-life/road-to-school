@@ -48,7 +48,10 @@ export class TripNavigationController {
 
   @ApiResponse({ status: 409, description: 'Hợp đồng đã hết hạn, không cho phát vị trí hoặc thay đổi phiên dẫn đường' })
   @Post('navigation/segment') @HttpCode(200) @Roles(Role.DRIVER)
-  @ApiOperation({ summary: 'VietMap P→current target only; ADVANCE changes navigation cursor, never business milestones.' })
+  @ApiOperation({
+    summary: 'Tính chỉ đường từ vị trí hiện tại',
+    description: 'Định tuyến qua các điểm còn lại theo thứ tự. TEST_AUTO có thể chuyển điểm tiếp theo trên tuyến đã tải bằng keepGeometry.',
+  })
   @ApiBody({ type: NavigationSegmentDto }) @ApiResponse({ status: 200, type: NavigationRouteDto })
   @ApiResponse({ status: 502, description: 'ROUTING_UNAVAILABLE: invalid geometry/instructions; no fallback guidance.' })
   @ApiResponse({ status: 503, description: 'VietMap missing configuration, quota, timeout or upstream failure.' })
@@ -57,7 +60,7 @@ export class TripNavigationController {
   }
 
   @Get('location-history')
-  @ApiOperation({ summary: 'Recorded history ordered by sequence; split at run changes/gaps. Zero points means planned-line fallback.' })
+  @ApiOperation({ summary: 'Lịch sử vị trí theo sequence để dựng những đoạn di chuyển liên tục.' })
   @ApiQuery({ name: 'afterSequence', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Default500, max1000.' })
   @ApiQuery({ name: 'snapshotMaxSequence', required: false, type: Number, description: 'Boundary returned on first page.' })

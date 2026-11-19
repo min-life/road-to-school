@@ -1,14 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString, MaxLength, IsUUID, IsNumber, Min, Max } from 'class-validator';
+import { IsIn, IsOptional, IsString, MaxLength, IsUUID, IsNumber, Min, Max } from 'class-validator';
 import { TripIncidentType } from '@prisma/client';
+
+export const reportableIncidentTypes = [TripIncidentType.ATTENDANT_MISSING, TripIncidentType.DRIVER_MISSING,
+  TripIncidentType.NO_GUARDIAN_AT_STOP] as const;
 
 export class CreateIncidentDto {
   @ApiProperty({
-    enum: TripIncidentType,
-    description: 'Loại sự cố (ATTENDANT_MISSING, DRIVER_MISSING, NO_GUARDIAN_AT_STOP, TRAFFIC_DELAY, GPS_SIGNAL_LOST, ...)',
+    enum: reportableIncidentTypes,
+    description: 'Loại sự cố có thể báo thủ công',
     example: TripIncidentType.ATTENDANT_MISSING,
   })
-  @IsEnum(TripIncidentType)
+  @IsIn(reportableIncidentTypes)
   type: TripIncidentType;
 
   @ApiPropertyOptional({

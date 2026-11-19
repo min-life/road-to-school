@@ -103,7 +103,7 @@ export function DriverSchedule({ driverId }: { driverId: string }) {
                     const status = statuses[virtual ? 'NOT_CREATED' : item.status];
                     return <tr key={item.id}>
                       <td>{new Date(`${item.serviceDate.slice(0, 10)}T00:00:00`).toLocaleDateString('vi-VN')}</td>
-                      <td className="whitespace-nowrap">{item.scheduledStartTime || '—'} – {item.scheduledEndTime || '—'}</td>
+                      <td className="whitespace-nowrap">{item.displayTime}</td>
                       <td><strong>{item.routeName}</strong><span className="driver-schedule-school">{item.schoolName}</span></td>
                       <td>{item.direction === 'TO_SCHOOL' ? 'Đến trường' : 'Về bãi'}</td>
                       <td className="whitespace-nowrap">{item.vehiclePlate || 'Chưa gán'}</td>

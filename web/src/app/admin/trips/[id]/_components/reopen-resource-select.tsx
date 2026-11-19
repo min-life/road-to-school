@@ -5,8 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 
-export function ReopenResourceSelect({ kind, schoolId, onChange, initialSelection, allowKeep = true }: {
-  kind: 'vehicle' | 'driver' | 'attendant'; schoolId: string; onChange: (id: string) => void; initialSelection?: { id: string; label: string }; allowKeep?: boolean;
+export type ReopenResourceOption = { id: string; label: string };
+const focusSearch = (input: HTMLInputElement | null) => { input?.focus(); };
+
+export function ReopenResourceSelect({ kind, schoolId, onChange, onPick, initialSelection, allowKeep = true }: {
+  kind: 'vehicle' | 'driver' | 'attendant'; schoolId: string; onChange?: (id: string) => void;
+  onPick?: (item: ReopenResourceOption) => void; initialSelection?: ReopenResourceOption; allowKeep?: boolean;
 }) {
   const id = useId();
   const [search, setSearch] = useState('');
@@ -42,22 +46,39 @@ export function ReopenResourceSelect({ kind, schoolId, onChange, initialSelectio
   }, [kind, schoolId, search, page, requestKey]);
   const label = kind === 'vehicle' ? 'Xe' : kind === 'driver' ? 'Tài xế' : 'Giáo viên phụ trách';
   const current = result?.key === requestKey ? result : null;
+  const searchInput = <Input ref={onPick ? focusSearch : undefined}
+    className="w-full border bg-white px-3 py-2" aria-label={'Tìm ' + label.toLowerCase()}
+    placeholder={'Tìm ' + label.toLowerCase() + '…'} value={search}
+    onKeyDown={onPick ? event => { if (event.key === 'Enter') event.preventDefault(); } : undefined}
+    onChange={event => { setSearch(event.target.value); setPage(1); }} />;
+  const pagination = (!onPick || page > 1 || (current?.pages ?? 0) > 1) && <div className="flex items-center justify-end gap-2 text-xs">
+    <Button type="button" size="sm" variant="outline" disabled={page <= 1 || !current} onClick={() => setPage(value => value - 1)}>Trước</Button>
+    <span>{page}/{Math.max(1, current?.pages ?? page)}</span>
+    <Button type="button" size="sm" variant="outline" disabled={!current || page >= current.pages} onClick={() => setPage(value => value + 1)}>Sau</Button>
+  </div>;
+  if (onPick) return <div className="space-y-2">
+    {searchInput}
+    {!current && <p role="status" className="text-sm text-slate-600">Đang tải…</p>}
+    {current?.error && <p role="alert" className="text-sm text-rose-700">{current.error}</p>}
+    {current && !current.error && (current.items.length ? <ul className="max-h-44 overflow-y-auto rounded-lg border border-slate-200">
+      {current.items.map(item => <li key={item.id} className="border-b border-slate-100 last:border-b-0">
+        <Button type="button" variant="ghost" className="w-full !justify-start text-left" onClick={() => onPick(item)}>{item.label}</Button>
+      </li>)}
+    </ul> : <p role="status" className="text-sm text-slate-600">Không tìm thấy kết quả.</p>)}
+    {pagination}
+  </div>;
   return <div className="space-y-2">
     <label htmlFor={id} className="block text-sm font-semibold">{label}</label>
-    <Input className="w-full border bg-white px-3 py-2" aria-label={'Tìm ' + label.toLowerCase()} placeholder={'Tìm ' + label.toLowerCase() + '…'} value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} />
+    {searchInput}
     <Select id={id} className="w-full border bg-white px-3 py-2" disabled={!current || !!current.error} value={selected?.id || ''} onChange={event => {
       const next = current?.items.find(item => item.id === event.target.value) ?? null;
-      setSelected(next); onChange(next?.id || '');
+      setSelected(next); onChange?.(next?.id || '');
     }}>
       <option value="">{current ? allowKeep ? 'Giữ phân công cũ' : 'Chọn ' + label.toLowerCase() : 'Đang tải…'}</option>
       {selected && !current?.items.some(item => item.id === selected.id) && <option value={selected.id}>{selected.label}</option>}
       {current?.items.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
     </Select>
     {current?.error && <p role="alert" className="text-xs text-rose-700">{current.error}</p>}
-    <div className="flex items-center justify-end gap-2 text-xs">
-      <Button size="sm" variant="outline" disabled={page <= 1 || !current} onClick={() => setPage(value => value - 1)}>Trước</Button>
-      <span>{page}/{Math.max(1, current?.pages ?? page)}</span>
-      <Button size="sm" variant="outline" disabled={!current || page >= current.pages} onClick={() => setPage(value => value + 1)}>Sau</Button>
-    </div>
+    {pagination}
   </div>;
 }

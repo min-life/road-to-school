@@ -43,6 +43,9 @@ describe('StudentRequestsService - Comprehensive Lifecycle & Concurrency', () =>
       school: {
         findUnique: vi.fn().mockResolvedValue({ id: 'school-1', isActive: true }),
       },
+      systemSetting: {
+        findUnique: vi.fn().mockResolvedValue({ value: { latitude: 10.776, longitude: 106.7, maxOperatingRadiusKm: 50 } }),
+      },
       schoolScheduledChange: {
         findMany: vi.fn().mockResolvedValue([]),
       },
@@ -84,7 +87,7 @@ describe('StudentRequestsService - Comprehensive Lifecycle & Concurrency', () =>
 
     mockOtpService = {
       createStudentUpdateRequestChallenge: vi.fn(),
-      verifyAndConsumeStudentUpdateRequestChallenge: vi.fn(),
+      withVerifiedChallenge: vi.fn((_challenge, work) => work(mockPrisma)),
     };
 
     const mockVietmapVRP = {
@@ -212,9 +215,6 @@ describe('StudentRequestsService - Comprehensive Lifecycle & Concurrency', () =>
     it('tạo yêu cầu PENDING kèm beforeData snapshot sau khi OTP được xác thực thành công', async () => {
       mockPrisma.parentStudentLink.findUnique.mockResolvedValue({
         student: mockStudent,
-      });
-      mockOtpService.verifyAndConsumeStudentUpdateRequestChallenge.mockResolvedValue({
-        id: 'challenge-123',
       });
       mockPrisma.studentUpdateRequest.create.mockImplementation(({ data }: any) => {
         return Promise.resolve({
@@ -376,15 +376,34 @@ describe('StudentRequestsService - Comprehensive Lifecycle & Concurrency', () =>
       // Xác nhận Student được cập nhật địa chỉ mới nguyên tử
       expect(mockPrisma.student.update).toHaveBeenCalledWith({
         where: { id: 'stu-1' },
-        data: {
+        data: expect.objectContaining({
           addressText: '789 Đường Mới Duyệt, Quận 1',
           latitude: 10.781,
           longitude: 106.705,
-        },
+        }),
       });
     });
 
-    it('từ chối 409 khi học sinh có tuyến và approve với REOPTIMIZED mà không có previewToken', async () => {
+    it.each([false, true])('chặn địa chỉ đã ra ngoài phạm vi trước khi ghi thay đổi (có tuyến: %s)', async (hasRoute) => {
+      const request = {
+        id: 'req-outside', studentId: mockStudent.id, schoolId: mockStudent.schoolId,
+        type: RequestType.ADDRESS_UPDATE, status: RequestStatus.PENDING,
+        beforeData: { addressText: mockStudent.addressText, latitude: mockStudent.latitude, longitude: mockStudent.longitude },
+        proposedData: { addressText: 'Địa chỉ ngoài phạm vi', latitude: 21.028, longitude: 105.854 },
+        student: mockStudent,
+      };
+      mockPrisma.studentUpdateRequest.findUnique.mockResolvedValue(request);
+      mockPrisma.routeStop.findMany.mockResolvedValue(hasRoute ? [{ routeId: 'route-1' }] : []);
+
+      await expect(service.approveRequest(request.id, 'admin-1', Role.SYSTEM_ADMIN, null, {
+        decision: hasRoute ? 'REMOVED_FROM_ROUTES' : 'DIRECT_UPDATE',
+      })).rejects.toThrow('Điểm đón vượt bán kính phục vụ');
+      expect(mockPrisma.student.update).not.toHaveBeenCalled();
+      expect(mockPrisma.routeStop.deleteMany).not.toHaveBeenCalled();
+      expect(mockPrisma.studentUpdateRequest.update).not.toHaveBeenCalled();
+    });
+
+    it('từ chối khi học sinh có tuyến và approve với REOPTIMIZED mà không có previewToken', async () => {
       const pendingRequest = {
         id: 'req-reopt',
         studentId: 'stu-1',
@@ -411,7 +430,7 @@ describe('StudentRequestsService - Comprehensive Lifecycle & Concurrency', () =>
         service.approveRequest('req-reopt', 'sysadmin-1', Role.SYSTEM_ADMIN, null, {
           decision: 'REOPTIMIZED',
         }),
-      ).rejects.toThrow(ConflictException);
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -480,11 +499,11 @@ describe('StudentRequestsService - Comprehensive Lifecycle & Concurrency', () =>
       expect(result.addressText).toBe('Địa chỉ cập nhật trực tiếp');
       expect(mockPrisma.student.update).toHaveBeenCalledWith({
         where: { id: 'stu-1' },
-        data: {
+        data: expect.objectContaining({
           addressText: 'Địa chỉ cập nhật trực tiếp',
           latitude: 10.888,
           longitude: 106.888,
-        },
+        }),
       });
     });
   });

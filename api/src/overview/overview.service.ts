@@ -2,12 +2,13 @@ import { pendingResourceTrips } from '../schools/contract-resource-policy.js';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, Role, type User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { formatDateToVnYmd } from '../trips/utils/trip-time.util.js';
+import { formatDateToVnYmd, tripDisplayTime } from '../trips/utils/trip-time.util.js';
 import { actionableIncidentWhere, actionableLeaveWhere, actionableRequestWhere, adminSchoolScope, effectiveMembership, serviceDate, staffBlockers } from './operations-policy.js';
 import type { OverviewQueryDto, OverviewResponseDto, OverviewTripDto } from './overview.dto.js';
 
 const tripSelect = {
   id: true, routeSnapshot: true, serviceDate: true, status: true, scheduledStartTime: true, scheduledEndTime: true,
+  actualStartTime: true, actualEndTime: true,
   route: { select: { name: true } }, school: { select: { name: true } },
   assignedDriver: { select: { fullName: true } }, assignedBusAttendant: { select: { fullName: true } },
   assignedVehicle: { select: { licensePlate: true } },
@@ -21,6 +22,7 @@ function mapTrip(trip: OverviewTrip): OverviewTripDto {
   return {
     id: trip.id, name, schoolName: trip.school.name, serviceDate: trip.serviceDate.toISOString().slice(0, 10), status: trip.status,
     scheduledStartTime: trip.scheduledStartTime, scheduledEndTime: trip.scheduledEndTime,
+    displayTime: tripDisplayTime(trip),
     driverName: trip.assignedDriver.fullName, attendantName: trip.assignedBusAttendant.fullName,
     vehiclePlate: trip.assignedVehicle.licensePlate,
     waitingAssignment: trip.status === 'SCHEDULED' && (trip.leaveNotices.length > 0 || trip.incidents.length > 0),

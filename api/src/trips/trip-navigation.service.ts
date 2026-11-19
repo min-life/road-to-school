@@ -93,12 +93,14 @@ export class TripNavigationService {
     const driver = user.role === Role.DRIVER && trip.assignedDriverId === user.id;
     const version = routeFingerprint(trip);
     const current = driver && state?.ownerSessionId === sid && state.routeVersion === version;
+    const attendant = user.role === Role.BUS_ATTENDANT && trip.assignedBusAttendantId === user.id;
     const checkpoint = current ? { runId: state.runId, enabled: state.enabled, activeSource: state.activeSource,
       targetStopId: state.targetStopId, routeVersion: state.routeVersion } : null;
     return { status: trip.status, routeVersion: version, latestPosition: point,
       freshness: !point ? 'NONE' : Date.now() - point.recordedAt.getTime() <= 15000 ? 'FRESH' : 'STALE',
       serverNow: new Date(), canPublish: driver && trip.status === 'IN_PROGRESS' && !await tripBlockReason(this.prisma, trip.id), testMode: this.trips.isTestMode(),
       checkpoint, controlRunId: driver ? state?.runId ?? null : null,
+      ...(attendant ? { attendanceTargetStopId: trip.status === 'IN_PROGRESS' && state?.enabled && state.routeVersion === version ? state.targetStopId : null } : {}),
       nextSequence: driver ? (point?.sequence ?? 0) + 1 : 0, publishIntervalMs: INTERVAL };
   }
 
@@ -202,12 +204,13 @@ export class TripNavigationService {
       const resolvedStops = resolveTripRoute(trip).stops;
       const index = resolvedStops.findIndex(s => s.id === state.targetStopId);
       if (index < 0) throw new ConflictException('Điểm tiếp theo không hợp lệ');
+      const cursorOnly = dto.action === 'ADVANCE' && dto.keepGeometry === true && state.activeSource === 'TEST_AUTO';
       if (dto.action === 'ADVANCE') {
         const reached = resolvedStops[index];
         const nextTarget = resolvedStops.find((stop, i) => i > index && metresBetween(reached, stop) > 1);
         const distToCurrent = metresBetween(dto.position, reached);
         const closerToNext = nextTarget ? metresBetween(dto.position, nextTarget) < distToCurrent : false;
-        if (distToCurrent > 100 && !closerToNext) throw new ConflictException('Chưa đến điểm tiếp theo');
+        if (!cursorOnly && distToCurrent > 100 && !closerToNext) throw new ConflictException('Chưa đến điểm tiếp theo');
         // Only a navigation cursor changes; never touch attendance or operation milestones.
         state.targetStopId = nextTarget?.id ?? null;
       } else {
@@ -217,23 +220,24 @@ export class TripNavigationService {
             retryAfterMs: cooldown - (Date.now() - state.lastRouteRequestedAt) }, 429);
         }
       }
-      state.lastRouteRequestedAt = Date.now();
+      if (!cursorOnly) state.lastRouteRequestedAt = Date.now();
       await this.save(tx, id, state);
       const targetIndex = resolvedStops.findIndex(s => s.id === state.targetStopId);
       const target = targetIndex >= 0 ? resolvedStops[targetIndex] : undefined;
-      const subsequentStops = targetIndex >= 0
+      const subsequentStops = targetIndex >= 0 && !cursorOnly
         ? resolvedStops.slice(targetIndex + 1).map(s => ({ latitude: s.latitude, longitude: s.longitude }))
         : [];
-      return { state, target, subsequentStops };
+      return { state, target, subsequentStops, cursorOnly };
     });
     const base = { segmentVersion: randomUUID(), targetStopId: request.state.targetStopId, routeVersion: request.state.routeVersion };
     if (!request.target) return { ...base, geometry: '', instructions: [], distanceMeters: 0, durationSeconds: 0, finished: true };
+    if (request.cursorOnly) return { ...base, geometry: '', instructions: [], distanceMeters: 0, durationSeconds: 0, finished: false, cursorOnly: true };
     const route = await this.directions.route(dto.position, request.target, request.subsequentStops);
     const current = await this.read(id);
     await this.publisher(current, user, sid, this.prisma);
     const state = this.owner(current, sid, dto.runId);
     if (state.targetStopId !== base.targetStopId || state.lastRouteRequestedAt !== request.state.lastRouteRequestedAt) throw new ConflictException('Chỉ dẫn đã thay đổi');
-    return { ...base, ...route, finished: false };
+    return { ...base, ...route, targetAtRouteEnd: request.subsequentStops.length === 0, finished: false };
   }
 
   async history(id: string, query: LocationHistoryQueryDto, user: User) {

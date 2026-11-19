@@ -1,8 +1,10 @@
 import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Max, Min, IsUUID } from 'class-validator';
+import { IsBoolean, IsEnum, IsIn, IsInt, IsOptional, IsString, Max, Min, IsUUID } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { TripIncidentType, TripIncidentStatus } from '@prisma/client';
 import { TripIncidentResponseDto } from './incident-response.dto.js';
+
+const listableIncidentTypes = Object.values(TripIncidentType).filter(type => type !== TripIncidentType.GPS_SIGNAL_LOST);
 
 export class ListIncidentsQueryDto {
   @ApiPropertyOptional({ type: Boolean, description: 'Chỉ sự cố còn cần đúng admin xử lý.' })
@@ -22,9 +24,9 @@ export class ListIncidentsQueryDto {
   @Max(100)
   limit?: number = 20;
 
-  @ApiPropertyOptional({ enum: TripIncidentType })
+  @ApiPropertyOptional({ enum: listableIncidentTypes })
   @IsOptional()
-  @IsEnum(TripIncidentType)
+  @IsIn(listableIncidentTypes)
   type?: TripIncidentType;
 
   @ApiPropertyOptional({ enum: TripIncidentStatus })
@@ -59,9 +61,9 @@ export class ListMineIncidentsQueryDto {
   @Max(100)
   limit?: number = 20;
 
-  @ApiPropertyOptional({ enum: TripIncidentType })
+  @ApiPropertyOptional({ enum: listableIncidentTypes })
   @IsOptional()
-  @IsEnum(TripIncidentType)
+  @IsIn(listableIncidentTypes)
   type?: TripIncidentType;
 
   @ApiPropertyOptional({ enum: TripIncidentStatus })

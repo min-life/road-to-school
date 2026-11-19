@@ -27,8 +27,6 @@ const TYPE_OPTIONS: { label: string; value: string }[] = [
   { label: 'Vắng tài xế', value: 'DRIVER_MISSING' },
   { label: 'Lệch tuyến', value: 'OFF_ROUTE' },
   { label: 'Trễ đón/trả', value: 'LATE_STOP' },
-  { label: incidentTypeLabels.TRAFFIC_DELAY, value: 'TRAFFIC_DELAY' },
-  { label: incidentTypeLabels.GPS_SIGNAL_LOST, value: 'GPS_SIGNAL_LOST' },
   { label: incidentTypeLabels.NO_GUARDIAN_AT_STOP, value: 'NO_GUARDIAN_AT_STOP' },
 ];
 

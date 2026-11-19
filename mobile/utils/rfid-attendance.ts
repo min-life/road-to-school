@@ -7,18 +7,6 @@ export const isRfidPending = (state: string) =>
   state === 'COMMITTING' || state === 'RECONCILING';
 export const phaseLabel = (phase: RfidPhase) =>
   phase === 'BOARDING' ? 'lên xe' : 'xuống xe';
-export function canConfirmRfid(
-  event: RfidAttendanceEvent,
-  phase: RfidPhase | null,
-  serverNow: number,
-) {
-  return (
-    event.state === 'WAITING_CONFIRMATION' &&
-    !!event.studentId &&
-    event.phase === phase &&
-    new Date(event.expiresAt).getTime() > serverNow
-  );
-}
 const reasons: Record<string, string> = {
   UNKNOWN_CARD: 'Thẻ chưa đăng ký.',
   OUTSIDE_ROSTER: 'Học sinh không thuộc danh sách chuyến.',
@@ -39,7 +27,7 @@ export function rfidOutcome(event: RfidAttendanceEvent) {
     return 'Đang đối soát. Giữ nguyên lượt quẹt này để kiểm tra kết quả.';
   if (event.state === 'APPLIED')
     return event.current
-      ? `Đã xác nhận ${phaseLabel(event.phase)}.`
+      ? `Đã ghi nhận ${phaseLabel(event.phase)}.`
       : 'Lượt đã xử lý; điểm danh hiện tại đã thay đổi.';
   if (event.state === 'ALREADY_RECORDED')
     return event.current
@@ -47,6 +35,7 @@ export function rfidOutcome(event: RfidAttendanceEvent) {
       : 'Lượt đã xử lý; hãy xem điểm danh hiện tại.';
   if (event.state === 'DISMISSED') return 'Đã bỏ qua lượt quẹt.';
   if (event.state === 'EXPIRED') return 'Lượt quẹt đã hết hạn.';
+  if (event.state === 'WAITING_CONFIRMATION') return 'Lượt chưa ghi nhận. Vui lòng quẹt lại.';
   return reasons[event.resultCode ?? ''] ?? 'Lượt quẹt chưa được ghi nhận.';
 }
 export function rfidError(error: unknown) {

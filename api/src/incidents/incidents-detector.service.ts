@@ -40,29 +40,13 @@ export class IncidentsDetectorService {
   constructor(private readonly prisma: PrismaService) {}
 
   @Cron('*/30 * * * * *', { timeZone: 'Asia/Ho_Chi_Minh' })
-  async detectSilentAndLateTrips(): Promise<void> {
+  async detectLateTrips(): Promise<void> {
     try {
       await this.prisma.$transaction(async (tx) => {
         await lockOperations(tx);
         const now = new Date();
         const running = await tx.trip.findMany({ where: { status: TripStatus.IN_PROGRESS },
-          include: { locationPoints: { orderBy: { sequence: 'desc' }, take: 1 } } });
-        for (const trip of running) {
-          if (await tripBlockReason(tx, trip.id)) continue;
-          const point = trip.locationPoints[0];
-          const lastAt = point?.recordedAt ?? trip.actualStartTime ?? trip.createdAt;
-          if (now.getTime() - lastAt.getTime() <= 180000) continue;
-          const dedupeKey = 'gps-silent:' + trip.id;
-          const existing = await tx.tripIncident.findFirst({ where: { tripId: trip.id, type: TripIncidentType.GPS_SIGNAL_LOST } });
-          if (existing) continue;
-          const incident = await tx.tripIncident.create({ data: {
-            tripId: trip.id, type: TripIncidentType.GPS_SIGNAL_LOST, status: TripIncidentStatus.WAITING_ASSIGNMENT,
-            dedupeKey, context: { latitude: point?.latitude ?? null, longitude: point?.longitude ?? null,
-              addressText: null, locationSource: point ? 'LAST_KNOWN' : 'UNKNOWN',
-              capturedAt: point?.recordedAt.toISOString() ?? null, detectedAt: now.toISOString() },
-          } });
-          await notifyIncident(tx, incident.id);
-        }
+          select: { id: true, assignedVehicleId: true, assignedDriverId: true } });
         const upcoming = await tx.trip.findMany({ where: {
           status: TripStatus.SCHEDULED, scheduledStartAt: { lte: new Date(now.getTime() + 15 * 60000) },
           scheduledEndAt: { gte: now },
@@ -79,7 +63,7 @@ export class IncidentsDetectorService {
           });
         }
       }, { timeout: 30000 });
-    } catch { this.logger.warn('Đối soát cảnh báo GPS/chuyến kế tiếp chưa hoàn tất; sẽ thử lại'); }
+    } catch { this.logger.warn('Đối soát nguy cơ trễ chuyến chưa hoàn tất; sẽ thử lại'); }
   }
 
   /**

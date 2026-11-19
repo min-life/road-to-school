@@ -220,7 +220,9 @@ function TripDetailContent({ tripId }: { tripId: string }) {
   }
 
   const isCancelled = trip.status === 'CANCELLED';
-  const actualTime = (value: string) => new Date(value).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false });
+  const tripTimeLabel = trip.status === 'IN_PROGRESS' || trip.status === 'COMPLETED'
+    ? 'Giờ thực tế'
+    : 'Giờ dự kiến';
   const focusStudent = (studentId: string) => {
     const stop = trip.stops?.find(stop => stop.studentId === studentId);
     if (stop && Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude)) {
@@ -275,7 +277,7 @@ function TripDetailContent({ tripId }: { tripId: string }) {
 
           <p className="trip-detail-service-line">
             <span title={formatServiceDateLong(trip.serviceDate)}>{formatServiceDateLong(trip.serviceDate)}</span>
-            <span>Dự kiến <strong>{trip.scheduledStartTime} – {trip.scheduledEndTime}</strong></span>
+            <span>{tripTimeLabel} <strong>{trip.displayTime}</strong></span>
             <span>Xe <strong>{trip.vehiclePlate || 'Chưa gán'}</strong></span>
             <span title={trip.driverName}>Tài xế: <strong>{trip.driverName || 'Chưa gán'}</strong></span>
             <span title={trip.busAttendantName}>Giáo viên phụ trách: <strong>{trip.busAttendantName || 'Chưa gán'}</strong></span>
@@ -285,7 +287,7 @@ function TripDetailContent({ tripId }: { tripId: string }) {
             <dl className="trip-detail-metadata">
               <div><dt>Trường học</dt><dd>{trip.schoolName}</dd></div>
               <div><dt>Phương án tuyến</dt><dd><ContextLink href={`/admin/routes/plans/${trip.routePlanId}`}>{trip.routePlanName}</ContextLink></dd></div>
-              <div><dt>Lịch dự kiến</dt><dd>{trip.scheduledStartTime} – {trip.scheduledEndTime}</dd><small>{trip.actualStartTime || trip.actualEndTime ? `Thực tế: ${trip.actualStartTime ? actualTime(trip.actualStartTime) : 'Chưa bắt đầu'} – ${trip.actualEndTime ? actualTime(trip.actualEndTime) : 'Chưa kết thúc'}` : `Khởi hành từ ${isToSchool ? 'bãi xe' : 'trường học'}`}</small></div>
+              <div><dt>{tripTimeLabel}</dt><dd>{trip.displayTime}</dd><small>Khởi hành từ {isToSchool ? 'bãi xe' : 'trường học'}</small></div>
               <div><dt>Phương tiện</dt><dd>{trip.vehiclePlate || 'Chưa gán xe'}</dd><small>{trip.vehicleSeats ? `${trip.vehicleSeats} chỗ` : 'Chưa cập nhật sức chứa'}{trip.vehicleBrand ? ` · ${trip.vehicleBrand}` : ''}</small></div>
               <div><dt>Tài xế</dt><dd>{trip.driverName || 'Chưa gán tài xế'}</dd><small>{trip.driverPhone || 'Chưa cập nhật số điện thoại'}</small></div>
               <div><dt>Giáo viên phụ trách</dt><dd>{trip.busAttendantName || 'Chưa gán giáo viên phụ trách'}</dd><small>{trip.busAttendantPhone || 'Chưa cập nhật số điện thoại'}</small></div>

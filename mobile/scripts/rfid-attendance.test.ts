@@ -1,7 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  canConfirmRfid,
   isRfidPending,
   rfidOutcome,
   rfidResultUnknown,
@@ -9,24 +8,15 @@ import {
 import type { RfidAttendanceEvent } from '../services/rfid-attendance.ts';
 // Pure UI/protocol states only. No Student records, HTTP calls or DB writes.
 describe('RFID UI state safety', () => {
-  it('requires a current phase, identity and unexpired waiting state', () => {
+  it('asks for a fresh scan for a legacy unprocessed event', () => {
     const waiting = {
       state: 'WAITING_CONFIRMATION',
       phase: 'BOARDING',
       studentId: 'identity-scope',
       expiresAt: new Date(2000).toISOString(),
     } as RfidAttendanceEvent;
-    assert.equal(canConfirmRfid(waiting, 'BOARDING', 1000), true);
-    assert.equal(canConfirmRfid(waiting, 'ALIGHTING', 1000), false);
-    assert.equal(canConfirmRfid(waiting, 'BOARDING', 2000), false);
-    assert.equal(
-      canConfirmRfid({ ...waiting, studentId: null }, 'BOARDING', 1000),
-      false,
-    );
-    assert.equal(
-      canConfirmRfid({ ...waiting, state: 'RECONCILING' }, 'BOARDING', 1000),
-      false,
-    );
+    assert.equal(isRfidPending(waiting.state), false);
+    assert.match(rfidOutcome(waiting), /quẹt lại/);
   });
   it('does not describe a historical/manual-overridden receipt as a fresh boarding success', () => {
     assert.match(

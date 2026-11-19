@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { autoPosition, cumulativeDistances, distance, joystickPosition, nextGuidance, nextStopEstimate, projectProgress, recordedParts, splitSegment } from '../utils/trip-navigation.ts';
+import { appendTravelledPart, autoPosition, cumulativeDistances, distance, joystickPosition, nextGuidance, nextStopEstimate, projectProgress, recordedParts, splitSegment } from '../utils/trip-navigation.ts';
 
 describe('Estimated arrival at the next stop', () => {
   const instruction = (sign: number, index: number) => ({ interval: [index, index] as [number, number], sign, text: '', streetName: '', distance: 0 });
@@ -15,6 +15,9 @@ describe('Estimated arrival at the next stop', () => {
   });
   it('uses the final destination when there are no intermediate waypoints', () => {
     assert.deepEqual(nextStopEstimate([instruction(4, 2)], [0, 500, 1000], 200, 0.5), { metres: 800, seconds: 400 });
+  });
+  it('uses the explicit endpoint of a current leg even when VietMap returns no stop instruction', () => {
+    assert.deepEqual(nextStopEstimate([], [0, 500, 1000], 750, 3.6 / 30, true), { metres: 250, seconds: 30 });
   });
   it('does not jump past the current stop when it shares coordinates with later stops', () => {
     assert.deepEqual(nextStopEstimate([instruction(5, 1), instruction(5, 1), instruction(4, 2)], [0, 100, 500], 125, 0.3), { metres: 0, seconds: 0 });
@@ -186,15 +189,28 @@ describe('Recorded history, never planned geometry backfill', () => {
     assert.deepEqual(recordedParts([]), []);
     assert.deepEqual(recordedParts([point(1, 'run', 0)]), [[[10, 106]]]);
   });
-  it('splits run changes, long gaps, and missing sequences', () => {
+  it('connects a continuous change of run while preserving time and sequence gaps', () => {
     const parts = recordedParts([point(1, 'a', 0), point(2, 'a', 5), point(3, 'a', 40), point(4, 'b', 45), point(6, 'b', 50)]);
-    assert.deepEqual(parts.map(p => p.length), [2, 1, 1, 1]);
+    assert.deepEqual(parts.map(p => p.length), [2, 2, 1]);
+  });
+  it('does not connect positions with implausible displacement when a run changes', () => {
+    const start = point(1, 'manual', 0);
+    const close = { ...point(2, 'auto', 5), latitude: 10.0007 };
+    const jump = { ...point(3, 'manual-again', 10), latitude: 10.01 };
+    assert.deepEqual(recordedParts([start, close, jump]).map(part => part.length), [2, 1]);
   });
 });
 describe('Two-tone progress geometry split (splitSegment)', () => {
   const line: [number, number][] = [[10.770, 106.700], [10.771, 106.700], [10.771, 106.702], [10.773, 106.702]];
   const cumulative = cumulativeDistances(line);
   const totalLength = cumulative[cumulative.length - 1];
+
+  it('keeps projected sections separate if a new route starts across an untracked gap', () => {
+    const first = [line[0], line[1]];
+    const touching = [line[1], line[2]];
+    assert.equal(appendTravelledPart([first], touching).length, 1);
+    assert.equal(appendTravelledPart([first], [line[2], line[3]]).length, 2);
+  });
 
   it('handles empty or single-point geometries safely', () => {
     assert.deepEqual(splitSegment([], [], 50), { traveled: [], remaining: [] });
@@ -262,7 +278,7 @@ describe('Request ownership and lifecycle coordination', () => {
     assert.equal(routeBusy, false, 'Request 2 releases routeBusy because it is the current owner');
   });
 
-  it('Manual to Auto preserves progress when on-route and avoids resetting travelled to 0', () => {
+  it('keeps the travelled portion of a manual leg when drawing its replacement', () => {
     const coords: [number, number][] = [[10.770, 106.700], [10.771, 106.700], [10.772, 106.700]];
     const cumulative = cumulativeDistances(coords);
     const leg = { coords, cumulative, progress: 0, travelled: 0, targetStopId: 'stop-1', routeVersion: 'v1' };
@@ -277,19 +293,9 @@ describe('Request ownership and lifecycle coordination', () => {
     leg.travelled = proj.progress;
     assert.ok(leg.travelled > 50, 'Travelled must advance with manual driving');
 
-    // When driver switches to Auto:
-    const checkpointResult = { targetStopId: 'stop-1', routeVersion: 'v1' };
-    const sameTarget = leg.targetStopId === checkpointResult.targetStopId;
-    const sameVersion = leg.routeVersion === checkpointResult.routeVersion;
-    assert.ok(sameTarget && sameVersion, 'Route target and version match');
-
-    // Recheck projection at current position
-    const switchProj = projectProgress(leg.coords, leg.cumulative, currentPos, leg.progress);
-    if (switchProj.gap <= 40) {
-      leg.progress = switchProj.progress;
-      leg.travelled = switchProj.progress;
-    }
-    assert.equal(leg.travelled, leg.progress, 'Auto travelled must start from manual progress, not 0');
+    const { traveled } = splitSegment(leg.coords, leg.cumulative, leg.progress);
+    const archived = appendTravelledPart([], traveled);
+    assert.ok(distance(archived[0].at(-1)!, currentPos) < 1);
   });
 
   it('Manual to Auto off-route invalidates old geometry to prevent snap-teleport', () => {

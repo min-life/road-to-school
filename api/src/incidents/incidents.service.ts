@@ -23,6 +23,7 @@ import {
   Role,
   TripIncidentType,
   TripIncidentStatus,
+  type TripIncident,
   TripStatus,
   LeaveNoticeKind,
   LeaveNoticeStatus,
@@ -329,13 +330,10 @@ export class IncidentsService {
     const isStaffMissingIncident =
       dto.type === TripIncidentType.ATTENDANT_MISSING ||
       dto.type === TripIncidentType.DRIVER_MISSING;
-    const isOnRouteIncident =
-      dto.type === TripIncidentType.NO_GUARDIAN_AT_STOP ||
-      dto.type === TripIncidentType.TRAFFIC_DELAY ||
-      dto.type === TripIncidentType.GPS_SIGNAL_LOST;
+    const isNoGuardianIncident = dto.type === TripIncidentType.NO_GUARDIAN_AT_STOP;
 
-    if (!isStaffMissingIncident && !isOnRouteIncident) {
-      throw new BadRequestException('Chỉ được báo sự cố ATTENDANT_MISSING, DRIVER_MISSING, NO_GUARDIAN_AT_STOP, TRAFFIC_DELAY hoặc GPS_SIGNAL_LOST');
+    if (!isStaffMissingIncident && !isNoGuardianIncident) {
+      throw new BadRequestException('Loại sự cố không hỗ trợ báo thủ công');
     }
 
     if (currentUser.role !== Role.DRIVER && currentUser.role !== Role.BUS_ATTENDANT) {
@@ -343,12 +341,12 @@ export class IncidentsService {
     }
 
     if (currentUser.role === Role.DRIVER) {
-      if (dto.type === TripIncidentType.DRIVER_MISSING || dto.type === TripIncidentType.NO_GUARDIAN_AT_STOP) {
-        throw new ForbiddenException('Tài xế chỉ được báo sự cố Giáo viên chưa đến (ATTENDANT_MISSING) hoặc sự cố lộ trình');
+      if (dto.type === TripIncidentType.DRIVER_MISSING || isNoGuardianIncident) {
+        throw new ForbiddenException('Tài xế chỉ được báo giáo viên phụ xe chưa đến.');
       }
     } else if (currentUser.role === Role.BUS_ATTENDANT) {
       if (dto.type === TripIncidentType.ATTENDANT_MISSING) {
-        throw new ForbiddenException('Giáo viên phụ xe chỉ được báo sự cố Tài xế chưa đến (DRIVER_MISSING) hoặc sự cố điểm đón/lộ trình');
+        throw new ForbiddenException('Giáo viên phụ xe chỉ được báo tài xế chưa đến hoặc không có người đón.');
       }
     }
 
@@ -398,7 +396,7 @@ export class IncidentsService {
         throw new BadRequestException('Cần gửi đủ latitude và longitude');
       }
       const lastPosition = await tx.tripLocationPoint.findFirst({ where: { tripId }, orderBy: { sequence: 'desc' } });
-      if (dto.type === TripIncidentType.NO_GUARDIAN_AT_STOP) {
+      if (isNoGuardianIncident) {
         if (trip.direction !== 'TO_PARKING' || trip.status !== TripStatus.IN_PROGRESS || !dto.studentId) {
           throw new ConflictException('Chỉ báo không người nhận cho học sinh chiều về đang chạy');
         }
@@ -434,11 +432,12 @@ export class IncidentsService {
         }
       }
 
-      // Kiểm tra sự cố cùng loại đang mở (Idempotency)
-      const existingOpen = await tx.tripIncident.findFirst({
+      // Báo cáo cũ dùng khóa theo chuyến nhưng đã lưu studentId trong context.
+      const existingReport = await tx.tripIncident.findFirst({
         where: {
           tripId,
           type: dto.type,
+          ...(isNoGuardianIncident ? { context: { path: ['studentId'], equals: dto.studentId } } : {}),
         },
         include: {
           trip: { include: { route: true, school: true } },
@@ -447,11 +446,12 @@ export class IncidentsService {
         },
       });
 
-      if (existingOpen) {
-        return this.mapToResponseDto(existingOpen);
+      if (existingReport) {
+        return this.mapToResponseDto(existingReport);
       }
 
-      const dedupeKey = `manual:${tripId}:${dto.type}:${dto.idempotencyKey || currentUser.id}`;
+      const reportKey = isNoGuardianIncident ? `student:${dto.studentId}` : dto.idempotencyKey || currentUser.id;
+      const dedupeKey = `manual:${tripId}:${dto.type}:${reportKey}`;
 
       try {
         const incident = await tx.tripIncident.create({
@@ -525,7 +525,7 @@ export class IncidentsService {
         },
       ],
       ...(query.status ? { status: query.status } : {}),
-      ...(query.type ? { type: query.type } : {}),
+      type: { not: TripIncidentType.GPS_SIGNAL_LOST, ...(query.type ? { equals: query.type } : {}) },
       ...(query.date
         ? {
             createdAt: {
@@ -577,7 +577,7 @@ export class IncidentsService {
       ...(query.actionable ? { AND: [actionableIncidentWhere(currentUser.role, schoolIdFilter)] } : {}),
       ...(schoolIdFilter ? { trip: { schoolId: schoolIdFilter } } : {}),
       ...(query.status ? { status: query.status } : {}),
-      ...(query.type ? { type: query.type } : {}),
+      type: { not: TripIncidentType.GPS_SIGNAL_LOST, ...(query.type ? { equals: query.type } : {}) },
       ...(query.date
         ? {
             createdAt: {
@@ -619,7 +619,7 @@ export class IncidentsService {
     const trip = await this.prisma.trip.findUnique({
       where: { id: tripId },
       include: {
-        attendances: { select: { studentId: true } },
+        attendances: { select: { studentId: true, student: { select: { fullName: true } } } },
       },
     });
 
@@ -627,10 +627,10 @@ export class IncidentsService {
       throw new NotFoundException('Không tìm thấy chuyến xe');
     }
 
-    await this.assertTripAccess(trip, currentUser);
+    const studentIds = await this.assertTripAccess(trip, currentUser);
 
     const items = await this.prisma.tripIncident.findMany({
-      where: { tripId },
+      where: { tripId, type: { not: TripIncidentType.GPS_SIGNAL_LOST } },
       orderBy: { createdAt: 'desc' },
       include: {
         trip: { include: { route: true, school: true } },
@@ -640,14 +640,19 @@ export class IncidentsService {
     });
 
     const isParent = currentUser.role === Role.PARENT;
-    const mapped = items.map((i) => {
-      const dto = this.mapToResponseDto(i);
+    const visible = isParent ? items.filter(incident => this.visibleToParent(incident, studentIds)) : items;
+    const studentNames = new Map(trip.attendances.map(row => [row.studentId, row.student?.fullName]));
+    const mapped = visible.map((i) => {
+      const studentId = this.noGuardianStudentId(i);
+      const studentName = studentId ? studentNames.get(studentId) : undefined;
+      const dto = { ...this.mapToResponseDto(i), studentName };
       if (isParent) {
-        // Privacy projection: chỉ xem loại, thời điểm, trạng thái
+        // Phụ huynh chỉ nhận tên của con trên báo cáo đã lọc.
         return {
           id: dto.id,
           tripId: dto.tripId,
           type: dto.type,
+          studentName,
           status: dto.status,
           createdAt: dto.createdAt,
           updatedAt: dto.updatedAt,
@@ -670,21 +675,34 @@ export class IncidentsService {
       return dto;
     });
 
-    const pendingCount = items.filter(
+    const pendingCount = visible.filter(
       (i) =>
         i.status === TripIncidentStatus.WAITING_ASSIGNMENT ||
         i.status === TripIncidentStatus.WAITING_CONFIRMATION,
     ).length;
-    const resolvedCount = items.filter(
+    const resolvedCount = visible.filter(
       (i) => i.status === TripIncidentStatus.RESOLVED || i.status === TripIncidentStatus.CONFIRMED,
     ).length;
 
     return {
       items: mapped,
-      total: items.length,
+      total: visible.length,
       pendingCount,
       resolvedCount,
     };
+  }
+
+  private visibleToParent(incident: Pick<TripIncident, 'type' | 'context'>, studentIds: Set<string>) {
+    if (incident.type !== TripIncidentType.NO_GUARDIAN_AT_STOP) return true;
+    const studentId = this.noGuardianStudentId(incident);
+    return studentId !== null && studentIds.has(studentId);
+  }
+
+  private noGuardianStudentId(incident: Pick<TripIncident, 'type' | 'context'>): string | null {
+    if (incident.type !== TripIncidentType.NO_GUARDIAN_AT_STOP) return null;
+    const context = incident.context;
+    if (!context || typeof context !== 'object' || Array.isArray(context)) return null;
+    return typeof context.studentId === 'string' ? context.studentId : null;
   }
 
   /**
@@ -698,7 +716,7 @@ export class IncidentsService {
           include: {
             route: true,
             school: true,
-            attendances: { select: { studentId: true } },
+            attendances: { select: { studentId: true, student: { select: { fullName: true } } } },
           },
         },
         reportedBy: true,
@@ -709,14 +727,18 @@ export class IncidentsService {
     if (!incident) {
       throw new NotFoundException('Không tìm thấy sự cố');
     }
+    const studentId = this.noGuardianStudentId(incident);
+    const studentName = incident.trip.attendances?.find(row => row.studentId === studentId)?.student?.fullName;
 
     if (currentUser.role === Role.PARENT) {
-      await this.assertTripAccess(incident.trip, currentUser);
+      const studentIds = await this.assertTripAccess(incident.trip, currentUser);
+      if (!this.visibleToParent(incident, studentIds)) throw new NotFoundException('Không tìm thấy sự cố');
       const dto = this.mapToResponseDto(incident);
       return {
         id: dto.id,
         tripId: dto.tripId,
         type: dto.type,
+        studentName,
         status: dto.status,
         createdAt: dto.createdAt,
         updatedAt: dto.updatedAt,
@@ -751,7 +773,7 @@ export class IncidentsService {
       }
     }
 
-    return this.mapToResponseDto(incident);
+    return { ...this.mapToResponseDto(incident), studentName };
   }
 
   /**

@@ -14,6 +14,9 @@ export class TripIncidentResponseDto {
   @ApiProperty({ enum: TripIncidentStatus, example: TripIncidentStatus.WAITING_ASSIGNMENT })
   status: TripIncidentStatus;
 
+  @ApiPropertyOptional({ type: String, description: 'Tên học sinh trong báo cáo không có người đón. Phụ huynh chỉ nhận tên con đã liên kết.' })
+  studentName?: string;
+
   @ApiPropertyOptional({ example: 'user-uuid-1', nullable: true })
   reportedById?: string | null;
 

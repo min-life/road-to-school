@@ -3,6 +3,32 @@
  */
 
 const VIETNAM_TZ = 'Asia/Ho_Chi_Minh';
+const actualClockFormatter = new Intl.DateTimeFormat('vi-VN', {
+  timeZone: VIETNAM_TZ,
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+export function actualTripClock(value?: Date | null): string | null {
+  return value ? actualClockFormatter.format(value) : null;
+}
+
+export function tripDisplayTime(trip: {
+  status: string;
+  scheduledStartTime?: string | null;
+  scheduledEndTime?: string | null;
+  actualStartTime?: Date | null;
+  actualEndTime?: Date | null;
+}): string {
+  if (trip.status === 'IN_PROGRESS') {
+    return `${actualTripClock(trip.actualStartTime) ?? '—'} – …`;
+  }
+  if (trip.status === 'COMPLETED') {
+    return `${actualTripClock(trip.actualStartTime) ?? '—'} – ${actualTripClock(trip.actualEndTime) ?? '—'}`;
+  }
+  return `${trip.scheduledStartTime || '—'} – ${trip.scheduledEndTime || '—'}`;
+}
 
 export const DAY_OF_WEEK_MAP: Record<number, string> = {
   0: 'sunday',

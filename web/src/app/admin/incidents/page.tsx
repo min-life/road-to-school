@@ -87,7 +87,7 @@ export default function AdminIncidentsPage() {
   useRouteQuery(String(user?.id), (query, isCurrent) => {
     setSchoolFilter(isSystemAdmin ? query.get('schoolId') || '' : '');
     const type = query.get('type'), status = query.get('status');
-    setTypeFilter(type && ['ATTENDANT_MISSING','DRIVER_MISSING','OFF_ROUTE','LATE_STOP','NO_GUARDIAN_AT_STOP','TRAFFIC_DELAY','GPS_SIGNAL_LOST'].includes(type) ? type : 'ALL');
+    setTypeFilter(type && ['ATTENDANT_MISSING','DRIVER_MISSING','OFF_ROUTE','LATE_STOP','NO_GUARDIAN_AT_STOP'].includes(type) ? type : 'ALL');
     setStatusFilter(status && ['WAITING_ASSIGNMENT','WAITING_CONFIRMATION','RESOLVED','CONFIRMED','CLOSED'].includes(status) ? status : 'ALL');
     setActionableOnly(query.get('actionable') === 'true'); setDateFilter(query.get('date') || ''); setPage(1);
     const id = query.get('incidentId'); if (id) void apiClient.getIncidentDetail(id).then(item => {
@@ -276,8 +276,6 @@ export default function AdminIncidentsPage() {
             <option value="OFF_ROUTE">Lệch tuyến</option>
             <option value="LATE_STOP">Đón/trả chậm</option>
             <option value="NO_GUARDIAN_AT_STOP">Không có người đón tại điểm dừng</option>
-            <option value="TRAFFIC_DELAY">Chậm do giao thông</option>
-            <option value="GPS_SIGNAL_LOST">Mất tín hiệu GPS</option>
           </select>
         </FilterField>
 

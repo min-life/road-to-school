@@ -3,6 +3,7 @@ import { apiClient } from './api-client';
 export interface OverviewTrip {
   id: string; name: string; schoolName: string; serviceDate: string; status: string;
   scheduledStartTime: string | null; scheduledEndTime: string | null;
+  displayTime: string;
   driverName: string; attendantName: string; vehiclePlate: string; waitingAssignment: boolean;
 }
 export interface AdminOverview {

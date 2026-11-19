@@ -234,7 +234,7 @@ export function TeacherSchedule({
                         ).toLocaleDateString('vi-VN')}
                       </td>
                       <td className="p-3 whitespace-nowrap text-slate-600 font-mono text-[11px]">
-                        {item.scheduledStartTime || '—'} – {item.scheduledEndTime || '—'}
+                        {item.displayTime}
                       </td>
                       <td className="p-3">
                         <span className="font-semibold text-slate-800 block">{item.routeName}</span>

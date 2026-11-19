@@ -83,7 +83,7 @@ export function OverviewTrips({
                         {trip.serviceDate.split('-').reverse().join('/')}
                       </span>
                       <span className="mt-0.5 block text-xs text-slate-500">
-                        {trip.scheduledStartTime || '—'}
+                        {trip.displayTime}
                       </span>
                     </td>
                     <td className="px-4 py-3 leading-relaxed">
@@ -225,7 +225,7 @@ export function OverviewTrips({
                   {activeOrUpcomingTrips.map((trip) => (
                     <tr key={trip.id} className="hover:bg-slate-50/60">
                       <td className="whitespace-nowrap px-5 py-4 tabular-nums">
-                        {trip.scheduledStartTime || '—'}
+                        {trip.status === 'SCHEDULED' ? trip.scheduledStartTime || '—' : trip.displayTime}
                         <span className="mt-1 block text-xs text-slate-500">
                           {trip.serviceDate.split('-').reverse().join('/')}
                         </span>

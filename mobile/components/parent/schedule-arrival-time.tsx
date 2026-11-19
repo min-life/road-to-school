@@ -13,6 +13,10 @@ export function ScheduleArrivalTime({ trip, studentId, identity }: {
   studentId: string;
   identity: string;
 }) {
+  if (trip.status === 'IN_PROGRESS' || trip.status === 'COMPLETED') {
+    const label = trip.direction === 'TO_SCHOOL' ? 'Đến trường' : 'Xuống xe';
+    return <ArrivalTimeRow label={label} value={trip.actualDestinationTime ?? null} emptyMessage="Chưa ghi nhận" />;
+  }
   if (trip.direction === 'TO_SCHOOL') {
     return <ArrivalTimeRow label="Đến trường dự kiến" value={journeyClock(trip.scheduledEndTime)} />;
   }
@@ -53,8 +57,8 @@ function ReturnArrivalTime({ scope, trip, studentId }: { scope: string; trip: Mo
     onRetry={() => { setLoading(true); refresh(); }} />;
 }
 
-function ArrivalTimeRow({ label, value, loading = false, failed = false, onRetry }: {
-  label: string; value: string | null; loading?: boolean; failed?: boolean; onRetry?: () => void;
+function ArrivalTimeRow({ label, value, loading = false, failed = false, onRetry, emptyMessage = 'Chưa có giờ dự kiến' }: {
+  label: string; value: string | null; loading?: boolean; failed?: boolean; onRetry?: () => void; emptyMessage?: string;
 }) {
   return <View style={styles.row}>
     <View style={styles.labelRow}>
@@ -65,7 +69,7 @@ function ArrivalTimeRow({ label, value, loading = false, failed = false, onRetry
       <ActivityIndicator size="small" color={colors.navigationActive} />
       <Text style={styles.hint}>Đang tải...</Text>
     </View> : <Text style={[styles.value, !value && styles.hint]}>
-      {failed ? 'Chưa tải được' : value || 'Chưa có giờ dự kiến'}
+      {failed ? 'Chưa tải được' : value || emptyMessage}
     </Text>}
     {failed && !loading && onRetry && <Pressable accessibilityRole="button"
       accessibilityLabel="Tải lại giờ đến điểm trả dự kiến"

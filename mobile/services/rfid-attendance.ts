@@ -31,6 +31,7 @@ export interface RfidAttendanceEvent {
 }
 export interface RfidAttendanceList {
   data: RfidAttendanceEvent[];
+  pendingEvent?: RfidAttendanceEvent | null;
   total: number;
   page: number;
   limit: number;
@@ -39,6 +40,7 @@ export interface RfidAttendanceList {
   reader: {
     deviceId: string | null;
     status: 'NO_DEVICE' | 'PENDING' | 'READY';
+    reason?: 'NO_DEVICE' | 'TRIP_NOT_ELIGIBLE' | 'DEVICE_UNREACHABLE' | 'AWAITING_ACK' | 'READY';
     lastAckAt: string | null;
   };
 }
@@ -50,14 +52,9 @@ export const rfidAttendanceApi = {
       `${path(tripId)}?view=${view}&page=${page}&limit=10`,
       { method: 'GET' },
     ),
-  confirm: (tripId: string, scanId: string) =>
+  checkResult: (tripId: string, scanId: string) =>
     mobileApiClient.request<RfidAttendanceEvent>(
       `${path(tripId)}/${encodeURIComponent(scanId)}/confirm`,
-      { method: 'POST', body: '{}' },
-    ),
-  dismiss: (tripId: string, scanId: string) =>
-    mobileApiClient.request<RfidAttendanceEvent>(
-      `${path(tripId)}/${encodeURIComponent(scanId)}/dismiss`,
       { method: 'POST', body: '{}' },
     ),
 };

@@ -1,7 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { AttendanceStatus } from '@prisma/client';
+import { AttendanceStatus, LeaveNoticeKind } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayUnique,
+  IsArray,
   IsIn,
   IsNotEmpty,
   IsOptional,
@@ -48,8 +51,29 @@ export class ReopenTripDto extends TripReasonDto {
   @IsOptional()
   @IsUUID()
   busAttendantId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Đơn báo nghỉ mà quản trị viên đã xác nhận nhân sự có thể làm chuyến',
+    type: 'array', items: { type: 'string', format: 'uuid' }, maxItems: 2, uniqueItems: true,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(2)
+  @ArrayUnique()
+  @IsUUID(undefined, { each: true })
+  confirmedStaffLeaveNoticeIds?: string[];
 }
 
+export class ReopenStaffLeaveNoticeDto {
+  @ApiProperty({ format: 'uuid' }) id: string;
+  @ApiProperty({ format: 'uuid' }) staffId: string;
+  @ApiProperty({ enum: [LeaveNoticeKind.DRIVER, LeaveNoticeKind.BUS_ATTENDANT] }) kind: LeaveNoticeKind;
+}
+
+export class ReopenStaffLeaveNoticesDto {
+  @ApiProperty({ type: [ReopenStaffLeaveNoticeDto] })
+  items: ReopenStaffLeaveNoticeDto[];
+}
 
 export class TripActionMessageDto {
   @ApiProperty()

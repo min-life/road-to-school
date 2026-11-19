@@ -2,9 +2,10 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { activeJourneyIncident, journeyMinutesBeforeSchedule, journeyScheduleCountdown, journeyServiceDate,
   journeyStagePosition, scheduledJourneyInstant, studentJourneyBadge, journeyReadinessBadge, journeyTripLabel } from '../utils/parent-journey-stage.ts';
-import { journeyEventTime } from '../utils/parent-journey.ts';
+import { journeyEventTime, studentJourneyTimes } from '../utils/parent-journey.ts';
+import type { ParentHomeCardItem } from '../services/api-client.ts';
 
-// Pure existing enums, booleans and clocks only; no business DTO fixtures or API responses.
+// In-memory workflow checks only.
 describe('outbound operational workflow', () => {
   it('waits at departure before and after the attendant is ready', () => {
     assert.equal(journeyStagePosition('SCHEDULED', 'TO_SCHOOL', 'UNMARKED', false, false), 0);
@@ -110,6 +111,29 @@ describe('readiness, terminal states and per-child facts', () => {
 });
 
 describe('planned versus actual clock information', () => {
+  it('leaves unrecorded return-trip milestones empty once the trip is running', () => {
+    const card: ParentHomeCardItem = {
+      tripId: 'trip',
+      studentId: 'child',
+      studentName: '',
+      schoolName: '',
+      routeName: '',
+      vehiclePlate: '',
+      driverName: '',
+      serviceDate: '2026-10-30',
+      direction: 'TO_PARKING',
+      scheduledTime: '17:00 - 18:00',
+      displayTime: '17:08 – …',
+      tripStatus: 'SCHEDULED',
+      attendanceStatus: 'UNMARKED',
+    };
+    assert.equal(studentJourneyTimes(card).completion.value, '18:00');
+    const running = studentJourneyTimes({ ...card, tripStatus: 'IN_PROGRESS' });
+    assert.equal(running.completion.value, null);
+    assert.equal(running.completion.kind, 'actual');
+    assert.equal(running.arrival.value, null);
+  });
+
   it('compares timestamps against the Vietnam service day without guessing an ETA', () => {
     assert.equal(journeyMinutesBeforeSchedule('2026-10-30', '07:15', '2026-10-30T00:05:00Z'), 10);
     assert.equal(journeyMinutesBeforeSchedule('2026-10-30', '07:15', '2026-10-30T00:20:00Z'), -5);

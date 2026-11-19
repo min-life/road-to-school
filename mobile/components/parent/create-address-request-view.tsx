@@ -14,7 +14,11 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors } from '@/constants/theme';
-import { mobileApiClient } from '@/services/api-client';
+import {
+  mobileApiClient,
+  ServiceAreaStatus,
+  ServiceAreaBoundary,
+} from '@/services/api-client';
 import {
   mobileVietmapService,
   MobileVietmapSuggestion,
@@ -39,27 +43,63 @@ export function CreateAddressRequestView({ fixedStudentId }: { fixedStudentId?: 
   const [selectedLng, setSelectedLng] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Service area check state
+  const [serviceAreaStatus, setServiceAreaStatus] = useState<
+    'IDLE' | 'CHECKING' | 'IN_SERVICE_AREA' | 'OUT_OF_SERVICE_AREA' | 'UNAVAILABLE'
+  >('IDLE');
+  const [serviceAreaInfo, setServiceAreaInfo] = useState<{
+    distanceMeters?: number | null;
+    distanceKm?: number | null;
+    maxOperatingRadiusKm?: number | null;
+    boundary?: ServiceAreaBoundary | null;
+    message?: string;
+  } | null>(null);
+  const [verifiedStudentId, setVerifiedStudentId] = useState<string | null>(null);
+  const [verifiedLat, setVerifiedLat] = useState<number | null>(null);
+  const [verifiedLng, setVerifiedLng] = useState<number | null>(null);
+
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftGeneration = useRef(0);
   const searchGeneration = useRef(0);
   const lookupGeneration = useRef(0);
+  const serviceAreaGeneration = useRef(0);
   const activeStudentId = useRef(studentId);
   const mounted = useRef(true);
   const selectedEntry = students.find(item => item.id === studentId);
   const isStudentUnavailable = student?.status === 'DISABLED' || selectedEntry?.status === 'DISABLED';
   const canEdit = Boolean(student?.status === 'AVAILABLE' && (isFixed || selectedEntry?.status === 'AVAILABLE')
     && !studentLoading && !studentsLoading && !studentsError);
-  const canSubmit = canEdit && Boolean(selectedAddressText) && selectedLat !== null && selectedLng !== null
-    && !isSubmitting && !isSearching && !isReversing;
+
+  const isServiceAreaValid =
+    serviceAreaStatus === 'IN_SERVICE_AREA' &&
+    verifiedStudentId === studentId &&
+    verifiedLat === selectedLat &&
+    verifiedLng === selectedLng;
+
+  const canSubmit =
+    canEdit &&
+    Boolean(selectedAddressText) &&
+    selectedLat !== null &&
+    selectedLng !== null &&
+    !isSubmitting &&
+    !isSearching &&
+    !isReversing &&
+    isServiceAreaValid;
 
   const resetDraft = useCallback(() => {
     draftGeneration.current += 1;
     searchGeneration.current += 1;
     lookupGeneration.current += 1;
+    serviceAreaGeneration.current += 1;
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     setSearchText(''); setSuggestions([]); setSelectedAddressText('');
     setSelectedLat(null); setSelectedLng(null);
     setIsSearching(false); setIsReversing(false); setIsSubmitting(false);
+    setServiceAreaStatus('IDLE');
+    setServiceAreaInfo(null);
+    setVerifiedStudentId(null);
+    setVerifiedLat(null);
+    setVerifiedLng(null);
   }, []);
 
   useLayoutEffect(() => {
@@ -84,9 +124,80 @@ export function CreateAddressRequestView({ fixedStudentId }: { fixedStudentId?: 
     selectStudent(id);
   };
 
+  const performServiceAreaCheck = useCallback(
+    async (targetStudentId: string, lat: number, lng: number) => {
+      if (!targetStudentId || lat === null || lng === null) return;
+      const gen = ++serviceAreaGeneration.current;
+      const draft = draftGeneration.current;
+      setServiceAreaStatus('CHECKING');
+      setServiceAreaInfo(null);
+      setVerifiedStudentId(null);
+      setVerifiedLat(null);
+      setVerifiedLng(null);
+
+      try {
+        const res = await mobileApiClient.checkStudentAddressServiceArea(targetStudentId, {
+          latitude: lat,
+          longitude: lng,
+        });
+
+        // Ignore stale or out-of-order response
+        if (
+          !mounted.current ||
+          draft !== draftGeneration.current ||
+          gen !== serviceAreaGeneration.current ||
+          activeStudentId.current !== targetStudentId
+        ) {
+          return;
+        }
+
+        setServiceAreaStatus(res.status);
+        setServiceAreaInfo({
+          distanceMeters: res.distanceMeters,
+          distanceKm: res.distanceKm,
+          maxOperatingRadiusKm: res.maxOperatingRadiusKm,
+          boundary: res.boundary,
+          message: res.message,
+        });
+
+        if (res.status === 'IN_SERVICE_AREA') {
+          setVerifiedStudentId(targetStudentId);
+          setVerifiedLat(lat);
+          setVerifiedLng(lng);
+        }
+      } catch (err: any) {
+        if (
+          !mounted.current ||
+          draft !== draftGeneration.current ||
+          gen !== serviceAreaGeneration.current ||
+          activeStudentId.current !== targetStudentId
+        ) {
+          return;
+        }
+        setServiceAreaStatus('UNAVAILABLE');
+        setServiceAreaInfo({
+          message: err?.message || 'Chưa thể kiểm tra phạm vi phục vụ',
+        });
+      }
+    },
+    []
+  );
+
   const handleSearchChange = (val: string) => {
     if (!mounted.current || activeStudentId.current !== studentId || !canEdit || isSubmitting) return;
     setSearchText(val);
+
+    // Khi người dùng sửa nội dung tìm kiếm: xóa hiệu lực của kết quả cũ và bỏ qua phản hồi đến trễ
+    serviceAreaGeneration.current += 1;
+    setServiceAreaStatus('IDLE');
+    setServiceAreaInfo(null);
+    setVerifiedStudentId(null);
+    setVerifiedLat(null);
+    setVerifiedLng(null);
+    setSelectedLat(null);
+    setSelectedLng(null);
+    setSelectedAddressText('');
+
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     const generation = ++searchGeneration.current;
     const draft = draftGeneration.current;
@@ -130,6 +241,7 @@ export function CreateAddressRequestView({ fixedStudentId }: { fixedStudentId?: 
         setSelectedAddressText(detail.addressText || item.address);
         setSelectedLat(detail.latitude);
         setSelectedLng(detail.longitude);
+        performServiceAreaCheck(studentId, detail.latitude, detail.longitude);
       } else {
         Alert.alert(
           'Lỗi tọa độ',
@@ -156,6 +268,7 @@ export function CreateAddressRequestView({ fixedStudentId }: { fixedStudentId?: 
     setSelectedAddressText(''); setSearchText('');
     setSelectedLat(lat);
     setSelectedLng(lng);
+    performServiceAreaCheck(studentId, lat, lng);
     try {
       setIsReversing(true);
       const results = await mobileVietmapService.reverseGeocode(lat, lng);
@@ -179,6 +292,14 @@ export function CreateAddressRequestView({ fixedStudentId }: { fixedStudentId?: 
       Alert.alert(
         'Chưa chọn địa chỉ',
         'Vui lòng tìm kiếm hoặc chọn một vị trí cụ thể trên bản đồ VietMap.'
+      );
+      return;
+    }
+
+    if (!isServiceAreaValid) {
+      Alert.alert(
+        'Ngoài phạm vi phục vụ',
+        'Vui lòng chọn vị trí trong bán kính phục vụ của nhà xe để tiếp tục.'
       );
       return;
     }
@@ -211,9 +332,22 @@ export function CreateAddressRequestView({ fixedStudentId }: { fixedStudentId?: 
       });
     } catch (err: any) {
       if (draft !== draftGeneration.current) return;
+      const msg = err?.message || 'Không thể gửi yêu cầu mã OTP. Vui lòng thử lại sau.';
+      if (
+        msg.includes('bán kính phục vụ') ||
+        msg.includes('khác tỉnh/thành') ||
+        msg.includes('phạm vi') ||
+        msg.includes('bãi')
+      ) {
+        setServiceAreaStatus('OUT_OF_SERVICE_AREA');
+        setServiceAreaInfo({ message: msg });
+        setVerifiedStudentId(null);
+        setVerifiedLat(null);
+        setVerifiedLng(null);
+      }
       Alert.alert(
         'Không thể gửi mã xác thực',
-        err?.message || 'Không thể gửi yêu cầu mã OTP. Vui lòng thử lại sau.'
+        msg
       );
     } finally {
       if (draft === draftGeneration.current) setIsSubmitting(false);
@@ -312,6 +446,7 @@ export function CreateAddressRequestView({ fixedStudentId }: { fixedStudentId?: 
               key={studentId}
               latitude={selectedLat}
               longitude={selectedLng}
+              serviceAreaBoundary={serviceAreaInfo?.boundary}
               onLocationSelect={handleMapLocationSelect}
               disabled={!canEdit || isSubmitting}
               height={270}
@@ -320,6 +455,84 @@ export function CreateAddressRequestView({ fixedStudentId }: { fixedStudentId?: 
               <Text style={styles.stateText}>{studentLoading ? 'Đang tải thông tin học sinh...' : 'Chọn học sinh để chọn điểm đón/trả'}</Text>
             </View>}
           </View>
+
+          {/* Service Area Status Card */}
+          {serviceAreaStatus !== 'IDLE' && selectedLat !== null && selectedLng !== null && (
+            <View
+              testID="service-area-card"
+              style={[
+                styles.serviceAreaCard,
+                serviceAreaStatus === 'CHECKING' && styles.serviceAreaChecking,
+                serviceAreaStatus === 'IN_SERVICE_AREA' && styles.serviceAreaValid,
+                serviceAreaStatus === 'OUT_OF_SERVICE_AREA' && styles.serviceAreaInvalid,
+                serviceAreaStatus === 'UNAVAILABLE' && styles.serviceAreaUnavailable,
+              ]}
+            >
+              {serviceAreaStatus === 'CHECKING' && (
+                <View style={styles.serviceAreaRow}>
+                  <ActivityIndicator size="small" color="#D97706" />
+                  <View style={styles.serviceAreaTextContainer}>
+                    <Text style={styles.serviceAreaCheckingText}>Đang kiểm tra phạm vi phục vụ...</Text>
+                    <Text style={styles.serviceAreaSubText}>Đang đối soát khoảng cách với bãi xe trường học</Text>
+                  </View>
+                </View>
+              )}
+
+              {serviceAreaStatus === 'IN_SERVICE_AREA' && (
+                <View style={styles.serviceAreaRow}>
+                  <Ionicons name="checkmark-circle" size={20} color="#059669" />
+                  <View style={styles.serviceAreaTextContainer}>
+                    <Text style={styles.serviceAreaValidText}>Trong bán kính phục vụ</Text>
+                    <Text style={styles.serviceAreaSubText}>
+                      Khoảng cách: {serviceAreaInfo?.distanceKm ?? '---'} km
+                      {serviceAreaInfo?.maxOperatingRadiusKm != null
+                        ? ` (Bán kính tối đa ${serviceAreaInfo.maxOperatingRadiusKm} km)`
+                        : ''}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {serviceAreaStatus === 'OUT_OF_SERVICE_AREA' && (
+                <View style={styles.serviceAreaRow}>
+                  <Ionicons name="close-circle" size={20} color="#DC2626" />
+                  <View style={styles.serviceAreaTextContainer}>
+                    <Text style={styles.serviceAreaInvalidText}>Ngoài bán kính phục vụ</Text>
+                    <Text style={styles.serviceAreaSubText}>
+                      {serviceAreaInfo?.message ||
+                        (serviceAreaInfo?.distanceKm != null && serviceAreaInfo?.maxOperatingRadiusKm != null
+                          ? `Khoảng cách ${serviceAreaInfo.distanceKm} km vượt quá bán kính tối đa ${serviceAreaInfo.maxOperatingRadiusKm} km.`
+                          : 'Vị trí này không nằm trong vùng phục vụ của nhà trường.')}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {serviceAreaStatus === 'UNAVAILABLE' && (
+                <View style={styles.serviceAreaRow}>
+                  <Ionicons name="alert-circle" size={20} color="#D97706" />
+                  <View style={styles.serviceAreaTextContainer}>
+                    <Text style={styles.serviceAreaUnavailableText}>Chưa kiểm tra được</Text>
+                    <Text style={styles.serviceAreaSubText}>
+                      {serviceAreaInfo?.message || 'Không thể kiểm tra phạm vi phục vụ vào lúc này.'}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.retryServiceAreaBtn}
+                      onPress={() => {
+                        if (studentId && selectedLat !== null && selectedLng !== null) {
+                          performServiceAreaCheck(studentId, selectedLat, selectedLng);
+                        }
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="reload" size={14} color="#92400E" />
+                      <Text style={styles.retryServiceAreaText}>Thử lại</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
 
           {/* 4. Selected Address Confirmation Box */}
           {selectedAddressText ? (
@@ -551,5 +764,76 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#1E293B',
+  },
+  serviceAreaCard: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  serviceAreaChecking: {
+    backgroundColor: '#FFFDF6',
+    borderColor: '#FDE68A',
+  },
+  serviceAreaValid: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  serviceAreaInvalid: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+  },
+  serviceAreaUnavailable: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+  },
+  serviceAreaRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  serviceAreaTextContainer: {
+    flex: 1,
+    gap: 2,
+  },
+  serviceAreaCheckingText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  serviceAreaValidText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#065F46',
+  },
+  serviceAreaInvalidText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#991B1B',
+  },
+  serviceAreaUnavailableText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  serviceAreaSubText: {
+    fontSize: 12,
+    color: '#475569',
+    lineHeight: 17,
+  },
+  retryServiceAreaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: '#FEF3C7',
+    alignSelf: 'flex-start',
+  },
+  retryServiceAreaText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#92400E',
   },
 });

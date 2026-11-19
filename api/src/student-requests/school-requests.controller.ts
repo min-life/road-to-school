@@ -144,7 +144,7 @@ export class SchoolRequestsController {
   @ApiOperation({
     summary: 'Phê duyệt yêu cầu cập nhật thông tin hoặc địa chỉ học sinh',
     description:
-      'Phê duyệt nguyên tử: kiểm tra trạng thái PENDING, học sinh AVAILABLE, và dữ liệu gốc không bị xung đột (No Stale Conflict). Cập nhật dữ liệu học sinh và chuyển trạng thái APPROVED.',
+      'Phê duyệt nguyên tử khi dữ liệu gốc còn hiệu lực. Với yêu cầu đổi địa chỉ, kiểm tra phạm vi phục vụ tại thời điểm duyệt và học sinh chưa có tuyến.',
   })
   @ApiParam({
     name: 'schoolId',

@@ -40,7 +40,7 @@ import {
   OperationalStateResponse,
   TripAttendanceStudentItem,
   TripAttendanceListResponse,
-  VerifyQrResponse,
+  ScanQrResponse,
   AttendanceStatus,
   TripIncident,
   TripIncidentType,
@@ -61,6 +61,7 @@ import { TripNavigationControls } from "@/components/trip-navigation-controls";
 import { TripNextStopSummary } from "@/components/trip-next-stop-summary";
 import { TripJoystick } from "@/components/trip-joystick";
 import { TripContactCallButton } from "@/components/trip-contact-call-button";
+import { AttendanceRosterSections } from "@/components/attendance-roster-sections";
 import { RfidAttendanceEntry } from "@/components/rfid-attendance-entry";
 import {
   loadLocationHistory,
@@ -69,13 +70,7 @@ import {
   type LocationSource,
   type NavigationState,
 } from "@/services/trip-navigation";
-import {
-  cumulativeDistances,
-  projectProgress,
-  recordedParts,
-  splitSegment,
-  type Coordinate,
-} from "@/utils/trip-navigation";
+import { recordedParts } from "@/utils/trip-navigation";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -98,8 +93,6 @@ export default function MobileTripDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Search in Attendance Tab
-  const [searchQuery, setSearchQuery] = useState("");
 
   // Modals state
   const [confirmModal, setConfirmModal] = useState<{
@@ -124,10 +117,12 @@ export default function MobileTripDetailScreen() {
   // QR Modal
   const [qrModalVisible, setQrModalVisible] = useState(false);
   const [qrScanning, setQrScanning] = useState(false);
+  const qrInFlight = useRef(false);
+  const qrAlertOpen = useRef(false);
   const qrGeneration = useRef(0);
   const [qrManualCode, setQrManualCode] = useState("");
   const [verifiedStudent, setVerifiedStudent] =
-    useState<VerifyQrResponse | null>(null);
+    useState<ScanQrResponse | null>(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
   // Bottom Sheet 2-State Animation & Gesture
@@ -176,6 +171,7 @@ export default function MobileTripDetailScreen() {
   const [attendanceSubTab, setAttendanceSubTab] = useState<
     "boarding" | "alighting"
   >("boarding");
+  const attendanceScrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
 
   // Operational Incidents state
   const [incidentOptions, setIncidentOptions] =
@@ -579,7 +575,7 @@ export default function MobileTripDetailScreen() {
       setIncidentReport(null);
       setIncidentNote("");
       if (student && (reported.contextData?.studentId ?? reported.context?.studentId) !== student.studentId) {
-        Alert.alert("Đã có báo cáo", "Chuyến này đã có báo cáo không có người đón cho học sinh khác.");
+        Alert.alert("Chưa xác nhận được báo cáo", "Kết quả trả về khác học sinh đã chọn. Vui lòng tải lại chuyến xe.");
         return;
       }
       Alert.alert("Đã ghi nhận", "Báo cáo sự cố đã được ghi nhận.");
@@ -735,7 +731,7 @@ export default function MobileTripDetailScreen() {
           });
 
           var coords = ${coordsJson};
-          if (coords && coords.length > 0) {
+          if (coords && coords.length >= 2) {
             var polyline = L.polyline(coords, { color: '#2563EB', weight: 5, opacity: 0.85 }).addTo(map);
             coords.forEach(function(c) { bounds.extend(c); });
           }
@@ -765,7 +761,7 @@ export default function MobileTripDetailScreen() {
               }
             } else if (vehicle) { map.removeLayer(vehicle); vehicle = null; }
 
-            if (n.traveled && n.traveled.length > 1) {
+            if (n.traveled && n.traveled.length) {
               if (!traveledLine) traveledLine = L.polyline(n.traveled, {color:'#94A3B8',weight:6,opacity:0.9}).addTo(map);
               else traveledLine.setLatLngs(n.traveled);
             } else if (traveledLine) {
@@ -776,7 +772,7 @@ export default function MobileTripDetailScreen() {
             if (n.remaining && n.remaining.length > 1) {
               if (!remainingLine) remainingLine = L.polyline(n.remaining, {color:'#2563EB',weight:6,opacity:0.95}).addTo(map);
               else remainingLine.setLatLngs(n.remaining);
-            } else if ((!n.traveled || n.traveled.length <= 1) && n.leg && n.leg.length > 1) {
+            } else if ((!n.traveled || !n.traveled.length) && n.leg && n.leg.length > 1) {
               if (!remainingLine) remainingLine = L.polyline(n.leg, {color:'#2563EB',weight:6,opacity:0.95}).addTo(map);
               else remainingLine.setLatLngs(n.leg);
             } else if (remainingLine) {
@@ -817,76 +813,11 @@ export default function MobileTripDetailScreen() {
   const isDriverActiveNavigation =
     isDriver && !terminal && operationalState?.status === "IN_PROGRESS";
 
-  const fullRouteCoords = useMemo(() => {
-    return trip?.polylineGeometry ? decodePolyline(trip.polylineGeometry) : [];
-  }, [trip?.polylineGeometry]);
-
-  const fullRouteCumulative = useMemo(() => {
-    return fullRouteCoords.length >= 2
-      ? cumulativeDistances(fullRouteCoords)
-      : [];
-  }, [fullRouteCoords]);
-
-  // Observer two-tone split: when vehicle is in progress and has latestPosition
-  const observerSplit = useMemo(() => {
-    if (isDriverActiveNavigation && engine.segment.length > 0) {
-      return null; // Driver uses engine's active navigation segment
-    }
-    if (
-      terminal ||
-      operationalState?.status !== "IN_PROGRESS" ||
-      !navigation?.latestPosition ||
-      fullRouteCoords.length < 2
-    ) {
-      return null;
-    }
-    const vehPos: Coordinate = [
-      navigation.latestPosition.latitude,
-      navigation.latestPosition.longitude,
-    ];
-    const proj = projectProgress(
-      fullRouteCoords,
-      fullRouteCumulative,
-      vehPos,
-      0,
-      Infinity,
-    );
-    return splitSegment(fullRouteCoords, fullRouteCumulative, proj.progress);
-  }, [
-    isDriverActiveNavigation,
-    engine.segment.length,
-    terminal,
-    operationalState?.status,
-    navigation?.latestPosition,
-    fullRouteCoords,
-    fullRouteCumulative,
-  ]);
-
-  const hasActiveRoutingDisplay =
-    (isDriverActiveNavigation && engine.segment.length > 0) ||
-    observerSplit !== null;
-  const hidePlanned = hasActiveRoutingDisplay
-    ? !showPlanned
-    : terminal && !!history?.length && !showPlanned;
-
-  const activeTraveled =
-    isDriverActiveNavigation && engine.segment.length > 0
-      ? engine.traveled
-      : observerSplit
-        ? observerSplit.traveled
-        : [];
-  const activeRemaining =
-    isDriverActiveNavigation && engine.segment.length > 0
-      ? engine.remaining
-      : observerSplit
-        ? observerSplit.remaining
-        : [];
-  const activeLeg =
-    isDriverActiveNavigation && engine.segment.length > 0
-      ? engine.segment
-      : observerSplit
-        ? fullRouteCoords
-        : [];
+  const hasDriverNavigation = isDriverActiveNavigation && engine.segment.length > 0;
+  const hidePlanned = (hasDriverNavigation || (terminal && !!history?.length)) && !showPlanned;
+  const activeTraveled = isDriverActiveNavigation ? engine.traveled : [];
+  const activeRemaining = hasDriverNavigation ? engine.remaining : [];
+  const activeLeg = hasDriverNavigation ? engine.segment : [];
 
   const centerOnStart = !prevModeRef.current && !!engine.mode;
   useEffect(() => {
@@ -967,23 +898,7 @@ export default function MobileTripDetailScreen() {
         try {
           await mutate(() => mobileApiClient.startTrip(tripId));
           setConfirmModal(null);
-          if (isDriver) {
-            try {
-              const freshNav = await navigationApi.state(tripId);
-              setNavigation(freshNav);
-              if (freshNav.testMode) {
-                void engine.prepare(freshNav);
-              } else {
-                void engine.change("LIVE");
-              }
-            } catch {
-              if (navigation?.testMode) {
-                void engine.prepare();
-              } else {
-                void engine.change("LIVE");
-              }
-            }
-          }
+          if (isDriver) engine.startOnDeparture();
         } catch (err: any) {
           Alert.alert("Lỗi", err?.message || "Không thể bắt đầu chuyến xe");
         }
@@ -1166,59 +1081,43 @@ export default function MobileTripDetailScreen() {
 
   // QR Scan handler
   const handleScanQr = async (code: string) => {
-    if (!code || qrScanning || !canScanQr) return;
+    const qrCode = code.trim();
+    if (!qrCode || qrInFlight.current || qrAlertOpen.current || verifiedStudent || !qrModalVisible || !canScanQr) return;
     const requestIdentity = identity;
     const requestGeneration = qrGeneration.current;
+    const isCurrent = () =>
+      identityRef.current === requestIdentity &&
+      accessAllowed.current &&
+      qrGeneration.current === requestGeneration;
+    qrInFlight.current = true;
     try {
       setQrScanning(true);
-      const res = await mobileApiClient.verifyQrAttendance(tripId, code.trim());
-      if (
-        identityRef.current !== requestIdentity ||
-        !accessAllowed.current ||
-        qrGeneration.current !== requestGeneration
-      )
-        return;
-      assertActiveStudent(res.studentId);
+      const res = await mutate(() => mobileApiClient.scanQrAttendance(tripId, qrCode));
+      if (!isCurrent()) return;
+      setQrManualCode("");
       setVerifiedStudent(res);
-    } catch (err: any) {
-      Alert.alert(
-        "Không hợp lệ",
-        err?.message ||
-          "Mã QR không thuộc danh sách học sinh của chuyến xe này",
-      );
+    } catch (err) {
+      if (isCurrent()) {
+        qrAlertOpen.current = true;
+        Alert.alert(
+          "Chưa thể ghi điểm danh",
+          err instanceof Error ? err.message : "Kiểm tra mã học sinh rồi quét lại.",
+          [{ text: "Đóng", onPress: () => { qrAlertOpen.current = false; } }],
+          { cancelable: false },
+        );
+      }
     } finally {
-      setQrScanning(false);
+      qrInFlight.current = false;
+      if (isCurrent()) setQrScanning(false);
     }
   };
 
-  const handleConfirmVerifiedQr = async () => {
-    if (!verifiedStudent || !canScanQr) return;
-    try {
-      await mutateStudent(verifiedStudent.studentId, () =>
-        mobileApiClient.updateAttendance(
-          tripId,
-          verifiedStudent.studentId,
-          "PRESENT",
-        ),
-      );
-      setVerifiedStudent(null);
-      setQrModalVisible(false);
-    } catch (err: any) {
-      Alert.alert("Lỗi", err?.message || "Không thể cập nhật điểm danh từ QR");
-    }
+  const closeQrScanner = () => {
+    qrGeneration.current++;
+    setQrScanning(false);
+    setQrModalVisible(false);
+    setVerifiedStudent(null);
   };
-
-  // Filter roster
-  const filteredRoster = useMemo(() => {
-    if (!searchQuery.trim()) return attendanceRoster;
-    const q = searchQuery.toLowerCase().trim();
-    return attendanceRoster.filter(
-      (s) =>
-        s.fullName.toLowerCase().includes(q) ||
-        s.studentCode.toLowerCase().includes(q) ||
-        s.addressText.toLowerCase().includes(q),
-    );
-  }, [attendanceRoster, searchQuery]);
 
   if (loading) {
     return (
@@ -1275,6 +1174,7 @@ export default function MobileTripDetailScreen() {
       : stop;
   });
   const isToSchool = trip.direction === "TO_SCHOOL";
+  const attendanceTargetStopId = isBusAttendant ? navigation?.attendanceTargetStopId : engine.targetStopId;
   const correctingAttendance = isToSchool && operationalState?.isSchoolArrived && operationalState.status === "IN_PROGRESS";
   const showCancelAllAbsent = isBusAttendant && canCancelAllAbsent(trip.direction, operationalState, attendanceRoster);
   const canScanQr =
@@ -1394,7 +1294,7 @@ export default function MobileTripDetailScreen() {
           speedKmh={engine.speedKmh}
           onIncreaseSpeed={engine.increaseSpeed}
           onDecreaseSpeed={engine.decreaseSpeed}
-          freshness={navigation?.freshness}
+          freshness={navigation?.freshness ?? (isParent ? 'NONE' : undefined)}
           hasLocalPosition={isDriver && (!!engine.position || !!engine.mode)}
           targetName={
             trip?.stops.find((s) => s.id === engine.targetStopId)
@@ -1447,7 +1347,7 @@ export default function MobileTripDetailScreen() {
                   fontSize: 12,
                 }}
               >
-                {showPlanned ? "Dự kiến" : "Tham chiếu"}
+                Tuyến dự kiến
               </Text>
             </TouchableOpacity>
           )}
@@ -1610,7 +1510,7 @@ export default function MobileTripDetailScreen() {
           <View style={styles.collapsedHeader}>
             <View style={{ flex: 1 }}>
               {showNextStopSummary ? (
-                <TripNextStopSummary estimate={engine.nextStopEstimate} />
+                <TripNextStopSummary estimate={engine.nextStopEstimate} loading={engine.routePending} />
               ) : (
               <>
               <View style={styles.titleRow}>
@@ -1675,9 +1575,7 @@ export default function MobileTripDetailScreen() {
                   >
                     <Ionicons name="warning" size={12} color="#DC2626" />
                     <Text style={styles.incidentHeaderBadgeText}>
-                      {tripIncidents.some((incident) => incident.type === "GPS_SIGNAL_LOST" && incident.status === "WAITING_ASSIGNMENT")
-                        ? "Mất GPS"
-                        : tripIncidents.length + " sự cố"}
+                      {tripIncidents.length + " sự cố"}
                     </Text>
                   </TouchableOpacity>
                 ) : null}
@@ -1689,7 +1587,7 @@ export default function MobileTripDetailScreen() {
               </View>
 
               <Text style={styles.sheetTimeText}>
-                {trip.scheduledStartTime} – {trip.scheduledEndTime} •{" "}
+                {trip.displayTime} •{" "}
                 {trip.schoolName} •{" "}
                 {
                   {
@@ -2129,7 +2027,7 @@ export default function MobileTripDetailScreen() {
                       attendanceSubTab === "boarding" &&
                         attendanceTabBackground,
                     ]}
-                    onPress={() => setAttendanceSubTab("boarding")}
+                    onPress={() => { setAttendanceSubTab("boarding"); attendanceScrollRef.current?.scrollTo({ y: 0, animated: false }); }}
                     activeOpacity={0.8}
                   >
                     <Text
@@ -2151,7 +2049,7 @@ export default function MobileTripDetailScreen() {
                       attendanceSubTab === "alighting" &&
                         attendanceTabBackground,
                     ]}
-                    onPress={() => setAttendanceSubTab("alighting")}
+                    onPress={() => { setAttendanceSubTab("alighting"); attendanceScrollRef.current?.scrollTo({ y: 0, animated: false }); }}
                     activeOpacity={0.8}
                   >
                     <Text
@@ -2168,6 +2066,13 @@ export default function MobileTripDetailScreen() {
                   </TouchableOpacity>
                 </View>
 
+                <KeyboardScrollView ref={attendanceScrollRef} style={styles.tabContentScroll} showsVerticalScrollIndicator={false}>
+                  {isBusAttendant && !error && !terminal && (
+                    <RfidAttendanceEntry key={identity} identity={identity} tripId={tripId}
+                      phaseFilter={attendanceSubTab === "boarding" ? "BOARDING" : "ALIGHTING"}
+                      runMutation={mutate} onUpdated={loadTripDetail}
+                    />
+                  )}
                 {/* SUB-TAB 1: LÊN XE (BOARDING) */}
                 {attendanceSubTab === "boarding" && (
                   <View style={{ flex: 1 }}>
@@ -2234,269 +2139,232 @@ export default function MobileTripDetailScreen() {
                       )}
                     </View>
 
-                    {/* Roster Scroll List */}
-                    <KeyboardScrollView
-                      style={styles.tabContentScroll}
-                      showsVerticalScrollIndicator={false}
-                    >
-                      {isBusAttendant && trip && !error && !terminal && (
-                        <RfidAttendanceEntry
-                          key={`${identity}:boarding`}
-                          identity={identity}
-                          tripId={tripId}
-                          phaseFilter="BOARDING"
-                          runMutation={mutate}
-                          onUpdated={() => loadTripDetail()}
-                        />
-                      )}
-                      {/* Search Box */}
-                      <View style={styles.searchBox}>
-                        <Ionicons name="search" size={16} color="#94A3B8" />
-                        <TextInput
-                          style={styles.searchInput}
-                          placeholder="Tìm theo tên hoặc mã học sinh..."
-                          placeholderTextColor="#94A3B8"
-                          value={searchQuery}
-                          onChangeText={setSearchQuery}
-                        />
-                        {searchQuery ? (
-                          <TouchableOpacity onPress={() => setSearchQuery("")}>
-                            <Ionicons
-                              name="close-circle"
-                              size={16}
-                              color="#94A3B8"
-                            />
-                          </TouchableOpacity>
-                        ) : null}
-                      </View>
-                      {filteredRoster.length > 0 ? (
-                        filteredRoster.map((student) => {
-                          const isUnmarked = student.status === "UNMARKED";
-                          const isPresent = student.status === "PRESENT";
-                          const isAbsent = student.status === "ABSENT";
-                          const canBoard = isToSchool
-                            ? operationalState?.status === "IN_PROGRESS" && !operationalState.isSchoolArrived
-                            : (operationalState?.status === "SCHEDULED" &&
-                                operationalState?.isAttendantReady) ||
-                              operationalState?.status === "IN_PROGRESS";
-                          const canReset = isToSchool
-                            ? !operationalState?.isSchoolArrived
-                            : operationalState?.status === "SCHEDULED";
+                    <AttendanceRosterSections key="boarding" students={attendanceRoster} stops={trip.stops}
+                      phase="boarding" targetStopId={isToSchool ? attendanceTargetStopId : null}
+                      showPriority={isToSchool ? operationalState?.status === "IN_PROGRESS" && !operationalState.isSchoolArrived
+                        : operationalState?.status === "SCHEDULED" && Boolean(operationalState.isAttendantReady)}
+                      renderCard={(student, highlighted) => {
+                    const isUnmarked = student.status === "UNMARKED";
+                    const isPresent = student.status === "PRESENT";
+                    const isAbsent = student.status === "ABSENT";
+                    const canBoard = isToSchool
+                      ? operationalState?.status === "IN_PROGRESS" && !operationalState.isSchoolArrived
+                      : (operationalState?.status === "SCHEDULED" &&
+                          operationalState?.isAttendantReady) ||
+                        operationalState?.status === "IN_PROGRESS";
+                    const canReset = isToSchool
+                      ? !operationalState?.isSchoolArrived
+                      : operationalState?.status === "SCHEDULED";
 
-                          return (
-                            <View
-                              key={student.studentId}
-                              style={styles.rosterCard}
+                    return (
+                      <View
+                        key={student.studentId}
+                        style={[styles.rosterCard, highlighted && styles.priorityRosterCard]}
+                      >
+                        {/* Student Header */}
+                        <View style={styles.rosterCardHeader}>
+                          <View style={styles.rosterOrderCircle}>
+                            <Text style={styles.rosterOrderText}>
+                              {student.stopOrder}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.rosterStudentName}>
+                              {student.fullName}
+                            </Text>
+                            <Text style={styles.rosterStudentCode}>
+                              {student.studentCode} • Dự kiến:{" "}
+                              {student.plannedArrivalTime || "—"}
+                            </Text>
+                          </View>
+                          <View
+                            style={[
+                              styles.rosterStatusBadge,
+                              isPresent
+                                ? styles.badgePresent
+                                : isAbsent
+                                  ? styles.badgeAbsent
+                                  : styles.badgeUnmarked,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.rosterStatusText,
+                                isPresent
+                                  ? styles.textPresent
+                                  : isAbsent
+                                    ? styles.textAbsent
+                                    : styles.textUnmarked,
+                              ]}
                             >
-                              {/* Student Header */}
-                              <View style={styles.rosterCardHeader}>
-                                <View style={styles.rosterOrderCircle}>
-                                  <Text style={styles.rosterOrderText}>
-                                    {student.stopOrder}
-                                  </Text>
-                                </View>
-                                <View style={{ flex: 1 }}>
-                                  <Text style={styles.rosterStudentName}>
-                                    {student.fullName}
-                                  </Text>
-                                  <Text style={styles.rosterStudentCode}>
-                                    {student.studentCode} • Dự kiến:{" "}
-                                    {student.plannedArrivalTime || "—"}
-                                  </Text>
-                                </View>
-                                <View
-                                  style={[
-                                    styles.rosterStatusBadge,
-                                    isPresent
-                                      ? styles.badgePresent
-                                      : isAbsent
-                                        ? styles.badgeAbsent
-                                        : styles.badgeUnmarked,
-                                  ]}
-                                >
-                                  <Text
-                                    style={[
-                                      styles.rosterStatusText,
-                                      isPresent
-                                        ? styles.textPresent
-                                        : isAbsent
-                                          ? styles.textAbsent
-                                          : styles.textUnmarked,
-                                    ]}
-                                  >
-                                    {isPresent
-                                      ? "Có mặt"
-                                      : isAbsent
-                                        ? "Vắng mặt"
-                                        : "Chưa điểm danh"}
-                                  </Text>
-                                </View>
-                              </View>
+                              {isPresent
+                                ? "Có mặt"
+                                : isAbsent
+                                  ? "Vắng mặt"
+                                  : "Chưa điểm danh"}
+                            </Text>
+                          </View>
+                        </View>
 
-                              <Text
-                                style={styles.rosterAddress}
-                                numberOfLines={1}
-                              >
-                                {student.addressText}
-                              </Text>
-
-                              {/* Absence reason display if absent */}
-                              {isAbsent && student.absenceReason ? (
-                                <View style={styles.rosterAbsenceReason}>
-                                  <Text style={styles.rosterAbsenceReasonLabel}>
-                                    Lý do:
-                                  </Text>
-                                  <Text style={styles.rosterAbsenceReasonText}>
-                                    {student.absenceReason}
-                                  </Text>
-                                </View>
-                              ) : null}
-
-                              {/* Mutation Buttons (Bus Attendant only) */}
-                              {isBusAttendant && canCorrectAttendance(trip.direction, operationalState, student) && (
-                                <TouchableOpacity
-                                  accessibilityRole="button"
-                                  style={[styles.actionBtnSwitch, styles.standaloneTripAction]}
-                                  onPress={() => {
-                                    setReasonText("");
-                                    setReasonAction({
-                                      kind: "correction",
-                                      student,
-                                      status: student.status === "PRESENT" ? "ABSENT" : "PRESENT",
-                                    });
-                                  }}
-                                >
-                                  <Text style={[styles.actionBtnTextDark, attendantButtons.secondaryText]}>Đính chính điểm danh</Text>
-                                </TouchableOpacity>
-                              )}
-                              {isBusAttendant && !correctingAttendance && (
-                                <View style={styles.rosterActionRow}>
-                                  {isUnmarked ? (
-                                    <>
-                                      <TouchableOpacity
-                                        style={[
-                                          styles.actionBtnAbsent,
-                                          !canBoard && attendantButtons.disabled,
-                                        ]}
-                                        disabled={!canBoard}
-                                        onPress={() =>
-                                          handleOpenAbsenceModal(student)
-                                        }
-                                      >
-                                        <Ionicons
-                                          name="close"
-                                          size={14}
-                                          color={canBoard ? attendantTheme.colors.primary : attendantTheme.colors.disabledText}
-                                        />
-                                        <Text style={[styles.actionBtnTextLight,
-                                          canBoard ? attendantButtons.secondaryText : attendantButtons.disabledText]}>
-                                          Vắng mặt
-                                        </Text>
-                                      </TouchableOpacity>
-
-                                      <TouchableOpacity
-                                        style={[
-                                          styles.actionBtnPresent,
-                                          !canBoard && attendantButtons.disabled,
-                                        ]}
-                                        disabled={!canBoard}
-                                        onPress={() =>
-                                          handleMarkPresent(student)
-                                        }
-                                      >
-                                        <Ionicons
-                                          name="checkmark"
-                                          size={14}
-                                          color={canBoard ? colors.surface : attendantTheme.colors.disabledText}
-                                        />
-                                        <Text style={[styles.actionBtnTextLight,
-                                          canBoard ? attendantButtons.primaryText : attendantButtons.disabledText]}>
-                                          Có mặt
-                                        </Text>
-                                      </TouchableOpacity>
-                                    </>
-                                  ) : isPresent ? (
-                                    <>
-                                      <TouchableOpacity
-                                        style={[
-                                          styles.actionBtnSwitch,
-                                          (!canBoard || student.isAlighted) && attendantButtons.disabled,
-                                        ]}
-                                        disabled={
-                                          !canBoard ||
-                                          Boolean(student.isAlighted)
-                                        }
-                                        onPress={() =>
-                                          handleOpenAbsenceModal(student)
-                                        }
-                                      >
-                                        <Text style={[styles.actionBtnTextDark,
-                                          canBoard && !student.isAlighted ? attendantButtons.secondaryText : attendantButtons.disabledText]}>
-                                          Đổi vắng
-                                        </Text>
-                                      </TouchableOpacity>
-
-                                      <TouchableOpacity
-                                        style={[
-                                          styles.actionBtnReset,
-                                          (!canBoard || !canReset) && styles.attendantOutlineDisabled,
-                                        ]}
-                                        disabled={!canBoard || !canReset}
-                                        onPress={() =>
-                                          handleResetUnmarked(student)
-                                        }
-                                      >
-                                        <Text style={[styles.actionBtnTextDark,
-                                          canBoard && canReset ? attendantButtons.secondaryText : attendantButtons.disabledText]}>
-                                          Hoàn tác
-                                        </Text>
-                                      </TouchableOpacity>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <TouchableOpacity
-                                        style={[
-                                          styles.actionBtnSwitch,
-                                          !canBoard && attendantButtons.disabled,
-                                        ]}
-                                        disabled={!canBoard}
-                                        onPress={() =>
-                                          handleMarkPresent(student)
-                                        }
-                                      >
-                                        <Text style={[styles.actionBtnTextDark, canBoard ? attendantButtons.secondaryText : attendantButtons.disabledText]}>
-                                          Đổi có mặt
-                                        </Text>
-                                      </TouchableOpacity>
-
-                                      <TouchableOpacity
-                                        style={[
-                                          styles.actionBtnReset,
-                                          (!canBoard || !canReset) && styles.attendantOutlineDisabled,
-                                        ]}
-                                        disabled={!canBoard || !canReset}
-                                        onPress={() =>
-                                          handleResetUnmarked(student)
-                                        }
-                                      >
-                                        <Text style={[styles.actionBtnTextDark,
-                                          canBoard && canReset ? attendantButtons.secondaryText : attendantButtons.disabledText]}>
-                                          Hoàn tác
-                                        </Text>
-                                      </TouchableOpacity>
-                                    </>
-                                  )}
-                                </View>
-                              )}
-                            </View>
-                          );
-                        })
-                      ) : (
-                        <Text style={styles.emptyStopsText}>
-                          Không tìm thấy học sinh
+                        <Text
+                          style={styles.rosterAddress}
+                          numberOfLines={1}
+                        >
+                          {student.addressText}
                         </Text>
-                      )}
-                    </KeyboardScrollView>
+
+                        {/* Absence reason display if absent */}
+                        {isAbsent && student.absenceReason ? (
+                          <View style={styles.rosterAbsenceReason}>
+                            <Text style={styles.rosterAbsenceReasonLabel}>
+                              Lý do:
+                            </Text>
+                            <Text style={styles.rosterAbsenceReasonText}>
+                              {student.absenceReason}
+                            </Text>
+                          </View>
+                        ) : null}
+
+                        {/* Mutation Buttons (Bus Attendant only) */}
+                        {isBusAttendant && canCorrectAttendance(trip.direction, operationalState, student) && (
+                          <TouchableOpacity
+                            accessibilityRole="button"
+                            style={[styles.actionBtnSwitch, styles.standaloneTripAction]}
+                            onPress={() => {
+                              setReasonText("");
+                              setReasonAction({
+                                kind: "correction",
+                                student,
+                                status: student.status === "PRESENT" ? "ABSENT" : "PRESENT",
+                              });
+                            }}
+                          >
+                            <Text style={[styles.actionBtnTextDark, attendantButtons.secondaryText]}>Đính chính điểm danh</Text>
+                          </TouchableOpacity>
+                        )}
+                        {isBusAttendant && !correctingAttendance && (
+                          <View style={styles.rosterActionRow}>
+                            {isUnmarked ? (
+                              <>
+                                <TouchableOpacity
+                                  style={[
+                                    styles.actionBtnAbsent,
+                                    !canBoard && attendantButtons.disabled,
+                                  ]}
+                                  disabled={!canBoard}
+                                  onPress={() =>
+                                    handleOpenAbsenceModal(student)
+                                  }
+                                >
+                                  <Ionicons
+                                    name="close"
+                                    size={14}
+                                    color={canBoard ? attendantTheme.colors.primary : attendantTheme.colors.disabledText}
+                                  />
+                                  <Text style={[styles.actionBtnTextLight,
+                                    canBoard ? attendantButtons.secondaryText : attendantButtons.disabledText]}>
+                                    Vắng mặt
+                                  </Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                  style={[
+                                    styles.actionBtnPresent,
+                                    !canBoard && attendantButtons.disabled,
+                                  ]}
+                                  disabled={!canBoard}
+                                  onPress={() =>
+                                    handleMarkPresent(student)
+                                  }
+                                >
+                                  <Ionicons
+                                    name="checkmark"
+                                    size={14}
+                                    color={canBoard ? colors.surface : attendantTheme.colors.disabledText}
+                                  />
+                                  <Text style={[styles.actionBtnTextLight,
+                                    canBoard ? attendantButtons.primaryText : attendantButtons.disabledText]}>
+                                    Xác nhận lên xe
+                                  </Text>
+                                </TouchableOpacity>
+                              </>
+                            ) : isPresent ? (
+                              <>
+                                <TouchableOpacity
+                                  style={[
+                                    styles.actionBtnSwitch,
+                                    (!canBoard || student.isAlighted) && attendantButtons.disabled,
+                                  ]}
+                                  disabled={
+                                    !canBoard ||
+                                    Boolean(student.isAlighted)
+                                  }
+                                  onPress={() =>
+                                    handleOpenAbsenceModal(student)
+                                  }
+                                >
+                                  <Text style={[styles.actionBtnTextDark,
+                                    canBoard && !student.isAlighted ? attendantButtons.secondaryText : attendantButtons.disabledText]}>
+                                    Đổi vắng
+                                  </Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                  style={[
+                                    styles.actionBtnReset,
+                                    (!canBoard || !canReset) && styles.attendantOutlineDisabled,
+                                  ]}
+                                  disabled={!canBoard || !canReset}
+                                  onPress={() =>
+                                    handleResetUnmarked(student)
+                                  }
+                                >
+                                  <Text style={[styles.actionBtnTextDark,
+                                    canBoard && canReset ? attendantButtons.secondaryText : attendantButtons.disabledText]}>
+                                    Hoàn tác
+                                  </Text>
+                                </TouchableOpacity>
+                              </>
+                            ) : (
+                              <>
+                                <TouchableOpacity
+                                  style={[
+                                    styles.actionBtnSwitch,
+                                    !canBoard && attendantButtons.disabled,
+                                  ]}
+                                  disabled={!canBoard}
+                                  onPress={() =>
+                                    handleMarkPresent(student)
+                                  }
+                                >
+                                  <Text style={[styles.actionBtnTextDark, canBoard ? attendantButtons.secondaryText : attendantButtons.disabledText]}>
+                                    Đổi có mặt
+                                  </Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                  style={[
+                                    styles.actionBtnReset,
+                                    (!canBoard || !canReset) && styles.attendantOutlineDisabled,
+                                  ]}
+                                  disabled={!canBoard || !canReset}
+                                  onPress={() =>
+                                    handleResetUnmarked(student)
+                                  }
+                                >
+                                  <Text style={[styles.actionBtnTextDark,
+                                    canBoard && canReset ? attendantButtons.secondaryText : attendantButtons.disabledText]}>
+                                    Hoàn tác
+                                  </Text>
+                                </TouchableOpacity>
+                              </>
+                            )}
+                          </View>
+                        )}
+                      </View>
+                    );
+                      }}
+                    />
                   </View>
                 )}
 
@@ -2549,142 +2417,122 @@ export default function MobileTripDetailScreen() {
                       </View>
                     )}
 
-                    {/* Scroll List of PRESENT students only */}
-                    <ScrollView
-                      style={styles.tabContentScroll}
-                      showsVerticalScrollIndicator={false}
-                    >
-                      {isBusAttendant && trip && !error && !terminal && (
-                        <RfidAttendanceEntry
-                          key={`${identity}:alighting`}
-                          identity={identity}
-                          tripId={tripId}
-                          phaseFilter="ALIGHTING"
-                          runMutation={mutate}
-                          onUpdated={() => loadTripDetail()}
-                        />
-                      )}
-                      {filteredRoster.filter((s) => s.status === "PRESENT")
-                        .length > 0 ? (
-                        filteredRoster
-                          .filter((s) => s.status === "PRESENT")
-                          .map((student) => {
-                            const isAlighted = Boolean(student.isAlighted);
-                            const canAlight =
-                              operationalState?.status === "IN_PROGRESS" &&
-                              (!isToSchool ||
-                                Boolean(operationalState?.isSchoolArrived));
+                    <AttendanceRosterSections key="alighting" students={attendanceRoster} stops={trip.stops}
+                      phase="alighting" targetStopId={!isToSchool ? attendanceTargetStopId : null}
+                      showPriority={operationalState?.status === "IN_PROGRESS" && (!isToSchool || Boolean(operationalState.isSchoolArrived))}
+                      renderCard={(student, highlighted) => {
+                    const isAlighted = Boolean(student.isAlighted || student.alightedAt);
+                    const canAlight =
+                      operationalState?.status === "IN_PROGRESS" &&
+                      (!isToSchool ||
+                        Boolean(operationalState?.isSchoolArrived));
 
-                            return (
-                              <View
-                                key={student.studentId}
-                                style={styles.rosterCard}
+                    return (
+                      <View
+                        key={student.studentId}
+                        style={[styles.rosterCard, highlighted && styles.priorityRosterCard]}
+                      >
+                        <View style={styles.rosterCardHeader}>
+                          <View style={styles.rosterOrderCircle}>
+                            <Text style={styles.rosterOrderText}>
+                              {student.stopOrder}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.rosterStudentName}>
+                              {student.fullName}
+                            </Text>
+                            <Text style={styles.rosterStudentCode}>
+                              {student.studentCode} •{" "}
+                              {student.addressText}
+                            </Text>
+                          </View>
+                          <View
+                            style={[
+                              styles.rosterStatusBadge,
+                              isAlighted
+                                ? styles.badgeAlighted
+                                : styles.badgeNotAlighted,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.rosterStatusText,
+                                isAlighted
+                                  ? styles.textAlighted
+                                  : styles.textNotAlighted,
+                              ]}
+                            >
+                              {isAlighted
+                                ? "Đã xuống xe"
+                                : "Chưa xuống xe"}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Action Buttons for Alighting */}
+                        {isBusAttendant && (
+                          <View style={styles.rosterActionRow}>
+                            {!isAlighted ? (
+                              <TouchableOpacity
+                                style={[
+                                  styles.actionBtnAlight,
+                                  !canAlight && attendantButtons.disabled,
+                                ]}
+                                disabled={!canAlight}
+                                onPress={() =>
+                                  handleToggleAlighting(student, true)
+                                }
+                                activeOpacity={0.85}
                               >
-                                <View style={styles.rosterCardHeader}>
-                                  <View style={styles.rosterOrderCircle}>
-                                    <Text style={styles.rosterOrderText}>
-                                      {student.stopOrder}
-                                    </Text>
-                                  </View>
-                                  <View style={{ flex: 1 }}>
-                                    <Text style={styles.rosterStudentName}>
-                                      {student.fullName}
-                                    </Text>
-                                    <Text style={styles.rosterStudentCode}>
-                                      {student.studentCode} •{" "}
-                                      {student.addressText}
-                                    </Text>
-                                  </View>
-                                  <View
-                                    style={[
-                                      styles.rosterStatusBadge,
-                                      isAlighted
-                                        ? styles.badgeAlighted
-                                        : styles.badgeNotAlighted,
-                                    ]}
-                                  >
-                                    <Text
-                                      style={[
-                                        styles.rosterStatusText,
-                                        isAlighted
-                                          ? styles.textAlighted
-                                          : styles.textNotAlighted,
-                                      ]}
-                                    >
-                                      {isAlighted
-                                        ? "Đã xuống xe"
-                                        : "Chưa xuống xe"}
-                                    </Text>
-                                  </View>
-                                </View>
-
-                                {/* Action Buttons for Alighting */}
-                                {isBusAttendant && (
-                                  <View style={styles.rosterActionRow}>
-                                    {!isAlighted ? (
-                                      <TouchableOpacity
-                                        style={[
-                                          styles.actionBtnAlight,
-                                          !canAlight && attendantButtons.disabled,
-                                        ]}
-                                        disabled={!canAlight}
-                                        onPress={() =>
-                                          handleToggleAlighting(student, true)
-                                        }
-                                        activeOpacity={0.85}
-                                      >
-                                        <Ionicons
-                                          name="walk-outline"
-                                          size={15}
-                                          color={canAlight ? colors.surface : attendantTheme.colors.disabledText}
-                                        />
-                                        <Text style={[styles.actionBtnTextLight,
-                                          canAlight ? attendantButtons.primaryText : attendantButtons.disabledText]}>
-                                          Xác nhận xuống xe
-                                        </Text>
-                                      </TouchableOpacity>
-                                    ) : (
-                                      <TouchableOpacity
-                                        style={[
-                                          styles.actionBtnReset,
-                                          !canAlight && styles.attendantOutlineDisabled,
-                                        ]}
-                                        disabled={!canAlight}
-                                        onPress={() =>
-                                          handleToggleAlighting(student, false)
-                                        }
-                                        activeOpacity={0.85}
-                                      >
-                                        <Text style={[styles.actionBtnTextDark, canAlight ? attendantButtons.secondaryText : attendantButtons.disabledText]}>
-                                          Hoàn tác
-                                        </Text>
-                                      </TouchableOpacity>
-                                    )}
-                                    {!isToSchool && canAlight && !isAlighted && !student.alightedAt && (
-                                      <TouchableOpacity
-                                        accessibilityRole="button"
-                                        style={[styles.actionBtnSwitch, styles.reportStudentAction]}
-                                        onPress={() => {
-                                          setIncidentNote("");
-                                          setIncidentReport({ type: "NO_GUARDIAN_AT_STOP", student });
-                                        }}
-                                      >
-                                        <Text style={[styles.actionBtnTextDark, attendantButtons.secondaryText]}>Báo không có người đón</Text>
-                                      </TouchableOpacity>
-                                    )}
-                                  </View>
-                                )}
-                              </View>
-                            );
-                          })
-                      ) : (
-                        <Text style={styles.emptyStopsText}>
-                          Chưa có học sinh nào có mặt trên xe
-                        </Text>
-                      )}
-                    </ScrollView>
+                                <Ionicons
+                                  name="walk-outline"
+                                  size={15}
+                                  color={canAlight ? colors.surface : attendantTheme.colors.disabledText}
+                                />
+                                <Text style={[styles.actionBtnTextLight,
+                                  canAlight ? attendantButtons.primaryText : attendantButtons.disabledText]}>
+                                  Xác nhận xuống xe
+                                </Text>
+                              </TouchableOpacity>
+                            ) : (
+                              <TouchableOpacity
+                                style={[
+                                  styles.actionBtnReset,
+                                  !canAlight && styles.attendantOutlineDisabled,
+                                ]}
+                                disabled={!canAlight}
+                                onPress={() =>
+                                  handleToggleAlighting(student, false)
+                                }
+                                activeOpacity={0.85}
+                              >
+                                <Text style={[styles.actionBtnTextDark, canAlight ? attendantButtons.secondaryText : attendantButtons.disabledText]}>
+                                  Hoàn tác
+                                </Text>
+                              </TouchableOpacity>
+                            )}
+                            {!isToSchool && canAlight && !isAlighted && !student.alightedAt && (
+                              <TouchableOpacity
+                                accessibilityRole="button"
+                                style={[styles.actionBtnSwitch, styles.reportStudentAction]}
+                                onPress={() => {
+                                  setIncidentNote("");
+                                  setIncidentReport({ type: "NO_GUARDIAN_AT_STOP", student });
+                                }}
+                              >
+                                <Text style={[styles.actionBtnTextDark, attendantButtons.secondaryText]}>Báo không có người đón</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        )}
+                      </View>
+                    );
+                      }}
+                    />
                   </View>
                 )}
+                </KeyboardScrollView>
               </View>
             )}
 
@@ -2759,21 +2607,6 @@ export default function MobileTripDetailScreen() {
                       </Text>
                     </TouchableOpacity>
                   )}
-                {isDriverOrAttendant && operationalState?.status === "IN_PROGRESS" && (
-                  <TouchableOpacity
-                    accessibilityRole="button"
-                    style={[styles.reportIncidentButton, buttons?.secondary]}
-                    onPress={() => {
-                      setIncidentNote("");
-                      setIncidentReport({ type: "TRAFFIC_DELAY" });
-                    }}
-                  >
-                    <Ionicons name="warning" size={15} color={mapActionColor} />
-                    <Text style={[styles.reportIncidentButtonText, buttons?.secondaryText]}>
-                      Báo tắc đường
-                    </Text>
-                  </TouchableOpacity>
-                )}
                 {tripIncidents.length === 0 ? (
                   <View style={styles.emptyIncidentsBox}>
                     <Ionicons
@@ -2832,6 +2665,11 @@ export default function MobileTripDetailScreen() {
 
                     return (
                       <View key={incident.id} style={styles.incidentTripCard}>
+                        {incident.type === "NO_GUARDIAN_AT_STOP" && (
+                          <Text style={styles.incidentStudentName}>
+                            {incident.studentName || "Học sinh chưa xác định"}
+                          </Text>
+                        )}
                         <View style={styles.incidentCardHeader}>
                           <View
                             style={[
@@ -3187,7 +3025,7 @@ export default function MobileTripDetailScreen() {
       )}
 
       {/* QR Scanner Modal (D08: Student.code QR scanner) */}
-      <Modal transparent animationType="slide" visible={qrModalVisible}>
+      <Modal transparent animationType="slide" visible={qrModalVisible} onRequestClose={closeQrScanner}>
         <KeyboardScrollView
           style={styles.qrModalContainer}
           contentContainerStyle={{ flexGrow: 1 }}
@@ -3195,10 +3033,9 @@ export default function MobileTripDetailScreen() {
           <View style={[styles.qrModalHeader, { paddingTop: insets.top + 10 }]}>
             <Text style={styles.qrModalTitle}>Quét thẻ học sinh</Text>
             <TouchableOpacity
-              onPress={() => {
-                setQrModalVisible(false);
-                setVerifiedStudent(null);
-              }}
+              accessibilityRole="button"
+              accessibilityLabel="Đóng máy quét QR"
+              onPress={closeQrScanner}
               style={styles.qrModalCloseBtn}
             >
               <Ionicons name="close" size={24} color="#FFFFFF" />
@@ -3208,7 +3045,9 @@ export default function MobileTripDetailScreen() {
           {verifiedStudent ? (
             <View style={styles.qrVerifyCard}>
               <Ionicons name="checkmark-circle" size={48} color="#059669" />
-              <Text style={styles.qrVerifyTitle}>Học sinh hợp lệ</Text>
+              <Text accessibilityLiveRegion="polite" style={styles.qrVerifyTitle}>
+                {verifiedStudent.alreadyRecorded ? "Học sinh đã được điểm danh" : "Đã ghi nhận lên xe"}
+              </Text>
               <Text style={styles.qrVerifyName}>
                 {verifiedStudent.fullName}
               </Text>
@@ -3221,18 +3060,11 @@ export default function MobileTripDetailScreen() {
 
               <View style={styles.qrVerifyBtnRow}>
                 <TouchableOpacity
-                  style={styles.qrVerifyRetryBtn}
+                  accessibilityRole="button"
+                  style={styles.qrVerifyNextBtn}
                   onPress={() => setVerifiedStudent(null)}
                 >
-                  <Text style={styles.qrVerifyRetryText}>Quét lại</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.qrVerifyConfirmBtn}
-                  onPress={handleConfirmVerifiedQr}
-                >
-                  <Text style={styles.qrVerifyConfirmText}>
-                    Xác nhận có mặt
-                  </Text>
+                  <Text style={styles.qrVerifyNextText}>Quét tiếp</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -3244,7 +3076,7 @@ export default function MobileTripDetailScreen() {
                 barcodeScannerSettings={{
                   barcodeTypes: ["qr"],
                 }}
-                onBarcodeScanned={(result) => {
+                onBarcodeScanned={qrScanning ? undefined : (result) => {
                   if (result.data) {
                     handleScanQr(result.data);
                   }
@@ -3268,9 +3100,10 @@ export default function MobileTripDetailScreen() {
                 />
                 <TouchableOpacity
                   style={styles.qrManualSubmitBtn}
+                  disabled={qrScanning}
                   onPress={() => handleScanQr(qrManualCode)}
                 >
-                  <Text style={styles.qrManualSubmitText}>Kiểm tra</Text>
+                  <Text style={styles.qrManualSubmitText}>{qrScanning ? "Đang ghi…" : "Điểm danh"}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -3499,7 +3332,7 @@ export default function MobileTripDetailScreen() {
 
             <TextInput
               style={styles.confirmReasonInput}
-              placeholder="VD: Tuyến đường thi công phải đi vòng, tắc đường đột xuất..."
+              placeholder="Nhập lý do xác nhận sự cố"
               placeholderTextColor="#94A3B8"
               multiline
               numberOfLines={3}
@@ -3699,6 +3532,12 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 10,
     gap: 8,
+  },
+  incidentStudentName: {
+    color: colors.foreground,
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 6,
   },
   incidentCardHeader: {
     flexDirection: "row",
@@ -4189,21 +4028,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.foreground,
   },
-  searchBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F1F5F9",
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    gap: 8,
-    marginBottom: 10,
-    height: 38,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 13,
-    color: "#0F172A",
-  },
+  priorityRosterCard: { backgroundColor: "#F8F4FE", borderColor: "#D6C7EE" },
   rosterCard: {
     backgroundColor: "#F8FAFC",
     padding: 12,
@@ -4601,9 +4426,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
     width: "100%",
   },
-  qrVerifyRetryBtn: { ...parentHomeStyles.secondaryBtn, ...attendantTheme.buttons.secondary, flex: 1 },
-  qrVerifyRetryText: { ...parentHomeStyles.secondaryBtnText, ...attendantTheme.buttons.secondaryText },
-  qrVerifyConfirmBtn: { ...parentHomeStyles.primaryBtn, ...attendantTheme.buttons.primary, flex: 1 },
-  qrVerifyConfirmText: { ...parentHomeStyles.primaryBtnText, ...attendantTheme.buttons.primaryText },
+  qrVerifyNextBtn: { ...parentHomeStyles.primaryBtn, ...attendantTheme.buttons.primary, flex: 1 },
+  qrVerifyNextText: { ...parentHomeStyles.primaryBtnText, ...attendantTheme.buttons.primaryText },
 });
 import { AppHeader, HeaderAction } from "@/components/navigation/app-header";

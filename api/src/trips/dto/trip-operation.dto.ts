@@ -93,6 +93,11 @@ export class VerifyQrResponseDto {
   absenceReason?: string | null;
 }
 
+export class ScanQrResponseDto extends VerifyQrResponseDto {
+  @ApiProperty({ example: false, description: 'Học sinh đã được ghi nhận lên xe trước lượt quét này.' })
+  alreadyRecorded: boolean;
+}
+
 export class TripAttendanceStudentItemDto {
   @ApiProperty({ example: 'uuid-student-01' })
   studentId: string;
@@ -344,6 +349,9 @@ export class MobileHomeTripDto {
   @ApiProperty({ example: '06:30 - 07:15' })
   scheduledTime: string;
 
+  @ApiProperty({ example: '06:48 – …', description: 'Khung giờ hiển thị theo giờ Việt Nam. Dùng giờ thực tế cho chuyến đang chạy hoặc đã hoàn thành.' })
+  displayTime: string;
+
   @ApiProperty({ enum: TripStatus, example: 'SCHEDULED' })
   status: TripStatus;
 
@@ -368,8 +376,8 @@ export class MobileHomeTripDto {
   @ApiProperty({ type: MobileHomeTripPersonnelDto })
   busAttendant: MobileHomeTripPersonnelDto;
 
-  @ApiProperty({ type: OperationalStateResponseDto })
-  operationalState: OperationalStateResponseDto;
+  @ApiPropertyOptional({ type: OperationalStateResponseDto, description: 'Trạng thái vận hành của chuyến chính.' })
+  operationalState?: OperationalStateResponseDto;
 
   @ApiPropertyOptional({ enum: ['ASSIGNED', 'WAITING_ASSIGNMENT'], example: 'ASSIGNED' })
   assignmentStatus?: 'ASSIGNED' | 'WAITING_ASSIGNMENT';
@@ -382,11 +390,17 @@ export class MobileHomeTripDto {
 }
 
 export class HomeTripResponseDto {
-  @ApiProperty({ example: true })
+  @ApiProperty({ example: true, description: 'Có chuyến chính đang vận hành hoặc chờ khởi hành.' })
   hasTrip: boolean;
 
-  @ApiPropertyOptional({ type: MobileHomeTripDto })
+  @ApiPropertyOptional({ type: MobileHomeTripDto, nullable: true, description: 'Chuyến chính, nếu có.' })
   trip?: MobileHomeTripDto | null;
+
+  @ApiProperty({
+    type: [MobileHomeTripDto],
+    description: 'Chuyến chính và các chuyến đã hoàn thành hoặc đã hủy cùng ngày phục vụ.',
+  })
+  items: MobileHomeTripDto[];
 }
 
 export class ParentHomeCardItemDto {
@@ -417,6 +431,9 @@ export class ParentHomeCardItemDto {
   @ApiProperty({ example: '06:30 - 07:15' })
   scheduledTime: string;
 
+  @ApiProperty({ example: '06:48 – …', description: 'Khung giờ hiển thị theo giờ Việt Nam. Dùng giờ thực tế cho chuyến đang chạy hoặc đã hoàn thành.' })
+  displayTime: string;
+
   @ApiProperty({ enum: TripStatus, example: 'IN_PROGRESS' })
   tripStatus: TripStatus;
 
@@ -434,6 +451,8 @@ export class ParentHomeCardItemDto {
 
   @ApiProperty({ example: false })
   childIsAlighted: boolean;
+  @ApiProperty({ example: false, description: 'Báo cáo chưa xử lý cho chính học sinh trên thẻ, khi con vẫn còn trên xe.' })
+  noGuardianAtStop: boolean;
 
   @ApiPropertyOptional({ example: null })
   childAlightedAt?: string | null;

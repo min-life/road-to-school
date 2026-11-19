@@ -1,12 +1,4 @@
-import type { Instruction, LocationPoint, LocationSource, Position } from '../services/trip-navigation';
-
-export function isAutoStudentStop(source: LocationSource | null, stopType: string | undefined) {
-  return source === 'TEST_AUTO' && (stopType === 'PICKUP' || stopType === 'DROPOFF');
-}
-
-export function shouldHandOffToManual(source: LocationSource | null, stopType: string | undefined, metres: number) {
-  return isAutoStudentStop(source, stopType) && metres >= 0 && metres <= 10;
-}
+import type { Instruction, LocationPoint, Position } from '../services/trip-navigation';
 
 export type Coordinate = [number, number];
 const R = 6371000, RAD = Math.PI / 180;
@@ -72,13 +64,34 @@ export function nextGuidance(instructions: Instruction[], cumulative: number[], 
     metres: Math.max(0, Math.round((continues ? cumulative.at(-1) ?? 0 : cumulative[next.interval[0]]) - progress)) };
 }
 
-export function nextStopProgress(instructions: Instruction[], cumulative: number[]) {
+export function nextStopProgress(instructions: Instruction[], cumulative: number[], targetAtRouteEnd = false) {
+  if (targetAtRouteEnd) return cumulative.length > 1 ? cumulative.at(-1) : undefined;
   const stop = instructions.find(i => i.sign === 5 || i.sign === 4);
   return stop ? cumulative[stop.interval[0]] : undefined;
 }
 
-export function nextStopEstimate(instructions: Instruction[], cumulative: number[], progress: number, secondsPerMetre: number) {
-  const end = nextStopProgress(instructions, cumulative);
+export function orderedStopProgress(
+  coords: Coordinate[],
+  cumulative: number[],
+  instructions: Instruction[],
+  stops: (Position & { id: string })[],
+) {
+  const via = instructions.filter(instruction => instruction.sign === 5);
+  const annotated = via.length === stops.length - 1;
+  const marks = new Map<string, number>();
+  let progress = 0;
+  for (const [index, stop] of stops.entries()) {
+    const metres = index === stops.length - 1
+      ? cumulative.at(-1)
+      : annotated ? cumulative[via[index].interval[0]] : undefined;
+    progress = Math.max(progress, metres ?? projectProgress(coords, cumulative, coordinate(stop), progress, Infinity).progress);
+    marks.set(stop.id, progress);
+  }
+  return marks;
+}
+
+export function nextStopEstimate(instructions: Instruction[], cumulative: number[], progress: number, secondsPerMetre: number, targetAtRouteEnd = false, targetProgress?: number) {
+  const end = targetProgress ?? nextStopProgress(instructions, cumulative, targetAtRouteEnd);
   if (end === undefined || !Number.isFinite(end) || !Number.isFinite(progress)
       || !Number.isFinite(secondsPerMetre) || secondsPerMetre <= 0) return null;
   const metres = Math.max(0, end - Math.max(0, progress));
@@ -89,11 +102,22 @@ export function recordedParts(points: LocationPoint[]) {
   const parts: Coordinate[][] = [];
   points.forEach((p, i) => {
     const prev = points[i - 1];
-    if (!prev || p.runId !== prev.runId || p.sequence !== prev.sequence + 1 ||
-        Date.parse(p.recordedAt) - Date.parse(prev.recordedAt) > 15000) parts.push([]);
+    const seconds = prev ? (Date.parse(p.recordedAt) - Date.parse(prev.recordedAt)) / 1000 : NaN;
+    // A new run can be a mode switch. Preserve consecutive, plausible movement.
+    const continuous = prev && p.sequence === prev.sequence + 1 && seconds >= 0 && seconds <= 15
+      && distance(coordinate(prev), coordinate(p)) <= 15 + seconds * (120 / 3.6);
+    if (!continuous) parts.push([]);
     parts[parts.length - 1].push(coordinate(p));
   });
   return parts;
+}
+
+export function appendTravelledPart(parts: Coordinate[][], traveled: Coordinate[]) {
+  if (traveled.length < 2) return parts;
+  const last = parts.at(-1);
+  if (last && distance(last[last.length - 1], traveled[0]) <= 5)
+    return [...parts.slice(0, -1), [...last, ...traveled]];
+  return [...parts, traveled];
 }
 
 /**

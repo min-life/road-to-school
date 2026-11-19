@@ -5,3 +5,4 @@ export * from './update-address.dto.js';
 export * from './list-requests.dto.js';
 export * from './request-response.dto.js';
 export * from './routing-preview.dto.js';
+export * from './parent-service-area-check.dto.js';

@@ -16,7 +16,9 @@ import {
   LeaveNoticeStatus,
   User,
 } from '@prisma/client';
-import { ConflictException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, BadRequestException, NotFoundException } from '@nestjs/common';
+import { validateSync } from 'class-validator';
+import { CreateIncidentDto } from './dto/create-incident.dto.js';
 
 describe('IncidentsService & IncidentsDetectorService', () => {
   let incidentsService: IncidentsService;
@@ -194,6 +196,48 @@ describe('IncidentsService & IncidentsDetectorService', () => {
       expect(options.disabledReason).toBe('ATTENDANT_ALREADY_READY');
     });
 
+    it('chặn báo tắc đường từ ứng dụng cũ trước khi ghi sự cố', async () => {
+      const dto = Object.assign(new CreateIncidentDto(), { type: TripIncidentType.TRAFFIC_DELAY });
+      expect(validateSync(dto).map(error => error.property)).toContain('type');
+      await expect(incidentsService.createManualIncident('trip-1', dto, mockDriver)).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.tripIncident.create).not.toHaveBeenCalled();
+    });
+
+    it('creates one no-guardian report per student, keeping existing reports from older versions', async () => {
+      const trip = {
+        id: 'trip-1', direction: RouteDirection.TO_PARKING, status: TripStatus.IN_PROGRESS,
+        assignedBusAttendantId: mockAttendant.id, serviceDate: new Date(Date.now() + 172_800_000),
+      };
+      mockPrisma.trip.findUnique.mockResolvedValue(trip);
+      mockPrisma.tripAttendance = { findUnique: vi.fn().mockResolvedValue({ status: AttendanceStatus.PRESENT }) };
+      const incidents = new Map<string, unknown>();
+      const time = new Date();
+      const legacy = {
+        id: 'legacy', tripId: trip.id, type: TripIncidentType.NO_GUARDIAN_AT_STOP,
+        status: TripIncidentStatus.CLOSED, context: { studentId: 'first' }, createdAt: time, updatedAt: time,
+      };
+      incidents.set('first', legacy);
+      mockPrisma.tripIncident.findFirst.mockImplementation(async ({ where }: { where: { context: { equals: string } } }) =>
+        incidents.get(where.context.equals));
+      mockPrisma.tripIncident.create.mockImplementation(async ({ data }: { data: { context: { studentId: string } } }) => {
+        const created = { ...data, id: `report-${data.context.studentId}`, createdAt: time, updatedAt: time };
+        incidents.set(data.context.studentId, created);
+        return created;
+      });
+      const report = (studentId: string) => incidentsService.createManualIncident(trip.id, {
+        type: TripIncidentType.NO_GUARDIAN_AT_STOP, studentId, idempotencyKey: 'old-app-key',
+      }, mockAttendant);
+
+      await expect(report('first')).resolves.toMatchObject({ id: 'legacy' });
+      await expect(report('second')).resolves.toMatchObject({ id: 'report-second', context: { studentId: 'second' } });
+      await expect(report('third')).resolves.toMatchObject({ id: 'report-third', context: { studentId: 'third' } });
+      await expect(report('second')).resolves.toMatchObject({ id: 'report-second' });
+      expect(mockPrisma.tripIncident.create).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.tripIncident.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ dedupeKey: 'manual:trip-1:NO_GUARDIAN_AT_STOP:student:second' }),
+      }));
+    });
+
     it('chặn Driver tạo DRIVER_MISSING (sai type)', async () => {
       await expect(
         incidentsService.createManualIncident(
@@ -262,6 +306,31 @@ describe('IncidentsService & IncidentsDetectorService', () => {
           }),
         }),
       );
+    });
+
+    it('keeps no-guardian incidents and counters scoped to the parent’s linked child', async () => {
+      const trip = { id: 'trip-1', attendances: [
+        { studentId: 'mine', student: { fullName: 'Linked child' } },
+        { studentId: 'other', student: { fullName: 'Other child' } },
+      ] };
+      mockPrisma.trip.findUnique.mockResolvedValue(trip);
+      mockPrisma.parentStudentLink.findMany.mockResolvedValue([{ studentId: 'mine' }]);
+      const incidents = ['mine', 'other'].map(studentId => ({
+        id: studentId, tripId: trip.id, type: TripIncidentType.NO_GUARDIAN_AT_STOP,
+        status: TripIncidentStatus.WAITING_ASSIGNMENT, context: { studentId },
+        createdAt: new Date(), updatedAt: new Date(), trip,
+      }));
+      mockPrisma.tripIncident.findMany.mockResolvedValue(incidents);
+      mockPrisma.tripIncident.findUnique.mockResolvedValue(incidents[1]);
+      const result = await incidentsService.listByTrip(trip.id, mockParent);
+      expect(result).toMatchObject({ items: [{ id: 'mine', context: null, studentName: 'Linked child' }], total: 1, pendingCount: 1 });
+      mockPrisma.tripIncident.findUnique.mockResolvedValueOnce(incidents[0]);
+      await expect(incidentsService.getDetail('mine', mockParent)).resolves.toMatchObject({
+        studentName: 'Linked child', context: null,
+      });
+      await expect(incidentsService.getDetail('other', mockParent)).rejects.toBeInstanceOf(NotFoundException);
+      const staffResult = await incidentsService.listByTrip(trip.id, mockSystemAdmin);
+      expect(staffResult.items.map(item => item.studentName)).toEqual(['Linked child', 'Other child']);
     });
 
     it('listByTrip ẩn toàn bộ thông tin nhạy cảm đối với Phụ huynh (Privacy Masking)', async () => {

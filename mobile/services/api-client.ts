@@ -130,6 +130,29 @@ export interface RequestOtpResponseDto {
   message: string;
 }
 
+export type ServiceAreaStatus =
+  | 'IN_SERVICE_AREA'
+  | 'OUT_OF_SERVICE_AREA'
+  | 'UNAVAILABLE';
+
+export interface ServiceAreaBoundary {
+  center: {
+    latitude: number;
+    longitude: number;
+  };
+  radiusMeters: number;
+  radiusKm: number;
+}
+
+export interface ParentServiceAreaCheckResponse {
+  status: ServiceAreaStatus;
+  distanceMeters?: number | null;
+  distanceKm?: number | null;
+  maxOperatingRadiusKm?: number | null;
+  boundary?: ServiceAreaBoundary | null;
+  message?: string;
+}
+
 export class ApiError extends Error {
   statusCode: number;
   code: string;
@@ -519,6 +542,19 @@ class MobileApiClient {
   // Round 3 APIs: Parent Student Update Requests
   // ==========================================
 
+  async checkStudentAddressServiceArea(
+    studentId: string,
+    coords: { latitude: number; longitude: number },
+  ): Promise<ParentServiceAreaCheckResponse> {
+    return this.request<ParentServiceAreaCheckResponse>(
+      `/parents/students/${studentId}/service-area-check`,
+      {
+        method: 'POST',
+        body: JSON.stringify(coords),
+      },
+    );
+  }
+
   async requestStudentUpdateOtp(
     studentId: string,
     body: { type: RequestType; proposedData: Record<string, any> },
@@ -714,8 +750,8 @@ class MobileApiClient {
     });
   }
 
-  async verifyQrAttendance(tripId: string, qrData: string): Promise<VerifyQrResponse> {
-    return this.request<VerifyQrResponse>(`/trips/${tripId}/attendance/verify-qr`, {
+  async scanQrAttendance(tripId: string, qrData: string): Promise<ScanQrResponse> {
+    return this.request<ScanQrResponse>(`/trips/${tripId}/attendance/scan-qr`, {
       method: 'POST',
       body: JSON.stringify({ qrData }),
     });
@@ -930,6 +966,7 @@ export interface TripIncident {
   tripId: string;
   type: TripIncidentType;
   status: TripIncidentStatus;
+  studentName?: string;
   description: string;
   context?: any;
   contextData?: any;
@@ -990,6 +1027,7 @@ export interface MobileHomeTrip {
   scheduledStartTime?: string | null;
   scheduledEndTime?: string | null;
   scheduledTime: string;
+  displayTime: string;
   status: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
   vehiclePlate: string;
   vehicleBrand: string;
@@ -998,7 +1036,7 @@ export interface MobileHomeTrip {
   polylineGeometry: string;
   driver: MobileHomeTripPersonnel;
   busAttendant: MobileHomeTripPersonnel;
-  operationalState: OperationalStateResponse;
+  operationalState?: OperationalStateResponse;
   assignmentStatus?: 'ASSIGNED' | 'WAITING_ASSIGNMENT';
   canReportLeave?: boolean;
   hasLeaveNotice?: boolean;
@@ -1008,6 +1046,7 @@ export interface MobileHomeTrip {
 export interface HomeTripResponse {
   hasTrip: boolean;
   trip?: MobileHomeTrip | null;
+  items?: MobileHomeTrip[];
 }
 
 export interface ParentHomeCardItem {
@@ -1020,6 +1059,7 @@ export interface ParentHomeCardItem {
   direction: 'TO_SCHOOL' | 'TO_PARKING';
   serviceDate: string;
   scheduledTime: string;
+  displayTime: string;
   tripStatus: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
   vehiclePlate: string;
   driverName: string;
@@ -1027,6 +1067,7 @@ export interface ParentHomeCardItem {
   markedAt?: string | null;
   absenceReason?: string | null;
   childIsAlighted?: boolean;
+  noGuardianAtStop?: boolean;
   childAlightedAt?: string | null;
   canReportLeave?: boolean;
   hasLeaveNotice?: boolean;
@@ -1121,6 +1162,10 @@ export interface VerifyQrResponse {
   absenceReason?: string | null;
 }
 
+export interface ScanQrResponse extends VerifyQrResponse {
+  alreadyRecorded: boolean;
+}
+
 export interface MobileScheduleItem {
   id: string;
   isVirtual: boolean;
@@ -1131,6 +1176,8 @@ export interface MobileScheduleItem {
   status: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
   scheduledStartTime: string;
   scheduledEndTime: string;
+  displayTime: string;
+  actualDestinationTime?: string | null;
   vehiclePlate?: string | null;
   vehicleBrand?: string | null;
   schoolName: string;
@@ -1244,6 +1291,7 @@ export interface MobileTripDetail {
   status: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
   scheduledStartTime: string;
   scheduledEndTime: string;
+  displayTime: string;
   schoolName: string;
   vehiclePlate: string;
   vehicleBrand: string;

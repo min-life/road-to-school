@@ -122,7 +122,7 @@ export class SystemRequestsController {
   @ApiOperation({
     summary: 'SYSTEM_ADMIN phê duyệt yêu cầu cập nhật địa chỉ học sinh',
     description:
-      'Chính sách One Valid Decision: Hỗ trợ các hành động DIRECT_UPDATE, REOPTIMIZED hoặc REMOVED_FROM_ROUTES tùy thuộc vào kết quả kiểm tra định tuyến.',
+      'Xác minh lại địa chỉ thuộc phạm vi phục vụ tại thời điểm duyệt. Hỗ trợ DIRECT_UPDATE, REOPTIMIZED hoặc REMOVED_FROM_ROUTES theo kết quả kiểm tra định tuyến.',
   })
   @ApiParam({
     name: 'requestId',

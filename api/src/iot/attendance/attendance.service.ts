@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { type Prisma, type User } from '@prisma/client';
+import { Role, type Prisma, type TripAttendance, type User } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { ContractLifecycleService } from '../../schools/contract-lifecycle.service.js';
 import {
@@ -92,6 +92,35 @@ export class AttendanceService {
       include: { school: { select: { isActive: true } } },
     });
   }
+  private async applyScan(
+    tx: Prisma.TransactionClient,
+    scan: IotRfidScan,
+    row: TripAttendance,
+    actor: Pick<User, 'id' | 'role'>,
+  ) {
+    if (scan.phase === 'BOARDING')
+      await writeBoarding(tx, row.tripId, row.studentId, { status: 'PRESENT' }, actor);
+    else
+      await writeAlighting(tx, row.tripId, row.studentId, { isAlighted: true }, actor);
+    await tx.tripAttendance.update({
+      where: { id: row.id },
+      data: { [receiptField(scan.phase!)]: scan.scanId },
+    });
+  }
+  private finalizeScan(scan: IotRfidScan, hasReceipt: boolean) {
+    return this.store.cas(scan, {
+      processingState: hasReceipt ? 'APPLIED' : 'REJECTED',
+      resultCode: hasReceipt ? 'APPLIED' : 'RECEIPT_NOT_CONFIRMED',
+      closedAt: new Date(),
+    });
+  }
+  private async recoverCapture(tx: Prisma.TransactionClient, scan: IotRfidScan) {
+    if (!isAttendancePending(scan)) return scan;
+    const row = await tx.tripAttendance.findUnique({
+      where: { tripId_studentId: { tripId: scan.tripId!, studentId: scan.studentId! } },
+    });
+    return this.finalizeScan(scan, row?.[receiptField(scan.phase!)] === scan.scanId);
+  }
   async capture(deviceId: string, dto: AttendanceScanDto) {
     if (
       !(await this.store.io(() =>
@@ -99,7 +128,7 @@ export class AttendanceService {
       ))
     )
       throw new NotFoundException('Thiết bị chưa đăng ký.');
-    return this.transaction(deviceId, dto.scanId, async (tx) => {
+    const { scan, duplicate } = await this.transaction(deviceId, dto.scanId, async (tx) => {
       const previous = await this.store.existing(dto.scanId);
       if (previous) {
         if (
@@ -114,7 +143,7 @@ export class AttendanceService {
             'SCAN_PURPOSE_CONFLICT',
             'Mã lượt quẹt đã được dùng với dữ liệu hoặc mục đích khác.',
           );
-        return this.store.ack(previous, true);
+        return { scan: await this.recoverCapture(tx, previous), duplicate: true };
       }
       await this.enrollments.assertScanUnused(dto.scanId);
       const c = this.contexts.decode(dto.contextToken, deviceId);
@@ -201,14 +230,24 @@ export class AttendanceService {
           ? 'REJECTED'
           : already
             ? 'ALREADY_RECORDED'
-            : 'WAITING_CONFIRMATION',
+            : 'COMMITTING',
         resultCode: resultCode ?? (already ? 'ALREADY_RECORDED' : undefined),
         expiresAt: new Date(now + 120000),
         processingVersion: 0,
         ...(already ? { closedAt: new Date() } : {}),
       });
-      return this.store.ack(created, false);
+      if (valid && !already && row)
+        await this.applyScan(tx, created, row, { id: c.attendantId, role: Role.BUS_ATTENDANT });
+      return { scan: created, duplicate: false };
     });
+    if (!isAttendancePending(scan)) return this.store.ack(scan, duplicate);
+
+    // Postgres commits before Mongo reports success. The same scan lock also
+    // lets a retry settle a lost response using the durable receipt.
+    const settled = await this.transaction(deviceId, dto.scanId, async (tx) =>
+      this.recoverCapture(tx, await this.store.get(dto.scanId)),
+    );
+    return this.store.ack(settled, duplicate);
   }
   async list(tripId: string, q: AttendanceListQueryDto, user: User) {
     const trip = await this.access(tripId, user);
@@ -225,21 +264,27 @@ export class AttendanceService {
         )
       : null;
     const active = await this.contexts.eligible(this.prisma, trip);
+    const phase = attendancePhase(trip);
     const ready =
       active &&
       !!assignment &&
       device?.reportedAssignmentId === assignment.id &&
       device.reportedAttendanceTripId === tripId &&
-      device.reportedAttendancePhase === attendancePhase(trip) &&
+      device.reportedAttendancePhase === phase &&
       device.reportedAttendanceVersion === contextVersion(trip) &&
       !!device.lastAttendanceAckAt &&
       Date.now() - device.lastAttendanceAckAt.getTime() < 60000;
     const reader = {
       deviceId: assignment?.deviceId ?? null,
       status: !assignment ? 'NO_DEVICE' : ready ? 'READY' : 'PENDING',
+      reason: !assignment ? 'NO_DEVICE' : !active ? 'TRIP_NOT_ELIGIBLE' : ready ? 'READY'
+        : !device?.lastSeenAt || Date.now() - device.lastSeenAt.getTime() >= 60000 ? 'DEVICE_UNREACHABLE' : 'AWAITING_ACK',
       lastAckAt: device?.lastAttendanceAckAt?.toISOString() ?? null,
     };
-    const result = await this.store.list(tripId, q.view, q.page, q.limit);
+    const [result, pending] = await Promise.all([
+      this.store.list(tripId, q.view, q.page, q.limit),
+      phase ? this.store.pendingForPhase(tripId, phase) : null,
+    ]);
     const ids = result.data.flatMap((s) => (s.studentId ? [s.studentId] : []));
     const rows = await this.prisma.tripAttendance.findMany({
       where: { tripId, studentId: { in: ids } },
@@ -257,10 +302,11 @@ export class AttendanceService {
               r[receiptField(s.phase!)] === s.scanId),
         );
       }),
+      pendingEvent: pending ? this.store.response(pending) : null,
       total: result.total,
       page: q.page,
       limit: q.limit,
-      phase: attendancePhase(trip),
+      phase,
       reader,
       serverTime: new Date().toISOString(),
     };
@@ -304,10 +350,10 @@ export class AttendanceService {
         original.deviceId,
         scanId,
         async (tx) => {
+          await lockTripOperation(tx, tripId, this.lifecycle, false);
           const student = original.studentId
             ? await this.studentLock(tx, original.studentId)
             : null;
-          await lockTripOperation(tx, tripId, this.lifecycle, false);
           await this.access(tripId, user, tx);
           const s = await this.store.get(scanId);
           const row = s.studentId
@@ -336,12 +382,7 @@ export class AttendanceService {
           if (isAttendancePending(s)) {
             // Holding the same PG locks means the original PG writer has finished. Never replay it.
             return this.store.response(
-              await this.store.cas(s, {
-                processingState: receipt === scanId ? 'APPLIED' : 'REJECTED',
-                resultCode:
-                  receipt === scanId ? 'APPLIED' : 'RECEIPT_NOT_CONFIRMED',
-                closedAt: new Date(),
-              }),
+              await this.finalizeScan(s, receipt === scanId),
               current,
             );
           }
@@ -393,35 +434,12 @@ export class AttendanceService {
             confirmedById: user.id,
             confirmedAt: new Date(),
           });
-          if (s.phase === 'BOARDING')
-            await writeBoarding(
-              tx,
-              tripId,
-              s.studentId!,
-              { status: 'PRESENT' },
-              user,
-            );
-          else
-            await writeAlighting(
-              tx,
-              tripId,
-              s.studentId!,
-              { isAlighted: true },
-              user,
-            );
-          await tx.tripAttendance.update({
-            where: { id: row.id },
-            data: { [receiptField(s.phase!)]: scanId },
-          });
+          await this.applyScan(tx, s, row, user);
           return null;
         },
       );
       if (result) return { pending: false, event: result };
-      const applied = await this.store.cas(intent!, {
-        processingState: 'APPLIED',
-        resultCode: 'APPLIED',
-        closedAt: new Date(),
-      });
+      const applied = await this.finalizeScan(intent!, true);
       return { pending: false, event: this.store.response(applied, true) };
     } catch (error) {
       if (intent)

@@ -97,6 +97,9 @@ export class TripItemResponseDto {
   @ApiPropertyOptional({ example: '07:10' })
   scheduledEndTime?: string | null;
 
+  @ApiProperty({ example: '06:48 – …', description: 'Khung giờ hiển thị theo giờ Việt Nam. Dùng giờ thực tế cho chuyến đang chạy hoặc đã hoàn thành.' })
+  displayTime: string;
+
   @ApiProperty({ example: '51B-731.33' })
   vehiclePlate: string;
 

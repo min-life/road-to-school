@@ -10,6 +10,7 @@ import {
   Image,
 } from 'react-native';
 import { useActiveRefresh } from '@/hooks/use-active-refresh';
+import { subscribeNotificationRefresh } from '@/utils/notification-refresh';
 import type { RefreshContext } from '@/utils/refresh-loop';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -47,8 +48,7 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
 
   // Driver & Attendant state
-  const [hasHomeTrip, setHasHomeTrip] = useState(false);
-  const [homeTrip, setHomeTrip] = useState<MobileHomeTrip | null>(null);
+  const [staffTrips, setStaffTrips] = useState<MobileHomeTrip[]>([]);
 
   // Parent state
   const [parentCards, setParentCards] = useState<ParentHomeCardItem[]>([]);
@@ -60,8 +60,7 @@ export default function HomeScreen() {
       if (user.role === 'DRIVER' || user.role === 'BUS_ATTENDANT') {
         const res = await mobileApiClient.getHomeTrip();
         if (!isCurrent()) return;
-        setHasHomeTrip(res.hasTrip);
-        setHomeTrip(res.trip || null);
+        setStaffTrips(res.items ?? (res.hasTrip && res.trip ? [res.trip] : []));
       } else if (user.role === 'PARENT') {
         const res = await mobileApiClient.getParentHomeCards();
         if (!isCurrent()) return;
@@ -70,18 +69,24 @@ export default function HomeScreen() {
     } catch (err: any) {
       if (!isCurrent()) return;
       if (err?.statusCode === 403 || err?.statusCode === 404) {
-        setHomeTrip(null); setHasHomeTrip(false); setParentCards([]);
+        setStaffTrips([]); setParentCards([]);
         setError(err.message); return false;
       }
-      if (!homeTrip && !parentCards.length) setError(err?.message || 'Không thể tải dữ liệu trang chủ');
+      if (!staffTrips.length && !parentCards.length) setError(err?.message || 'Không thể tải dữ liệu trang chủ');
     } finally {
       if (isCurrent()) { setLoading(false); setRefreshing(false); }
     }
   };
   const identity = JSON.stringify([user?.id, user?.role]);
-  const journeyTelemetry = useParentJourneyTelemetry(identity, isParent ? parentCards : []);
-  useEffect(() => { setHomeTrip(null); setParentCards([]); setHasHomeTrip(false); setLoading(true); }, [identity]);
+  const activeParentCards = isParent ? parentCards.filter(card =>
+    card.tripStatus === 'SCHEDULED' || card.tripStatus === 'IN_PROGRESS') : [];
+  const journeyTelemetry = useParentJourneyTelemetry(identity, activeParentCards);
+  useEffect(() => { setStaffTrips([]); setParentCards([]); setLoading(true); }, [identity]);
   const { refresh: loadHomeData } = useActiveRefresh(identity, fetchHomeData, 8000);
+  useEffect(() => {
+    if (!isParent) return;
+    return subscribeNotificationRefresh(loadHomeData);
+  }, [isParent, loadHomeData]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -109,6 +114,8 @@ export default function HomeScreen() {
         return { label: 'Chờ khởi hành', bg: '#FEF3C7', text: '#B45309' };
       case 'COMPLETED':
         return { label: 'Đã hoàn thành', bg: '#E0E7FF', text: '#4338CA' };
+      case 'CANCELLED':
+        return { label: 'Đã hủy', bg: journeyTones.danger.bg, text: journeyTones.danger.text };
       default:
         return { label: status, bg: '#F1F5F9', text: '#475569' };
     }
@@ -143,7 +150,7 @@ export default function HomeScreen() {
         fullName: user?.fullName, avatarUrl: user?.avatarUrl,
         staffRole: user?.role,
         title: user?.fullName || (isDriver ? 'Tài xế' : 'Giáo viên phụ xe'),
-        subtitle: `${isDriver ? 'Tài xế' : 'Giáo viên phụ xe'} · ${homeTrip?.schoolName || (isDriver ? 'Bãi xe trung tâm' : 'Trường học đối tác')}`,
+        subtitle: `${isDriver ? 'Tài xế' : 'Giáo viên phụ xe'} · ${staffTrips[0]?.schoolName || (isDriver ? 'Bãi xe trung tâm' : 'Trường học đối tác')}`,
         actions: [
           { label: 'Báo nghỉ', icon: 'calendar-outline' as const, onPress: () => router.push('/leave-notices' as any) },
           { label: 'Sự cố', icon: 'warning-outline' as const, onPress: () => router.push('/incidents' as any) },
@@ -179,32 +186,32 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
       ) : isDriverOrAttendant ? (
-        /* ================= DRIVER & ATTENDANT HOME (D06: Single Trip) ================= */
-        hasHomeTrip && homeTrip ? (
-          <>
-          <View style={parentHomeStyles.sectionHeader}>
-            <Text accessibilityRole="header" style={parentHomeStyles.sectionTitle}>Chuyến xe của bạn</Text>
-            <Text style={parentHomeStyles.sectionDate}>{journeyServiceDate(homeTrip.serviceDate)}</Text>
+        staffTrips.length ? (
+          <View style={parentHomeStyles.parentCardList}>
+            <View style={parentHomeStyles.sectionHeader}>
+              <Text accessibilityRole="header" style={parentHomeStyles.sectionTitle}>Chuyến xe của bạn</Text>
+              <Text style={parentHomeStyles.sectionDate}>{journeyServiceDate(staffTrips[0].serviceDate)}</Text>
+            </View>
+            {staffTrips.map(trip => <StaffTripCard
+              key={trip.id}
+              role={user?.role}
+              trip={trip}
+              onViewDetail={() => router.push(`/trip/${trip.id}` as any)}
+              onReportLeave={() =>
+                triggerQuickLeaveNotice({
+                  tripId: trip.id,
+                  subjectName: user?.fullName || 'Nhân sự',
+                  routeName: trip.routeName,
+                  serviceDate: trip.serviceDate,
+                  direction: trip.direction,
+                  onSuccess: () => loadHomeData(),
+                })
+              }
+              isReportingLeave={isRequesting(trip.id)}
+              canReportLeave={trip.status === 'SCHEDULED'}
+              getStatusBadge={getStatusBadge}
+            />)}
           </View>
-          <StaffTripCard
-            role={user?.role}
-            trip={homeTrip}
-            onViewDetail={() => router.push(`/trip/${homeTrip.id}` as any)}
-            onReportLeave={() =>
-              triggerQuickLeaveNotice({
-                tripId: homeTrip.id,
-                subjectName: user?.fullName || 'Nhân sự',
-                routeName: homeTrip.routeName,
-                serviceDate: homeTrip.serviceDate,
-                direction: homeTrip.direction,
-                onSuccess: () => loadHomeData(),
-              })
-            }
-            isReportingLeave={isRequesting(homeTrip.id)}
-            canReportLeave={homeTrip.status === 'SCHEDULED'}
-            getStatusBadge={getStatusBadge}
-          />
-          </>
         ) : (
           <View style={staffHomeStyles.emptyContainer}>
             <Ionicons name="bus-outline" size={48} color="#94A3B8" />
@@ -231,8 +238,10 @@ export default function HomeScreen() {
               const rawOperation = tripTelemetry?.unavailable || tripTelemetry?.operationUnavailable ? undefined : tripTelemetry?.operation;
               const operation = rawOperation?.tripId === card.tripId && (!rawOperation.direction || rawOperation.direction === card.direction) ? rawOperation : undefined;
               const student = parentJourneyCard(card, operation);
+              const isHistory = student.tripStatus === 'COMPLETED' || student.tripStatus === 'CANCELLED';
               const schoolArrived = card.direction === 'TO_SCHOOL' && journeySchoolArrived(operation, card.tripId);
-              const studentStatus = studentJourneyBadge(student.attendanceStatus, Boolean(student.childIsAlighted), schoolArrived, Boolean(card.hasLeaveNotice), card.direction, student.tripStatus);
+              const studentStatus = student.tripStatus === 'CANCELLED' ? undefined
+                : studentJourneyBadge(student.attendanceStatus, Boolean(student.childIsAlighted), schoolArrived, Boolean(card.hasLeaveNotice), card.direction, student.tripStatus);
               const detail = !tripTelemetry?.unavailable && !tripTelemetry?.detailUnavailable && tripTelemetry?.detail?.id === card.tripId
                 && tripTelemetry.detail.direction === card.direction ? tripTelemetry.detail : undefined;
               const readySource = operation?.isAttendantReady !== undefined || operation?.attendantReadyAt !== undefined ? operation : detail;
@@ -244,14 +253,19 @@ export default function HomeScreen() {
                   studentName={card.studentName}
                   avatarUrl={card.studentAvatar}
                   schoolName={card.schoolName}
-                  status={student.tripStatus === 'CANCELLED' ? { label: 'Đã hủy', bg: journeyTones.danger.bg, text: journeyTones.danger.text }
+                  status={isHistory ? getStatusBadge(student.tripStatus)
                     : { ...getStatusBadge(student.tripStatus), label: journeyTripLabel(student.tripStatus, student.direction, schoolArrived) }}
+                  summaryContent={isHistory ? <Text style={parentHomeStyles.metaText}>
+                    {card.direction === 'TO_SCHOOL' ? 'Chiều đi' : 'Chiều về'} · {card.displayTime}
+                    {serviceDates.length > 1 ? ` · ${journeyServiceDate(card.serviceDate)}` : ''}
+                  </Text> : undefined}
                   studentStatus={studentStatus}
                   readiness={readiness}
-                  hasIncident={tripTelemetry?.incidents?.some(i => activeJourneyIncident(i.status))}
+                  noGuardianAtStop={card.noGuardianAtStop && !isHistory && !student.childIsAlighted}
+                  hasIncident={tripTelemetry?.incidents?.some(i => i.type !== 'NO_GUARDIAN_AT_STOP' && activeJourneyIncident(i.status))}
                   attention={student.attendanceStatus === 'UNMARKED' && student.tripStatus !== 'CANCELLED' && student.tripStatus !== 'COMPLETED'}
                   stale={tripTelemetry?.operationUnavailable || tripTelemetry?.incidentsUnavailable}
-                  journey={active => <ParentStudentJourney card={student} telemetry={tripTelemetry} active={active && journeyTelemetry.active} showServiceDate={serviceDates.length > 1} />}
+                  journey={isHistory ? undefined : active => <ParentStudentJourney card={student} telemetry={tripTelemetry} active={active && journeyTelemetry.active} showServiceDate={serviceDates.length > 1} />}
                 >
                   {/* Attendance details; the status badge stays in the card header. */}
                   {(student.markedAt || (student.attendanceStatus === 'PRESENT' && student.childIsAlighted && student.childAlightedAt)
@@ -296,15 +310,15 @@ export default function HomeScreen() {
                     <TouchableOpacity
                       style={parentHomeStyles.primaryBtn}
                       accessibilityRole="button"
-                      accessibilityLabel={`Theo dõi lộ trình của ${card.studentName}`}
+                      accessibilityLabel={isHistory ? `Xem chi tiết chuyến của ${card.studentName}` : `Theo dõi lộ trình của ${card.studentName}`}
                       onPress={() => router.push(`/trip/${card.tripId}` as any)}
                       activeOpacity={0.85}
                     >
-                      <Text style={parentHomeStyles.primaryBtnText}>Theo dõi lộ trình</Text>
+                      <Text style={parentHomeStyles.primaryBtnText}>{isHistory ? 'Xem chi tiết' : 'Theo dõi lộ trình'}</Text>
                       <Ionicons name="navigate-outline" size={16} color={colors.foreground} />
                     </TouchableOpacity>
 
-                    {card.canReportLeave && (
+                    {!isHistory && card.canReportLeave && (
                       <TouchableOpacity
                         style={[parentHomeStyles.leaveNoticeCardBtn, isRequesting(card.tripId) && parentHomeStyles.disabled]}
                         accessibilityRole="button"
@@ -343,7 +357,7 @@ export default function HomeScreen() {
             <Ionicons name="people-outline" size={48} color="#94A3B8" />
             <Text style={parentHomeStyles.emptyTitle}>Chưa có chuyến xe cho con</Text>
             <Text style={parentHomeStyles.emptySubtitle}>
-              Hiện không có lịch đưa đón nào trong khung giờ hôm nay cho học sinh của bạn.
+              Hiện chưa có chuyến phù hợp cho học sinh đã liên kết.
             </Text>
             <TouchableOpacity
               style={parentHomeStyles.secondaryBtn}

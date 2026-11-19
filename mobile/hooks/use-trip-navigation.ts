@@ -3,17 +3,17 @@ import { AppState } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import * as Location from 'expo-location';
 import { navigationApi, type Checkpoint, type LocationSource, type NavigationSegment, type NavigationState, type PositionSample } from '../services/trip-navigation';
-import { autoPosition, coordinate, cumulativeDistances, distance, isAutoStudentStop, joystickPosition, nextGuidance, nextStopEstimate, nextStopProgress, projectProgress, shouldHandOffToManual, splitSegment, type Coordinate } from '../utils/trip-navigation';
+import { appendTravelledPart, autoPosition, coordinate, cumulativeDistances, distance, joystickPosition, nextGuidance, nextStopEstimate, orderedStopProgress, projectProgress, splitSegment, type Coordinate } from '../utils/trip-navigation';
 import { decodePolyline } from '../utils/polyline';
 import type { MobileTripDetailStop } from '../services/api-client';
 import { navigationResumeStorage } from '../services/navigation-resume-storage';
 
-type Leg = NavigationSegment & { coords: Coordinate[]; cumulative: number[]; progress: number; travelled: number };
+type Leg = NavigationSegment & { coords: Coordinate[]; cumulative: number[]; progress: number; travelled: number; stopProgress: Map<string, number> };
 type ViewState = {
   mode: LocationSource | null;
   position: Coordinate | null;
   segment: Coordinate[];
-  traveled: Coordinate[];
+  traveled: Coordinate[][];
   remaining: Coordinate[];
   guidance: ReturnType<typeof nextGuidance>;
   message: string | null;
@@ -38,9 +38,12 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
   const refreshRef = useRef(onRefresh); refreshRef.current = onRefresh;
   const generation = useRef(0), foreground = useRef(false), busy = useRef(false);
   const watcher = useRef<Location.LocationSubscription | null>(null), timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const departureStartPending = useRef(false);
   const leg = useRef<Leg | null>(null), sample = useRef<PositionSample | null>(null);
+  const handoffSample = useRef<PositionSample | null>(null);
   const sequence = useRef(1), routeBusy = useRef(false), publishBusy = useRef(false);
   const routeAt = useRef(0), publishedAt = useRef(0);
+  const cursorRetryAt = useRef(0);
   const arrivedSince = useRef<number | null>(null), offrouteSince = useRef<number | null>(null);
   const control = useRef({ bearing: 0, speed: 0, pressStartedAt: 0, pendingDuration: 0, pendingBearing: 0 });
 
@@ -52,7 +55,7 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
   // Controlled retry coordination: exactly one retry timer at any time
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryCount = useRef(0);
-  const accumulatedTraveled = useRef<Coordinate[]>([]);
+  const accumulatedTraveled = useRef<Coordinate[][]>([]);
 
   // Simulation speed control in km/h (default 30 km/h, range 10-120 km/h)
   const [speedKmh, setSpeedKmh] = useState(30);
@@ -89,6 +92,7 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
     watcher.current?.remove(); watcher.current = null;
     if (timer.current) clearInterval(timer.current);
     timer.current = null; cp.current = null; leg.current = null; sample.current = null;
+    handoffSample.current = null;
     control.current = { bearing: 0, speed: 0, pressStartedAt: 0, pendingDuration: 0, pendingBearing: 0 };
     arrivedSince.current = null; offrouteSince.current = null;
     routeBusy.current = false; publishBusy.current = false; busy.current = false;
@@ -118,12 +122,31 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
     }, delay);
   }, []);
 
-  async function route(action: 'CURRENT' | 'ADVANCE', token: number) {
+  function archiveCurrentLeg() {
+    if (!leg.current) return;
+    const { coords, cumulative, progress } = leg.current;
+    const { traveled } = splitSegment(coords, cumulative, progress);
+    accumulatedTraveled.current = appendTravelledPart(accumulatedTraveled.current, traveled);
+    leg.current = null;
+  }
+
+  function buildLeg(segment: NavigationSegment): Leg {
+    const coords = decodePolyline(segment.geometry);
+    const cumulative = cumulativeDistances(coords);
+    const targetIndex = stopsRef.current.findIndex(stop => stop.id === segment.targetStopId);
+    const remainingStops = targetIndex < 0 ? [] : stopsRef.current.slice(
+      targetIndex, segment.targetAtRouteEnd ? targetIndex + 1 : undefined,
+    );
+    return { ...segment, coords, cumulative, progress: 0, travelled: 0,
+      stopProgress: orderedStopProgress(coords, cumulative, segment.instructions, remainingStops) };
+  }
+
+  async function route(action: 'CURRENT' | 'ADVANCE', token: number, keepGeometry = false) {
     const state = cp.current;
     if (!state?.targetStopId || routeBusy.current || !foreground.current) return;
     const cooldown = 3000;
     if (action === 'CURRENT' && Date.now() - routeAt.current < cooldown) return;
-    routeAt.current = Date.now();
+    if (!keepGeometry) routeAt.current = Date.now();
     routeBusy.current = true;
     const reqId = ++activeRouteId.current;
 
@@ -136,29 +159,29 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
     };
     sample.current = position;
 
-    setView(v => ({ ...v, message: action === 'CURRENT' && v.segment.length ? 'Đang cập nhật chỉ dẫn' : 'Đang tải tuyến đường' }));
+    if (!keepGeometry)
+      setView(v => ({ ...v, message: action === 'CURRENT' && v.segment.length ? 'Đang cập nhật chỉ dẫn' : 'Đang tải tuyến đường' }));
     try {
-      const result = await navigationApi.segment(tripId, state, position, action);
+      const result = await navigationApi.segment(tripId, state, position, action, keepGeometry || undefined);
       if (token !== generation.current || reqId !== activeRouteId.current) return;
       cancelRetry();
       cp.current = { ...state, targetStopId: result.targetStopId };
       arrivedSince.current = null; offrouteSince.current = null;
-      if (result.finished) {
-        leg.current = null;
-        setView(v => ({ ...v, segment: [], traveled: [], remaining: [], guidance: null, targetStopId: null, message: 'Đã đến điểm cuối' }));
+      if (result.cursorOnly && leg.current) {
+        leg.current.targetStopId = result.targetStopId;
+        setView(v => ({ ...v, targetStopId: result.targetStopId, message: null }));
+        refreshRef.current();
         return;
       }
-      if (action === 'ADVANCE' && leg.current?.coords?.length) {
-        const prevSplit = splitSegment(leg.current.coords, leg.current.cumulative, leg.current.travelled);
-        if (prevSplit.traveled.length > 0) {
-          accumulatedTraveled.current = [...accumulatedTraveled.current, ...prevSplit.traveled];
-        }
+      archiveCurrentLeg();
+      if (result.finished) {
+        setView(v => ({ ...v, segment: [], traveled: accumulatedTraveled.current, remaining: [], guidance: null, targetStopId: null, message: 'Đã đến điểm cuối' }));
+        return;
       }
-      const coords = decodePolyline(result.geometry);
-      const cumulative = cumulativeDistances(coords);
-      leg.current = { ...result, coords, cumulative, progress: 0, travelled: 0 };
+      leg.current = buildLeg(result);
+      const { coords, cumulative } = leg.current;
       const { traveled, remaining } = splitSegment(coords, cumulative, 0);
-      const fullTraveled = [...accumulatedTraveled.current, ...traveled];
+      const fullTraveled = appendTravelledPart(accumulatedTraveled.current, traveled);
       setView(v => ({
         ...v,
         segment: coords,
@@ -180,6 +203,7 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
         routeAt.current = Date.now() - cooldown + 3000;
       }
 
+      if (keepGeometry) cursorRetryAt.current = Date.now() + 1000;
       if (action === 'ADVANCE') {
         refreshRef.current();
       }
@@ -216,7 +240,9 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
 
   async function publish(token: number) {
     if (publishBusy.current || !cp.current || !sample.current || Date.now() - publishedAt.current < 5000) return;
-    const state = cp.current, position = sample.current;
+    if (handoffSample.current && Date.now() - Date.parse(handoffSample.current.capturedAt) > 10000)
+      handoffSample.current = null;
+    const state = cp.current, position = handoffSample.current ?? sample.current;
     if (Date.now() - Date.parse(position.capturedAt) > 10000) return;
     publishBusy.current = true;
     publishedAt.current = Date.now();
@@ -225,12 +251,17 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
       const ack = await navigationApi.publish(tripId, state, sequence.current, position);
       if (token === generation.current && pubId === activePublishId.current) {
         sequence.current = Math.max(sequence.current, ack.nextSequence);
+        if (handoffSample.current === position) handoffSample.current = null;
       }
     } catch (error) {
       if (token !== generation.current || pubId !== activePublishId.current) return;
       if (denied(error)) { suspend(); remote.current = null; }
       else if ((error as { statusCode?: number })?.statusCode === 409) {
         refreshRef.current();
+      } else if ((error as { statusCode?: number })?.statusCode === 429) {
+        const retryMs = (error as { retryAfterMs?: number }).retryAfterMs;
+        if (retryMs && Number.isFinite(retryMs))
+          publishedAt.current = Date.now() - 5000 + retryMs;
       }
     } finally {
       if (pubId === activePublishId.current) {
@@ -239,7 +270,7 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
     }
   }
 
-  function accept(position: PositionSample, token: number, atAutoStop = false) {
+  function accept(position: PositionSample, token: number) {
     if (token !== generation.current || !foreground.current || !cp.current) return;
     const age = Date.now() - Date.parse(position.capturedAt);
     if (!Number.isFinite(age) || age > 10000 || age < -5000) return;
@@ -257,19 +288,11 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
     const p = coordinate(position);
     const current = leg.current;
     const target = stopsRef.current.find(s => s.id === cp.current?.targetStopId);
-    const waitForManual = isAutoStudentStop(cp.current.activeSource, target?.stopType);
-    if (!busy.current && !routeBusy.current && shouldHandOffToManual(
-      cp.current.activeSource, target?.stopType, target ? distance(p, coordinate(target)) : Infinity,
-    )) {
-      setView(v => ({ ...v, position: p }));
-      // Switch before ADVANCE so the driver takes over at this stop, without moving to the next target.
-      void change('TEST_JOYSTICK');
-      return;
-    }
+    const auto = cp.current.activeSource === 'TEST_AUTO';
     if (!current) {
       setView(v => ({ ...v, position: p, guidance: null }));
       const first = stopsRef.current[0];
-      if (target && !waitForManual && first?.id === target.id && distance(p, coordinate(target)) <= 20) {
+      if (target && first?.id === target.id && distance(p, coordinate(target)) <= 20) {
         if (!arrivedSince.current) arrivedSince.current = Date.now();
         else if (Date.now() - arrivedSince.current >= 2500) {
           arrivedSince.current = null;
@@ -280,7 +303,8 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
         void route('CURRENT', token);
       }
     } else if (!routeBusy.current) {
-      const projection = projectProgress(current.coords, current.cumulative, p, current.progress);
+      const projection = auto ? { progress: current.travelled, gap: 0 }
+        : projectProgress(current.coords, current.cumulative, p, current.progress);
       if (projection.gap > 40) {
         arrivedSince.current = null;
         if (!offrouteSince.current) offrouteSince.current = Date.now();
@@ -295,9 +319,12 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
         current.progress = projection.progress;
         current.travelled = projection.progress; // keep travelled synchronized with manual progress
         const { traveled, remaining } = splitSegment(current.coords, current.cumulative, current.progress);
-        const fullTraveled = [...accumulatedTraveled.current, ...traveled];
+        const fullTraveled = appendTravelledPart(accumulatedTraveled.current, traveled);
         let shouldAdvance = false;
-        if (target && !waitForManual) {
+        if (target && auto) {
+          const marker = current.stopProgress.get(target.id);
+          shouldAdvance = marker !== undefined && current.progress >= marker && Date.now() >= cursorRetryAt.current;
+        } else if (target) {
           const targetCoord = coordinate(target);
           const distToTarget = distance(p, targetCoord);
           const targetProg = projectProgress(current.coords, current.cumulative, targetCoord, 0, Infinity).progress;
@@ -314,7 +341,7 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
         }
         if (shouldAdvance) {
           arrivedSince.current = null;
-          void route('ADVANCE', token);
+          void route('ADVANCE', token, auto);
         } else {
           arrivedSince.current = null;
         }
@@ -324,7 +351,7 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
           traveled: fullTraveled,
           remaining,
           guidance: nextGuidance(current.instructions, current.cumulative, current.progress),
-          message: atAutoStop ? 'Chọn Lái thủ công để đến điểm dừng' : null,
+          message: null,
         }));
       }
     } else {
@@ -333,9 +360,10 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
     void publish(token);
   }
 
-  async function activate(state: NavigationState, token: number, preservePosition?: Coordinate) {
+  async function activate(state: NavigationState, token: number, preservePosition?: Coordinate, initialRoute: 'CURRENT' | 'ADVANCE' = 'CURRENT') {
     if (!state.checkpoint?.enabled || token !== generation.current || !foreground.current) return;
     cp.current = state.checkpoint; sequence.current = state.nextSequence;
+    cursorRetryAt.current = 0;
     if (userId) void navigationResumeStorage.remember(userId, tripId).catch(() => {});
     routeAt.current = 0; publishedAt.current = 0;
     arrivedSince.current = null; offrouteSince.current = null;
@@ -371,13 +399,15 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
     if (!origin) { setView(v => ({ ...v, message: 'Chưa có điểm xuất phát' })); return; }
     let p = coordinate(origin), lastTick = performance.now();
     sample.current = { latitude: p[0], longitude: p[1], capturedAt: new Date().toISOString() };
+    handoffSample.current = preservePosition ? sample.current : null;
     setView(v => ({
       ...v,
       position: p,
       message: leg.current ? null : 'Đang cập nhật chỉ dẫn',
     }));
+    void publish(token);
     if (!leg.current) {
-      void route('CURRENT', token);
+      void route(initialRoute, token);
     }
     timer.current = setInterval(() => {
       if (token !== generation.current || !foreground.current) return;
@@ -385,17 +415,9 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
       const current = leg.current;
       const speedMps = speedKmhRef.current / 3.6;
       const checkpoint = cp.current;
-      let atAutoStop = false;
       if (checkpoint?.activeSource === 'TEST_AUTO') {
         if (current && !routeBusy.current) {
-          const target = stopsRef.current.find(s => s.id === checkpoint.targetStopId);
-          const stopAt = target && isAutoStudentStop(checkpoint.activeSource, target.stopType)
-            ? nextStopProgress(current.instructions, current.cumulative)
-              ?? projectProgress(current.coords, current.cumulative, coordinate(target), 0, Infinity).progress
-            : undefined;
-          const end = stopAt ?? current.cumulative.at(-1) ?? 0;
-          current.travelled = Math.max(current.travelled, Math.min(end, current.travelled + seconds * speedMps));
-          atAutoStop = stopAt !== undefined && current.travelled >= stopAt;
+          current.travelled = Math.min(current.cumulative.at(-1) ?? 0, current.travelled + seconds * speedMps);
           p = autoPosition(current.coords, current.cumulative, current.travelled);
         }
       } else {
@@ -414,20 +436,28 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
           p = joystickPosition(p, moveBearing, moveSpeed, moveSeconds);
         }
       }
-      accept({ latitude: p[0], longitude: p[1], capturedAt: new Date().toISOString() }, token, atAutoStop);
+      accept({ latitude: p[0], longitude: p[1], capturedAt: new Date().toISOString() }, token);
     }, 100);
   }
 
   const observe = async (state: NavigationState) => {
+    if (remote.current && Date.parse(state.serverNow) < Date.parse(remote.current.serverNow)) return;
     remote.current = state;
     if (!state.canPublish || state.status !== 'IN_PROGRESS') { if (cp.current) suspend(); return; }
+    if (busy.current) return;
+    if (departureStartPending.current && foreground.current && !busy.current) {
+      departureStartPending.current = false;
+      await change(state.testMode ? 'TEST_AUTO' : 'LIVE');
+      return;
+    }
     if (cp.current) {
       if (!state.checkpoint?.enabled || state.checkpoint.runId !== cp.current.runId || state.routeVersion !== cp.current.routeVersion) { suspend(); return; }
       sequence.current = Math.max(sequence.current, state.nextSequence);
       if (!routeBusy.current && cp.current.targetStopId !== state.checkpoint.targetStopId) {
-        cp.current = state.checkpoint; leg.current = null;
+        cp.current = state.checkpoint;
+        archiveCurrentLeg();
         arrivedSince.current = null; offrouteSince.current = null;
-        setView(v => ({ ...v, segment: [], traveled: [], remaining: [], guidance: null, targetStopId: state.checkpoint!.targetStopId }));
+        setView(v => ({ ...v, segment: [], traveled: accumulatedTraveled.current, remaining: [], guidance: null, targetStopId: state.checkpoint!.targetStopId }));
       }
       if (!leg.current && !routeBusy.current && !retryTimer.current) {
         scheduleControlledRetry(1000);
@@ -453,7 +483,7 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
         const resumed = await navigationApi.session(tripId, 'RESUME', state.checkpoint.runId);
         if (token !== generation.current || actId !== activeActionId.current) return;
         remote.current = resumed;
-        await activate(resumed, token);
+        await activate(resumed, token, sample.current ? coordinate(sample.current) : undefined);
       } catch {
         if (token === generation.current && actId === activeActionId.current) {
           setView(v => ({ ...v, message: 'Chưa thể khôi phục điều hướng' }));
@@ -525,16 +555,15 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
       if (token !== generation.current || actId !== activeActionId.current) return;
       cancelRetry();
       accumulatedTraveled.current = [];
-      const coords = decodePolyline(seg.geometry);
-      const cumulative = cumulativeDistances(coords);
-      leg.current = { ...seg, coords, cumulative, progress: 0, travelled: 0 };
+      leg.current = buildLeg(seg);
+      const { coords, cumulative } = leg.current;
       const split = splitSegment(coords, cumulative, 0);
       setView(v => ({
         ...v,
         mode: null,
         position: p,
         segment: coords,
-        traveled: split.traveled,
+        traveled: appendTravelledPart([], split.traveled),
         remaining: split.remaining,
         targetStopId: seg.targetStopId,
         guidance: nextGuidance(seg.instructions, cumulative, 0),
@@ -573,11 +602,11 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
   }, [cancelRetry]);
 
   async function change(source?: LocationSource) {
-    if (!remote.current?.canPublish || !foreground.current) return;
-    const actId = ++activeActionId.current;
-    busy.current = true;
+    if (!remote.current?.canPublish || !foreground.current || busy.current) return;
     const previous = cp.current;
     const isSwitchingTest = previous?.enabled && source && previous.activeSource !== 'LIVE' && source !== 'LIVE';
+    const returningToAuto = previous?.activeSource === 'TEST_JOYSTICK' && source === 'TEST_AUTO';
+    if (source && source === view.mode) return;
 
     // Capture current local position before any state updates
     const currentLocalPos: Coordinate = sample.current ? coordinate(sample.current) : (view.position ?? coordinate(stopsRef.current[0]));
@@ -586,12 +615,18 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
       suspend();
     } else {
       generation.current++;
+      cancelRetry();
       activeRouteId.current++; // Invalidate any inflight route from the previous mode
+      activePublishId.current++;
       routeBusy.current = false; // Release routeBusy so new mode can route immediately
+      publishBusy.current = false;
       if (timer.current) clearInterval(timer.current);
       timer.current = null;
       control.current = { bearing: 0, speed: 0, pressStartedAt: 0, pendingDuration: 0, pendingBearing: 0 };
     }
+    const actId = ++activeActionId.current;
+    busy.current = true;
+    if (returningToAuto) setView(v => ({ ...v, message: 'Đang tính lại đường' }));
     const token = generation.current;
     try {
       const action = !source ? 'STOP' : previous?.enabled ? 'SWITCH' : 'START';
@@ -606,8 +641,10 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
       } else {
         if (userId) void navigationResumeStorage.remember(userId, tripId).catch(() => {});
 
-        // Mode switch geometry reuse validation:
-        if (isSwitchingTest && leg.current) {
+        if (returningToAuto) {
+          archiveCurrentLeg();
+          setView(v => ({ ...v, segment: [], traveled: accumulatedTraveled.current, remaining: [], guidance: null }));
+        } else if (isSwitchingTest && leg.current) {
           const sameTarget = leg.current.targetStopId === result.checkpoint?.targetStopId;
           const sameVersion = leg.current.routeVersion === result.checkpoint?.routeVersion;
           if (sameTarget && sameVersion) {
@@ -618,19 +655,26 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
               leg.current.travelled = proj.progress;
             } else {
               // Off-route: invalidate old geometry so activate requests a fresh route from current position
-              leg.current = null;
+              archiveCurrentLeg();
             }
           } else {
-            leg.current = null;
+            archiveCurrentLeg();
           }
         }
 
         // Activate with preserved local position, avoiding snapping back to old DB position
-        await activate(result, token, isSwitchingTest ? currentLocalPos : undefined);
+        const target = stopsRef.current.find(stop => stop.id === result.checkpoint?.targetStopId);
+        const reachedManualTarget = returningToAuto && target && target.id === previous?.targetStopId
+          && distance(currentLocalPos, coordinate(target)) <= 10;
+        await activate(result, token, isSwitchingTest ? currentLocalPos : undefined, reachedManualTarget ? 'ADVANCE' : 'CURRENT');
       }
       refreshRef.current();
     } catch (error) {
       if (token === generation.current && actId === activeActionId.current) {
+        if (isSwitchingTest) {
+          archiveCurrentLeg();
+          cp.current = null; // Reload and resume whichever mode the server accepted.
+        }
         setView(v => ({ ...v, message: error instanceof Error ? error.message : 'Chưa thể điều hướng' }));
       }
       refreshRef.current();
@@ -641,7 +685,7 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
     }
   }
 
-  useEffect(() => { remote.current = null; suspend(); setView(empty); }, [identity, suspend]);
+  useEffect(() => { departureStartPending.current = false; remote.current = null; suspend(); setView(empty); }, [identity, suspend]);
   useFocusEffect(useCallback(() => {
     foreground.current = AppState.currentState === 'active';
     const sub = AppState.addEventListener('change', state => {
@@ -659,19 +703,21 @@ export function useTripNavigation(identity: string, tripId: string, userId: stri
     : currentLeg ? currentLeg.durationSeconds / currentLeg.distanceMeters : NaN;
   const arrivalEstimate = currentLeg && freshPosition && !view.message
     && remote.current?.status === 'IN_PROGRESS' && currentLeg.targetStopId === view.targetStopId
-    ? nextStopEstimate(currentLeg.instructions, currentLeg.cumulative, currentLeg.progress, secondsPerMetre) : null;
+    ? nextStopEstimate(currentLeg.instructions, currentLeg.cumulative, currentLeg.progress, secondsPerMetre,
+      currentLeg.targetAtRouteEnd, currentLeg.stopProgress.get(view.targetStopId ?? '')) : null;
 
   return {
     ...view,
     nextStopEstimate: arrivalEstimate,
+    routePending: routeBusy.current || (!currentLeg && retryTimer.current !== null) || view.message === 'Đang tính lại đường',
     speedKmh,
     increaseSpeed,
     decreaseSpeed,
     observe,
     change,
-    prepare,
+    startOnDeparture: () => { departureStartPending.current = true; refreshRef.current(); },
     retry,
-    clear: () => { cancelRetry(); suspend(); remote.current = null; setView(empty); },
+    clear: () => { departureStartPending.current = false; cancelRetry(); suspend(); remote.current = null; setView(empty); },
     joystick: (bearing: number, speed: number) => {
       const now = performance.now();
       if (speed > 0) {

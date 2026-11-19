@@ -40,8 +40,10 @@ export class IotRuntimeController {
   @ApiOperation({
     summary:
       'ESP32 lấy cấu hình có hiệu lực tối đa 60 giây',
-    description:
+    description: [
+      'ATTENDANCE yêu cầu đúng một chuyến đủ điều kiện trên xe. Chế độ TEST cho phép ngày phục vụ bất kỳ. Các chế độ khác chỉ xét ngày hiện tại theo giờ Việt Nam.',
       'Trong ENROLLMENT, firmware 1.4.x nhận các trường gán xe null để tương thích. Liên kết xe thực tế được giữ và vẫn dùng để kiểm tra chuyến.',
+    ].join(' '),
   })
   @ApiResponse({ status: 200, type: IotRuntimeConfigDto })
   @ApiIotErrors(400, 401, 404, 503, 500)

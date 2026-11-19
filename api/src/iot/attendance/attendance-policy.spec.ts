@@ -29,6 +29,7 @@ import {
 import { AttendanceStore } from './attendance-store.service.js';
 import { IotRfidScanSchema } from '../database/schemas/rfid-scan.schema.js';
 import { lockTripOperation } from '../../trips/attendance-operations.js';
+import { vietnamToday } from '../../schools/school-effective-state.js';
 // Pure protocol/state/crypto/schema contracts only; no Student/Trip records or DB writes.
 describe('RFID attendance protocol contracts', () => {
   it('can lock and check contract policy without materializing school lifecycle on a read-only receipt path', async () => {
@@ -88,6 +89,102 @@ describe('RFID attendance protocol contracts', () => {
       alreadyRecorded({ status: 'PRESENT', alightedAt: null }, 'BOARDING'),
     ).toBe(true);
   });
+  it.each(['1900-01-01', '2099-01-01'])(
+    'allows a trip outside today (%s) only in TEST and rejects competing contexts',
+    async (serviceDate) => {
+      const config = new ConfigService({ IOT_DEVICE_AUTH_KEY: 'a'.repeat(64) });
+      const service = new AttendanceContextService(
+        new IotSecretsService(config),
+        config,
+      );
+      vi.spyOn(config, 'get').mockImplementation((key) =>
+        key === 'TRIP_OPERATION_MODE' ? 'TEST' : 'a'.repeat(64),
+      );
+      const trip = {
+        id: 'trip',
+        serviceDate: new Date(serviceDate),
+        status: 'IN_PROGRESS',
+        direction: 'TO_SCHOOL',
+        attendantReadyAt: new Date(),
+        assignedBusAttendantId: 'attendant',
+        schoolId: 'school',
+      };
+      const tx = {
+        vehicle: { findUnique: vi.fn().mockResolvedValue({ isActive: true }) },
+        trip: {
+          findMany: vi.fn().mockResolvedValue([trip]),
+          findUnique: vi.fn().mockResolvedValue(null),
+        },
+        tripAttendance: { count: vi.fn().mockResolvedValue(1) },
+        user: {
+          findUnique: vi.fn().mockResolvedValue({
+            isActive: true,
+            role: 'BUS_ATTENDANT',
+            schoolId: 'school',
+          }),
+        },
+        vehicleIotAssignment: {
+          findUnique: vi
+            .fn()
+            .mockResolvedValue({ deviceId: 'device', vehicleId: 'vehicle' }),
+        },
+      };
+
+      const resolved = await service.resolve(
+        tx as never,
+        'device',
+        'assignment',
+        'vehicle',
+      );
+      expect(resolved.context).toMatchObject({
+        tripId: 'trip',
+        phase: 'BOARDING',
+      });
+      expect(tx.trip.findMany.mock.calls[0][0].where).toEqual({
+        assignedVehicleId: 'vehicle',
+        attendantReadyAt: { not: null },
+        OR: [{ status: 'IN_PROGRESS' }, { direction: 'TO_PARKING' }],
+        status: { in: ['SCHEDULED', 'IN_PROGRESS'] },
+      });
+      await expect(
+        service.assertCurrent(tx as never, resolved.context!),
+      ).resolves.toBeUndefined();
+
+      tx.trip.findMany.mockResolvedValue([trip, { ...trip, id: 'other-trip' }]);
+      await expect(
+        service.resolve(tx as never, 'device', 'assignment', 'vehicle'),
+      ).resolves.toEqual({
+        reason: 'AMBIGUOUS_TRIP',
+        context: null,
+      });
+      await expect(
+        service.assertCurrent(tx as never, resolved.context!),
+      ).rejects.toMatchObject({
+        response: { code: 'STALE_CONTEXT' },
+      });
+
+      vi.mocked(config.get).mockImplementation((key) =>
+        key === 'TRIP_OPERATION_MODE' ? 'LIVE' : 'a'.repeat(64),
+      );
+      tx.trip.findMany.mockResolvedValue([]);
+      await expect(service.eligible(tx as never, trip as never)).resolves.toBe(
+        false,
+      );
+      await expect(
+        service.resolve(tx as never, 'device', 'assignment', 'vehicle'),
+      ).resolves.toEqual({
+        reason: 'NO_ACTIVE_TRIP',
+        context: null,
+      });
+      expect(tx.trip.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            serviceDate: new Date(vietnamToday()),
+          }),
+        }),
+      );
+    },
+  );
   it('rejects manual override, absence and an alighting without boarding', () => {
     expect(() =>
       attendanceAllowed(

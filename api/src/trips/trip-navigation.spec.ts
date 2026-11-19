@@ -46,8 +46,15 @@ describe('Navigation control and persisted-position contract (in memory only)', 
     const state = await service.navigation('trip', actor(role as Role, id as string), 'observer-session');
     expect(state.latestPosition).toBeNull(); expect(state.checkpoint).toBeNull();
     expect(JSON.stringify(state)).not.toContain('ownerSessionId');
+    if (role === Role.BUS_ATTENDANT) expect(state.attendanceTargetStopId).toBe(trip.navigationState.targetStopId);
+    else expect(state).not.toHaveProperty('attendanceTargetStopId');
     if (role !== Role.DRIVER) expect(state.controlRunId).toBeNull();
     expect((await service.history('trip', {}, actor(role as Role, id as string))).points).toEqual([]);
+  });
+  it('does not offer an obsolete navigation point to the attendant', async () => {
+    trip.navigationState = { ...checkpoint(), routeVersion: 'old', targetStopId: 'B' };
+    const result = await service.navigation('trip', actor(Role.BUS_ATTENDANT, 'attendant'), 'observer-session');
+    expect(result.attendanceTargetStopId).toBeNull();
   });
   it.each([[Role.SCHOOL_ADMIN, 'other-school'], [Role.DRIVER, 'school'], [Role.BUS_ATTENDANT, 'school']])('denies wrong scope %s', async (role, schoolId) => {
     await expect(service.navigation('trip', actor(role as Role, 'wrong', schoolId as string), 'sid')).rejects.toBeInstanceOf(ForbiddenException);
@@ -105,6 +112,29 @@ describe('Navigation control and persisted-position contract (in memory only)', 
     await service.session('trip', { action: 'SWITCH', source: 'TEST_JOYSTICK', expectedRunId: 'run' }, driver, 'sid');
     await expect(service.publish('trip', { ...position(), sequence: 1, runId: 'run' }, driver, 'sid')).rejects.toBeInstanceOf(ConflictException);
     await expect(service.session('trip', { action: 'RESUME', expectedRunId: trip.navigationState.runId }, driver, 'other')).rejects.toBeInstanceOf(ConflictException);
+  });
+  it('routes through all remaining stops in TEST and advances on cached geometry without asking VietMap again', async () => {
+    trip.navigationState = { ...checkpoint(), activeSource: 'TEST_JOYSTICK' };
+    const switched = await service.session('trip', { action: 'SWITCH', source: 'TEST_AUTO', expectedRunId: 'run' }, driver, 'sid');
+    const origin = { ...position(), latitude: 10.0005 };
+    routes.route.mockResolvedValue({ geometry: 'encoded', instructions: [], distanceMeters: 55, durationSeconds: 7 });
+    const route = await service.segment('trip', {
+      action: 'CURRENT', position: origin, runId: switched.checkpoint!.runId,
+      routeVersion: switched.routeVersion, expectedTargetStopId: 'B',
+    }, driver, 'sid');
+    expect(routes.route).toHaveBeenCalledWith(origin, expect.objectContaining({ id: 'B' }), [{ latitude: 10.002, longitude: 106 }]);
+    expect(route).toMatchObject({ targetStopId: 'B', targetAtRouteEnd: false, finished: false });
+    const advance = { action: 'ADVANCE' as const, keepGeometry: true, position: { ...origin, latitude: 10.001 },
+      runId: switched.checkpoint!.runId, routeVersion: switched.routeVersion, expectedTargetStopId: 'B' };
+    await expect(service.segment('trip', advance, driver, 'sid')).resolves.toMatchObject({
+      targetStopId: 'C', cursorOnly: true, geometry: '', finished: false,
+    });
+    await expect(service.segment('trip', advance, driver, 'sid')).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.segment('trip', { ...advance, expectedTargetStopId: 'C' }, driver, 'sid')).resolves.toMatchObject({
+      targetStopId: null, finished: true,
+    });
+    expect(routes.route).toHaveBeenCalledTimes(1);
+    expect(trip.status).toBe('IN_PROGRESS');
   });
   it('does not reset provider rate budget when resuming or switching source', async () => {
     trip.navigationState = { ...checkpoint(), lastRouteRequestedAt: Date.now() };
@@ -178,8 +208,9 @@ describe('Navigation control and persisted-position contract (in memory only)', 
     await expect(service.publish('trip', { ...position(), accuracyMeters: 100, sequence: 1, runId: 'run' }, driver, 'sid')).rejects.toMatchObject({ status: 400 });
     expect(db.tripLocationPoint.create).not.toHaveBeenCalled();
   });
-  it('routes P→B and subsequent stops outside the transaction; provider failure never creates fallback', async () => {
-    trip.navigationState = checkpoint();
+  it('routes through subsequent stops in LIVE outside the transaction; provider failure never creates fallback', async () => {
+    testMode = false;
+    trip.navigationState = { ...checkpoint(), activeSource: 'LIVE' };
     const dto = { action: 'CURRENT' as const, position: position(), runId: 'run', routeVersion: routeFingerprint(trip), expectedTargetStopId: 'B' };
     await expect(service.segment('trip', dto, driver, 'sid')).rejects.toBeInstanceOf(BadGatewayException);
     expect(routes.route).toHaveBeenCalledWith(dto.position, expect.objectContaining({ id: 'B', latitude: 10.001, longitude: 106 }), [{ latitude: 10.002, longitude: 106 }]);

@@ -57,17 +57,19 @@ export function studentJourneyTimes(card: ParentHomeCardItem, detail?: MobileTri
   const pickupActual = card.attendanceStatus !== 'UNMARKED' ? journeyRecordedClock(card.markedAt) : null;
   const pickupMarked = card.attendanceStatus !== 'UNMARKED';
   const departed = Boolean(start) || card.tripStatus === 'IN_PROGRESS' || card.tripStatus === 'COMPLETED';
+  const useActualArrival = departed || arrived;
+  const useActualPickup = departed || pickupMarked;
   return {
     departure: journeyEventTime(departed, scheduledDeparture, validOperation?.actualStartTime),
-    arrival: { value: arrived ? actualArrival : plannedArrival, kind: arrived ? 'actual' : 'scheduled', scheduledValue: plannedArrival } as JourneyTime,
-    pickup: { value: pickupMarked ? pickupActual : journeyClock(pickupStop?.plannedArrivalTime), kind: pickupMarked ? 'actual' : 'scheduled',
+    arrival: { value: useActualArrival ? actualArrival : plannedArrival, kind: useActualArrival ? 'actual' : 'scheduled', scheduledValue: plannedArrival } as JourneyTime,
+    pickup: { value: useActualPickup ? pickupActual : journeyClock(pickupStop?.plannedArrivalTime), kind: useActualPickup ? 'actual' : 'scheduled',
       scheduledValue: journeyClock(pickupStop?.plannedArrivalTime) } as JourneyTime,
     pickupTitle: pickupMarked ? card.attendanceStatus === 'ABSENT' ? card.hasLeaveNotice ? 'Báo nghỉ' : 'Báo vắng' : 'Điểm danh lên' : 'Đón con',
     arrivalTitle: card.direction === 'TO_SCHOOL' ? (!schoolAt && actualArrival ? 'Xuống xe' : 'Đến trường') : 'Đến điểm trả',
     comparisonArrivalAt: card.direction === 'TO_SCHOOL' ? schoolAt : downAt,
     plannedArrival,
     routeScheduledEnd: range.end,
-    completion: journeyEventTime(card.tripStatus === 'COMPLETED', journeyClock(validDetail?.scheduledEndTime) ?? range.end, validOperation?.actualEndTime),
+    completion: journeyEventTime(departed, journeyClock(validDetail?.scheduledEndTime) ?? range.end, validOperation?.actualEndTime),
   };
 }
 

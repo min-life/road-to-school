@@ -6,9 +6,25 @@ import {
   secondsToTimeStr,
   timeStrToSeconds,
   isTimeIntervalOverlapping,
+  tripDisplayTime,
 } from './trip-time.util.js';
 
 describe('TripTimeUtil', () => {
+  it('shows only recorded clocks after departure, using Vietnam time', () => {
+    const timing = {
+      scheduledStartTime: '06:45',
+      scheduledEndTime: '07:00',
+      actualStartTime: new Date('2026-10-25T23:48:00Z'),
+      actualEndTime: new Date('2026-10-26T00:06:00Z'),
+    };
+    expect(tripDisplayTime({ ...timing, status: 'SCHEDULED' })).toBe('06:45 – 07:00');
+    expect(tripDisplayTime({ ...timing, status: 'NOT_CREATED' })).toBe('06:45 – 07:00');
+    expect(tripDisplayTime({ ...timing, status: 'IN_PROGRESS' })).toBe('06:48 – …');
+    expect(tripDisplayTime({ ...timing, status: 'COMPLETED' })).toBe('06:48 – 07:06');
+    expect(tripDisplayTime({ ...timing, status: 'COMPLETED', actualStartTime: null })).toBe('— – 07:06');
+    expect(tripDisplayTime({ ...timing, status: 'COMPLETED', actualEndTime: null })).toBe('06:48 – —');
+  });
+
   describe('getDayOfWeekKey', () => {
     it('should correctly identify Monday for 2026-10-26', () => {
       expect(getDayOfWeekKey('2026-10-26')).toBe('monday');

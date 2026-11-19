@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -9,76 +9,34 @@ import {
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { attendantTheme, colors } from '../constants/theme';
-import {
-  useRfidAttendance,
-  type RfidMutation,
-} from '../hooks/use-rfid-attendance';
+import type { useRfidAttendance } from '../hooks/use-rfid-attendance';
 import type {
-  RfidAttendanceEvent,
   RfidPhase,
 } from '../services/rfid-attendance';
 import {
-  canConfirmRfid,
   isRfidPending,
   phaseLabel,
   rfidOutcome,
 } from '../utils/rfid-attendance';
 
 export function RfidAttendancePanel({
-  identity,
-  tripId,
+  reader: r,
   phaseFilter,
-  runMutation,
-  onUpdated,
-  onInteractionChange,
+  compact,
 }: {
-  identity: string;
-  tripId: string;
+  reader: ReturnType<typeof useRfidAttendance>;
   phaseFilter: RfidPhase;
-  runMutation: RfidMutation;
-  onUpdated: () => void;
-  onInteractionChange?: (locked: boolean) => void;
+  compact: boolean;
 }) {
-  const r = useRfidAttendance(identity, tripId, runMutation, onUpdated);
-  const [selected, setSelected] = useState<RfidAttendanceEvent | null>(null);
-  useEffect(() => {
-    setSelected((previous) => {
-      if (r.denied) return null;
-      if (!previous)
-        return r.data?.data.find((item) => item.phase === phaseFilter) ?? null;
-      return (
-        r.data?.data.find((item) => item.scanId === previous.scanId) ?? previous
-      );
-    });
-  }, [r.data, r.denied, phaseFilter]);
-  useEffect(() => {
-    if (r.lastEvent) setSelected(r.lastEvent);
-  }, [r.lastEvent]);
-  const serverPending = r.data?.data.find((item) => isRfidPending(item.state));
-  const event = r.held?.event ?? serverPending ?? selected;
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const rows = r.data?.data.filter((item) => item.phase === phaseFilter) ?? [];
+  const selected = rows.find((item) => item.scanId === selectedId) ?? rows[0];
+  const serverPending = r.data?.pendingEvent === undefined ? r.data?.data.find(item =>
+    item.phase === phaseFilter && isRfidPending(item.state)) : r.data.pendingEvent;
+  const heldForOtherPhase = r.held && r.held.event.phase !== phaseFilter;
+  const event = heldForOtherPhase ? undefined : [r.held?.event, serverPending, compact ? undefined : selected].find(item => item?.phase === phaseFilter);
   const pending = !!r.held || (!!event && isRfidPending(event.state));
   const busy = !!r.busyId;
-  useEffect(() => {
-    onInteractionChange?.(busy || pending);
-  }, [busy, pending, onInteractionChange]);
-  const rows = r.data?.data.filter((item) => item.phase === phaseFilter) ?? [];
-  const readerLabel =
-    r.data?.reader.status === 'READY'
-      ? 'Đã nhận đúng chuyến'
-      : r.data?.reader.status === 'NO_DEVICE'
-        ? 'Chưa gắn thiết bị'
-        : 'Chưa sẵn sàng';
-  const remaining = event
-    ? Math.max(
-        0,
-        Math.ceil((new Date(event.expiresAt).getTime() - r.serverNow) / 1000),
-      )
-    : 0;
-  const confirmable =
-    !!event &&
-    canConfirmRfid(event, r.data?.phase ?? null, r.serverNow) &&
-    event.phase === phaseFilter;
-  const confirmDisabled = busy || r.loading || !confirmable || !!r.error;
   return (
     <View style={styles.panel} testID="rfid-attendance-panel">
       <View style={styles.row}>
@@ -91,19 +49,7 @@ export function RfidAttendancePanel({
         </Text>
       ) : (
         <>
-          <Text
-            style={
-              r.data?.reader.status === 'READY' ? styles.ready : styles.muted
-            }
-          >
-            {readerLabel}
-          </Text>
-          {r.data?.phase && r.data.phase !== phaseFilter && (
-            <Text style={styles.muted}>
-              Chuyến đang nhận lượt {phaseLabel(r.data.phase)}.
-            </Text>
-          )}
-          <View style={styles.row}>
+          {!compact && <View style={styles.row}>
             {(['queue', 'history'] as const).map((view) => (
               <TouchableOpacity
                 key={view}
@@ -115,7 +61,7 @@ export function RfidAttendancePanel({
                 disabled={busy || pending || r.loading}
                 style={[styles.smallButton, r.view === view && styles.active]}
                 onPress={() => {
-                  setSelected(null);
+                  setSelectedId(null);
                   r.clearMessage();
                   r.setView(view);
                 }}
@@ -134,8 +80,8 @@ export function RfidAttendancePanel({
             >
               <Ionicons name="refresh" size={18} color={colors.foreground} />
             </TouchableOpacity>
-          </View>
-          {r.loading && (
+          </View>}
+          {!compact && r.loading && (
             <ActivityIndicator
               color={colors.foreground}
               accessibilityLabel="Đang tải lượt quẹt"
@@ -171,63 +117,28 @@ export function RfidAttendancePanel({
                   ? 'Chưa rõ kết quả. Kiểm tra lại đúng lượt này.'
                   : pending
                     ? 'Đang đối soát kết quả'
-                    : event.state === 'WAITING_CONFIRMATION'
-                      ? remaining
-                        ? `Chờ xác nhận · còn ${remaining}s`
-                        : 'Lượt quẹt đã hết hạn'
-                      : rfidOutcome(event)}
+                    : rfidOutcome(event)}
               </Text>
-              {pending ? (
+              {pending && (
                 <TouchableOpacity
                   accessibilityRole="button"
                   disabled={busy}
                   style={[styles.primary, busy && styles.disabled]}
-                  onPress={() => void r.confirm(event)}
+                  onPress={() => void r.checkResult(event)}
                 >
                   <Text style={[styles.buttonText, busy ? attendantTheme.buttons.disabledText : attendantTheme.buttons.primaryText]}>
                     {busy ? 'Đang kiểm tra…' : 'Kiểm tra kết quả'}
                   </Text>
                 </TouchableOpacity>
-              ) : (
-                <View style={styles.row}>
-                  {['WAITING_CONFIRMATION', 'REJECTED', 'EXPIRED'].includes(
-                    event.state,
-                  ) && (
-                    <TouchableOpacity
-                      accessibilityRole="button"
-                      disabled={busy}
-                      style={[styles.smallButton, attendantTheme.buttons.secondary, busy && styles.disabled]}
-                      onPress={() => void r.dismiss(event)}
-                    >
-                      <Text style={[styles.buttonText, busy ? attendantTheme.buttons.disabledText : attendantTheme.buttons.secondaryText]}>Bỏ qua</Text>
-                    </TouchableOpacity>
-                  )}
-                  {event.state === 'WAITING_CONFIRMATION' && (
-                    <TouchableOpacity
-                      accessibilityRole="button"
-                      accessibilityLabel={`Xác nhận ${phaseLabel(event.phase)} cho ${event.studentName || 'học sinh'}`}
-                      disabled={confirmDisabled}
-                      style={[styles.primary, confirmDisabled && styles.disabled]}
-                      onPress={() => void r.confirm(event)}
-                    >
-                      <Text style={[styles.buttonText, confirmDisabled
-                        ? attendantTheme.buttons.disabledText : attendantTheme.buttons.primaryText]}>
-                        {busy
-                          ? 'Đang xử lý…'
-                          : `Xác nhận ${phaseLabel(event.phase)}`}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
               )}
             </View>
           )}
-          {!r.loading && !rows.length && !event && (
+          {!compact && !r.loading && !rows.length && !event && (
             <Text style={styles.muted}>
               Chưa có lượt {phaseLabel(phaseFilter)}.
             </Text>
           )}
-          <ScrollView
+          {!compact && <ScrollView
             style={styles.queue}
             nestedScrollEnabled
             keyboardShouldPersistTaps="handled"
@@ -246,7 +157,7 @@ export function RfidAttendancePanel({
                   event?.scanId === item.scanId && styles.active,
                 ]}
                 onPress={() => {
-                  setSelected(item);
+                  setSelectedId(item.scanId);
                   r.clearMessage();
                 }}
               >
@@ -255,16 +166,12 @@ export function RfidAttendancePanel({
                 </Text>
                 <Text style={styles.muted}>
                   {new Date(item.scannedAt).toLocaleTimeString('vi-VN')} ·{' '}
-                  {isRfidPending(item.state)
-                    ? 'Đang đối soát'
-                    : item.state === 'WAITING_CONFIRMATION'
-                      ? 'Chờ xác nhận'
-                      : rfidOutcome(item)}
+                  {isRfidPending(item.state) ? 'Đang đối soát' : rfidOutcome(item)}
                 </Text>
               </TouchableOpacity>
             ))}
-          </ScrollView>
-          {!!r.data && r.data.total > r.data.limit && (
+          </ScrollView>}
+          {!compact && !!r.data && r.data.total > r.data.limit && (
             <View style={styles.row}>
               <TouchableOpacity
                 accessibilityRole="button"
@@ -275,7 +182,7 @@ export function RfidAttendancePanel({
                     styles.disabled,
                 ]}
                 onPress={() => {
-                  setSelected(null);
+                  setSelectedId(null);
                   r.setPage(r.page - 1);
                 }}
               >
@@ -301,7 +208,7 @@ export function RfidAttendancePanel({
                     styles.disabled,
                 ]}
                 onPress={() => {
-                  setSelected(null);
+                  setSelectedId(null);
                   r.setPage(r.page + 1);
                 }}
               >

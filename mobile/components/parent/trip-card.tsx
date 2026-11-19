@@ -23,12 +23,13 @@ type Props = {
   studentStatus?: StudentJourneyBadge;
   readiness?: StudentJourneyBadge;
   hasIncident?: boolean;
+  noGuardianAtStop?: boolean;
   attention?: boolean;
   stale?: boolean;
 };
 
 /** Owns disclosure only; the parent keeps trip data, permissions and action handlers. */
-export function ParentTripCard({ studentName, avatarUrl, leading, summaryContent, accessibilityLabel, schoolName, status, children, journey, studentStatus, readiness, hasIncident, attention, stale, staffTheme, titleColor }: Props) {
+export function ParentTripCard({ studentName, avatarUrl, leading, summaryContent, accessibilityLabel, schoolName, status, children, journey, studentStatus, readiness, hasIncident, noGuardianAtStop, attention, stale, staffTheme, titleColor }: Props) {
   const buttons = staffTheme?.buttons;
   const [expanded, setExpanded] = useState(false);
   const [visible, setVisible] = useState(false);
@@ -38,7 +39,9 @@ export function ParentTripCard({ studentName, avatarUrl, leading, summaryContent
   const reduced = useReducedMotionPreference();
   const { width, fontScale } = useWindowDimensions();
   const stacked = width < 360 || fontScale >= 1.4;
-  const cardTone = studentStatus ? journeyTones[studentStatus.tone] : attention ? journeyTones.warning : undefined;
+  const cardTone = noGuardianAtStop ? journeyTones.danger
+    : studentStatus ? journeyTones[studentStatus.tone] : attention ? journeyTones.warning : undefined;
+  const incidentLabel = noGuardianAtStop ? 'Không có người đón' : hasIncident ? 'Chuyến có sự cố' : null;
   const expandedRef = useRef(expanded);
   expandedRef.current = expanded;
 
@@ -61,7 +64,7 @@ export function ParentTripCard({ studentName, avatarUrl, leading, summaryContent
       cardTone && { borderColor: cardTone.border }]}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={accessibilityLabel ?? `${studentName}, ${schoolName}, ${status.label}${studentStatus ? ', ' + studentStatus.label : ''}${readiness ? ', ' + readiness.label : ''}${hasIncident ? ', Chuyến có sự cố' : ''}${stale ? ', Chưa cập nhật đầy đủ' : ''}`}
+        accessibilityLabel={accessibilityLabel ?? `${studentName}, ${schoolName}, ${status.label}${studentStatus ? ', ' + studentStatus.label : ''}${readiness ? ', ' + readiness.label : ''}${incidentLabel ? ', ' + incidentLabel : ''}${stale ? ', Chưa cập nhật đầy đủ' : ''}`}
         accessibilityHint={expanded ? 'Thu gọn thông tin chuyến xe' : 'Mở rộng thông tin chuyến xe'}
         accessibilityState={{ expanded }}
         aria-expanded={expanded}
@@ -89,7 +92,7 @@ export function ParentTripCard({ studentName, avatarUrl, leading, summaryContent
             </Animated.View>
           </View>
           {summaryContent}
-          {(studentStatus || readiness || hasIncident || stale) && <View style={styles.studentTags}>
+          {(studentStatus || readiness || incidentLabel || stale) && <View style={styles.studentTags}>
             {studentStatus && <View style={[styles.studentBadge, { backgroundColor: journeyTones[studentStatus.tone].bg, borderColor: journeyTones[studentStatus.tone].border }]}>
               <Ionicons name={studentStatus.icon} size={14} color={journeyTones[studentStatus.tone].text} accessible={false} />
               <Text style={[styles.studentBadgeText, { color: journeyTones[studentStatus.tone].text }]}>{studentStatus.label}</Text>
@@ -98,9 +101,9 @@ export function ParentTripCard({ studentName, avatarUrl, leading, summaryContent
               <Ionicons name={readiness.icon} size={14} color={journeyTones[readiness.tone].text} accessible={false} />
               <Text style={[styles.studentBadgeText, { color: journeyTones[readiness.tone].text }]}>{readiness.label}</Text>
             </View>}
-            {hasIncident && <View style={[styles.studentBadge, styles.incidentBadge]}>
+            {incidentLabel && <View style={[styles.studentBadge, styles.incidentBadge]}>
               <Ionicons name="warning-outline" size={14} color={journeyTones.danger.text} accessible={false} />
-              <Text style={[styles.studentBadgeText, styles.incidentText]}>Chuyến có sự cố</Text>
+              <Text accessibilityLiveRegion="polite" style={[styles.studentBadgeText, styles.incidentText]}>{incidentLabel}</Text>
             </View>}
             {stale && <Text style={styles.stale}>Chưa cập nhật đầy đủ</Text>}
           </View>}
