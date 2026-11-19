@@ -1,3 +1,59 @@
+# Xuất HTTP handler NestJS cho Vercel
+
+## 1. Thông tin
+
+20/11/2026 · API.
+
+## 2. Yêu cầu
+
+Khắc phục lỗi Vercel không tìm thấy export trong `src/main.js`.
+
+## 3. Phạm vi
+
+Entrypoint NestJS của API chính.
+
+## 4. Quyết định
+
+Dùng chung cấu hình NestJS cho tiến trình local và HTTP handler do Vercel gọi.
+
+## 5. Triển khai
+
+Xuất default HTTP handler, khởi tạo NestJS khi có request đầu tiên và tái sử dụng giữa các request. Khi khởi động thất bại, trả 503 và cho lần gọi sau thử lại. Chế độ chạy trực tiếp vẫn mở cổng HTTP và đăng ký shutdown hooks.
+
+## 6. Cơ sở dữ liệu
+
+Giữ nguyên kết nối Prisma. Không cần migration.
+
+## 7. API và Swagger
+
+Giữ đường dẫn, DTO và xác thực. Khi lỗi khởi động, handler ghi chi tiết vào log và trả 503 tổng quát.
+
+## 8. Giao diện
+
+Thay đổi ở lớp khởi động API.
+
+## 9. Kiểm chứng
+
+Typecheck, Nest build và 5 unit test đạt. JavaScript sau build xuất được default handler. GET health và Swagger trên API cục bộ đều trả HTTP 200.
+
+## 10. Giới hạn
+
+Chưa kiểm tra deployment mới trên Vercel. Thay đổi tập trung vào HTTP handler.
+
+## 11. Điểm cần review
+
+Đảm bảo Vercel dùng đúng project `api` và chạy commit chứa handler mới.
+
+## 12. Bước tiếp theo
+
+Triển khai bản sửa và gọi `/api/v1/health` trên Vercel.
+
+## 13. Trạng thái
+
+Đã sửa trong workspace.
+
+---
+
 # Nạp thư viện lịch âm trên Vercel
 
 ## 1. Thông tin
