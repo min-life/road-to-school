@@ -5,10 +5,10 @@ import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
-import { validateEsp32Image } from '../../../web/src/app/admin/iot/_components/iot-protocol.ts';
-import { IotFirmwareController } from '../../../api/dist/iot/firmware/iot-firmware.controller.js';
+import { validateEsp32Image } from '../../../../web/src/app/admin/iot/_components/iot-protocol.ts';
+import { IotFirmwareController } from '../../../dist/iot/firmware/iot-firmware.controller.js';
 
-const require = createRequire(new URL('../../../api/package.json', import.meta.url));
+const require = createRequire(new URL('../../../package.json', import.meta.url));
 const { ConfigService } = await import(pathToFileURL(require.resolve('@nestjs/config')).href);
 const work = resolve(process.argv[2] || 'E:/ChatGPT/road-to-school-iot');
 const path = resolve(work, 'artifacts/firmware.bin');

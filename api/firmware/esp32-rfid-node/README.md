@@ -31,7 +31,7 @@ Nếu RC522 không phản hồi khi boot, phát READER_NOT_FOUND; sửa đấu n
 Từ root repository trên Windows:
 
 ```powershell
-python -B firmware/esp32-rfid-node/scripts/build_firmware.py --bootstrap
+python -B api/firmware/esp32-rfid-node/scripts/build_firmware.py --bootstrap
 ```
 
 `--bootstrap` cài PlatformIO6.1.19 vào venv riêng dưới E:\ChatGPT, không cài vào Python
@@ -58,7 +58,7 @@ Không dùng artifact cũ nếu build mới thất bại. Không commit toolchai
 Để Backend phục vụ file qua API có xác thực, người vận hành cấu hình api/.env:
 
 ```dotenv
-IOT_FIRMWARE_PATH=../firmware/esp32-rfid-node/releases/1.4.0-poc/firmware.bin
+IOT_FIRMWARE_PATH=firmware/esp32-rfid-node/releases/1.4.0-poc/firmware.bin
 ```
 
 Đường dẫn trên tính từ working directory `api/` (chạy `npm run dev` trong `api/`).
@@ -76,7 +76,7 @@ Merged flash có thể thay thế cấu hình/NVS trong vùng ghi; không có OT
 
 ## Serial v1 và provisioning
 
-Giao thức khớp [Web contract](../../web/docs/iot-device-console.md): JSON UTF-8 một
+Giao thức khớp [Web contract](../../../web/docs/iot-device-console.md): JSON UTF-8 một
 dòng + LF, requestId UUIDv4, baud115200. Input tối đa2048byte, không echo raw input;
 Web đang cho phép tối đa8192ký tự response, các reply firmware nhỏ hơn giới hạn đó.
 INFO vẫn dùng được khi chưa có mạng/RC522, CONFIG_DEVICE ACK sau NVS write/readback,
@@ -148,9 +148,9 @@ vật lý hoặc chống sao chép UID. MongoDB Wi-Fi encryption độc lập v�
 ## Kiểm chứng
 
 ```powershell
-python -B firmware/esp32-rfid-node/scripts/test_bundle.py
-python -B firmware/esp32-rfid-node/scripts/build_firmware.py
-node --experimental-strip-types firmware/esp32-rfid-node/scripts/verify_bundle.mjs
+python -B api/firmware/esp32-rfid-node/scripts/test_bundle.py
+python -B api/firmware/esp32-rfid-node/scripts/build_firmware.py
+node --experimental-strip-types api/firmware/esp32-rfid-node/scripts/verify_bundle.mjs
 ```
 
 Tests chỉ kiểm tra negative binary-layout cases; build là compile thật cho chip,

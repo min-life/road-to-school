@@ -55,7 +55,7 @@ Luồng mới đã được PO duyệt: Kết nối thiết bị → tự cấp 
 Wi-Fi/nhập mật khẩu. API URL nằm trong nâng cao; cấp lại không tạo đăng ký trùng.
 Nguồn URL là IOT_ADVERTISED_API_URL do vận hành đặt một lần, không tự đoán IP từ browser.
 Chi tiết kỹ thuật thực thi theo [Web/Serial contract](../../web/docs/iot-device-console.md),
-[firmware README](../../firmware/esp32-rfid-node/README.md),
+[firmware README](../../api/firmware/esp32-rfid-node/README.md),
 [IoT runtime](../../api/src/iot/README.md) và [báo cáo mới nhất](../ai-review/LATEST.md).
 
 Phần thiết kế gốc bên dưới giữ để đối chiếu; các lựa chọn HTTP, Serial JSON v1 và

@@ -65,7 +65,7 @@ dấu phẩy vì SSID/password có thể chứa ký tự đó. Request:
 lỗi an toàn. Không hiển thị raw error/log hoặc chuỗi code lạ từ firmware.
 Timeout hiện tại 20 giây. Firmware không được echo password/deviceKey. ACK đến sau
 timeout không đổi trạng thái giao diện. Không xem ghi Serial xong là kết nối thành công.
-Firmware tại `firmware/esp32-rfid-node` triển khai protocol này. Quét bất đồng bộ,
+Firmware tại `api/firmware/esp32-rfid-node` triển khai protocol này. Quét bất đồng bộ,
 không cần cấu hình thiết bị hoặc Wi-Fi trước; chặn khi đang kết nối mạng/gửi scan RFID.
 Có trạng thái đang quét/rỗng/thất bại; không dùng danh sách giả khi firmware không hỗ trợ.
 Firmware1.1.1 tạm dừng auto-reconnect/khởi động lại station nếu chưa kết nối trước
