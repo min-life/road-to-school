@@ -1,7 +1,7 @@
 #pragma once
 
 namespace config {
-constexpr char kVersion[] = "1.4.0-poc";
+constexpr char kVersion[] = "1.5.0-poc";
 constexpr int kProtocol = 1;
 constexpr int kRfidSs = 5;
 constexpr int kRfidSck = 18;

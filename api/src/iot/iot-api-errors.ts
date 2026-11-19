@@ -4,7 +4,7 @@ import { ApiResponse } from '@nestjs/swagger';
 export function ApiIotErrors(...statuses: number[]) {
   const descriptions: Record<number, string> = {
     400: 'Dữ liệu không hợp lệ', 401: 'Thiếu hoặc sai thông tin xác thực',
-    403: 'Sai vai trò hoặc phân công; endpoint quản trị yêu cầu SYSTEM_ADMIN, attendance yêu cầu BUS_ATTENDANT', 404: 'Không tìm thấy thiết bị/xe/chuyến hoặc lượt quẹt',
+    403: 'Sai vai trò, phạm vi quản lý hoặc phân công', 404: 'Không tìm thấy dữ liệu trong phạm vi quản lý',
     409: 'Xung đột gán xe/CAS, chuyến frozen, xe inactive, token hoặc scanId không hợp lệ',
     503: 'PostgreSQL, MongoDB, khóa cấu hình hoặc firmware chưa sẵn sàng',
     410: 'Phiên đăng ký hoặc lượt chờ xác nhận đã hết hạn',

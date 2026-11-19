@@ -1,4 +1,3 @@
-import { GeographyQueryDto } from '../schools/dto/geography.dto.js';
 import {
   Controller,
   Get,
@@ -26,7 +25,7 @@ import { Roles } from '../auth/decorators/roles.decorator.js';
 import { CurrentUser } from '../auth/decorators/auth-user.decorator.js';
 import { Role, RouteDirection, RoutePlanStatus } from '@prisma/client';
 import type { User } from '@prisma/client';
-import { RoutePreparationDto } from './dto/route-preparation.dto.js';
+import { RoutePreparationDto, RoutePreparationQueryDto } from './dto/route-preparation.dto.js';
 import { OptimizeRouteDto } from './dto/optimize-route.dto.js';
 import { RoutePreviewResponseDto } from './dto/route-preview-response.dto.js';
 import { CancelReturnRouteDto } from './dto/cancel-return-route.dto.js';
@@ -78,10 +77,10 @@ export class RoutesController {
     description: 'Dữ liệu chuẩn bị lập tuyến thành công',
     type: RoutePreparationDto,
   })
-  @ApiResponse({ status: 400, description: 'Bộ lọc địa giới không hợp lệ' })
+  @ApiResponse({ status: 400, description: 'Tham số availableOnly hoặc bộ lọc địa giới không hợp lệ' })
   async getPreparationData(
     @Param('schoolId') schoolId: string,
-    @Query() query: GeographyQueryDto,
+    @Query() query: RoutePreparationQueryDto,
   ): Promise<RoutePreparationDto> {
     return this.routesService.getPreparationData(schoolId, query);
   }

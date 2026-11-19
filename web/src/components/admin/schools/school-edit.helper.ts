@@ -224,6 +224,7 @@ export function validateSchoolEditForm(
   changes: SchoolEditChanges,
   effectiveDate: string,
   userRole?: string,
+  currentContractEndDate?: string,
 ): { valid: boolean; error?: string; stepTarget?: number } {
   if (userRole && userRole !== 'SYSTEM_ADMIN') {
     return {
@@ -317,29 +318,36 @@ export function validateSchoolEditForm(
     };
   }
 
-  // Step 3: Effective date (only if location or schedule changed)
   if (changes.isLocationChanged || changes.isScheduleChanged) {
-    const effDate = effectiveDate || vietnamDate(1);
-    const tomorrowVn = vietnamDate(1);
-    if (effDate < tomorrowVn) {
+    const effDate = resolveSchoolEditEffectiveDate(effectiveDate, changes.isLocationChanged);
+    const stepTarget = changes.isLocationChanged ? 2 : 3;
+    if (effDate < vietnamDate()) {
       return {
         valid: false,
-        error: 'Ngày áp dụng vị trí/lịch học mới phải từ ngày mai trở đi.',
-        stepTarget: 3,
+        error: 'Ngày áp dụng vị trí/lịch học mới phải từ hôm nay trở đi.',
+        stepTarget,
       };
     }
-    const contractEndSlice = draft.contractEndDate
-      ? draft.contractEndDate.slice(0, 10)
-      : '';
+    const contractEndSlice = schoolEditEffectiveDateLimit(draft.contractEndDate, currentContractEndDate);
     if (contractEndSlice && effDate > contractEndSlice) {
       return {
         valid: false,
         error:
           'Ngày áp dụng vị trí/lịch học mới không thể vượt quá ngày kết thúc hợp đồng.',
-        stepTarget: 3,
+        stepTarget,
       };
     }
   }
 
   return { valid: true };
+}
+
+export function resolveSchoolEditEffectiveDate(effectiveDate: string, isLocationChanged: boolean): string {
+  return effectiveDate || vietnamDate(isLocationChanged ? 0 : 1);
+}
+
+export function schoolEditEffectiveDateLimit(draftEnd: string, currentEnd?: string): string {
+  const draftDate = draftEnd.slice(0, 10);
+  const currentDate = currentEnd?.slice(0, 10);
+  return currentDate && (!draftDate || currentDate < draftDate) ? currentDate : draftDate;
 }

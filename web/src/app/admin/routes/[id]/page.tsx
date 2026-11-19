@@ -1,355 +1,214 @@
 'use client';
-import { effectivePlanStatus } from '@/lib/school-lifecycle';
-import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
-import { BackLink } from '@/components/admin/common/context-navigation';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
-import { apiClient } from '@/lib/api-client';
-import { RouteItem, Role } from '@/lib/types';
-import {
-  SpinnerIcon,
-  AlertIcon,
-  RouteIcon,
-  TrashIcon,
-  InfoIcon,
-} from '@/components/icons';
-import { RouteMap, MapPoint } from '@/components/admin/routes/route-map';
+import { BackLink } from '@/components/admin/common/context-navigation';
 import { CancelRoutePlanModal } from '@/components/admin/routes/cancel-route-plan-modal';
-import { authStorage } from '@/lib/auth-storage';
-import { PageHeader } from '@/components/ui/page-header';
-import { Badge } from '@/components/ui/badge';
+import { PREVIEW_ROUTE_COLORS } from '@/components/admin/routes/preview-route-selector';
+import { getRouteDisplayName, getRouteStopKind, getRouteStopLabel } from '@/components/admin/routes/route-display';
+import { RouteMap, type MapPoint } from '@/components/admin/routes/route-map';
+import { RoutePlanningWorkspace } from '@/components/admin/routes/route-planning-workspace';
+import { useAuth } from '@/components/auth/auth-provider';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { apiClient } from '@/lib/api-client';
+import { getRoutePlanStatusLabel } from '@/lib/route-plan-status';
+import { effectivePlanStatus } from '@/lib/school-lifecycle';
+import type { RouteItem, RouteStopDetail } from '@/lib/types';
+import './route-detail.css';
 
 export default function RouteDetailPage() {
-  const params = useParams();
-  const routeId = params.id as string;
+  const { id } = useParams<{ id: string }>();
+  return <RouteDetail key={id} routeId={id} />;
+}
 
+function RouteDetail({ routeId }: { routeId: string }) {
+  const { user } = useAuth();
   const [route, setRoute] = useState<RouteItem | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
-  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [revision, setRevision] = useState(0);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [mobileView, setMobileView] = useState<'panel' | 'map'>('panel');
+  const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
+  const [focusPoint, setFocusPoint] = useState<{ latitude: number; longitude: number; zoom: number } | null>(null);
+  const selectedStopButton = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    const user = authStorage.getUser();
-    if (user) {
-      setCurrentUserRole(user.role);
+    let current = true;
+    async function loadRoute() {
+      try {
+        const detail = await apiClient.getRouteDetail(routeId);
+        if (!current) return;
+        const parent = detail.routePlanId ? await apiClient.getRoutePlanDetail(detail.routePlanId) : null;
+        if (current) setRoute(parent ? { ...detail, planStatus: effectivePlanStatus(parent) } : detail);
+      } catch (reason) {
+        if (current) setError(reason instanceof Error ? reason.message : 'Không thể tải thông tin tuyến.');
+      }
     }
-  }, []);
+    void loadRoute();
+    return () => { current = false; };
+  }, [routeId, revision]);
 
-  const fetchRouteDetail = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await apiClient.getRouteDetail(routeId);
-      const parent = data.routePlanId ? await apiClient.getRoutePlanDetail(data.routePlanId) : null;
-      setRoute(parent ? { ...data, planStatus: effectivePlanStatus(parent) } : data);
-    } catch (err: any) {
-      setError(err?.message || 'Không thể tải thông tin tuyến đường');
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    const button = selectedStopButton.current;
+    if (button?.getClientRects().length) button.scrollIntoView({ block: 'nearest' });
+  }, [selectedStopId, mobileView]);
+
+  const stops = useMemo(() => [...(route?.stops ?? [])].sort((first, second) => first.stopOrder - second.stopOrder), [route?.stops]);
+  const schoolName = route?.schoolName || route?.schoolLocation?.name;
+  const points = useMemo(() => stops
+    .filter(stop => Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude))
+    .map((stop): MapPoint => ({
+      id: stop.id,
+      latitude: stop.latitude,
+      longitude: stop.longitude,
+      title: getRouteStopLabel(stop, schoolName),
+      subtitle: stop.addressText,
+      type: getRouteStopKind(stop),
+      order: stop.stopOrder,
+      eta: stop.plannedArrivalTime,
+      isSelected: true,
+    })), [stops, schoolName]);
+
+  const routeLabel = route ? getRouteDisplayName(route) : '';
+  const isOutbound = route?.direction === 'TO_SCHOOL';
+  const routeColor = PREVIEW_ROUTE_COLORS[isOutbound ? 0 : 1];
+  const mapRoutes = useMemo(() => route ? [{
+    id: route.id, polylineGeometry: route.polylineGeometry, color: routeColor, active: true,
+  }] : [], [route, routeColor]);
+
+  const reload = () => {
+    setError(null);
+    setRoute(null);
+    setSelectedStopId(null);
+    setFocusPoint(null);
+    setRevision(value => value + 1);
   };
 
-  useEffect(() => {
-    if (routeId) {
-      fetchRouteDetail();
-    }
-  }, [routeId]);
-
-  const [focusPoint, setFocusPoint] = useState<{ latitude: number; longitude: number; zoom?: number } | null>(null);
-
-  const parkingLocation = useMemo(() => {
-    if (route?.parkingLocation) return route.parkingLocation;
-    if (!route?.stops) return undefined;
-    const parkingStop = route.stops.find(
-      (s) => s.stopType === 'PARKING_START' || s.stopType === 'PARKING_END'
-    );
-    if (!parkingStop) return undefined;
-    return {
-      latitude: parkingStop.latitude,
-      longitude: parkingStop.longitude,
-      addressText: parkingStop.addressText || 'Bãi xe trung tâm',
-    };
-  }, [route]);
-
-  const schoolLocation = useMemo(() => {
-    if (route?.schoolLocation) return route.schoolLocation;
-    if (!route?.stops) return undefined;
-    const schoolStop = route.stops.find(
-      (s) => s.stopType === 'SCHOOL_ARRIVAL' || s.stopType === 'SCHOOL_DEPARTURE'
-    );
-    if (!schoolStop) return undefined;
-    return {
-      latitude: schoolStop.latitude,
-      longitude: schoolStop.longitude,
-      name: route.schoolName || schoolStop.addressText || 'Trường học',
-    };
-  }, [route]);
-
-  const mapPoints: MapPoint[] = useMemo(() => {
-    if (!route || !route.stops) return [];
-    return route.stops
-      .filter((s) => s.stopType === 'PICKUP' || s.stopType === 'DROPOFF')
-      .map((s) => ({
-        id: s.id,
-        latitude: s.latitude,
-        longitude: s.longitude,
-        title: s.studentName || 'Điểm dừng học sinh',
-        subtitle: s.addressText,
-        type: 'STUDENT',
-        order: s.stopOrder,
-        eta: s.plannedArrivalTime,
-        isSelected: true,
-      }));
-  }, [route]);
-
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 text-slate-500">
-        <SpinnerIcon className="w-8 h-8 animate-spin text-primary mb-3" />
-        <p className="text-sm font-medium">Đang tải chi tiết tuyến đường...</p>
+  if (error) return (
+    <div className="route-detail-page">
+      <BackLink fallback="/admin/routes" />
+      <div className="route-detail-message" role="alert">
+        <p>{error}</p>
+        <Button type="button" variant="outline" size="sm" onClick={reload}>Thử lại</Button>
       </div>
-    );
-  }
+    </div>
+  );
+  if (!route) return <p className="route-detail-message" role="status">Đang tải chi tiết tuyến…</p>;
 
-  if (error || !route) {
-    return (
-      <div className="max-w-lg mx-auto py-16 text-center space-y-4">
-        <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
-          <AlertIcon className="w-6 h-6" />
-        </div>
-        <h2 className="text-lg font-bold text-slate-800">Không tìm thấy tuyến đường</h2>
-        <p className="text-sm text-slate-500">{error}</p>
-        <BackLink fallback="/admin/routes" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition-colors" />
-      </div>
-    );
-  }
-
-  const isToSchool = route.direction === 'TO_SCHOOL';
-  const isDraft = (route.planStatus ?? route.status) === 'DRAFT';
-  const isActive = (route.planStatus ?? route.status) === 'ACTIVE';
-  const isSystemAdmin = currentUserRole === 'SYSTEM_ADMIN';
-  const distanceKm = (route.totalDistanceMeters / 1000).toFixed(1);
-  const durationMins = Math.round(route.estimatedDurationSeconds / 60);
-
+  const planStatus = route.planStatus ?? route.status;
   const planUrl = route.routePlanId ? `/admin/routes/plans/${route.routePlanId}` : '/admin/routes';
+  const canCancel = !!route.routePlanId && user?.role === 'SYSTEM_ADMIN' && planStatus === 'DRAFT';
+  const destination = schoolName || 'Trường học';
+  const routeEndpoints = isOutbound ? `Bãi xe trung tâm → ${destination}` : `${destination} → Bãi xe trung tâm`;
+  const distance = (route.totalDistanceMeters / 1000).toLocaleString('vi-VN', { maximumFractionDigits: 1 });
+  const minutes = Math.round(route.estimatedDurationSeconds / 60);
+  const vehicleLabel = route.proposedVehiclePlate && planStatus === 'ACTIVE' ? 'Xe đã phân công'
+    : route.proposedVehiclePlate && planStatus === 'DRAFT' ? 'Xe đề xuất' : 'Phương tiện';
+
+  function selectStop(stop: RouteStopDetail) {
+    const selected = selectedStopId !== stop.id;
+    setSelectedStopId(selected ? stop.id : null);
+    setFocusPoint(selected && Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude)
+      ? { latitude: stop.latitude, longitude: stop.longitude, zoom: 16 } : null);
+  }
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Breadcrumb Navigation */}
-      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-        <Link href="/admin/routes" className="hover:text-slate-800 transition-colors">
-          Phương án tuyến
-        </Link>
-        <span>/</span>
-        {route.routePlanId ? (
-          <Link href={planUrl} className="hover:text-slate-800 font-medium transition-colors">
-            {route.routePlanName || 'Chi tiết phương án'}
-          </Link>
-        ) : (
-          <span>{route.routePlanName || 'Chi tiết phương án'}</span>
-        )}
-        <span>/</span>
-        <span className="text-slate-800 font-bold">{route.name}</span>
-      </div>
-
-      {/* Top Banner Notice: RoutePlan is the unit of cancellation */}
-      <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200/80 flex items-start gap-3">
-        <InfoIcon className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-        <div className="text-xs text-amber-900 leading-relaxed">
-          <strong className="font-semibold text-amber-950">Chế độ xem tuyến (Read-Only):</strong> Đây là hành trình
-          chi tiết thuộc phương án{' '}
-          <Link href={planUrl} className="font-bold underline text-amber-950 hover:text-amber-800">
-            {route.routePlanName || 'này'}
-          </Link>
-          . Không thể chỉnh sửa hoặc hủy riêng lẻ từng tuyến. Mọi thao tác hủy chỉ thực hiện ở cấp độ Phương án tuyến.
+    <div className="route-detail-page">
+      <BackLink fallback={planUrl} className="route-detail-back" />
+      <header className="route-detail-heading">
+        <div>
+          <h1>{routeLabel}</h1>
+          <p>{routeEndpoints}</p>
         </div>
-      </div>
-
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex flex-col items-start gap-3">
-          <BackLink fallback={planUrl} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors" />
-          <PageHeader>
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-2xl font-bold text-slate-800">{route.name}</h1>
-              <Badge
-                className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
-                  isToSchool
-                    ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                    : 'bg-amber-100 text-amber-800 border border-amber-200'
-                }`}
-              >
-                {isToSchool ? 'Chiều đi: Bãi xe → Trường' : 'Chiều về: Trường → Bãi xe'}
-              </Badge>
-              <span
-                className={`text-xs font-semibold px-2 py-0.5 rounded-md ${
-                  isActive
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    : isDraft
-                    ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                    : 'bg-rose-50 text-rose-700 border border-rose-200'
-                }`}
-              >
-                Phương án: {getRoutePlanStatusLabel(route.planStatus ?? route.status)}
-              </span>
-            </div>
-            <p className="text-sm text-slate-500 mt-1">
-              Thuộc phương án:{' '}
-              <Link href={planUrl} className="font-semibold text-slate-700 hover:text-blue-600 hover:underline">
-                {route.routePlanName}
-              </Link>{' '}
-              • Trường: <span className="font-semibold text-slate-700">{route.schoolName}</span>
-            </p>
-          </PageHeader>
+        <div className="route-detail-statuses">
+          <span className="route-detail-read-only">Chỉ xem</span>
+          <span className="route-detail-plan-status" data-status={planStatus}>Phương án · {getRoutePlanStatusLabel(planStatus)}</span>
+          {canCancel && (
+            <Button type="button" variant="outline" size="sm" className="route-detail-cancel" onClick={() => setCancelOpen(true)}>
+              Hủy phương án
+            </Button>
+          )}
         </div>
+      </header>
 
-        {isSystemAdmin && isDraft && (
-          <Button variant="outline" size="sm"
-            onClick={() => setIsCancelModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 transition-colors cursor-pointer shadow-xs"
-          >
-            <TrashIcon className="w-4 h-4 text-rose-600" />
-            <span>Hủy toàn bộ phương án tuyến</span>
-          </Button>
-        )}
-      </div>
+      <dl className="route-detail-summary">
+        <div>
+          <dt>Giờ dự kiến</dt>
+          <dd>{route.departureTime || '—'} – {route.arrivalTime || '—'}</dd>
+        </div>
+        <div>
+          <dt>Quãng đường và thời lượng</dt>
+          <dd>{distance} km <span>· {minutes ? `khoảng ${minutes} phút` : route.estimatedDurationSeconds > 0 ? 'dưới 1 phút' : '0 phút'}</span></dd>
+        </div>
+        <div>
+          <dt>{vehicleLabel}</dt>
+          <dd>{route.proposedVehiclePlate || 'Chưa gán xe'}{route.proposedVehiclePlate && route.proposedVehicleBrand && <span> · {route.proposedVehicleBrand}</span>}</dd>
+        </div>
+        <div>
+          <dt>Học sinh trên tuyến</dt>
+          <dd>{route.studentCount} học sinh</dd>
+        </div>
+      </dl>
 
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-          <p className="text-xs text-slate-500 font-medium">Xe đề xuất (Proposed)</p>
-          <p className="text-lg font-mono font-bold text-slate-800 mt-1">
-            {route.proposedVehiclePlate || 'Chưa gán'}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-0.5">
-            {route.proposedVehicleBrand || 'Xe dự kiến'}
-          </p>
-        </Card>
-
-        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-          <p className="text-xs text-slate-500 font-medium">Số học sinh trên tuyến</p>
-          <p className="text-2xl font-black text-slate-800 mt-1">{route.studentCount} em</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Đã phân tuyến 2 chiều</p>
-        </Card>
-
-        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-          <p className="text-xs text-slate-500 font-medium">Quãng đường dự kiến</p>
-          <p className="text-2xl font-black text-blue-600 mt-1">{distanceKm} km</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Theo lộ trình VietMap</p>
-        </Card>
-
-        <Card className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-          <p className="text-xs text-slate-500 font-medium">Thời gian di chuyển</p>
-          <p className="text-2xl font-black text-amber-600 mt-1">~{durationMins} phút</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">
-            {route.departureTime} → {route.arrivalTime}
-          </p>
-        </Card>
-      </div>
-
-      {/* Main Grid: Interactive Map & Stops List */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Interactive Map (7 cols) */}
-        <Card className="lg:col-span-7 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <RouteIcon className="w-4 h-4 text-slate-500" />
-              <span>Bản đồ hành trình tuyến</span>
-            </h3>
-            <span className="text-xs text-slate-500">
-              {route.stops?.length || 0} điểm dừng dọc tuyến
-            </span>
-          </div>
-
-          <RouteMap
-            schoolLocation={schoolLocation}
-            parkingLocation={parkingLocation}
-            points={mapPoints}
-            polylineGeometry={route.polylineGeometry}
-            focusPoint={focusPoint}
-            height="520px"
-          />
-        </Card>
-
-        {/* Sequential Stops Timeline (5 cols) */}
-        <Card className="lg:col-span-5 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <h3 className="text-sm font-bold text-slate-800">Lộ trình & Thứ tự đón/trả</h3>
-            <span className="text-xs font-semibold text-slate-500">
-              {route.departureTime} - {route.arrivalTime}
-            </span>
-          </div>
-
-          <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
-            {route.stops && route.stops.length > 0 ? (
-              route.stops.map((stop) => {
-                const isDepot = stop.stopType === 'PARKING_START' || stop.stopType === 'PARKING_END';
-                const isSchool = stop.stopType === 'SCHOOL_ARRIVAL' || stop.stopType === 'SCHOOL_DEPARTURE';
-
-                return (
-                  <div
-                    key={stop.id}
-                    onClick={() => setFocusPoint({ latitude: stop.latitude, longitude: stop.longitude, zoom: 16 })}
-                    className="flex items-start gap-3 p-3 rounded-xl border border-slate-100 hover:border-slate-300 hover:bg-slate-50/80 transition-all bg-slate-50/40 cursor-pointer"
-                    title="Nhấn để định vị điểm dừng này trên bản đồ"
-                  >
-                    <span
-                      className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 ${
-                        isDepot
-                          ? 'bg-blue-600 text-white'
-                          : isSchool
-                          ? 'bg-primary text-foreground'
-                          : 'bg-emerald-600 text-white'
-                      }`}
-                    >
-                      {isDepot ? 'P' : isSchool ? 'S' : stop.stopOrder}
-                    </span>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-bold text-slate-800 truncate">
-                          {isDepot
-                            ? 'Bãi xe trung tâm'
-                            : isSchool
-                            ? 'Trường học'
-                            : stop.studentName || 'Học sinh'}
-                        </p>
-                        <span className="font-mono text-xs font-bold text-emerald-700 ml-2">
-                          {stop.plannedArrivalTime}
+      <RoutePlanningWorkspace
+        preview
+        panelLabel="Điểm dừng"
+        mobileView={mobileView}
+        onMobileViewChange={setMobileView}
+        map={
+          <section className="route-detail-map" aria-label="Bản đồ tuyến">
+            <h2>Bản đồ tuyến</h2>
+            <RouteMap
+              height="100%"
+              schoolLocation={points.some(point => point.type === 'SCHOOL') ? undefined : route.schoolLocation}
+              parkingLocation={points.some(point => point.type === 'DEPOT') ? undefined : route.parkingLocation}
+              points={points}
+              routes={mapRoutes}
+              routeLegend={[{ label: routeLabel, color: routeColor }]}
+              focusPoint={focusPoint}
+              selectedPointId={selectedStopId}
+              viewportKey={mobileView === 'map' && !focusPoint ? 'map' : undefined}
+              onPointClick={point => setSelectedStopId(point.id)}
+            />
+          </section>
+        }
+        panel={
+          <section className="route-detail-stops" aria-labelledby="route-detail-stops-heading">
+            <header>
+              <h2 id="route-detail-stops-heading">Điểm dừng ({stops.length})</h2>
+              {stops.length > 0 && <span>Giờ dự kiến</span>}
+            </header>
+            {stops.length > 0 ? (
+              <ol className="route-detail-stop-list" aria-label="Thứ tự điểm dừng">
+                {stops.map(stop => {
+                  const selected = selectedStopId === stop.id;
+                  return (
+                    <li key={stop.id}>
+                      <button type="button" data-kind={getRouteStopKind(stop)}
+                        aria-expanded={selected} ref={selected ? selectedStopButton : undefined} onClick={() => selectStop(stop)}>
+                        <span className="route-detail-stop-number">{stop.stopOrder}</span>
+                        <span className="route-detail-stop-name">
+                          <strong>{getRouteStopLabel(stop, schoolName)}</strong>
+                          {selected && <small>{stop.addressText || 'Chưa có địa chỉ'}</small>}
                         </span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 truncate mt-0.5">{stop.addressText}</p>
-                      {stop.studentCode && (
-                        <span className="inline-block mt-1 text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
-                          Mã: {stop.studentCode}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <p className="text-xs text-slate-400 text-center py-6">Chưa có danh sách điểm dừng</p>
-            )}
-          </div>
-        </Card>
-      </div>
+                        <time>{stop.plannedArrivalTime || '—'}</time>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            ) : <p className="route-detail-message">Chưa có điểm dừng.</p>}
+          </section>
+        }
+      />
 
-      {/* Cancel Entire RoutePlan Modal */}
-      {isCancelModalOpen && (
+      {canCancel && cancelOpen && (
         <CancelRoutePlanModal
-          isOpen={isCancelModalOpen}
+          isOpen={cancelOpen}
           routePlanId={route.routePlanId}
           routePlanName={route.routePlanName}
-          onClose={() => setIsCancelModalOpen(false)}
-          onSuccess={() => {
-            fetchRouteDetail();
-          }}
+          onClose={() => setCancelOpen(false)}
+          onSuccess={reload}
         />
       )}
     </div>

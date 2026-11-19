@@ -5,7 +5,8 @@ import { lockOperations } from '../trips/utils/operations-lock.js';
 import { AttendanceCorrectionDto, ReopenTripDto, TripReasonDto } from './dto/trip-actions.dto.js';
 import { lockTripOperation, writeBoarding, writeAlighting } from './attendance-operations.js';
 import { effectiveTripTiming } from '../schools/trip-schedule-view.js';
-import { tripBlockReason, serviceDay } from '../schools/school-policy.js';
+import { tripBlockReason, serviceDay, pendingSchoolReoptimization } from '../schools/school-policy.js';
+import { SCHOOL_CHANGE_CANCEL_AUDIT } from '../schools/school-change-impact.js';
 import { assertResourcesNotAwaitingAdmin } from '../schools/contract-resource-policy.js';
 import { notifyAssignment, notifyTrip, notifyCancelledTrips } from '../notifications/notification-writer.js';
 import {
@@ -256,6 +257,11 @@ export class TripsService {
       throw new ForbiddenException('Chỉ nhà xe được mở lại chuyến');
     return this.prisma.$transaction(async (tx) => {
       await lockOperations(tx);
+      return this.reopenCancelledTrip(tx, id, dto, user.id);
+    });
+  }
+
+  private async reopenCancelledTrip(tx: Prisma.TransactionClient, id: string, dto: ReopenTripDto, actorId?: string, fromSchoolChange = false) {
       const trip = await tx.trip.findUnique({
         where: { id },
         include: {
@@ -270,8 +276,8 @@ export class TripsService {
       if (!trip) throw new NotFoundException('Không tìm thấy chuyến');
       if (
         trip.status !== TripStatus.CANCELLED ||
-        !trip.scheduledStartAt ||
-        new Date() >= trip.scheduledStartAt ||
+        (!fromSchoolChange && (!trip.scheduledStartAt || new Date() >= trip.scheduledStartAt)) ||
+        (fromSchoolChange && isTripFrozen(trip)) ||
         trip.actualStartTime ||
         trip.actualEndTime ||
         trip.attendances.some(
@@ -284,7 +290,7 @@ export class TripsService {
       }
       const plan = trip.route.routePlan;
       const date = trip.serviceDate.toISOString().slice(0, 10);
-      const day = plan.activatedAt && date > formatDateToVnYmd(plan.activatedAt)
+      const day = plan.activatedAt && (fromSchoolChange || date > formatDateToVnYmd(plan.activatedAt))
         ? await this.planServiceDay(tx, plan, trip.route.school, date)
         : null;
       if (!day?.start || !day.end) {
@@ -329,7 +335,7 @@ export class TripsService {
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       });
       const now = new Date();
-      if (now >= trip.scheduledStartAt || now >= timing.scheduledStartAt) {
+      if ((!fromSchoolChange && trip.scheduledStartAt && now >= trip.scheduledStartAt) || now >= timing.scheduledStartAt) {
         throw new ConflictException('Đã đến giờ xuất phát, không thể mở lại chuyến');
       }
       const before = {
@@ -390,7 +396,7 @@ export class TripsService {
         {
           action: 'REOPENED',
           reason: dto.reason,
-          actorId: user.id,
+          actorId: actorId ?? null,
           occurredAt: now.toISOString(),
           before: JSON.parse(JSON.stringify(before)),
           after: JSON.parse(JSON.stringify(after)),
@@ -418,12 +424,11 @@ export class TripsService {
         tx,
         id,
         'REOPENED',
-        user.id,
+        actorId,
         undefined,
         now.toISOString(),
       );
       return { message: 'Đã mở lại chuyến', tripId: id };
-    });
   }
 
   async assertTripOperationAllowed(id: string, db: Prisma.TransactionClient = this.prisma): Promise<void> {
@@ -503,7 +508,7 @@ export class TripsService {
       );
     }
 
-    return this.generateTripsInternal(schoolId, fromDate, toDate);
+    return this.generateTripsInternal(schoolId, fromDate, toDate, currentUser?.id);
   }
 
   /**
@@ -511,8 +516,8 @@ export class TripsService {
    */
   private async planServiceDay(
     db: Prisma.TransactionClient,
-    plan: Pick<import('@prisma/client').RoutePlan, 'status' | 'activatedAt' | 'createdAt' | 'needsReoptimization'>,
-    school: Pick<import('@prisma/client').School, 'id' | 'contractStartDate' | 'contractEndDate' | 'isActive'>,
+    plan: Pick<import('@prisma/client').RoutePlan, 'id' | 'status' | 'activatedAt' | 'createdAt' | 'needsReoptimization'>,
+    school: Pick<import('@prisma/client').School, 'id' | 'latitude' | 'longitude' | 'contractStartDate' | 'contractEndDate' | 'isActive'>,
     date: string,
   ) {
     const today = formatDateToVnYmd(new Date());
@@ -520,6 +525,9 @@ export class TripsService {
     if (plan.status !== RoutePlanStatus.ACTIVE || plan.needsReoptimization || date < today || date < activationDay ||
         isContractExpired(school.contractEndDate, today) || !canServeOnDate(school, date) ||
         await pendingParkingChange(db, date)) return null;
+    if (await pendingSchoolReoptimization(db, school, () => db.route.findMany({
+      where: { routePlanId: plan.id }, select: { direction: true, estimatedDurationSeconds: true },
+    }), date)) return null;
     return serviceDay(db, school.id, date, plan.createdAt);
   }
 
@@ -573,6 +581,7 @@ export class TripsService {
     schoolId: string | undefined,
     fromDate: string,
     toDate: string,
+    actorId?: string,
   ): Promise<GenerateTripsResponseDto> {
     const candidates = await this.prisma.route.findMany({
       where: { schoolId, routePlan: { status: RoutePlanStatus.ACTIVE, needsReoptimization: false } },
@@ -610,13 +619,23 @@ export class TripsService {
 
             totalEligible++;
             const date = new Date(serviceDate + 'T00:00:00.000Z');
-            if (await tx.trip.findUnique({ where: { routeId_serviceDate: { routeId: route.id, serviceDate: date } } })) {
+            const existing = await tx.trip.findUnique({ where: { routeId_serviceDate: { routeId: route.id, serviceDate: date } } });
+            const latestAudit = Array.isArray(existing?.operationAudit) ? existing.operationAudit.at(-1) : null;
+            const lastSchoolCancellation = latestAudit && typeof latestAudit === 'object' && !Array.isArray(latestAudit)
+              && latestAudit.action === SCHOOL_CHANGE_CANCEL_AUDIT ? latestAudit : null;
+            const canRestore = existing?.status === TripStatus.CANCELLED && lastSchoolCancellation &&
+              lastSchoolCancellation.occurredAt === existing.cancelledAt?.toISOString();
+            if (existing && !canRestore) {
               return 'skipped';
             }
 
             const { proposedVehicleId: vehicleId, defaultDriverId: driverId, defaultBusAttendantId: busAttendantId } = route;
             if (!vehicleId || !driverId || !busAttendantId) {
               throw new ConflictException('Tuyến chưa có đầy đủ Xe, Tài xế hoặc Giáo viên mặc định');
+            }
+            if (existing && canRestore) {
+              await this.reopenCancelledTrip(tx, existing.id, { reason: 'Sinh lại theo thông tin trường mới', vehicleId, driverId, busAttendantId }, actorId, true);
+              return 'created';
             }
             const { studentIds, snapshot } = await this.prepareTrip(tx, route, timing, 'GENERATION');
             const targetTrip = { id: '', serviceDate: date, ...timing };

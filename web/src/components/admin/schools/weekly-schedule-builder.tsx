@@ -28,6 +28,7 @@ export interface WeeklyScheduleBuilderProps {
   onChange: (schedule: WeeklySchedule) => void;
   disabled?: boolean;
   layout?: 'default' | 'table';
+  belowHeading?: React.ReactNode;
 }
 
 export function WeeklyScheduleBuilder({
@@ -35,6 +36,7 @@ export function WeeklyScheduleBuilder({
   onChange,
   disabled = false,
   layout = 'default',
+  belowHeading,
 }: WeeklyScheduleBuilderProps) {
   const handleToggleDay = (dayKey: string, checked: boolean) => {
     const next = { ...value };
@@ -75,6 +77,8 @@ export function WeeklyScheduleBuilder({
           Chọn ít nhất 1 ngày học trong tuần
         </span>
       </div>
+
+      {belowHeading}
 
       <div className="space-y-2 border border-slate-200 rounded-xl p-3 bg-slate-50/50">
         {layout === 'table' && <div className="weekly-schedule-columns" aria-hidden="true">

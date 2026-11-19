@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { iotApi } from "@/lib/iot-api";
-import type { IotDevice } from "@/lib/iot-api";
+import { ApiError } from "@/lib/api-client";
 import { enrollmentApi } from "@/lib/rfid-enrollment-api";
 import type { RfidSession } from "@/lib/rfid-enrollment-api";
 import { toast } from "@/stores/toast-store";
@@ -11,12 +10,12 @@ export function useRfidEnrollment(
   studentId: string,
   onUpdated: () => void,
 ) {
-  const [session, setSession] = useState<RfidSession | null>(null),
-    [devices, setDevices] = useState<IotDevice[]>([]);
+  const [session, setSession] = useState<RfidSession | null>(null);
   const [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
+  const [actionCode, setActionCode] = useState("");
   const [remaining, setRemaining] = useState(0),
     [feedback, setFeedback] = useState("");
   const mounted = useRef(false),
@@ -29,16 +28,8 @@ export function useRfidEnrollment(
     mounted.current = true;
     async function load() {
       try {
-        const registry: IotDevice[] = [];
-        for (let page = 1; page <= 100; page++) {
-          const r = await iotApi.devices(page);
-          registry.push(...r.data);
-          if (page * r.limit >= r.total) break;
-          if (page === 100) throw new Error("Danh sách thiết bị quá lớn.");
-        }
         const own = await enrollmentApi.list(studentId);
         if (active) {
-          setDevices(registry);
           setSession(own.data[0] ?? null);
           const first = own.data[0];
           if (first)
@@ -114,7 +105,7 @@ export function useRfidEnrollment(
           onUpdated();
         }
       } catch (e) {
-        if (active) setError(message(e));
+        if (active && request === sequence.current) setError(message(e));
       }
     }
     void poll();
@@ -132,6 +123,7 @@ export function useRfidEnrollment(
     sequence.current++;
     setBusy(true);
     setActionError("");
+    setActionCode("");
     setFeedback("");
     try {
       const s = await action();
@@ -160,7 +152,10 @@ export function useRfidEnrollment(
       }
       return s;
     } catch (e) {
-      if (mounted.current) setActionError(message(e));
+      if (mounted.current) {
+        setActionError(message(e));
+        setActionCode(e instanceof ApiError ? e.code : "");
+      }
     } finally {
       locked.current = false;
       if (mounted.current) setBusy(false);
@@ -168,10 +163,14 @@ export function useRfidEnrollment(
   }
   return {
     session,
-    devices,
     loading,
     busy,
     error: actionError || error,
+    actionCode,
+    clearActionError: () => {
+      setActionError("");
+      setActionCode("");
+    },
     remaining,
     feedback,
     start: (
@@ -194,6 +193,13 @@ export function useRfidEnrollment(
       session ? run(() => enrollmentApi.confirm(session)) : undefined,
     cancel: () =>
       session ? run(() => enrollmentApi.cancel(session.id)) : undefined,
+    cancelIfWaiting: (id: string) =>
+      run(async () => {
+        const latest = await enrollmentApi.get(id);
+        return latest.isOpen && latest.state === "WAITING_CARD"
+          ? enrollmentApi.cancel(id)
+          : latest;
+      }),
     reconcile: () =>
       session ? run(() => enrollmentApi.reconcile(session.id)) : undefined,
   };

@@ -13,3 +13,67 @@
   .trips-table .trip-pin-route, .trips-table .trip-pin-school, .trips-table .trip-pin-direction { position: static; box-shadow: none; }
   .trips-table .trip-pin-date { box-shadow: 3px 0 0 var(--brand-border); }
 }
+
+.school-profile-trips { border: 1px solid var(--brand-border); border-radius: 12px; min-width: 0; }
+.school-profile-trips .school-trip-toolbar { border: 0; box-shadow: none; align-items: flex-start; gap: 12px; }
+.school-trip-toolbar > .ui-filter-field { flex-basis: 174px; }
+.school-trip-toolbar > .ui-filter-actions, .school-trip-toolbar > .ui-filter-reset { margin-top: 26px; }
+.school-trip-toolbar .ui-filter-control button[aria-invalid="true"] { border-color: #be123c; }
+.school-trip-date-error { margin-top: 4px; color: #9f1239; font-size: 12px; }
+.school-trip-list-scroll { overflow-x: auto; }
+.school-trip-list-scroll:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: -2px; }
+.school-trip-list.ui-table :is(td, th) { padding-inline: 16px; }
+.school-trip-list.ui-table .school-trip-date-heading {
+  height: 34px;
+  padding-block: 5px;
+  background: var(--brand-hover);
+  color: var(--brand-heading);
+  font-weight: 750;
+}
+.school-trip-list tbody + tbody .school-trip-date-heading { border-top: 1px solid var(--brand-border); }
+.school-trip-row:hover > td { background: var(--brand-row-hover); }
+.school-trip-list strong, .school-trip-list small { display: block; }
+.school-trip-list small { color: var(--brand-muted); font-size: 12px; line-height: 1.4; }
+.school-trip-name { display: flex; align-items: flex-start; gap: 8px; }
+.school-trip-direction { width: 8px; height: 8px; flex-shrink: 0; margin-top: 6px; border-radius: 50%; background: #2563eb; }
+.school-trip-direction[data-direction="TO_PARKING"] { background: #9333ea; }
+.school-trip-time { white-space: nowrap; font-weight: 650; font-variant-numeric: tabular-nums; }
+.school-trip-count { text-align: center; font-weight: 650; }
+.school-trip-action { text-align: end; white-space: nowrap; }
+.school-trip-status {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #edf2f7;
+  color: #40546c;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.school-trip-status[data-status="SCHEDULED"] { background: #e7f5ef; color: #086449; }
+.school-trip-status[data-status="IN_PROGRESS"] { background: #fffbeb; color: #92400e; }
+.school-trip-status[data-status="COMPLETED"] { background: #eff6ff; color: #1e40af; }
+.school-trip-status[data-status="CANCELLED"] { background: #fff1f2; color: #9f1239; }
+.school-trip-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding-inline: 9px;
+  border: 1px solid var(--brand-input-border);
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 650;
+}
+.school-trip-link:hover { background: var(--brand-hover); }
+.school-trip-list-state {
+  padding: 32px 16px;
+  border-top: 1px solid var(--brand-border);
+  color: var(--brand-muted);
+  font-size: 14px;
+  text-align: center;
+}
+@media (max-width: 767px) {
+  .school-profile-trips .school-trip-toolbar > .ui-filter-field { flex-basis: calc(50% - 6px); }
+  .school-trip-toolbar > .ui-filter-actions { margin-top: 0; }
+}

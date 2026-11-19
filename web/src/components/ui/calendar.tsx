@@ -24,8 +24,9 @@ function LunarDayButton({ day, modifiers, ...props }: DayButtonProps) {
 
 export function Calendar({
   className = '',
+  showLunar = true,
   ...props
-}: ComponentProps<typeof DayPicker>) {
+}: ComponentProps<typeof DayPicker> & { showLunar?: boolean }) {
   return (
     <DayPicker
       locale={vi}
@@ -38,7 +39,7 @@ export function Calendar({
       showOutsideDays
       fixedWeeks
       className={`shadcn-calendar ${className}`}
-      components={{ DayButton: LunarDayButton }}
+      components={showLunar ? { DayButton: LunarDayButton } : undefined}
     />
   );
 }

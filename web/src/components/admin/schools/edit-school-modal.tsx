@@ -24,6 +24,7 @@ import {
 import { VietMapPicker } from '@/components/admin/schools/vietmap-picker';
 import { Tooltip } from '@/components/admin/schools/tooltip';
 import { SchoolWizardDialog } from '@/components/admin/schools/school-wizard-dialog';
+import { SchoolEffectiveDateField } from '@/components/admin/schools/school-effective-date-field';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,6 +34,8 @@ import { ClipboardList, MapPin, School } from 'lucide-react';
 import {
   createSchoolEditBaseline,
   detectSchoolChanges,
+  resolveSchoolEditEffectiveDate,
+  schoolEditEffectiveDateLimit,
   validateSchoolEditForm,
   type SchoolEditBaseline,
   type SchoolEditCurrentDraft,
@@ -47,6 +50,7 @@ export interface EditSchoolModalProps {
   readOnlyBasicInfo?: boolean;
 }
 
+const SCHOOL_LOCATION_DATE_ID = 'school-location-effective-date';
 const SCHOOL_FORM_STEPS = [
   'Thông tin trường',
   'Địa chỉ & vị trí',
@@ -194,12 +198,15 @@ export function EditSchoolModal({
     isContractChanged,
     hasChanges,
   } = changes;
+  const changeEffectiveDate = resolveSchoolEditEffectiveDate(effectiveDate, isLocationChanged);
+  const effectiveDateLimit = schoolEditEffectiveDateLimit(contractEndDate, school.contractEndDate);
 
   const formValidation = validateSchoolEditForm(
     currentDraft,
     changes,
     effectiveDate,
     userRole,
+    school.contractEndDate,
   );
   const isFormValid = formValidation.valid;
   const canSave =
@@ -353,10 +360,10 @@ export function EditSchoolModal({
   };
 
   const executeSave = useCallback(
-    async (reason?: string, expectedFingerprint?: string) => {
+    async (reason?: string, fingerprint?: { location?: string; schedule?: string }) => {
       if (isSubmitting) return;
 
-      const date = effectiveDate || vietnamDate(1);
+      const date = changeEffectiveDate;
       const messages: string[] = [];
 
       try {
@@ -388,7 +395,7 @@ export function EditSchoolModal({
             latitude: latitude!,
             longitude: longitude!,
             reason,
-            expectedFingerprint,
+            expectedFingerprint: fingerprint?.location,
             effectiveDate: date,
           });
           if (locRes?.message) {
@@ -406,6 +413,7 @@ export function EditSchoolModal({
             school.id,
             weeklySchedule,
             date,
+            fingerprint?.schedule,
           );
           if (schedRes?.message) {
             messages.push(
@@ -449,7 +457,7 @@ export function EditSchoolModal({
     },
     [
       isSubmitting,
-      effectiveDate,
+      changeEffectiveDate,
       isProfileChanged,
       isNameChanged,
       name,
@@ -489,6 +497,7 @@ export function EditSchoolModal({
       changes,
       effectiveDate,
       userRole,
+      school.contractEndDate,
     );
     if (!validation.valid) {
       setErrorMessage(validation.error || 'Dữ liệu không hợp lệ.');
@@ -498,20 +507,17 @@ export function EditSchoolModal({
       return;
     }
 
-    // Check location impact if location changed
-    if (isLocationChanged) {
+    if (isLocationChanged || isScheduleChanged) {
       try {
         setIsSubmitting(true);
-        const impact = await apiClient.getSchoolLocationImpact(
-          school.id,
-          latitude!,
-          longitude!,
-        );
-        const totalAffectedPlans =
-          impact.cancelledPlansCount ??
-          ((impact.draftPlansCount || 0) + (impact.activePlansCount || 0));
-
-        if (totalAffectedPlans > 0) {
+        const date = changeEffectiveDate;
+        const location = isLocationChanged
+          ? await apiClient.getSchoolLocationImpact(school.id, latitude!, longitude!, date)
+          : null;
+        const impact = isScheduleChanged && !location?.hasCoordinateChanged
+          ? await apiClient.getSchoolScheduleImpact(school.id, weeklySchedule, date)
+          : location;
+        if (impact) {
           setLocationImpact(impact);
           setRelocateReason(
             `Thay đổi địa chỉ trường sang ${addressText.trim()}`,
@@ -525,7 +531,7 @@ export function EditSchoolModal({
         const errMsg =
           err instanceof Error
             ? err.message
-            : 'Không thể kiểm tra tác động đổi vị trí';
+            : 'Không thể kiểm tra tác động thay đổi trường';
         setErrorMessage(errMsg);
         setIsSubmitting(false);
         return;
@@ -536,7 +542,7 @@ export function EditSchoolModal({
   };
 
   const handleConfirmRelocate = async () => {
-    if (!relocateReason.trim()) {
+    if (locationImpact?.hasCoordinateChanged && !relocateReason.trim()) {
       setRelocateReasonError(
         'Vui lòng nhập lý do thay đổi vị trí trường (bắt buộc)',
       );
@@ -545,7 +551,9 @@ export function EditSchoolModal({
     setRelocateReasonError(null);
     await executeSave(
       relocateReason.trim(),
-      locationImpact?.fingerprint || locationImpact?.expectedFingerprint,
+      locationImpact?.hasCoordinateChanged || !isScheduleChanged
+        ? { location: locationImpact?.expectedFingerprint }
+        : { schedule: locationImpact?.expectedFingerprint },
     );
   };
 
@@ -839,8 +847,14 @@ export function EditSchoolModal({
               )}
             </div>
 
+            {step === 2 && isLocationChanged && (
+              <SchoolEffectiveDateField id={SCHOOL_LOCATION_DATE_ID} label="Ngày áp dụng địa điểm"
+                value={changeEffectiveDate} max={effectiveDateLimit} disabled={isSubmitting} onChange={setEffectiveDate} />
+            )}
+
             {/* Map Picker Interactive */}
             <VietMapPicker
+              markerKind="school"
               latitude={latitude}
               longitude={longitude}
               disabled={isSubmitting}
@@ -965,43 +979,27 @@ export function EditSchoolModal({
             </p>
           </div>
 
-          {/* Ngày áp dụng vị trí/lịch học mới */}
-          <div className="school-wizard-effective-date-box space-y-2">
-            <label
-              htmlFor="school-change-effective-date"
-              className="block text-xs font-bold text-slate-800"
-            >
-              Ngày áp dụng vị trí/lịch học mới
-            </label>
-            <Input
-              id="school-change-effective-date"
-              type="date"
-              min={vietnamDate(1)}
-              max={
-                contractEndDate
-                  ? contractEndDate.slice(0, 10)
-                  : school.contractEndDate.slice(0, 10)
-              }
-              value={effectiveDate || vietnamDate(1)}
-              onChange={(e) => setEffectiveDate(e.target.value)}
-              disabled={
-                isSubmitting || (!isLocationChanged && !isScheduleChanged)
-              }
-              className="w-full sm:w-64 px-3 py-2 text-xs border border-blue-200 rounded-xl bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
-            />
-            <p className="text-[11px] text-slate-600">
-              Chỉ dùng khi đổi vị trí hoặc lịch học. Sau khi lưu, thông tin
-              đang hiệu lực vẫn giữ đến ngày hẹn. Gia hạn hợp đồng áp dụng
-              riêng.
-            </p>
-          </div>
-
-          {/* Lịch học tuần */}
           <WeeklyScheduleBuilder
             layout="table"
             value={weeklySchedule}
             onChange={setWeeklySchedule}
             disabled={isSubmitting}
+            belowHeading={step === 3 && isScheduleChanged ? isLocationChanged ? (
+              <div className="school-effective-date-row">
+                <div>
+                  <span className="school-effective-date-label">Ngày áp dụng lịch học</span>
+                  <p className="school-effective-date-note">Cùng ngày với thay đổi địa điểm</p>
+                </div>
+                <div className="school-effective-date-actions">
+                  <span className="school-effective-date-value">{displayDate(changeEffectiveDate)}</span>
+                  <button type="button" className="school-effective-date-link" disabled={isSubmitting}
+                    onClick={() => goToStep(2, SCHOOL_LOCATION_DATE_ID)}>Sửa ngày</button>
+                </div>
+              </div>
+            ) : (
+              <SchoolEffectiveDateField id="school-schedule-effective-date" label="Ngày áp dụng lịch học"
+                value={changeEffectiveDate} max={effectiveDateLimit} disabled={isSubmitting} onChange={setEffectiveDate} />
+            ) : undefined}
           />
         </fieldset>
       </SchoolWizardDialog>
@@ -1016,13 +1014,10 @@ export function EditSchoolModal({
               </div>
               <div className="space-y-1">
                 <h3 className="text-base font-bold text-slate-900">
-                  Xác nhận đổi địa chỉ / vị trí trường học
+                  Xác nhận thay đổi thông tin vận hành
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Đến ngày {displayDate(effectiveDate || vietnamDate(1))}, đổi
-                  địa chỉ sẽ hủy các phương án chưa duyệt/đang hoạt động liên
-                  quan. Các số bên dưới là tác động dự kiến, chưa thực hiện khi
-                  đặt lịch.
+                  Áp dụng từ {displayDate(changeEffectiveDate)}. Các chuyến đã sẵn sàng, điểm danh hoặc đang chạy dùng dữ liệu cũ.
                 </p>
               </div>
             </div>
@@ -1030,36 +1025,31 @@ export function EditSchoolModal({
             {/* Thống kê tác động */}
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2 text-xs text-slate-700">
               <div className="flex items-center justify-between">
-                <span>
-                  Phương án chưa duyệt hoặc đang hoạt động của trường bị hủy:
-                </span>
+                <span>Phương án cần tối ưu lại</span>
                 <span className="font-bold text-rose-600">
-                  {locationImpact.cancelledPlansCount ??
-                    ((locationImpact.draftPlansCount || 0) +
-                      (locationImpact.activePlansCount || 0))}{' '}
-                  phương án
+                  {locationImpact.reoptimizationPlansCount}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span>Chuyến xe SCHEDULED liên quan bị hủy:</span>
+                <span>Chuyến chưa vận hành dự kiến hủy</span>
                 <span className="font-bold text-rose-600">
-                  {locationImpact.cancelledTripsCount ??
-                    (locationImpact.scheduledTripsCount || 0)}{' '}
-                  chuyến
+                  {locationImpact.cancelledTripsCount} ({locationImpact.cancelledTripsTodayCount} hôm nay)
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span>Chuyến xe đang chạy (IN_PROGRESS) giữ nguyên:</span>
+                <span>Chuyến dự kiến cập nhật giờ</span>
+                <span className="font-semibold">{locationImpact.updatedTripsCount}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Chuyến đã vào quy trình vận hành được giữ</span>
                 <span className="font-bold text-emerald-600">
-                  {locationImpact.inProgressTripsPreservedCount ??
-                    (locationImpact.inProgressTripsCount || 0)}{' '}
-                  chuyến
+                  {locationImpact.preservedTripsCount}
                 </span>
               </div>
             </div>
 
             {/* Lý do thay đổi */}
-            <div className="space-y-1.5">
+            {locationImpact.hasCoordinateChanged && <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-700">
                 Lý do thay đổi vị trí trường <span className="text-rose-500">*</span>
               </label>
@@ -1078,7 +1068,7 @@ export function EditSchoolModal({
                   {relocateReasonError}
                 </p>
               )}
-            </div>
+            </div>}
 
             {/* Actions */}
             <div className="flex items-center justify-end gap-3 pt-2">
@@ -1094,12 +1084,12 @@ export function EditSchoolModal({
                 type="button"
                 disabled={isSubmitting}
                 onClick={handleConfirmRelocate}
-                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-xs font-bold text-white transition-colors cursor-pointer flex items-center gap-2 shadow-xs"
+                variant="primary"
               >
                 {isSubmitting && (
                   <SpinnerIcon className="w-4 h-4 animate-spin" />
                 )}
-                <span>Xác nhận & Hủy phương án</span>
+                <span>{changeEffectiveDate === vietnamDate() ? 'Áp dụng hôm nay' : 'Đặt lịch thay đổi'}</span>
               </Button>
             </div>
           </Card>

@@ -21,14 +21,26 @@ export class SchoolLocationImpactDto {
   @ApiProperty({ description: 'Tọa độ có bị thay đổi không', required: false })
   hasCoordinateChanged?: boolean;
 
-  @ApiProperty({ description: 'Số phương án tuyến DRAFT sẽ bị hủy' })
+  @ApiProperty({ description: 'Số phương án tuyến DRAFT hiện có' })
   draftPlansCount: number;
 
-  @ApiProperty({ description: 'Số phương án tuyến ACTIVE sẽ bị hủy' })
+  @ApiProperty({ description: 'Số phương án tuyến ACTIVE hiện có' })
   activePlansCount: number;
 
-  @ApiProperty({ description: 'Tổng số phương án tuyến sẽ bị hủy (DRAFT + ACTIVE)', required: false })
+  @ApiProperty({ description: 'Trường tương thích ngược; đổi vị trí hoặc lịch học không hủy phương án', required: false })
   cancelledPlansCount?: number;
+
+  @ApiProperty({ description: 'Phương án dự kiến đánh dấu cần tối ưu lại' })
+  reoptimizationPlansCount: number;
+
+  @ApiProperty({ description: 'Số chuyến dự kiến hủy trong hôm nay' })
+  cancelledTripsTodayCount: number;
+
+  @ApiProperty({ description: 'Số chuyến chưa vận hành dự kiến cập nhật giờ' })
+  updatedTripsCount: number;
+
+  @ApiProperty({ description: 'Số chuyến chịu tác động đã sẵn sàng, điểm danh hoặc đang chạy được giữ nguyên' })
+  preservedTripsCount: number;
 
   @ApiProperty({ description: 'Số chuyến xe SCHEDULED sẽ bị hủy' })
   scheduledTripsCount: number;
@@ -36,10 +48,10 @@ export class SchoolLocationImpactDto {
   @ApiProperty({ description: 'Số chuyến xe SCHEDULED sẽ bị hủy (alias)', required: false })
   cancelledTripsCount?: number;
 
-  @ApiProperty({ description: 'Số chuyến xe IN_PROGRESS được bảo lưu dữ liệu cũ' })
+  @ApiProperty({ description: 'Số chuyến đang chạy được bảo lưu' })
   inProgressTripsCount: number;
 
-  @ApiProperty({ description: 'Số chuyến xe IN_PROGRESS được bảo lưu dữ liệu cũ (alias)', required: false })
+  @ApiProperty({ description: 'Số chuyến đang chạy được bảo lưu (alias)', required: false })
   inProgressTripsPreservedCount?: number;
 
   @ApiProperty({ description: 'Fingerprint trạng thái hiện tại để kiểm tra xung đột' })

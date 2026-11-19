@@ -22,18 +22,34 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
 import { Table } from '@/components/ui/table';
+import { displayDate, vietnamDate } from '@/lib/school-lifecycle';
+import { SchoolProfileTripRows } from './school-profile-trip-rows';
+import { SchoolTripDateFilter } from './school-trip-date-filter';
 import './trips-table.css';
 
 interface TripsTableProps {
   fixedSchoolId?: string;
   refreshKey?: number;
   currentUserRole: Role | null;
+  schoolProfile?: boolean;
+  actions?: React.ReactNode;
+}
+
+function schoolTripDateError(value: string, { start, end }: { start?: string; end?: string }) {
+  const date = new Date(`${value}T00:00:00Z`);
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value) || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+    return 'Chọn ngày hợp lệ.';
+  }
+  if (start && value < start) return `Chọn từ ${displayDate(start)}.`;
+  if (end && value > end) return `Chọn đến ${displayDate(end)}.`;
 }
 
 export function TripsTable({
   fixedSchoolId,
   refreshKey = 0,
   currentUserRole,
+  schoolProfile = false,
+  actions,
 }: TripsTableProps) {
   const { user } = useAuth();
   const isSystemAdmin = currentUserRole === 'SYSTEM_ADMIN';
@@ -43,9 +59,11 @@ export function TripsTable({
   const today = new Date();
   const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
   const formatDateStr = (d: Date) => d.toISOString().split('T')[0];
+  const initialFromDate = schoolProfile ? vietnamDate() : formatDateStr(today);
+  const initialToDate = schoolProfile ? vietnamDate(7) : formatDateStr(nextWeek);
 
-  const [fromDate, setFromDate] = useState<string>(formatDateStr(today));
-  const [toDate, setToDate] = useState<string>(formatDateStr(nextWeek));
+  const [fromDate, setFromDate] = useState(initialFromDate);
+  const [toDate, setToDate] = useState(initialToDate);
   const [selectedSchoolId, setSelectedSchoolId] = useState<string>(effectiveSchoolId);
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [page, setPage] = useState<number>(1);
@@ -61,8 +79,13 @@ export function TripsTable({
     ? (contractBounds.start && date < contractBounds.start ? contractBounds.start
       : contractBounds.end && date > contractBounds.end ? contractBounds.end : date)
     : date;
-  const defaultFromDate = clampDefaultDate(formatDateStr(today));
-  const defaultToDate = clampDefaultDate(formatDateStr(nextWeek));
+  const defaultFromDate = clampDefaultDate(initialFromDate);
+  const defaultToDate = clampDefaultDate(initialToDate);
+  const fromError = schoolProfile ? schoolTripDateError(fromDate, contractBounds) : undefined;
+  const toError = schoolProfile
+    ? schoolTripDateError(toDate, contractBounds) || (!fromError && toDate < fromDate ? 'Chọn ngày bằng hoặc sau Từ ngày.' : undefined)
+    : undefined;
+  const invalidDateRange = Boolean(fromError || toError);
 
   // Data state
   const [trips, setTrips] = useState<TripItem[]>([]);
@@ -94,18 +117,11 @@ export function TripsTable({
             const end = school.contractEndDate.split('T')[0];
             setContractBounds({ start, end });
 
-            if (new URLSearchParams(window.location.search).has('fromDate')) return;
-            // Clamp current dates within contract
-            setFromDate((curr) => {
-              if (curr < start) return start;
-              if (curr > end) return end;
-              return curr;
-            });
-            setToDate((curr) => {
-              if (curr > end) return end;
-              if (curr < start) return start;
-              return curr;
-            });
+            const query = new URLSearchParams(window.location.search);
+            if (!schoolProfile && query.has('fromDate')) return;
+            const clamp = (date: string) => date < start ? start : date > end ? end : date;
+            if (!query.has('fromDate')) setFromDate(clamp);
+            if (!schoolProfile || !query.has('toDate')) setToDate(clamp);
           }
         })
         .catch(cause => {
@@ -114,15 +130,14 @@ export function TripsTable({
           setContractError(cause instanceof Error ? cause.message : 'Không thể tải giới hạn hợp đồng.');
         });
     } else {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Remove bounds from the previously selected school.
       setContractBounds({});
     }
     return () => { current = false; };
-  }, [activeSchoolId, currentUserRole, contractRevision]);
+  }, [activeSchoolId, currentUserRole, contractRevision, schoolProfile]);
 
   // Load trips
   const fetchTrips = async ({ isCurrent }: RefreshContext) => {
-    if (!currentUserRole) return;
+    if (!currentUserRole || invalidDateRange) return;
     try {
       setError(null);
       const res = await apiClient.listTrips({
@@ -144,7 +159,9 @@ export function TripsTable({
       if (err instanceof ApiError && (err.statusCode === 403 || err.statusCode === 404)) {
         setTrips([]); setTotal(0); setTotalPages(1); setError(err.message); return false;
       }
-      if (!trips.length) setError(err instanceof Error ? err.message : 'Không thể tải danh sách chuyến xe');
+      if (!trips.length || (schoolProfile && loading)) {
+        setError(err instanceof Error ? err.message : 'Không thể tải danh sách chuyến xe');
+      }
     } finally {
       if (isCurrent()) setLoading(false);
     }
@@ -154,7 +171,7 @@ export function TripsTable({
   useEffect(() => { setTrips([]); setTotal(0); setLoading(true); }, [scope]);
   // eslint-disable-next-line react-hooks/set-state-in-effect -- Only query changes show loading; background polling stays silent.
   useEffect(() => { setLoading(true); }, [scope, selectedStatus, fromDate, toDate, page, limit]);
-  const identity = JSON.stringify([scope, selectedStatus, fromDate, toDate, page, limit, refreshKey]);
+  const identity = JSON.stringify([scope, selectedStatus, fromDate, toDate, page, limit, refreshKey, invalidDateRange]);
   useVisibleRefresh(identity, fetchTrips);
 
   // Reset page when filters change
@@ -234,10 +251,22 @@ export function TripsTable({
     }
   };
 
+  const pagination = <PaginationControl
+    page={page}
+    totalPages={totalPages}
+    total={total}
+    limit={limit}
+    onPageChange={setPage}
+    onLimitChange={newLimit => { setLimit(newLimit); setPage(1); }}
+    loading={loading}
+  />;
+
   return (
-    <div className="space-y-4">
+    <div className={schoolProfile ? 'school-profile-trips ui-card' : 'space-y-4'}>
       {/* Filter Toolbar */}
       <FilterToolbar
+        className={schoolProfile ? 'school-trip-toolbar' : undefined}
+        actions={actions}
         hasActiveFilters={Boolean(selectedStatus || (!fixedSchoolId && selectedSchoolId) || fromDate !== defaultFromDate || toDate !== defaultToDate)}
         onReset={() => {
           setSelectedSchoolId(effectiveSchoolId);
@@ -248,7 +277,9 @@ export function TripsTable({
         }}
       >
         <FilterField label="Từ ngày">
-          <Input
+          {schoolProfile ? <SchoolTripDateFilter id="school-trip-from-date" label="Từ ngày"
+            value={fromDate} min={contractBounds.start} max={contractBounds.end} error={fromError}
+            onChange={value => { setFromDate(value); handleFilterChange(); }} /> : <Input
               type="date"
               value={fromDate}
               min={contractBounds.start}
@@ -258,11 +289,13 @@ export function TripsTable({
                 handleFilterChange();
               }}
               className="w-full"
-            />
+            />}
         </FilterField>
 
         <FilterField label="Đến ngày">
-          <Input
+          {schoolProfile ? <SchoolTripDateFilter id="school-trip-to-date" label="Đến ngày"
+            value={toDate} min={contractBounds.start} max={contractBounds.end} error={toError}
+            onChange={value => { setToDate(value); handleFilterChange(); }} /> : <Input
               type="date"
               value={toDate}
               min={contractBounds.start}
@@ -272,7 +305,7 @@ export function TripsTable({
                 handleFilterChange();
               }}
               className="w-full"
-            />
+            />}
         </FilterField>
 
         {!fixedSchoolId && isSystemAdmin && (<FilterField label="Trường học">
@@ -302,16 +335,20 @@ export function TripsTable({
               <option value="IN_PROGRESS">Đang chạy</option>
               <option value="COMPLETED">Đã hoàn thành</option>
               <option value="CANCELLED">Đã hủy</option>
-              <option value="NOT_CREATED">Chưa tạo (Dự kiến)</option>
+              <option value="NOT_CREATED">{schoolProfile ? 'Dự kiến' : 'Chưa tạo (Dự kiến)'}</option>
             </Select>
         </FilterField>
 
         {contractError && <div role="alert" className="w-full text-sm text-rose-700">{contractError} <Button variant="outline" size="sm" onClick={() => setContractRevision(v => v + 1)}>Thử lại giới hạn ngày</Button></div>}
-          {contractBounds.start && contractBounds.end && (<Badge className="ui-filter-meta">Hợp đồng: {contractBounds.start} – {contractBounds.end}</Badge>)}
+          {!schoolProfile && contractBounds.start && contractBounds.end && (<Badge className="ui-filter-meta">Hợp đồng: {contractBounds.start} – {contractBounds.end}</Badge>)}
       </FilterToolbar>
 
       {/* Main Trips Table */}
-      <Card className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+      {schoolProfile ? <>
+        <SchoolProfileTripRows trips={trips} loading={loading} error={error} invalid={invalidDateRange}
+          filters={{ fromDate, toDate, status: selectedStatus }} />
+        {!invalidDateRange && !error && pagination}
+      </> : <Card className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
         <div className="trips-table-scroll overflow-x-auto" tabIndex={0} role="region" aria-label="Bảng chuyến xe, cuộn ngang để xem thêm cột">
           <Table className="trips-table w-full text-left text-xs" minWidth={1765}>
             <colgroup><col style={{ width: 125 }} /><col style={{ width: 240 }} /><col style={{ width: 210 }} /><col style={{ width: 115 }} /><col style={{ width: 160 }} /><col style={{ width: 150 }} /><col style={{ width: 190 }} /><col /><col style={{ width: 100 }} /><col style={{ width: 170 }} /><col style={{ width: 115 }} /></colgroup>
@@ -464,19 +501,8 @@ export function TripsTable({
         </div>
 
         {/* Pagination Footer */}
-        <PaginationControl
-          page={page}
-          totalPages={totalPages}
-          total={total}
-          limit={limit}
-          onPageChange={(p) => setPage(p)}
-          onLimitChange={(newLimit) => {
-            setLimit(newLimit);
-            setPage(1);
-          }}
-          loading={loading}
-        />
-      </Card>
+        {pagination}
+      </Card>}
     </div>
   );
 }

@@ -1,5 +1,7 @@
 'use client';
 
+import './parking-settings.css';
+
 import { ServiceCalendarPanel } from '@/components/admin/schools/service-calendar-panel';
 import { LifecycleDialog } from '@/components/admin/common/lifecycle-dialog';
 import { vietnamDateKey } from '@/lib/business-improvements';
@@ -70,6 +72,9 @@ export default function AdminSettingsPage() {
   const [parkingLng, setParkingLng] = useState<number | null>(null);
   const [parkingUnconfigured, setParkingUnconfigured] = useState(false);
   const [parkingRadius, setParkingRadius] = useState('50');
+  const [isEditingParkingRadius, setIsEditingParkingRadius] = useState(false);
+  const [isSavingParkingRadius, setIsSavingParkingRadius] = useState(false);
+  const [parkingRadiusError, setParkingRadiusError] = useState('');
   const [parkingSuggestions, setParkingSuggestions] = useState<VietmapSuggestion[]>([]);
   const [isSearchingParking, setIsSearchingParking] = useState(false);
   const [showParkingSuggestions, setShowParkingSuggestions] = useState(false);
@@ -83,11 +88,23 @@ export default function AdminSettingsPage() {
   const [scheduledAction, setScheduledAction] = useState<'apply' | 'cancel' | null>(null);
   const [scheduledBusy, setScheduledBusy] = useState(false);
   const [scheduledError, setScheduledError] = useState('');
-  const [parkingImpact, setParkingImpact] = useState<ParkingLotImpactResponse | null>(null);
+  const [parkingImpact, setParkingImpact] = useState<(ParkingLotImpactResponse & {
+    target: { addressText: string; latitude: number; longitude: number };
+  }) | null>(null);
   const [isParkingImpactModalOpen, setIsParkingImpactModalOpen] = useState(false);
   const [parkingRelocateReason, setParkingRelocateReason] = useState('');
   const [parkingRelocateReasonError, setParkingRelocateReasonError] = useState<string | null>(null);
   const [isConfirmingRelocation, setIsConfirmingRelocation] = useState(false);
+  const today = vietnamDateKey();
+  const scheduledParkingChange = parkingLot?.scheduledChange;
+  const parkingChangeDue = !!scheduledParkingChange && scheduledParkingChange.effectiveDate <= today;
+  const parkingLocationChanged = !!parkingLot && parkingLat !== null && parkingLng !== null &&
+    (Math.abs(parkingLot.latitude - parkingLat) > 1e-6 || Math.abs(parkingLot.longitude - parkingLng) > 1e-6);
+  const parkingAddressChanged = parkingAddress.trim() !== parkingLot?.addressText;
+  const parkingImpactDate = parkingImpact?.effectiveDate ?? parkingEffectiveDate;
+  const impactIncludesToday = parkingImpactDate === today;
+  const parkingFormDisabled = (!parkingLot && !parkingUnconfigured) ||
+    !!scheduledParkingChange || isSavingParkingLot || isLoadingParkingLot;
 
   // Tải dữ liệu bãi đỗ xe nếu là SYSTEM_ADMIN
   const fetchParkingLot = useCallback(async () => {
@@ -289,27 +306,21 @@ export default function AdminSettingsPage() {
       return;
     }
 
-    const radius = Number(parkingRadius);
-    if (!Number.isFinite(radius) || radius <= 0 || radius > 500) {
-      setParkingErrorMsg('Bán kính phục vụ phải lớn hơn 0 và không quá 500 km.'); return;
-    }
     setIsSavingParkingLot(true);
     try {
       if (parkingUnconfigured) {
+        const radius = Number(parkingRadius);
+        if (!Number.isFinite(radius) || radius <= 0 || radius > 500) {
+          setParkingErrorMsg('Bán kính phục vụ phải lớn hơn 0 và không quá 500 km.');
+          return;
+        }
         const updated = await apiClient.updateParkingLot({ addressText: parkingAddress.trim(), latitude: parkingLat, longitude: parkingLng, maxOperatingRadiusKm: radius });
         setParkingLot(updated); setParkingUnconfigured(false);
         toast.success('Đã cấu hình bãi xe trung tâm.'); return;
       }
-      // 1. Kiểm tra xem tọa độ có thay đổi so với hiện tại không
-      const coordsChanged =
-        !parkingLot ||
-        Math.abs((parkingLot.latitude || 0) - parkingLat) > 1e-6 ||
-        Math.abs((parkingLot.longitude || 0) - parkingLng) > 1e-6;
-
-      if (!coordsChanged) {
+      if (!parkingLocationChanged) {
         // Chỉ sửa nhãn địa chỉ, tọa độ giữ nguyên -> Cập nhật trực tiếp
         const updated = await apiClient.updateParkingLot({
-          maxOperatingRadiusKm: radius,
           addressText: parkingAddress.trim(),
           latitude: parkingLat,
           longitude: parkingLng,
@@ -319,8 +330,9 @@ export default function AdminSettingsPage() {
         return;
       }
 
-      const impact = await apiClient.getParkingLotImpact(parkingLat, parkingLng, parkingEffectiveDate);
-      setParkingImpact(impact);
+      const target = { addressText: parkingAddress.trim(), latitude: parkingLat, longitude: parkingLng };
+      const impact = await apiClient.getParkingLotImpact(target.latitude, target.longitude, parkingEffectiveDate);
+      setParkingImpact({ ...impact, target });
       setParkingRelocateReason('Bãi xe trung tâm thay đổi vị trí');
       setParkingRelocateReasonError(null);
       setIsParkingImpactModalOpen(true);
@@ -336,33 +348,51 @@ export default function AdminSettingsPage() {
       setParkingRelocateReasonError('Vui lòng nhập lý do thay đổi vị trí bãi xe (bắt buộc)');
       return;
     }
-    if (isConfirmingRelocation || parkingLat === null || parkingLng === null || !parkingImpact) return;
+    if (isConfirmingRelocation || !parkingImpact) return;
 
-    const radius = Number(parkingRadius);
-    if (!Number.isFinite(radius) || radius <= 0 || radius > 500) { setParkingRelocateReasonError('Bán kính phải lớn hơn 0 và không quá 500 km.'); return; }
     setIsConfirmingRelocation(true);
     setParkingRelocateReasonError(null);
     try {
       const fingerprint = parkingImpact.expectedFingerprint || parkingImpact.fingerprint;
       const updated = await apiClient.updateParkingLot({
-        addressText: parkingAddress.trim(),
-        latitude: parkingLat,
-        longitude: parkingLng,
+        ...parkingImpact.target,
         reason: parkingRelocateReason.trim(),
-        maxOperatingRadiusKm: radius,
         expectedFingerprint: fingerprint,
-        effectiveDate: parkingEffectiveDate,
+        effectiveDate: parkingImpactDate,
       });
       setParkingLot(updated);
       setIsParkingImpactModalOpen(false);
+      setParkingEffectiveDate(vietnamDateKey(1));
       await fetchParkingLot();
-      toast.success('Đã hẹn dời bãi xe. Tác động được áp dụng khi đến ngày hiệu lực.');
+      toast.success(impactIncludesToday ? 'Đã xác nhận lịch dời bãi hôm nay.' : 'Đã hẹn dời bãi xe.');
     } catch (err: any) {
       setIsParkingImpactModalOpen(false);
       setParkingImpact(null);
       setParkingErrorMsg(err?.message || 'Dữ liệu đã thay đổi. Vui lòng xem tác động lại.');
     } finally {
       setIsConfirmingRelocation(false);
+    }
+  };
+
+  const handleSaveParkingRadius = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (isSavingParkingRadius) return;
+    const radius = Number(parkingRadius);
+    if (!Number.isFinite(radius) || radius <= 0 || radius > 500) {
+      setParkingRadiusError('Bán kính phục vụ phải lớn hơn 0 và không quá 500 km.');
+      return;
+    }
+    setIsSavingParkingRadius(true);
+    setParkingRadiusError('');
+    try {
+      await apiClient.updateParkingRadius(radius);
+      setParkingLot(current => current ? { ...current, maxOperatingRadiusKm: radius } : current);
+      setIsEditingParkingRadius(false);
+      toast.success('Đã lưu bán kính phục vụ.');
+    } catch (error) {
+      setParkingRadiusError(error instanceof Error ? error.message : 'Không thể lưu bán kính phục vụ.');
+    } finally {
+      setIsSavingParkingRadius(false);
     }
   };
 
@@ -663,145 +693,206 @@ export default function AdminSettingsPage() {
       {/* TAB 2: VỊ TRÍ BÃI XE TRUNG TÂM (Chỉ hiển thị cho SYSTEM_ADMIN) */}
       {/* ============================================================= */}
       {activeTab === 'PARKING_LOT' && user.role === 'SYSTEM_ADMIN' && (
-        <Card className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-6">
-          <div>
-            <h2 className="text-base font-bold text-foreground">
-              Vị trí bãi đỗ xe trung tâm
-            </h2>
-            <p className="text-xs text-slate-500 mt-1">
-              Cấu hình địa điểm trung tâm duy nhất của nhà xe phục vụ lập lộ trình và điều phối phương tiện.
-            </p>
-          </div>
-
-
-
+        <section aria-label="Vị trí bãi xe" className="space-y-4">
           {parkingErrorMsg && (
-            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-center gap-2">
-              <AlertIcon className="w-5 h-5 text-red-600 shrink-0" />
+            <div role="alert" className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+              <AlertIcon className="h-5 w-5 shrink-0" />
               <span>{parkingErrorMsg}</span>
+              {!parkingLot && !parkingUnconfigured && <Button type="button" variant="outline" onClick={() => void fetchParkingLot()}>Thử lại</Button>}
             </div>
           )}
-
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm" hidden={!parkingLot}>
-            <p className="font-semibold">Bãi đang áp dụng</p><p>{parkingLot?.addressText}</p>
-          </div>
-          {parkingLot?.scheduledChange && <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
-            <p className="font-semibold">Thay đổi đã hẹn · {parkingLot.scheduledChange.effectiveDate.split('-').reverse().join('/')}</p>
-            <p>{parkingLot.scheduledChange.newAddressText}</p>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={() => { setScheduledError(''); setScheduledAction('cancel'); }}>Hủy lịch thay đổi</Button>
-              {parkingLot.scheduledChange.effectiveDate <= vietnamDateKey() && <Button variant="primary" onClick={() => { setScheduledError(''); setScheduledAction('apply'); }}>Áp dụng vị trí mới</Button>}
-              <Button variant="outline" onClick={() => void fetchParkingLot()}>Làm mới</Button>
-            </div>
-          </div>}
-          <form onSubmit={handleSaveParkingLot} className="space-y-5">
-            <fieldset disabled={(!parkingLot && !parkingUnconfigured) || !!parkingLot?.scheduledChange || isSavingParkingLot || isLoadingParkingLot} className="space-y-5">
-            {parkingUnconfigured && <p role="status" className="lifecycle-notice">Chưa cấu hình bãi trung tâm. Chọn địa chỉ và vị trí để bắt đầu.</p>}
-            <div className="max-w-xs space-y-1.5"><label htmlFor="parking-radius" className="block text-sm font-semibold">Bán kính phục vụ (km)</label>
-              <Input className="w-full border bg-white px-3 py-2" id="parking-radius" type="number" min="0" max="500" step="any" required value={parkingRadius} onChange={event => { setParkingRadius(event.target.value); setParkingImpact(null); }} />
-            </div>
-            {/* Địa chỉ bãi xe với Autocomplete */}
-            <div className="relative">
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Địa chỉ bãi xe *
-              </label>
-              <div className="relative">
-                <Input
-                  type="text"
-                  value={parkingAddress}
-                  onChange={(e) => handleParkingAddressInput(e.target.value)}
-                  placeholder="Nhập địa chỉ bãi xe để tìm kiếm..."
-                  required
-                  className="w-full px-3.5 py-2.5 pl-10 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                />
-                <MapPinIcon className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                {isSearchingParking && (
-                  <SpinnerIcon className="w-4 h-4 text-slate-400 animate-spin absolute right-3 top-1/2 -translate-y-1/2" />
-                )}
+          {parkingLot && (
+            <Card className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4 p-5">
+              <div className="min-w-0 flex-1 basis-64">
+                <h2 className="text-sm font-semibold">{parkingChangeDue ? 'Bãi theo lịch đến hạn' : 'Bãi đang áp dụng'}</h2>
+                <p className="mt-1 break-words text-lg font-bold">{parkingLot.addressText}</p>
               </div>
+              <div className="flex flex-wrap items-center gap-4 sm:border-l sm:border-slate-200 sm:pl-5">
+                <div>
+                  <p className="text-xs text-slate-600">Bán kính phục vụ</p>
+                  <p className="text-lg font-bold">{parkingLot.maxOperatingRadiusKm ?? 50} km</p>
+                </div>
+                <Button type="button" variant="outline" onClick={() => {
+                  setParkingRadius(String(parkingLot.maxOperatingRadiusKm ?? 50));
+                  setParkingRadiusError('');
+                  setIsEditingParkingRadius(true);
+                }}>Sửa bán kính</Button>
+              </div>
+            </Card>
+          )}
 
-              {/* Danh sách gợi ý từ VietMap */}
-              {showParkingSuggestions && parkingSuggestions.length > 0 && (
-                <Card className="absolute z-20 w-full mt-1.5 bg-white rounded-xl border border-slate-200 shadow-xl max-h-56 overflow-y-auto">
-                  {parkingSuggestions.map((sugg) => (
-                    <Button
-                      key={sugg.refId}
-                      type="button"
-                      onClick={() => handleSelectParkingSuggestion(sugg)}
-                      className="w-full text-left px-3.5 py-2.5 text-xs hover:bg-amber-50 border-b border-slate-100 last:border-0 flex items-start gap-2 cursor-pointer"
-                    >
-                      <MapPinIcon className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                      <div>
-                        <span className="font-semibold text-slate-800 block">{sugg.name}</span>
-                        <span className="text-slate-500 block text-[11px]">{sugg.address || sugg.display}</span>
+          <form onSubmit={handleSaveParkingLot} className="grid items-start gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+            <Card className="min-w-0 space-y-3 p-5">
+              <VietMapPicker
+                markerKind="depot"
+                latitude={scheduledParkingChange?.newLatitude ?? parkingLat}
+                longitude={scheduledParkingChange?.newLongitude ?? parkingLng}
+                referenceLocation={parkingLot && !parkingChangeDue && (scheduledParkingChange || parkingLocationChanged) ? parkingLot : null}
+                mapHeightClassName="h-64 lg:h-[19rem]"
+                locationLabel="bãi xe"
+                disabled={parkingFormDisabled || isParkingImpactModalOpen}
+                onChangeCoordinates={(lat, lng) => {
+                  setParkingLat(lat);
+                  setParkingLng(lng);
+                }}
+                onAddressSelect={addr => { if (addr) setParkingAddress(addr); }}
+              />
+            </Card>
+            <Card className="min-w-0 p-5">
+              {scheduledParkingChange ? (
+                <div className="space-y-4">
+                  <h2 className="text-base font-bold">Thay đổi đã hẹn</h2>
+                  <div className="rounded-xl bg-amber-50 p-4 text-sm">
+                    <p className="font-semibold">{scheduledParkingChange.newAddressText}</p>
+                    <p className="mt-1 text-slate-700">Ngày hiệu lực · {scheduledParkingChange.effectiveDate.split('-').reverse().join('/')}</p>
+                    {parkingChangeDue && <p className="mt-1 text-amber-800">Đã đến hạn, đang chờ áp dụng.</p>}
+                  </div>
+                  <div className="parking-settings-actions flex flex-wrap gap-2">
+                    {parkingChangeDue
+                      ? <Button type="button" variant="primary" onClick={() => { setScheduledError(''); setScheduledAction('apply'); }}>Áp dụng vị trí mới</Button>
+                      : <Button type="button" variant="outline" onClick={() => { setScheduledError(''); setScheduledAction('cancel'); }}>Hủy lịch thay đổi</Button>}
+                    <Button type="button" variant="outline" disabled={isLoadingParkingLot} onClick={() => void fetchParkingLot()}>Làm mới</Button>
+                  </div>
+                </div>
+              ) : (
+                <fieldset disabled={parkingFormDisabled} className="min-w-0 space-y-4">
+                  <h2 className="text-base font-bold">{parkingUnconfigured ? 'Cấu hình bãi xe' : 'Chuyển bãi xe'}</h2>
+                  {parkingUnconfigured && (
+                    <div className="space-y-1.5">
+                      <label htmlFor="parking-radius" className="block text-sm font-semibold">Bán kính phục vụ (km)</label>
+                      <Input id="parking-radius" type="number" min="0" max="500" step="any" required value={parkingRadius} onChange={event => setParkingRadius(event.target.value)} />
+                    </div>
+                  )}
+                  <div className="relative">
+                    <label htmlFor="parking-address" className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Địa chỉ mới
+                    </label>
+                    <div className="relative">
+                      <Input
+                        id="parking-address"
+                        type="text"
+                        value={parkingAddress}
+                        onChange={(e) => handleParkingAddressInput(e.target.value)}
+                        placeholder="Nhập địa chỉ bãi xe để tìm kiếm..."
+                        required
+                        className="parking-settings-field parking-settings-address"
+                      />
+                      <MapPinIcon className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      {isSearchingParking && (
+                        <SpinnerIcon className="w-4 h-4 text-slate-400 animate-spin absolute right-3 top-1/2 -translate-y-1/2" />
+                      )}
+                    </div>
+
+                    {/* Danh sách gợi ý từ VietMap */}
+                    {showParkingSuggestions && parkingSuggestions.length > 0 && (
+                      <Card className="absolute z-20 w-full mt-1.5 bg-white rounded-xl border border-slate-200 shadow-xl max-h-56 overflow-y-auto">
+                        {parkingSuggestions.map((sugg) => (
+                          <Button
+                            key={sugg.refId}
+                            type="button"
+                            onClick={() => handleSelectParkingSuggestion(sugg)}
+                            className="w-full text-left px-3.5 py-2.5 text-xs hover:bg-amber-50 border-b border-slate-100 last:border-0 flex items-start gap-2 cursor-pointer"
+                          >
+                            <MapPinIcon className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                            <div>
+                              <span className="font-semibold text-slate-800 block">{sugg.name}</span>
+                              <span className="text-slate-500 block text-[11px]">{sugg.address || sugg.display}</span>
+                            </div>
+                          </Button>
+                        ))}
+                      </Card>
+                    )}
+                  </div>
+                  {!parkingUnconfigured && (
+                    <div className="space-y-2">
+                      <label htmlFor="parking-effective-date" className="block text-sm font-semibold">Ngày hiệu lực</label>
+                      <div className="parking-settings-date-row parking-settings-actions">
+                        <Input id="parking-effective-date" type="date" min={today} required={parkingLocationChanged} disabled={!parkingLocationChanged}
+                          value={parkingEffectiveDate} onChange={event => setParkingEffectiveDate(event.target.value)} className="parking-settings-field" />
+                        <Button type="button" variant="outline" disabled={!parkingLocationChanged} onClick={() => setParkingEffectiveDate(vietnamDateKey())}>Hôm nay</Button>
                       </div>
+                      {parkingLocationChanged && parkingEffectiveDate === today && (
+                        <div role="status" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+                          <p className="font-semibold">Lịch sẽ đến hạn ngay sau khi xác nhận.</p>
+                          <p>Chuyến hôm nay chưa vận hành có thể bị hủy.</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div className="parking-settings-actions flex justify-end border-t border-slate-200 pt-4">
+                    <Button type="submit" variant="primary"
+                      disabled={isSavingParkingLot || isSearchingParking || (!parkingUnconfigured && !parkingAddressChanged && !parkingLocationChanged)}>
+                      {isSavingParkingLot && <SpinnerIcon className="h-4 w-4 animate-spin" />}
+                      {parkingUnconfigured ? 'Lưu cấu hình bãi' : parkingLocationChanged ? 'Xem tác động' : 'Lưu địa chỉ'}
                     </Button>
-                  ))}
-                </Card>
+                  </div>
+                </fieldset>
               )}
-            </div>
-
-            {/* Khung bản đồ VietMap Picker */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Xác nhận tọa độ bãi xe trên bản đồ
-              </label>
-              <p className="text-xs text-slate-500 mb-2">
-                Bạn có thể kéo thả dấu ghim (Marker) hoặc nhấp vào bản đồ để điều chỉnh vị trí chính xác.
-              </p>
-              <div className="rounded-xl overflow-hidden border border-slate-200">
-                <VietMapPicker
-                  latitude={parkingLat}
-                  longitude={parkingLng}
-                  onChangeCoordinates={(lat, lng) => {
-                    setParkingLat(lat);
-                    setParkingLng(lng);
-                  }}
-                  onAddressSelect={(addr) => {
-                    if (addr) setParkingAddress(addr);
-                  }}
-                />
-              </div>
-            </div>
-
-            {!parkingUnconfigured && <div className="max-w-xs space-y-1.5"><label htmlFor="parking-effective-date" className="block text-sm font-semibold">Ngày hiệu lực dời bãi</label>
-              <Input id="parking-effective-date" type="date" min={vietnamDateKey(1)} required value={parkingEffectiveDate} onChange={event => { setParkingEffectiveDate(event.target.value); setParkingImpact(null); }} />
-            </div>}
-            {/* Nút Lưu cấu hình */}
-            <div className="flex items-center justify-between pt-2">
-              <span className="text-xs text-slate-500">
-                {parkingLot?.updatedAt
-                  ? `Cập nhật lần cuối: ${new Date(parkingLot.updatedAt).toLocaleString('vi-VN')}`
-                  : 'Chưa có thông tin cập nhật'}
-              </span>
-
-              <Button variant="primary" size="default"
-                type="submit"
-                disabled={isSavingParkingLot || isSearchingParking}
-                className="px-6 py-2.5 rounded-xl bg-primary hover:bg-amber-400 text-sm font-bold text-foreground transition-colors cursor-pointer flex items-center gap-2 shadow-xs"
-              >
-                {isSavingParkingLot && <SpinnerIcon className="w-4 h-4 animate-spin" />}
-                <span>{parkingUnconfigured ? 'Lưu cấu hình bãi' : 'Xem tác động / Lưu cấu hình'}</span>
-              </Button>
-            </div>
-            </fieldset>
+            </Card>
           </form>
-        </Card>
+        </section>
       )}
 
-      <LifecycleDialog open={isParkingImpactModalOpen && !!parkingImpact} title="Xác nhận hẹn dời bãi" busy={isConfirmingRelocation} onClose={() => setIsParkingImpactModalOpen(false)}
-        footer={<><Button variant="outline" disabled={isConfirmingRelocation} onClick={() => setIsParkingImpactModalOpen(false)}>Quay lại</Button><Button variant="primary" disabled={isConfirmingRelocation || !parkingRelocateReason.trim()} onClick={handleConfirmParkingRelocation}>{isConfirmingRelocation ? 'Đang lưu…' : 'Xác nhận'}</Button></>}>
-        {parkingImpact && <div className="space-y-4 text-sm">
-          <p className="font-semibold">{parkingAddress}</p><p>Ngày hiệu lực: {parkingEffectiveDate.split('-').reverse().join('/')}</p>
-          <dl className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div className="flex justify-between gap-4"><dt>Phương án cần tối ưu lại</dt><dd className="font-bold">{parkingImpact.plansNeedingReoptimizationCount}</dd></div>
-            <div className="flex justify-between gap-4"><dt>Chuyến đã lên lịch bị hủy từ ngày hiệu lực</dt><dd className="font-bold text-rose-600">{parkingImpact.tripsCancelledAfterEffectiveDateCount}</dd></div>
-            <div className="flex justify-between gap-4"><dt>Chuyến trước ngày hiệu lực giữ nguyên</dt><dd className="font-bold">{parkingImpact.tripsPreservedBeforeEffectiveDateCount}</dd></div>
-          </dl>
-          <label htmlFor="parking-reason" className="block font-semibold">Lý do thay đổi *</label>
-          <Textarea id="parking-reason" rows={3} value={parkingRelocateReason} onChange={event => setParkingRelocateReason(event.target.value)} />
-          {parkingRelocateReasonError && <p role="alert" className="text-rose-600">{parkingRelocateReasonError}</p>}
-        </div>}
+      <LifecycleDialog
+        open={isParkingImpactModalOpen && !!parkingImpact}
+        title="Xác nhận đổi vị trí bãi xe"
+        busy={isConfirmingRelocation}
+        onClose={() => setIsParkingImpactModalOpen(false)}
+        footer={
+          <>
+            <Button variant="outline" disabled={isConfirmingRelocation} onClick={() => setIsParkingImpactModalOpen(false)}>Quay lại</Button>
+            <Button variant="primary" disabled={isConfirmingRelocation || !parkingRelocateReason.trim()} onClick={handleConfirmParkingRelocation}>
+              {isConfirmingRelocation ? 'Đang lưu…' : 'Xác nhận dời bãi'}
+            </Button>
+          </>
+        }
+      >
+        {parkingImpact && (
+          <div className="space-y-4 text-sm">
+            <p className="font-medium text-slate-600">Ngày hiệu lực · {impactIncludesToday ? 'Hôm nay, ' : ''}{parkingImpactDate.split('-').reverse().join('/')}</p>
+            <dl className="grid gap-3 rounded-xl bg-slate-50 p-4 sm:grid-cols-2">
+              <div><dt className="text-xs text-slate-600">Bãi hiện tại</dt><dd className="break-words font-semibold">{parkingImpact.currentAddressText ?? parkingLot?.addressText}</dd></div>
+              <div><dt className="text-xs text-slate-600">Bãi mới</dt><dd className="break-words font-semibold">{parkingImpact.target.addressText}</dd></div>
+            </dl>
+            <dl className="grid gap-2 sm:grid-cols-3">
+              {parkingImpact.tripsCancelledTodayCount !== undefined && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  <dt>Chuyến hôm nay dự kiến hủy</dt>
+                  <dd className="text-lg font-bold">{parkingImpact.tripsCancelledTodayCount}</dd>
+                </div>
+              )}
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <dt>{parkingImpact.tripsCancelledTodayCount === undefined ? 'Chuyến dự kiến hủy từ ngày hiệu lực' : 'Chuyến các ngày sau dự kiến hủy'}</dt>
+                <dd className="text-lg font-bold">{parkingImpact.tripsCancelledAfterEffectiveDateCount - (parkingImpact.tripsCancelledTodayCount ?? 0)}</dd>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <dt>Phương án cần tối ưu lại</dt>
+                <dd className="text-lg font-bold">{parkingImpact.plansNeedingReoptimizationCount}</dd>
+              </div>
+            </dl>
+            <p>Chuyến đã sẵn sàng, đã điểm danh, đang chạy hoặc đã hoàn thành được giữ. Chuyến bị hủy không tự sinh lại.</p>
+            <div className="space-y-1.5">
+              <label htmlFor="parking-reason" className="block font-semibold">Lý do chuyển bãi</label>
+              <Textarea id="parking-reason" rows={2} required value={parkingRelocateReason} onChange={event => setParkingRelocateReason(event.target.value)} />
+              {parkingRelocateReasonError && <p role="alert" className="text-rose-600">{parkingRelocateReasonError}</p>}
+            </div>
+            {impactIncludesToday && <p className="text-amber-900">Lịch hôm nay đến hạn ngay và không thể hủy sau xác nhận.</p>}
+          </div>
+        )}
+      </LifecycleDialog>
+      <LifecycleDialog open={isEditingParkingRadius} title="Sửa bán kính phục vụ" busy={isSavingParkingRadius} className="parking-radius-dialog"
+        onClose={() => setIsEditingParkingRadius(false)}
+        footer={<><Button variant="outline" disabled={isSavingParkingRadius} onClick={() => setIsEditingParkingRadius(false)}>Quay lại</Button><Button type="submit" form="parking-radius-form" variant="primary" disabled={isSavingParkingRadius}>Lưu bán kính</Button></>}>
+        <form id="parking-radius-form" onSubmit={handleSaveParkingRadius} className="space-y-2">
+          <label htmlFor="editing-parking-radius" className="block text-sm font-semibold">Bán kính</label>
+          <div className="parking-radius-field">
+            <Input id="editing-parking-radius" type="number" min="0" max="500" step="any" required value={parkingRadius}
+              className="parking-settings-field" aria-describedby="editing-parking-radius-unit"
+              onChange={event => setParkingRadius(event.target.value)} />
+            <span id="editing-parking-radius-unit">km</span>
+          </div>
+          {parkingRadiusError && <p role="alert" className="text-sm text-rose-600">{parkingRadiusError}</p>}
+        </form>
       </LifecycleDialog>
       <LifecycleDialog open={!!scheduledAction} title={scheduledAction === 'apply' ? 'Áp dụng vị trí bãi mới?' : 'Hủy lịch dời bãi?'} busy={scheduledBusy} onClose={() => setScheduledAction(null)}
         footer={<><Button variant="outline" disabled={scheduledBusy} onClick={() => setScheduledAction(null)}>Quay lại</Button><Button variant={scheduledAction === 'cancel' ? 'danger' : 'primary'} disabled={scheduledBusy} onClick={handleScheduledAction}>Xác nhận</Button></>}>

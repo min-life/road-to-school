@@ -56,6 +56,147 @@
 .rfid-enroll-error {
   color: var(--color-red-700);
 }
+.rfid-usb-modal[open] {
+  display: flex;
+  flex-direction: column;
+  width: min(596px, calc(100% - 24px));
+  height: min(438px, calc(100dvh - 24px));
+  overflow: hidden;
+}
+.rfid-usb-modal header,
+.rfid-usb-modal footer {
+  flex: none;
+  padding-inline: 24px;
+}
+.rfid-usb-modal header {
+  flex-wrap: nowrap;
+}
+.rfid-usb-modal h2 {
+  font-size: 20px;
+}
+.rfid-usb-modal footer {
+  justify-content: flex-end;
+  border-top: 1px solid var(--brand-border);
+}
+.rfid-usb-modal .rfid-enroll-body {
+  flex: 1;
+  min-height: 0;
+  align-content: start;
+  gap: 12px;
+  overflow-y: auto;
+  padding: 18px 24px;
+}
+.rfid-usb-subtitle,
+.rfid-usb-panel p {
+  color: var(--brand-muted);
+  font-size: 13px;
+}
+.rfid-usb-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  color: var(--brand-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+.rfid-usb-steps li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rfid-usb-steps li:not(:last-child)::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--brand-border);
+}
+.rfid-usb-step {
+  display: grid;
+  place-items: center;
+  flex: 0 0 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--color-slate-100);
+}
+.rfid-usb-steps [aria-current="step"] {
+  color: var(--brand-navy);
+}
+.rfid-usb-steps [aria-current="step"] .rfid-usb-step {
+  background: var(--brand-navy);
+  color: var(--brand-surface);
+}
+.rfid-usb-step[data-complete="true"],
+.rfid-usb-panel-icon.rfid-usb-panel-icon-ready {
+  background: var(--color-emerald-50);
+  color: var(--color-emerald-800);
+}
+.rfid-usb-panel {
+  display: flex;
+  gap: 12px;
+  border: 1px solid var(--brand-border);
+  border-radius: 12px;
+  background: var(--color-slate-50);
+  padding: 16px;
+  min-height: 132px;
+  overflow-wrap: anywhere;
+}
+.rfid-usb-panel-icon {
+  flex: 0 0 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--brand-navy);
+  background: var(--color-blue-50);
+}
+.rfid-usb-panel-main {
+  flex: 1;
+  min-width: 0;
+}
+.rfid-usb-panel-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  justify-content: space-between;
+}
+.rfid-usb-panel h3 {
+  color: var(--brand-navy);
+  font-size: 15px;
+  font-weight: 700;
+}
+.rfid-usb-panel p + p,
+.rfid-usb-panel button {
+  margin-top: 10px;
+}
+.rfid-usb-badge {
+  border-radius: 999px;
+  background: var(--color-blue-50);
+  color: var(--color-blue-900);
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.rfid-usb-panel .rfid-usb-uid {
+  color: var(--brand-heading);
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 480px) {
+  .rfid-usb-modal header,
+  .rfid-usb-modal footer,
+  .rfid-usb-modal .rfid-enroll-body {
+    padding-inline: 14px;
+  }
+  .rfid-usb-steps li {
+    gap: 5px;
+  }
+  .rfid-usb-panel {
+    padding: 12px;
+  }
+}
 .rfid-student-actions {
   display: flex;
   flex-wrap: wrap;

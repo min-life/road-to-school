@@ -4,7 +4,11 @@ import {
 } from '../attendance/attendance-context.service.js';
 import { Optional, ServiceUnavailableException } from '@nestjs/common';
 import { EnrollmentSessionsService } from '../enrollment/enrollment-sessions.service.js';
-import { pending } from '../enrollment/enrollment-policy.js';
+import {
+  needsLegacyEnrollmentLease,
+  pending,
+  supportsAssignedEnrollment,
+} from '../enrollment/enrollment-policy.js';
 import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -33,17 +37,23 @@ export class IotRuntimeService {
           where: { deviceId, releasedAt: null },
           include: { vehicle: { select: { licensePlate: true } } },
         });
-        const session = await this.enrollments?.slot(tx, deviceId);
-        if (session && (row || pending(session)))
+        const session = await this.enrollments?.runtimeSlot(
+          tx,
+          deviceId,
+          row?.vehicleId,
+        );
+        if (session && pending(session))
           throw new ServiceUnavailableException({
             code: 'MODE_CONFLICT',
             message: 'Thiết bị đang chờ đối soát',
           });
-        const supportsAttendance = /^1\.(?:[4-9]|[1-9]\d+)\./.test(
+        const legacyEnrollment =
+          !!session && needsLegacyEnrollmentLease(device.firmwareVersion);
+        const supportsAttendance = supportsAssignedEnrollment(
           device.firmwareVersion,
         );
         const resolved =
-          row && supportsAttendance && this.attendance
+          !session && row && supportsAttendance && this.attendance
             ? await this.attendance.resolve(tx, deviceId, row.id, row.vehicleId)
             : null;
         const context = resolved?.context;
@@ -73,9 +83,11 @@ export class IotRuntimeService {
           attendanceReason:
             resolved?.reason ??
             (row && !supportsAttendance ? 'FIRMWARE_UPGRADE_REQUIRED' : null),
-          assignmentId: row?.id ?? null,
-          vehicleId: row?.vehicleId ?? null,
-          licensePlate: row?.vehicle.licensePlate ?? null,
+          // 1.4.x parses an enrollment lease only without vehicle fields. The
+          // real assignment remains in PostgreSQL and still governs all writes.
+          assignmentId: legacyEnrollment ? null : row?.id ?? null,
+          vehicleId: legacyEnrollment ? null : row?.vehicleId ?? null,
+          licensePlate: legacyEnrollment ? null : row?.vehicle.licensePlate ?? null,
           expiresAt: new Date(expiresAtEpoch * 1000).toISOString(),
           expiresAtEpoch,
         };
@@ -86,34 +98,38 @@ export class IotRuntimeService {
   }
 
   async heartbeat(deviceId: string, dto: IotHeartbeatDto) {
-    await this.assignments.registered(deviceId);
+    const device = await this.assignments.registered(deviceId);
     try {
       return await this.prisma.$transaction(
         async (tx) => {
           await lockIotDevice(tx, deviceId);
           const current = await tx.vehicleIotAssignment.findFirst({
             where: { deviceId: deviceId, releasedAt: null },
-            select: { id: true },
+            select: { id: true, vehicleId: true },
           });
-          const enrollment = await this.enrollments?.slot(tx, deviceId);
+          const enrollment = await this.enrollments?.runtimeSlot(
+            tx,
+            deviceId,
+            current?.vehicleId,
+            true,
+          );
           if (enrollment) {
             if (
-              current ||
               pending(enrollment) ||
               dto.mode !== 'ENROLLMENT' ||
-              dto.enrollmentSessionId !== enrollment._id ||
-              dto.assignmentId !== null
+              dto.enrollmentSessionId !== enrollment._id
             )
               throw new ConflictException({
                 code: 'STALE_SESSION',
                 message: 'Cần tải lại phiên đăng ký',
               });
-            await this.enrollments!.cas(enrollment, {
-              lastDeviceAckAt: new Date(),
-            });
           } else if (dto.enrollmentSessionId || dto.mode === 'ENROLLMENT')
             throw new ConflictException('Phiên đăng ký đã kết thúc');
-          if ((current?.id ?? null) !== dto.assignmentId)
+          const assignmentId =
+            enrollment && needsLegacyEnrollmentLease(device.firmwareVersion)
+              ? null
+              : (current?.id ?? null);
+          if (assignmentId !== dto.assignmentId)
             throw new ConflictException({
               code: 'STALE_ASSIGNMENT',
               message: 'Cần tải lại cấu hình xe',
@@ -130,6 +146,8 @@ export class IotRuntimeService {
           } else if (dto.contextToken)
             throw new ConflictException('Context sai chế độ');
           const now = new Date();
+          if (enrollment)
+            await this.enrollments!.cas(enrollment, { lastDeviceAckAt: now });
           const updated = await this.devices
             .updateOne(
               { deviceId },

@@ -550,6 +550,8 @@ export function AddStudentModal({
             {/* VietMap Interactive Picker */}
             <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
               <VietMapPicker
+                markerKind="student"
+                locationLabel="học sinh"
                 latitude={latitude}
                 longitude={longitude}
                 onChangeCoordinates={handleChangeCoordinates}

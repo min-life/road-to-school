@@ -23,6 +23,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiQuery,
   ApiConsumes,
   ApiBody,
 } from '@nestjs/swagger';
@@ -572,21 +573,33 @@ export class SchoolsController {
   @ApiOperation({
     summary: 'Đánh giá tác động trước khi thay đổi vị trí trường học (Chỉ SYSTEM_ADMIN)',
     description:
-      'Trả về số lượng phương án DRAFT/ACTIVE và chuyến xe SCHEDULED sẽ bị hủy nếu vị trí trường thay đổi, cùng số chuyến xe IN_PROGRESS được bảo lưu. Chỉ Quản trị viên hệ thống (SYSTEM_ADMIN) có quyền thực hiện.',
+      'Đếm phương án cần tối ưu lại và chuyến bị hủy hoặc được giữ theo ngày hiệu lực. Chỉ sửa tên địa chỉ không tác động chuyến.',
   })
   @ApiParam({ name: 'id', description: 'Mã UUID trường học' })
+  @ApiQuery({ name: 'latitude', required: false, type: Number })
+  @ApiQuery({ name: 'longitude', required: false, type: Number })
+  @ApiQuery({ name: 'effectiveDate', required: false, schema: { type: 'string', format: 'date' } })
   @ApiResponse({ status: 200, description: 'Đánh giá tác động thay đổi vị trí', type: SchoolLocationImpactDto })
   async getLocationImpact(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: User,
     @Query('latitude') latitude?: string,
     @Query('longitude') longitude?: string,
+    @Query('effectiveDate') effectiveDate?: string,
   ): Promise<SchoolLocationImpactDto> {
+    const lat = latitude === undefined ? undefined : Number(latitude);
+    const lng = longitude === undefined ? undefined : Number(longitude);
+    if ((lat === undefined) !== (lng === undefined) ||
+      (lat !== undefined && (!latitude?.trim() || !Number.isFinite(lat) || Math.abs(lat) > 90)) ||
+      (lng !== undefined && (!longitude?.trim() || !Number.isFinite(lng) || Math.abs(lng) > 180))) {
+      throw new BadRequestException('Cần cung cấp cặp tọa độ hợp lệ');
+    }
     return this.schoolsService.getLocationImpact(
       id,
       user,
-      latitude ? parseFloat(latitude) : undefined,
-      longitude ? parseFloat(longitude) : undefined,
+      lat,
+      lng,
+      effectiveDate,
     );
   }
 
@@ -595,10 +608,11 @@ export class SchoolsController {
   @ApiOperation({
     summary: 'Hẹn đổi địa chỉ và vị trí trường học (SYSTEM_ADMIN)',
     description:
-      'effectiveDate tùy chọn, mặc định ngày mai, đến hết hợp đồng. Trước ngày đó phương án cũ tiếp tục. Đến ngày hủy toàn bộ phương án cũ; chuyến đã điểm danh/đang chạy giữ cho admin chốt, lịch sử giữ nguyên. Response School là dữ liệu hôm nay, counters đã thực hiện bằng 0 khi mới hẹn; thêm scheduledChangeId/effectiveDate/changeStatus. Phải duyệt phương án mới sau đổi địa chỉ. Chuyến của phương án mới có thể sinh cùng ngày nếu còn trước giờ khởi hành.',
+      'effectiveDate từ hôm nay đến hết hợp đồng, mặc định hôm nay. Đổi tọa độ đánh dấu phương án cần tối ưu lại và hủy chuyến chưa vận hành theo ngày hiệu lực. Chỉnh địa chỉ với cùng tọa độ giữ nguyên phương án và chuyến. Trả APPLIED nếu đã áp dụng, PENDING nếu mới hẹn.',
   })
   @ApiParam({ name: 'id', description: 'Mã UUID trường học' })
-  @ApiResponse({ status: 200, description: 'Đã hẹn đổi vị trí; chưa hủy ngay', type: ScheduledLocationResponseDto })
+  @ApiResponse({ status: 200, description: 'Đã cập nhật hoặc hẹn đổi vị trí', type: ScheduledLocationResponseDto })
+  @ApiResponse({ status: 409, description: 'Tác động đã thay đổi từ lần xem trước' })
   async updateLocation(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateSchoolLocationDto,
@@ -624,13 +638,27 @@ export class SchoolsController {
     return this.schoolsService.updateContract(id, dto, user);
   }
 
+  @Post(':id/schedule-impact')
+  @HttpCode(200)
+  @Roles(Role.SYSTEM_ADMIN)
+  @ApiOperation({ summary: 'Xem tác động dự kiến của lịch học tuần; không ghi dữ liệu' })
+  @ApiResponse({ status: 200, type: SchoolLocationImpactDto })
+  async getScheduleImpact(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateSchoolScheduleDto,
+    @CurrentUser() user: User,
+  ): Promise<SchoolLocationImpactDto> {
+    return this.schoolsService.getScheduleImpact(id, dto, user);
+  }
+
   @Patch(':id/schedule')
   @Roles(Role.SYSTEM_ADMIN)
   @ApiOperation({
     summary: 'Cập nhật lịch học tuần của trường học (Chỉ SYSTEM_ADMIN)',
     description:
-      'Hẹn lịch tuần bằng effectiveDate tùy chọn, mặc định ngày mai, đến hết hợp đồng. Không ảnh hưởng hôm nay. Tới ngày cập nhật giờ/hủy chuyến chưa vận hành phù hợp lịch mới; không sửa lịch sử/điểm danh. Giữ response cũ, thêm scheduledChangeId/effectiveDate/changeStatus; counters là số đã thực hiện, bằng 0 khi hẹn.',
+      'effectiveDate từ hôm nay đến hết hợp đồng, mặc định ngày mai. Cập nhật giờ phù hợp hoặc hủy chuyến chưa vận hành khi ngày không còn phục vụ. Đánh dấu cần tối ưu lại khi tuyến không khớp khung giờ mới. Trả APPLIED nếu đã áp dụng, PENDING nếu mới hẹn.',
   })
+  @ApiResponse({ status: 409, description: 'Tác động đã thay đổi từ lần xem trước' })
   @ApiParam({ name: 'id', description: 'Mã UUID trường học' })
   @ApiResponse({
     status: 200,

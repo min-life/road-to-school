@@ -1,6 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, IsNumber, IsOptional, IsPositive, Min, Max } from 'class-validator';
 
+export class UpdateParkingRadiusDto {
+  @ApiProperty({ minimum: 0, exclusiveMinimum: true, maximum: 500, description: 'Bán kính phục vụ tính bằng km' })
+  @IsNumber() @IsPositive() @Max(500)
+  maxOperatingRadiusKm: number;
+}
+
 export class UpdateParkingLotDto {
   @ApiProperty({ required: false, default: 50, exclusiveMinimum: true, minimum: 0, maximum: 500, description: 'Bán kính phục vụ Haversine tính bằng km, >0 và <=500; không gửi giữ giá trị hiện hành' })
   @IsOptional() @IsNumber() @IsPositive() @Max(500)
@@ -43,7 +49,7 @@ export class UpdateParkingLotDto {
   reason?: string;
 
   @ApiProperty({
-    description: 'Ngày hiệu lực dời bãi xe (YYYY-MM-DD), mặc định là ngày mai. Các chuyến xe trước ngày này chạy bình thường.',
+    description: 'Ngày hiệu lực dời bãi xe (YYYY-MM-DD), từ hôm nay theo giờ Việt Nam. Mặc định ngày mai.',
     example: '2026-11-05',
     required: false,
   })
@@ -78,6 +84,9 @@ export class ParkingLotImpactDto {
 
   @ApiProperty({ description: 'Số chuyến SCHEDULED chưa frozen từ ngày hiệu lực sẽ bị hủy khi đến ngày', example: 12 })
   tripsCancelledAfterEffectiveDateCount: number;
+
+  @ApiProperty({ description: 'Số chuyến hôm nay dự kiến bị hủy, bằng 0 nếu ngày hiệu lực sau hôm nay', example: 2 })
+  tripsCancelledTodayCount: number;
 
   @ApiProperty({ description: 'Số chuyến xe SCHEDULED trước ngày hiệu lực được bảo lưu chạy bình thường', example: 8 })
   tripsPreservedBeforeEffectiveDateCount: number;

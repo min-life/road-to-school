@@ -12,6 +12,8 @@ import {
   writeNotification,
 } from '../notifications/notification-writer.js';
 import { notifyPlan } from '../notifications/notification-events.js';
+import { schoolChangeImpact, SCHOOL_CHANGE_CANCEL_AUDIT, SCHOOL_LOCATION_TRIP_CANCELLED, SCHOOL_SCHEDULE_TRIP_CANCELLED } from './school-change-impact.js';
+import { captureTripSnapshots } from '../trips/utils/capture-trip-snapshots.js';
 import {
   contractDate,
   isContractExpired,
@@ -20,9 +22,9 @@ import {
 } from './school-effective-state.js';
 import {
   assertTripPolicy,
-  serviceDay,
   tripBlockReason,
   tripPolicyEffectiveDate,
+  type WeeklySchoolSchedule,
 } from './school-policy.js';
 
 @Injectable()
@@ -49,8 +51,8 @@ export class ContractLifecycleService {
   /** Caller holds School lock. Mutations/cron only, never GET. */
   async reconcileSchool(tx: Prisma.TransactionClient, school: School) {
     const today = vietnamToday();
-    let plans = 0,
-      trips = 0;
+    let plans = 0, trips = 0, reoptimizationPlans = 0, updatedTrips = 0;
+    const cancelledIds: string[] = [];
     const changes = await tx.schoolScheduledChange.findMany({
       where: {
         schoolId: school.id,
@@ -61,7 +63,12 @@ export class ContractLifecycleService {
     });
     for (const change of changes) {
       const payload = change.payload as Prisma.JsonObject;
-      if (change.type === 'INACTIVE' || change.type === 'LOCATION') {
+      const impact = change.type === 'INACTIVE' ? null : await schoolChangeImpact(tx, school,
+        change.type === 'LOCATION'
+          ? { type: 'LOCATION', latitude: Number(payload.latitude), longitude: Number(payload.longitude) }
+          : { type: 'SCHEDULE', weeklySchedule: payload.weeklySchedule as WeeklySchoolSchedule },
+        contractDate(change.effectiveDate), new Date(), true);
+      if (change.type === 'INACTIVE') {
         const targets = await tx.routePlan.findMany({
           where: {
             schoolId: school.id,
@@ -79,10 +86,7 @@ export class ContractLifecycleService {
             data: {
               status: 'CANCELLED',
               cancelledAt: new Date(),
-              cancellationReason:
-                change.type === 'INACTIVE'
-                  ? 'Trường ngừng hoạt động theo lịch'
-                  : 'Trường thay đổi địa điểm theo lịch',
+              cancellationReason: 'Trường ngừng hoạt động theo lịch',
             },
           });
           plans++;
@@ -110,16 +114,18 @@ export class ContractLifecycleService {
           data: { revokedAt: new Date(), pushToken: null },
         });
       }
-      if (change.type === 'LOCATION')
+      if (change.type === 'LOCATION') {
+        if (impact?.locationChanged) await captureTripSnapshots(tx, impact.flagged.flatMap(plan => plan.routes.map(route => route.id)));
         school = await tx.school.update({
           where: { id: school.id },
           data: {
             ...geographyFields(payload),
             addressText: String(payload.addressText),
-            latitude: Number(payload.latitude),
-            longitude: Number(payload.longitude),
+            latitude: impact?.locationChanged ? Number(payload.latitude) : school.latitude,
+            longitude: impact?.locationChanged ? Number(payload.longitude) : school.longitude,
           },
         });
+      }
       if (change.type === 'SCHEDULE')
         school = await tx.school.update({
           where: { id: school.id },
@@ -129,6 +135,34 @@ export class ContractLifecycleService {
         where: { id: change.id },
         data: { status: 'APPLIED', appliedAt: new Date(), lastError: null },
       });
+      if (impact) {
+        const reason = change.type === 'LOCATION' ? SCHOOL_LOCATION_TRIP_CANCELLED : SCHOOL_SCHEDULE_TRIP_CANCELLED;
+        const planReason = typeof payload.reason === 'string' ? `${reason}. ${payload.reason}` : reason;
+        for (const plan of impact.flagged) {
+          await tx.routePlan.update({ where: { id: plan.id }, data: { needsReoptimization: true, reoptimizationReason: planReason } });
+          await notifyPlan(tx, plan.id);
+        }
+        reoptimizationPlans += impact.flagged.length;
+        for (const trip of impact.cancelled) {
+          const cancelledAt = new Date();
+          await tx.trip.update({ where: { id: trip.id }, data: {
+            status: 'CANCELLED', cancelledAt, cancellationReason: trip.reason, cancelledById: change.createdById,
+            operationAudit: [
+              ...(Array.isArray(trip.audit) ? trip.audit : []),
+              { action: SCHOOL_CHANGE_CANCEL_AUDIT, schoolChangeId: change.id, reason: trip.reason,
+                actorId: change.createdById, occurredAt: cancelledAt.toISOString() },
+            ] as Prisma.InputJsonArray,
+          } });
+          cancelledIds.push(trip.id);
+          trips++;
+        }
+        for (const { id, day } of impact.shifted) {
+          const timing = await effectiveTripTiming(tx, id, day);
+          if (!timing) continue;
+          await tx.trip.update({ where: { id }, data: { ...timing, routeSnapshot: timing.routeSnapshot ?? Prisma.DbNull } });
+          updatedTrips++;
+        }
+      }
     }
     if (isContractExpired(school.contractEndDate, today)) {
       const expired = await tx.routePlan.findMany({
@@ -155,7 +189,6 @@ export class ContractLifecycleService {
       select: { id: true },
       orderBy: { id: 'asc' },
     });
-    const cancelledIds: string[] = [];
     for (const ref of candidates) {
       await tx.$queryRaw(
         Prisma.sql`SELECT id FROM trips WHERE id = ${ref.id} FOR UPDATE`,
@@ -208,35 +241,6 @@ export class ContractLifecycleService {
         }
         continue;
       }
-      const applicable = changes.some(
-        (c) =>
-          c.type === 'SCHEDULE' &&
-          contractDate(trip.serviceDate) >= contractDate(c.effectiveDate),
-      );
-      if (!applicable || requiresAdminFinalization(trip)) continue;
-      const day = await serviceDay(tx, school.id, contractDate(trip.serviceDate));
-      if (!day) {
-        await tx.trip.update({
-          where: { id: trip.id },
-          data: {
-            status: 'CANCELLED',
-            cancelledAt: new Date(),
-            cancellationReason: 'Lịch học trường đã thay đổi',
-          },
-        });
-        cancelledIds.push(trip.id);
-        trips++;
-        continue;
-      }
-      const timing = await effectiveTripTiming(tx, trip.id);
-      if (timing)
-        await tx.trip.update({
-          where: { id: trip.id },
-          data: {
-            ...timing,
-            routeSnapshot: timing.routeSnapshot ?? Prisma.DbNull,
-          },
-        });
     }
     if (cancelledIds.length) {
       await tx.leaveNotice.updateMany({
@@ -247,32 +251,29 @@ export class ContractLifecycleService {
       await notifyCancelledTrips(
         tx,
         cancelledIds,
-        `school-lifecycle:${school.id}:${today}:${cancelledIds.slice().sort().join(':')}`,
+        `school-lifecycle:${school.id}:${today}:${changes.map(change => change.id).join(':')}:${cancelledIds.slice().sort().join(':')}`,
       );
     }
-    return { plans, trips };
+    return { plans, trips, reoptimizationPlans, updatedTrips };
   }
   async reconcile() {
     const schools = await this.prisma.school.findMany({ select: { id: true } });
     let expiredPlansCount = 0,
       cancelledTripsCount = 0;
     for (const ref of schools) {
-      const counts = await this.prisma.$transaction(
-        async (tx) => {
-      await lockOperations(tx);
-          await tx.$queryRaw(
-            Prisma.sql`SELECT id FROM schools WHERE id = ${ref.id} FOR UPDATE`,
-          );
-          const school = await tx.school.findUnique({ where: { id: ref.id } });
-          return school
-            ? this.reconcileSchool(tx, school)
-            : { plans: 0, trips: 0 };
-        },
-        { timeout: 30000 },
-      );
+      const counts = await this.reconcileSchoolById(ref.id);
       expiredPlansCount += counts.plans;
       cancelledTripsCount += counts.trips;
     }
     return { expiredPlansCount, cancelledTripsCount };
+  }
+
+  async reconcileSchoolById(schoolId: string) {
+    return this.prisma.$transaction(async tx => {
+      await lockOperations(tx);
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM schools WHERE id = ${schoolId} FOR UPDATE`);
+      const school = await tx.school.findUnique({ where: { id: schoolId } });
+      return school ? this.reconcileSchool(tx, school) : { plans: 0, trips: 0 };
+    }, { timeout: 30000 });
   }
 }

@@ -1,5 +1,16 @@
-import { GeographyFieldsDto } from '../../schools/dto/geography.dto.js';
+import { GeographyFieldsDto, GeographyQueryDto } from '../../schools/dto/geography.dto.js';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsIn, IsOptional } from 'class-validator';
+
+export class RoutePreparationQueryDto extends GeographyQueryDto {
+  @ApiPropertyOptional({
+    enum: ['true', 'false'],
+    description: 'true chỉ lấy học sinh đủ điều kiện và xe khả dụng. Hai danh sách loại trừ trả mảng rỗng.',
+  })
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  availableOnly?: 'true' | 'false';
+}
 
 export class EligibleStudentItemDto extends GeographyFieldsDto {
   @ApiPropertyOptional({ type: String, nullable: true })

@@ -306,6 +306,7 @@ export interface ParkingLotImpactResponse {
   effectiveDate?: string;
   plansNeedingReoptimizationCount: number;
   tripsCancelledAfterEffectiveDateCount: number;
+  tripsCancelledTodayCount?: number;
   tripsPreservedBeforeEffectiveDateCount: number;
   currentAddressText?: string;
   currentLatitude?: number;
@@ -327,6 +328,10 @@ export interface SchoolLocationImpactResponse {
   schoolId: string;
   cancelledPlansCount: number;
   cancelledTripsCount: number;
+  reoptimizationPlansCount: number;
+  cancelledTripsTodayCount: number;
+  updatedTripsCount: number;
+  preservedTripsCount: number;
   inProgressTripsPreservedCount: number;
   fingerprint: string;
   draftPlansCount?: number;

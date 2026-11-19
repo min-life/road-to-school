@@ -39,7 +39,9 @@ export class IotRuntimeController {
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
     summary:
-      'ESP32 lấy cấu hình xe runtime, hiệu lực60giây; null là POC chưa gán xe',
+      'ESP32 lấy cấu hình có hiệu lực tối đa 60 giây',
+    description:
+      'Trong ENROLLMENT, firmware 1.4.x nhận các trường gán xe null để tương thích. Liên kết xe thực tế được giữ và vẫn dùng để kiểm tra chuyến.',
   })
   @ApiResponse({ status: 200, type: IotRuntimeConfigDto })
   @ApiIotErrors(400, 401, 404, 503, 500)
@@ -51,7 +53,7 @@ export class IotRuntimeController {
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
     summary:
-      'ACK assignment đang dùng; chỉ cập nhật telemetry Mongo, không thay mapping xe',
+      'Xác nhận chế độ và lần gán xe hiện tại; kết thúc phiên đăng ký chưa xác nhận khi xe bận',
   })
   @ApiResponse({ status: 200, type: IotHeartbeatResponseDto })
   @ApiIotErrors(400, 401, 404, 409, 503, 500)

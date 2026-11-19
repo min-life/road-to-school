@@ -1,0 +1,59 @@
+.parking-settings-field.ui-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--brand-input-border);
+  background: var(--brand-surface);
+}
+
+.parking-settings-field.parking-settings-address {
+  padding-inline: 40px 32px;
+}
+
+.parking-settings-date-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.parking-settings-actions .ui-button[data-variant],
+.parking-radius-dialog footer .ui-button[data-variant] {
+  min-height: 44px;
+}
+
+.parking-radius-dialog.lifecycle-dialog {
+  width: min(420px, calc(100vw - 24px));
+}
+
+.parking-radius-dialog .lifecycle-dialog-panel > header,
+.parking-radius-dialog .lifecycle-dialog-panel > footer,
+.parking-radius-dialog .lifecycle-dialog-body {
+  padding: 12px 20px;
+}
+
+.parking-radius-field {
+  position: relative;
+}
+
+.parking-radius-field .ui-input {
+  padding-inline-end: 44px;
+  font-variant-numeric: tabular-nums;
+  appearance: textfield;
+}
+
+.parking-radius-field .ui-input::-webkit-inner-spin-button,
+.parking-radius-field .ui-input::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.parking-radius-field > span {
+  position: absolute;
+  inset-inline-end: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--brand-muted);
+  font-size: 13px;
+  pointer-events: none;
+}

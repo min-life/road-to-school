@@ -34,32 +34,43 @@
 .system-route-plan-workspace .saved-plan-readiness ul { padding-left: 16px; list-style: disc; }
 .system-route-plan-workspace .saved-plan-readiness li + li { margin-top: 6px; }
 .system-route-plan-workspace .saved-plan-stops-title { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
-.system-route-plan-workspace .saved-plan-stops { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
-.system-route-plan-workspace .saved-plan-stops button { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 12px; border: 1px solid var(--brand-border); border-radius: 10px; text-align: left; cursor: pointer; background: white; }
-.system-route-plan-workspace .saved-plan-stops button:hover { background: var(--brand-hover); }
+.system-route-plan-workspace .saved-plan-stops { display: flex; flex-direction: column; gap: 0; }
+.system-route-plan-workspace .saved-plan-stops li + li { border-top: 1px solid var(--brand-border); }
+.system-route-plan-workspace .saved-plan-stops button { display: grid; grid-template-columns: 24px minmax(0, 1fr) max-content; align-items: start; gap: 9px; width: 100%; min-height: 42px; padding: 9px 6px; border: 0; border-radius: 6px; background: transparent; text-align: left; cursor: pointer; }
+.system-route-plan-workspace .saved-plan-stops button:hover, .system-route-plan-workspace .saved-plan-stops button[aria-expanded=true] { background: var(--brand-hover); }
 .system-route-plan-workspace .saved-plan-stop-number { display: grid; place-items: center; flex-shrink: 0; width: 24px; height: 24px; background: var(--brand-navy); color: white; border-radius: 50%; font-size: 11px; }
 .system-route-plan-workspace .saved-plan-stops button > span:nth-child(2) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.system-route-plan-workspace .saved-plan-stops strong { font-size: 12px; display: block; }
+.system-route-plan-workspace .saved-plan-stops strong { font-size: 13px; display: block; padding-top: 3px; }
 .system-route-plan-workspace .saved-plan-stops small { font-size: 11px; color: var(--brand-muted); display: block; margin-top: 4px; }
-.system-route-plan-workspace .saved-plan-stops time { flex-shrink: 0; font-size: 11px; color: #047857; }
+.system-route-plan-workspace .saved-plan-stops time { padding-top: 3px; white-space: nowrap; font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--brand-heading); }
 .system-route-plan-workspace .saved-plan-notice { padding: 10px 14px; background: #fffbeb; border-radius: 10px; font-size: 13px; color: #92400e; }
 .system-route-plan-workspace .saved-plan-assignments .assignment-heading { display: none; }
 .system-route-plan-workspace .saved-plan-assignments .assignment-action-button { min-height: 34px; padding-inline: 11px; white-space: nowrap; font-size: 12px; font-weight: 650; }
 .system-route-plan-workspace .saved-plan-assignments .assignment-fields > div > div:first-child { justify-content: space-between; }
 .system-route-plan-workspace.saved-plan-page .route-workspace-map { container-type: inline-size; container-name: saved-plan-map; }
-.system-route-plan-workspace .saved-plan-route-list i { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
 .system-route-plan-workspace .saved-plan-route-list button > span { min-width: 0; overflow-wrap: anywhere; }
 .system-route-plan-workspace .saved-plan-route-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-.system-route-plan-workspace .saved-plan-route-list button { display: flex; gap: 8px; padding: 10px 12px; border: 1px solid var(--brand-border); border-radius: 10px; text-align: left; background: white; cursor: pointer; }
-.system-route-plan-workspace .saved-plan-route-list button[aria-pressed=true] { border-color: var(--brand-info); background: #f5f9ff; }
-.system-route-plan-workspace .saved-plan-route-list strong { display: block; font-size: 12px; font-weight: 600; }
-.system-route-plan-workspace .saved-plan-route-list small { display: block; margin-top: 3px; font-size: 11px; color: var(--brand-muted); }
+.system-route-plan-workspace .saved-plan-route-card { flex-shrink: 0; display: grid; border: 1px solid var(--brand-border); border-inline-start-width: 3px; border-radius: 9px; background: var(--brand-surface); }
+.system-route-plan-workspace .saved-plan-route-card[data-selected=true] { background: var(--brand-hover); }
+.system-route-plan-workspace .saved-plan-route-list button { display: grid; padding: 9px; border-radius: 6px; text-align: left; cursor: pointer; }
+.system-route-plan-workspace .saved-plan-route-list button:hover { background: var(--brand-hover); }
+.system-route-plan-workspace .saved-plan-route-card-title { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 10px; }
+.system-route-plan-workspace .saved-plan-route-card-title strong { font-size: 14px; font-weight: 700; }
+.system-route-plan-workspace .saved-plan-route-card-title time { font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.system-route-plan-workspace .saved-plan-route-detail { justify-self: end; margin: 0 9px 8px; color: var(--brand-info); font-size: 12px; font-weight: 650; }
+.system-route-plan-workspace .saved-plan-route-detail:hover { text-decoration: underline; }
 @container saved-plan-map (max-width: 440px) {
   .system-route-plan-workspace.saved-plan-page .route-workspace-map > .route-map-visibility { top: 60px; }
 }
 
 .system-route-plan-workspace .saved-plan-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 16px; }
-.system-route-plan-workspace .saved-plan-heading-actions { display: grid; justify-items: end; gap: 8px; max-width: 460px; }
+.system-route-plan-workspace .saved-plan-heading-actions { justify-content: flex-end; max-width: 460px; }
+.system-route-plan-workspace .saved-plan-summary { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.system-route-plan-workspace .saved-plan-summary strong { color: var(--brand-heading); }
+.saved-plan-info-list { display: grid; gap: 10px; }
+.saved-plan-info-list > div { display: grid; grid-template-columns: minmax(115px, 1fr) 2fr; gap: 8px; font-size: 13px; }
+.saved-plan-info-list dt { color: var(--brand-muted); }
+.saved-plan-info-list dd { font-weight: 600; overflow-wrap: anywhere; }
 .system-route-plan-workspace .saved-plan-heading-statuses, .system-route-plan-workspace .saved-plan-heading-buttons { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
 .system-route-plan-workspace .saved-plan-heading-buttons .saved-plan-cancel-button { margin-left: 8px; }
 .system-route-plan-workspace .saved-plan-routes-content { display: flex; flex-direction: column; overflow: hidden; scrollbar-gutter: auto; }
@@ -82,13 +93,15 @@
 .system-route-plan-workspace .saved-plan-stops-section { display: flex; flex-direction: column; min-height: 0; border-top: 1px solid var(--brand-border); padding-top: 12px; }
 .system-route-plan-workspace .saved-plan-stops-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; flex-shrink: 0; }
 .system-route-plan-workspace .saved-plan-stops-heading h2 { font-size: 13px; font-weight: 600; }
-.system-route-plan-workspace .saved-plan-stops-heading a { color: var(--brand-info); font-size: 11px; white-space: nowrap; }
-.system-route-plan-workspace .saved-plan-active-route { font-size: 11px; margin: 5px 0 10px; color: var(--brand-muted); overflow-wrap: anywhere; flex-shrink: 0; }
+.system-route-plan-workspace .saved-plan-stops-heading > span { color: var(--brand-muted); font-size: 12px; white-space: nowrap; }
 .system-route-plan-workspace .saved-plan-stops { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; margin: 0; padding: 2px 2px 6px; }
 .system-route-plan-workspace .saved-plan-route-list:focus-visible, .system-route-plan-workspace .saved-plan-stops:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: -2px; border-radius: 8px; }
+@media (min-width: 1200px) and (min-height: 701px) {
+  .system-route-plan-workspace .route-workspace:has(.saved-plan-routes-content) { grid-template-columns: minmax(0, 1fr) clamp(390px, 37%, 540px); gap: 12px; }
+}
 @media (max-width: 1100px) {
   .system-route-plan-workspace .saved-plan-heading { grid-template-columns: minmax(0, 1fr); }
-  .system-route-plan-workspace .saved-plan-heading-actions { justify-items: start; max-width: none; }
+  .system-route-plan-workspace .saved-plan-heading-actions { justify-content: flex-start; max-width: none; }
   .system-route-plan-workspace .saved-plan-heading-statuses, .system-route-plan-workspace .saved-plan-heading-buttons { justify-content: flex-start; }
 }
 @media (max-width: 1199px), (max-height: 700px) {

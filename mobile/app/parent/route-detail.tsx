@@ -20,7 +20,7 @@ import {
 } from '@/services/api-client';
 import { decodePolyline } from '@/utils/polyline';
 import { serializeMapScriptValue } from '@/utils/child-map-marker';
-import { schoolMapIcon } from '@/utils/trip-map-icons';
+import { depotMapIcon, schoolMapIcon, studentMapIcon } from '@/utils/trip-map-icons';
 
 export default function ParentRouteDetailScreen() {
   const router = useRouter();
@@ -111,8 +111,6 @@ export default function ParentRouteDetailScreen() {
         <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
         <style>
           body, html, #map { margin: 0; padding: 0; height: 100%; width: 100%; background: #F8FAFC; }
-          .depot-marker { background: #2563EB; color: white; border: 2px solid white; border-radius: 50%; font-weight: bold; width: 28px; height: 28px; line-height: 24px; text-align: center; font-size: 13px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
-          .student-marker { background: #059669; color: white; border: 2px solid white; border-radius: 50%; font-weight: bold; width: 28px; height: 28px; line-height: 24px; text-align: center; font-size: 13px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
         </style>
       </head>
       <body>
@@ -127,8 +125,9 @@ export default function ParentRouteDetailScreen() {
           var bounds = L.latLngBounds();
 
           // 1. Depot Marker
-          var depotIcon = L.divIcon({ className: '', html: '<div class="depot-marker">P</div>', iconSize: [28, 28], iconAnchor: [14, 14] });
+          var depotIcon = L.divIcon(${JSON.stringify(depotMapIcon)});
           var depotMarker = L.marker([${depotLat}, ${depotLng}], { icon: depotIcon }).addTo(map);
+          if (depotMarker.getElement()) depotMarker.getElement().setAttribute('aria-label', ${serializeMapScriptValue(depotName)});
           depotMarker.bindPopup(${depotPopupText});
           bounds.extend([${depotLat}, ${depotLng}]);
 
@@ -142,7 +141,7 @@ export default function ParentRouteDetailScreen() {
           bounds.extend([${schoolLat}, ${schoolLng}]);
 
           // 3. Student Marker (Privacy Guard: ONLY current student)
-          var studentIcon = L.divIcon({ className: '', html: '<div class="student-marker">📍</div>', iconSize: [28, 28], iconAnchor: [14, 14] });
+          var studentIcon = L.divIcon(${JSON.stringify(studentMapIcon)});
           var studentMarker = L.marker([${studentLat}, ${studentLng}], { icon: studentIcon }).addTo(map);
           studentMarker.bindPopup(${studentPopupText}).openPopup();
           bounds.extend([${studentLat}, ${studentLng}]);

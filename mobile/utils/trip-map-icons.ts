@@ -28,37 +28,40 @@ export const busMapIcon = {
   </svg>`,
 };
 
+// The WebView embeds the same artwork as web/public/map-markers at 30 × 36.
+// Anchor to the visible pin tip inside the SVG, above its transparent edge.
+export const depotMapIcon = {
+  className: '',
+  iconSize: [30, 36],
+  iconAnchor: [15, 35],
+  popupAnchor: [0, -33],
+  html: `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="36" style="display:block" viewBox="0 0 40 48" role="img" aria-label="Bãi xe trung tâm"><title>Bãi xe trung tâm</title><path d="M20 2C10.06 2 2 10.06 2 20c0 11.15 10.47 16.37 16.2 24.45a2.2 2.2 0 0 0 3.6 0C27.53 36.37 38 31.15 38 20 38 10.06 29.94 2 20 2Z" fill="#193652" stroke="white" stroke-width="3"/><path d="M20 2C10.06 2 2 10.06 2 20c0 11.15 10.47 16.37 16.2 24.45a2.2 2.2 0 0 0 3.6 0C27.53 36.37 38 31.15 38 20 38 10.06 29.94 2 20 2Z" fill="none" stroke="#193652" stroke-opacity=".42" stroke-width=".7"/><path d="M16 25V12.5h4.9a4.2 4.2 0 0 1 0 8.4H16" fill="none" stroke="white" stroke-width="2.8" stroke-linejoin="round" stroke-linecap="round"/><path d="m13 23.5-2 5.5h18l-2-5.5" fill="none" stroke="white" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+};
+
 export const schoolMapIcon = {
   className: '',
-  iconSize: [40, 34],
-  iconAnchor: [20, 17],
-  popupAnchor: [0, -17],
-  html: `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="5 5 103 87" fill="none" style="display:block" role="img" aria-label="Trường học">
-    <title>RoadToSchool — Trường học</title>
-    <path d="M54 22V7" stroke="#B36A19" stroke-width="2.8" stroke-linecap="round"/>
-    <path d="M54 7L72 9.5L67 15L72 19L54 18Z" fill="#F28C28"/>
-    <rect x="10.5" y="46" width="36" height="42" rx="2" fill="#FFE29B" stroke="#E7AE42" stroke-width="2"/>
-    <rect x="66" y="46" width="35.5" height="42" rx="2" fill="#FFE29B" stroke="#E7AE42" stroke-width="2"/>
-    <path d="M8.5 47L17.5 35H39L49 47H8.5Z" fill="#F18A29" stroke="#F18A29" stroke-width="1" stroke-linejoin="round"/>
-    <path d="M64 47L73.5 35H94.5L104 47H64Z" fill="#F18A29" stroke="#F18A29" stroke-width="1" stroke-linejoin="round"/>
-    <path d="M38 88V34L56 20L74 34V88H38Z" fill="#FFEBC0" stroke="#E7AE42" stroke-width="2" stroke-linejoin="round"/>
-    <path d="M35 36L56 18L77 36" stroke="#EE8725" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="56" cy="40" r="9.5" fill="#FFFFFF" stroke="#F7C96B" stroke-width="2.5"/>
-    <path d="M56 35V40L59.5 37.5" stroke="#5A87B0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    <g fill="#79C5F3" stroke="#F5F7F7" stroke-width="1.8">
-      <rect x="18" y="55" width="8" height="10" rx="2"/>
-      <rect x="30" y="55" width="7" height="10" rx="2"/>
-      <rect x="18" y="70" width="8" height="10" rx="2"/>
-      <rect x="30" y="70" width="7" height="10" rx="2"/>
-      <rect x="76" y="55" width="7" height="10" rx="2"/>
-      <rect x="87" y="55" width="8" height="10" rx="2"/>
-      <rect x="76" y="70" width="7" height="10" rx="2"/>
-      <rect x="87" y="70" width="8" height="10" rx="2"/>
-    </g>
-    <path d="M48 88V68C48 64 51.5 61 56 61C60.5 61 64 64 64 68V88H48Z" fill="#274362" stroke="#DAA14A" stroke-width="2.6"/>
-    <path d="M56 62V88" stroke="#B8C7D8" stroke-width="1.6"/>
-    <circle cx="59" cy="77" r="1" fill="#FFD36A"/>
-    <path d="M7 89C7 84 10 81.5 14 81.5C16.5 77 23 77 26 83C30 82 33 85 33 89H7Z" fill="#43A562"/>
-    <path d="M79 89C79 84.5 83 82.5 86 82.5C88 77 96 78 98 83C103 82 106 85 106 89H79Z" fill="#43A562"/>
-  </svg>`,
+  iconSize: [30, 36],
+  iconAnchor: [15, 35],
+  popupAnchor: [0, -33],
+  html: `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="36" style="display:block" viewBox="0 0 40 48" role="img" aria-label="Trường học"><title>Trường học</title><path d="M20 2C10.06 2 2 10.06 2 20c0 11.15 10.47 16.37 16.2 24.45a2.2 2.2 0 0 0 3.6 0C27.53 36.37 38 31.15 38 20 38 10.06 29.94 2 20 2Z" fill="#FFCB56" stroke="white" stroke-width="3"/><path d="M20 2C10.06 2 2 10.06 2 20c0 11.15 10.47 16.37 16.2 24.45a2.2 2.2 0 0 0 3.6 0C27.53 36.37 38 31.15 38 20 38 10.06 29.94 2 20 2Z" fill="none" stroke="#193652" stroke-opacity=".42" stroke-width=".7"/><g fill="none" stroke="#193652" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+ <path d="M10.5 28V18h5l4.5-5 4.5 5h5v10M9 28h22M20 13V9.5l4.8 1.4L20 12M18 28v-5h4v5"/>
+ <path d="M13 20.5h2v2h-2zm12 0h2v2h-2z" fill="#193652" stroke="none"/>
+ <circle cx="20" cy="17.7" r="1.15" fill="#193652" stroke="none"/>
+ </g></svg>`,
 };
+
+export const studentMapIcon = {
+  className: 'rts-student-map-marker',
+  iconSize: [30, 36],
+  iconAnchor: [15, 35],
+  popupAnchor: [0, -33],
+  html: `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="36" style="display:block" viewBox="0 0 40 48" role="img" aria-label="Học sinh"><title>Học sinh</title><path d="M20 2C10.06 2 2 10.06 2 20c0 11.15 10.47 16.37 16.2 24.45a2.2 2.2 0 0 0 3.6 0C27.53 36.37 38 31.15 38 20 38 10.06 29.94 2 20 2Z" fill="#176B80" stroke="white" stroke-width="3"/><path d="M20 2C10.06 2 2 10.06 2 20c0 11.15 10.47 16.37 16.2 24.45a2.2 2.2 0 0 0 3.6 0C27.53 36.37 38 31.15 38 20 38 10.06 29.94 2 20 2Z" fill="none" stroke="#193652" stroke-opacity=".42" stroke-width=".7"/><circle cx="20" cy="15.3" r="3.6" fill="white"/><path d="M13.2 27v-1.6a6.8 6.8 0 0 1 13.6 0V27Z" fill="white"/></svg>`,
+};
+
+export const studentMapIconCss = `
+  .rts-student-map-marker { position: absolute; }
+  .rts-student-map-order { position: absolute; top: -2px; right: -6px; box-sizing: border-box; min-width: 16px;
+    height: 16px; padding: 0 3px; border: 1px solid white; border-radius: 9px;
+    display: grid; place-items: center; background: #193652; color: white;
+    font: 750 10px/1 system-ui, sans-serif; }
+`;

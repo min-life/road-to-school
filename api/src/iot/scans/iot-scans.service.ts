@@ -48,7 +48,12 @@ export class IotScansService {
         await lockIotDevice(tx, dto.deviceId, true);
         await lockIotScan(tx,dto.scanId);
         await this.enrollments?.assertScanUnused(dto.scanId);
-        if (this.enrollments && await this.enrollments.slot(tx, dto.deviceId)) throw new ConflictException({code:"DEVICE_IN_ENROLLMENT",message:"Thiết bị đang đăng ký thẻ"});
+        const current = await tx.vehicleIotAssignment.findFirst({
+          where: { deviceId: dto.deviceId, releasedAt: null },
+          select: { vehicleId: true },
+        });
+        if (await this.enrollments?.runtimeSlot(tx, dto.deviceId, current?.vehicleId))
+          throw new ConflictException({ code: 'DEVICE_IN_ENROLLMENT', message: 'Thiết bị đang đăng ký thẻ' });
         let snapshot: { assignmentId: string | null; vehicleId: string | null; vehicleLicensePlateSnapshot: string | null } = {
           assignmentId: null, vehicleId: null, vehicleLicensePlateSnapshot: null,
         };
@@ -57,7 +62,7 @@ export class IotScansService {
           if (!assignment || assignment.deviceId !== dto.deviceId) throw new ConflictException({ code: 'STALE_ASSIGNMENT', message: 'Lần gán xe không thuộc thiết bị' });
           assertAssignmentTime(assignment.assignedAt, assignment.releasedAt, scannedAt);
           snapshot = { assignmentId: assignment.id, vehicleId: assignment.vehicleId, vehicleLicensePlateSnapshot: assignment.vehicle.licensePlate };
-        } else if (await tx.vehicleIotAssignment.findFirst({ where: { deviceId: dto.deviceId, releasedAt: null }, select: { id: true } })) {
+        } else if (current) {
           throw new ConflictException({ code: 'IOT_ASSIGNMENT_REQUIRED', message: 'Thiết bị đã gán xe, cần firmware/cấu hình hỗ trợ assignmentId' });
         }
         try { const result = await this.scans.create({ ...dto, scannedAt, ...snapshot }); inserted = true; return result; }

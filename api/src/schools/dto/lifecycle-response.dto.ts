@@ -77,5 +77,6 @@ export class ScheduledLocationResponseDto {
   cancelledTripsCount: number;
   @ApiProperty({ format: 'uuid' }) scheduledChangeId: string;
   @ApiProperty({ format: 'date' }) effectiveDate: string;
-  @ApiProperty({ enum: ['PENDING'] }) changeStatus: string;
+  @ApiProperty({ description: 'Số phương án đã đánh dấu cần tối ưu lại' }) reoptimizationPlansCount: number;
+  @ApiProperty({ enum: ['PENDING', 'APPLIED'] }) changeStatus: string;
 }

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="48" viewBox="0 0 40 48" role="img" aria-label="Trường học"><title>Trường học</title><path d="M20 2C10.06 2 2 10.06 2 20c0 11.15 10.47 16.37 16.2 24.45a2.2 2.2 0 0 0 3.6 0C27.53 36.37 38 31.15 38 20 38 10.06 29.94 2 20 2Z" fill="#FFCB56" stroke="white" stroke-width="3"/><path d="M20 2C10.06 2 2 10.06 2 20c0 11.15 10.47 16.37 16.2 24.45a2.2 2.2 0 0 0 3.6 0C27.53 36.37 38 31.15 38 20 38 10.06 29.94 2 20 2Z" fill="none" stroke="#193652" stroke-opacity=".42" stroke-width=".7"/><g fill="none" stroke="#193652" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+ <path d="M10.5 28V18h5l4.5-5 4.5 5h5v10M9 28h22M20 13V9.5l4.8 1.4L20 12M18 28v-5h4v5"/>
+ <path d="M13 20.5h2v2h-2zm12 0h2v2h-2z" fill="#193652" stroke="none"/>
+ <circle cx="20" cy="17.7" r="1.15" fill="#193652" stroke="none"/>
+ </g></svg>

@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Put,
+  Patch,
   Post,
   Body,
   Query,
@@ -26,6 +27,7 @@ import {
   UpdateParkingLotDto,
   ParkingLotResponseDto,
   ParkingLotImpactDto,
+  UpdateParkingRadiusDto,
 } from './dto/parking-lot.dto.js';
 
 @ApiTags('System Settings')
@@ -61,12 +63,13 @@ export class SystemSettingsController {
   })
   @ApiQuery({ name: 'latitude', required: false, description: 'Vĩ độ mới dự kiến' })
   @ApiQuery({ name: 'longitude', required: false, description: 'Kinh độ mới dự kiến' })
-  @ApiQuery({ name: 'effectiveDate', required: false, description: 'Ngày hiệu lực dự kiến (YYYY-MM-DD), mặc định ngày mai' })
+  @ApiQuery({ name: 'effectiveDate', required: false, description: 'Ngày hiệu lực dự kiến (YYYY-MM-DD), từ hôm nay, mặc định ngày mai' })
   @ApiResponse({
     status: 200,
     description: 'Đánh giá tác động thành công',
     type: ParkingLotImpactDto,
   })
+  @ApiResponse({ status: 400, description: 'Ngày hiệu lực không hợp lệ hoặc trước hôm nay' })
   async getParkingLotImpact(
     @Query('latitude') latitude?: string,
     @Query('longitude') longitude?: string,
@@ -126,7 +129,7 @@ export class SystemSettingsController {
   @ApiOperation({
     summary: 'Cập nhật vị trí bãi đỗ xe trung tâm (Chỉ SYSTEM_ADMIN)',
     description:
-      'Cấu hình ban đầu áp dụng ngay. Đổi tọa độ bãi đã cấu hình phải từ ngày mai; đặt lịch chưa hủy chuyến. Đến ngày chỉ hủy chuyến chưa frozen và đánh dấu phương án cần tối ưu lại.',
+      'Cấu hình ban đầu áp dụng ngay. Đổi tọa độ bãi đã cấu hình cho phép hẹn từ hôm nay. Đến hạn chỉ hủy chuyến chưa frozen và đánh dấu phương án cần tối ưu lại.',
   })
   @ApiResponse({
     status: 200,
@@ -135,16 +138,30 @@ export class SystemSettingsController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Dữ liệu địa chỉ hoặc tọa độ không hợp lệ',
+    description: 'Dữ liệu địa chỉ, tọa độ hoặc ngày hiệu lực không hợp lệ',
   })
   @ApiResponse({
     status: 403,
     description: 'Chỉ SYSTEM_ADMIN mới có quyền cập nhật cấu hình bãi xe',
   })
+  @ApiResponse({ status: 409, description: 'Tác động dời bãi đã thay đổi' })
   async updateParkingLot(
     @CurrentUser() user: User,
     @Body() dto: UpdateParkingLotDto,
   ): Promise<ParkingLotResponseDto> {
     return this.settingsService.updateParkingLot(dto, user.id);
+  }
+
+  @Patch('parking-lot/radius')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(Role.SYSTEM_ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Cập nhật riêng bán kính phục vụ của bãi xe' })
+  @ApiResponse({ status: 200, type: ParkingLotResponseDto })
+  @ApiResponse({ status: 400, description: 'Bán kính phải lớn hơn 0 và không quá 500 km' })
+  @ApiResponse({ status: 403, description: 'Chỉ SYSTEM_ADMIN được sửa bán kính' })
+  @ApiResponse({ status: 409, description: 'Bãi trung tâm chưa được cấu hình' })
+  updateParkingRadius(@CurrentUser() user: User, @Body() dto: UpdateParkingRadiusDto) {
+    return this.settingsService.updateParkingRadius(dto.maxOperatingRadiusKm, user.id);
   }
 }

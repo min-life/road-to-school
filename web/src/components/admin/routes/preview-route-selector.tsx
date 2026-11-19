@@ -1,7 +1,7 @@
 'use client';
 
 import type { PreviewRoute } from '@/lib/types';
-import { BusFront } from 'lucide-react';
+import { MoreHorizontal } from 'lucide-react';
 
 export const PREVIEW_ROUTE_COLORS = ['#2563eb', '#9333ea', '#ea580c', '#059669', '#db2777', '#0891b2', '#4f46e5', '#a16207'];
 
@@ -31,33 +31,55 @@ export interface PreviewRouteEntry {
   color: string;
 }
 
-/** Inspecting a card never changes which polylines are visible. */
-export function PreviewRouteSelector({ routes, activeId, onInspect }: {
+export function previewRouteLabel(direction: PreviewRouteEntry['direction'], index: number) {
+  return `Tuyến ${direction === 'OUTBOUND' ? 'đi' : 'về'} ${String(index + 1).padStart(2, '0')}`;
+}
+
+export function PreviewRouteSelector({ routes, active, onInspect, onRemove, pending }: {
   routes: PreviewRouteEntry[];
-  activeId?: string;
+  active: PreviewRouteEntry;
   onInspect: (entry: PreviewRouteEntry) => void;
+  onRemove?: () => void;
+  pending: boolean;
 }) {
-  return <section className="preview-route-selector" aria-label="Các tuyến trong phương án">
-    <div className="preview-route-list" tabIndex={0} role="region" aria-label="Danh sách tuyến, cuộn để xem thêm">
-      {routes.map(entry => <article key={entry.id} className={`preview-route-card${activeId === entry.id ? ' is-inspected' : ''}`}>
-        <button className="preview-route-card-button" type="button" aria-pressed={activeId === entry.id}
-          aria-label={`Xem thông tin ${entry.route.name}`} onClick={() => onInspect(entry)}>
-          <span className="preview-route-card-heading">
-            <i style={{ backgroundColor: entry.color }} aria-hidden="true" />
-            <span className="preview-route-card-info"><strong>{entry.route.name}</strong>
-              <small>{entry.direction === 'OUTBOUND' ? 'Chiều đi' : 'Chiều về'}</small>
-              <span className="preview-route-vehicle"><BusFront size={14} aria-hidden="true" /><span>{entry.route.proposedVehiclePlate || 'Chưa có xe'}</span> · {entry.route.studentCount}/{entry.route.proposedVehicleSeatCount || entry.route.seatCount} chỗ</span>
-              <small>{(entry.route.totalDistanceMeters / 1000).toFixed(1)} km · ~{Math.round(entry.route.estimatedDurationSeconds / 60)} phút</small>
-            </span>
-          </span>
-          <span className="preview-route-schedule">
-            {groupRouteSchedule(entry.route).map(group => <span key={`${group.departureTime}-${group.arrivalTime}`}>
-              {group.days.length > 0 && <b>{group.days.join(', ')}</b>}
-              <time>{group.departureTime} – {group.arrivalTime}</time>
-            </span>)}
-          </span>
-        </button>
-      </article>)}
-    </div>
+  const { route } = active;
+  const seats = route.proposedVehicleSeatCount ?? route.seatCount;
+  const schedule = groupRouteSchedule(route);
+
+  return <section className="preview-route-selector" aria-label="Tuyến đang xem">
+    {routes.length > 1 && <label className="preview-route-select">
+      <span>Chọn tuyến</span>
+      <select value={active.id} onChange={event => {
+        const entry = routes.find(item => item.id === event.target.value);
+        if (entry) onInspect(entry);
+      }}>
+        {routes.map(entry => <option key={entry.id} value={entry.id}>
+          {previewRouteLabel(entry.direction, entry.index)}{entry.route.proposedVehiclePlate ? ` · ${entry.route.proposedVehiclePlate}` : ''}
+        </option>)}
+      </select>
+    </label>}
+    <article className="preview-route-card">
+      <div className="preview-route-card-heading">
+        <i style={{ backgroundColor: active.color }} aria-hidden="true" />
+        <h3>{previewRouteLabel(active.direction, active.index)}</h3>
+        <strong>{route.proposedVehiclePlate || 'Chưa có xe'}</strong>
+        {onRemove && <details key={active.id} className="preview-route-menu">
+          <summary aria-label="Thao tác tuyến về"><MoreHorizontal size={18} aria-hidden="true" /></summary>
+          <div><button type="button" disabled={pending} onClick={onRemove}>
+            {pending ? 'Đang bỏ tuyến…' : 'Bỏ tuyến về'}
+          </button></div>
+        </details>}
+      </div>
+      <div className="preview-route-metrics">
+        <span>{(route.totalDistanceMeters / 1000).toLocaleString('vi-VN', { maximumFractionDigits: 1 })} km</span>
+        <span>{seats == null ? `${route.studentCount} học sinh` : `${route.studentCount}/${seats} chỗ`}</span>
+      </div>
+      <div className="preview-route-schedule" aria-label="Giờ dự kiến theo ngày">
+        {schedule.map(group => <div key={`${group.departureTime}-${group.arrivalTime}`}>
+          <strong><time>{group.departureTime}</time> – <time>{group.arrivalTime}</time></strong>
+          {group.days.length > 0 && <span>{group.days.join(', ')}</span>}
+        </div>)}
+      </div>
+    </article>
   </section>;
 }

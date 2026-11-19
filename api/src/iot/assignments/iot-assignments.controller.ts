@@ -83,6 +83,7 @@ export class IotAssignmentsController {
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
     summary: 'Tháo thiết bị khỏi xe; giữ nguyên scan, Wi-Fi và lịch sử',
+    description: 'Trả 409 nếu thiết bị đang đăng ký thẻ hoặc chờ đối soát.',
   })
   @ApiResponse({ status: 200, type: IotAssignmentStateDto })
   @ApiIotErrors(400, 401, 403, 404, 409, 503, 500)

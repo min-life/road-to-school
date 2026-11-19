@@ -308,6 +308,7 @@ export function CreateAddressRequestView({ fixedStudentId }: { fixedStudentId?: 
             </View>
 
             {student?.status === 'AVAILABLE' ? <VietMapPicker
+              markerKind="student"
               key={studentId}
               latitude={selectedLat}
               longitude={selectedLng}

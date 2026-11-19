@@ -255,6 +255,7 @@ export default function AdminSchoolDetailPage() {
         {showSchoolMap && (
           <section id="school-detail-location" className="school-detail-location" aria-label="Vị trí trường">
             <VietMapPicker
+              markerKind="school"
               latitude={school.latitude}
               longitude={school.longitude}
               onChangeCoordinates={() => undefined}
@@ -363,7 +364,6 @@ export default function AdminSchoolDetailPage() {
         {activeTab === 'routes' && (
           <SchoolRoutesTab
             schoolId={school.id}
-            schoolName={school.name}
             isSchoolActive={school.isActive}
           />
         )}

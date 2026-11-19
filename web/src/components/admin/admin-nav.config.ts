@@ -98,6 +98,16 @@ export function getVisibleNavItems(role: Role): AdminNavItem[] {
   return ADMIN_NAV_ITEMS.filter((item) => item.allowedRoles.includes(role));
 }
 
+export function getActiveNavItem(pathname: string, items: AdminNavItem[]): AdminNavItem | undefined {
+  const path = pathname.replace(/\/+$/, '');
+  let active: AdminNavItem | undefined;
+  for (const item of items) {
+    const matches = path === item.href || (item.id !== 'overview' && path.startsWith(`${item.href}/`));
+    if (matches && (!active || item.href.length > active.href.length)) active = item;
+  }
+  return active;
+}
+
 /**
  * Chuyển đổi mã Role kỹ thuật sang nhãn tiếng Việt trang trọng
  */

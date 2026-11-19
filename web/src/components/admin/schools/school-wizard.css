@@ -85,12 +85,22 @@
   justify-content: space-between;
 }
 
-/* Effective date callout in step 3 */
-.school-wizard-effective-date-box {
-  padding: 14px 16px;
-  border-radius: 9px;
-  border: 1px solid #dbeafe;
-  background: #eff6ff;
+.school-effective-date-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding-block: 9px; border-block: 1px solid var(--brand-border, #dce6f4); min-width: 0; }
+.school-effective-date-label, .school-effective-date-value { color: var(--brand-heading, #173e79); font-size: 12px; font-weight: 650; }
+.school-effective-date-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 12px; margin-inline-start: auto; }
+.school-effective-date-trigger { display: inline-flex; align-items: center; min-height: 36px; min-width: min(200px, 100%); max-width: 100%; padding: 7px 10px; gap: 8px; border: 1px solid var(--brand-border, #dce6f4); border-radius: 7px; background: var(--brand-surface, #fff); color: var(--brand-heading, #173e79); text-align: left; font-size: 12px; font-weight: 650; cursor: pointer; }
+.school-effective-date-trigger svg { flex-shrink: 0; color: var(--brand-muted, #526b8f); }
+.school-effective-date-trigger:hover:not(:disabled), .school-effective-date-trigger[aria-expanded=true] { border-color: var(--brand-info, #096bdf); }
+.school-effective-date-trigger[data-invalid=true] { border-color: #fca5a5; }
+.school-effective-date-link { padding: 6px 0; color: var(--brand-info, #096bdf); font-size: 12px; font-weight: 600; cursor: pointer; }
+.school-effective-date-link:hover:not(:disabled) { text-decoration: underline; }
+.school-effective-date-link:disabled, .school-effective-date-trigger:disabled { opacity: .55; cursor: default; }
+.school-effective-date-link:focus-visible, .school-effective-date-trigger:focus-visible { outline: 2px solid var(--brand-ring, #096bdf); outline-offset: 2px; }
+.school-effective-date-note, .school-effective-date-error { margin-top: 2px; color: var(--brand-muted, #526b8f); font-size: 11px; }
+.school-effective-date-error { flex-basis: 100%; color: #be123c; }
+
+@media (max-width: 430px) {
+  .school-effective-date-actions { flex-basis: 100%; justify-content: space-between; }
 }
 
 @media (max-width: 640px) {

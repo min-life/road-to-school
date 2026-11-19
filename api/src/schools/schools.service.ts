@@ -20,7 +20,6 @@ import {
 import { Prisma, Role, User, RoutePlanStatus, TripStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import * as crypto from 'node:crypto';
-import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CloudinaryService } from './cloudinary.service.js';
 import { validateWeeklySchedule } from './schedule.validator.js';
@@ -871,83 +870,15 @@ export class SchoolsService {
     currentUser: User,
     targetLatitude?: number,
     targetLongitude?: number,
+    effectiveDate?: string,
   ): Promise<SchoolLocationImpactDto> {
-    if (currentUser.role !== Role.SYSTEM_ADMIN) {
-      throw new ForbiddenException('Chỉ Quản trị viên hệ thống (SYSTEM_ADMIN) mới có quyền kiểm tra tác động thay đổi vị trí trường học');
-    }
-    const school = await effectiveSchool(this.prisma, schoolId);
-    if (!school) {
-      throw new NotFoundException('Không tìm thấy trường học');
-    }
+    return this.changes.getImpact(schoolId, currentUser, targetLatitude !== undefined && targetLongitude !== undefined
+      ? { type: 'LOCATION', latitude: targetLatitude, longitude: targetLongitude } : null, effectiveDate);
+  }
 
-    const plans = await this.prisma.routePlan.findMany({
-      where: {
-        schoolId,
-        status: { in: [RoutePlanStatus.DRAFT, RoutePlanStatus.ACTIVE] },
-      },
-      include: {
-        routes: { select: { id: true } },
-      },
-    });
-
-    const routeIds = plans.flatMap((p) => p.routes.map((r) => r.id));
-    let scheduledTripsCount = 0;
-    let inProgressTripsCount = 0;
-
-    if (routeIds.length > 0) {
-      scheduledTripsCount = await this.prisma.trip.count({
-        where: {
-          routeId: { in: routeIds },
-          status: TripStatus.SCHEDULED,
-        },
-      });
-      inProgressTripsCount = await this.prisma.trip.count({
-        where: {
-          routeId: { in: routeIds },
-          status: TripStatus.IN_PROGRESS,
-        },
-      });
-    }
-
-    const draftPlansCount = plans.filter((p) => p.status === RoutePlanStatus.DRAFT).length;
-    const activePlansCount = plans.filter((p) => p.status === RoutePlanStatus.ACTIVE).length;
-    const cancelledPlansCount = draftPlansCount + activePlansCount;
-
-    const hasCoordinateChanged =
-      targetLatitude !== undefined && targetLongitude !== undefined
-        ? Math.abs(school.latitude - targetLatitude) > 1e-6 ||
-          Math.abs(school.longitude - targetLongitude) > 1e-6
-        : true;
-
-    const expectedFingerprint = createHash('sha256')
-      .update(
-        JSON.stringify([
-          school.id,
-          school.updatedAt.toISOString(),
-          draftPlansCount,
-          activePlansCount,
-          scheduledTripsCount,
-        ]),
-      )
-      .digest('hex');
-
-    return {
-      schoolId: school.id,
-      schoolName: school.name,
-      currentAddressText: school.addressText,
-      currentLatitude: school.latitude,
-      currentLongitude: school.longitude,
-      hasCoordinateChanged,
-      draftPlansCount,
-      activePlansCount,
-      cancelledPlansCount,
-      scheduledTripsCount,
-      cancelledTripsCount: scheduledTripsCount,
-      inProgressTripsCount,
-      inProgressTripsPreservedCount: inProgressTripsCount,
-      expectedFingerprint,
-      fingerprint: expectedFingerprint,
-    };
+  async getScheduleImpact(schoolId: string, dto: UpdateSchoolScheduleDto, actor: User) {
+    return this.changes.getImpact(schoolId, actor,
+      { type: 'SCHEDULE', weeklySchedule: validateWeeklySchedule(dto.weeklySchedule) }, dto.effectiveDate);
   }
 
   /**
@@ -955,12 +886,14 @@ export class SchoolsService {
    * Chỉ SYSTEM_ADMIN; response giữ thông tin đang có hiệu lực và thêm lịch hẹn.
    */
   async updateLocation(schoolId: string, dto: UpdateSchoolLocationDto, actor: User) {
-    if (dto.expectedFingerprint) {
-      const impact = await this.getLocationImpact(schoolId, actor, dto.latitude, dto.longitude);
-      if (impact.expectedFingerprint !== dto.expectedFingerprint) throw new ConflictException('Dữ liệu trường vừa thay đổi. Vui lòng tải lại');
-    }
-    const result = await this.changes.schedule(schoolId, 'LOCATION', { addressText: dto.addressText.trim(), latitude: dto.latitude, longitude: dto.longitude }, dto.effectiveDate, actor);
-    return { success: true, message: 'Đã hẹn đổi địa điểm trường', school: { id: schoolId, name: result.school.name, addressText: result.school.addressText, latitude: result.school.latitude, longitude: result.school.longitude }, cancelledPlansCount: 0, cancelledTripsCount: 0, scheduledChangeId: result.scheduledChangeId, effectiveDate: result.effectiveDate, changeStatus: result.changeStatus };
+    const result = await this.changes.schedule(schoolId, 'LOCATION', {
+      addressText: dto.addressText.trim(), latitude: dto.latitude, longitude: dto.longitude,
+      ...(dto.reason?.trim() ? { reason: dto.reason.trim() } : {}),
+    }, dto.effectiveDate, actor, dto.expectedFingerprint);
+    return { success: true, message: result.changeStatus === 'APPLIED' ? 'Đã cập nhật địa chỉ trường' : 'Đã hẹn đổi địa điểm trường',
+      school: { id: schoolId, name: result.school.name, addressText: result.school.addressText, latitude: result.school.latitude, longitude: result.school.longitude },
+      cancelledPlansCount: 0, cancelledTripsCount: result.cancelledTripsCount, reoptimizationPlansCount: result.reoptimizationPlansCount,
+      scheduledChangeId: result.scheduledChangeId, effectiveDate: result.effectiveDate, changeStatus: result.changeStatus };
   }
 
   /**
@@ -1008,8 +941,11 @@ export class SchoolsService {
    */
   async updateSchedule(schoolId: string, dto: UpdateSchoolScheduleDto, actor: User): Promise<UpdateSchoolScheduleResponseDto> {
     const schedule = validateWeeklySchedule(dto.weeklySchedule);
-    const result = await this.changes.schedule(schoolId, 'SCHEDULE', { weeklySchedule: schedule as unknown as Prisma.InputJsonObject }, dto.effectiveDate, actor);
-    return { success: true, message: 'Đã hẹn đổi lịch học', school: { id: schoolId, name: result.school.name, weeklySchedule: result.school.weeklySchedule as Record<string, unknown> }, cancelledTripsCount: 0, updatedTripsCount: 0, scheduledChangeId: result.scheduledChangeId, effectiveDate: result.effectiveDate, changeStatus: result.changeStatus };
+    const result = await this.changes.schedule(schoolId, 'SCHEDULE', { weeklySchedule: schedule as unknown as Prisma.InputJsonObject }, dto.effectiveDate, actor, dto.expectedFingerprint);
+    return { success: true, message: result.changeStatus === 'APPLIED' ? 'Đã cập nhật lịch học' : 'Đã hẹn đổi lịch học',
+      school: { id: schoolId, name: result.school.name, weeklySchedule: result.school.weeklySchedule as Record<string, unknown> },
+      cancelledTripsCount: result.cancelledTripsCount, updatedTripsCount: result.updatedTripsCount, reoptimizationPlansCount: result.reoptimizationPlansCount,
+      scheduledChangeId: result.scheduledChangeId, effectiveDate: result.effectiveDate, changeStatus: result.changeStatus };
   }
 
   /**

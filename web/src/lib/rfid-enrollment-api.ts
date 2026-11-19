@@ -17,6 +17,7 @@ export interface RfidSession {
     capturedAt: string;
   } | null;
   lastScanFeedback: { scanId: string; code: string; observedAt: string } | null;
+  closeReason: string | null;
   bindingCurrent: boolean;
 }
 const root = "/iot/enrollment-sessions";

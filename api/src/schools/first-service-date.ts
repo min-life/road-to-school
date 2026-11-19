@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { serviceDay } from './school-policy.js';
+import { pendingSchoolReoptimization, serviceDay } from './school-policy.js';
 import { contractDate } from './school-effective-state.js';
 import { calculateTripTiming, formatDateToVnYmd } from '../trips/utils/trip-time.util.js';
 import { pendingParkingChange } from '../system-settings/parking-policy.js';
@@ -23,7 +23,7 @@ export async function firstServiceDate(
     where: { routePlanId: plan.id },
     select: { direction: true, estimatedDurationSeconds: true },
   });
-  if (!routes.length) return null;
+  if (!routes.length || await pendingSchoolReoptimization(db, school, routes)) return null;
   const approvedAt = plan.activatedAt.getTime();
   const contractStart = contractDate(school.contractStartDate);
   const activationDay = formatDateToVnYmd(plan.activatedAt);

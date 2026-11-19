@@ -1,4 +1,54 @@
-.route-student-filter-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; min-width: 0; }
+.route-student-filter-toolbar { display: grid; gap: 8px; min-width: 0; }
 .route-student-filter-toolbar > .relative { min-width: 0; }
 .route-student-filter-toolbar input { min-height: 44px; }
-.route-workspace-selection .route-workspace-picker > .route-student-eligibility-tabs { position: static; flex-wrap: nowrap; gap: 6px; padding: 4px; background: var(--brand-hover); }
+.route-planning-page .route-student-filter-toolbar .geography-filter-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.route-planning-page .route-workspace-selection > .route-workspace-picker > div:first-child {
+  position: static;
+  padding-top: 0;
+}
+.route-create-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 16px; width: 100%; }
+.route-create-settings { position: relative; }
+.route-create-settings > summary {
+  cursor: pointer;
+  padding: 8px 12px;
+  border: 1px solid var(--brand-input-border);
+  border-radius: 8px;
+  background: var(--brand-surface);
+  color: var(--brand-heading);
+  font-size: 13px;
+  font-weight: 600;
+}
+.route-create-settings-panel {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 6px);
+  z-index: 12;
+  width: min(360px, calc(100vw - 32px));
+  padding: 14px;
+  border: 1px solid var(--brand-border);
+  border-radius: 12px;
+  background: var(--brand-surface);
+  box-shadow: var(--brand-shadow);
+}
+.route-create-bulk {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding-inline: 8px;
+  color: var(--brand-navy);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.route-create-bulk input { flex: none; cursor: inherit; }
+.route-create-next { flex: 1; min-width: min(100%, 245px); }
+.route-create-next p { margin-top: 3px; }
+.route-create-settings-panel input { min-height: 40px; }
+@media (max-width: 520px) {
+  .route-create-settings { width: 100%; }
+  .route-create-settings-panel { position: static; width: 100%; margin-top: 6px; }
+}

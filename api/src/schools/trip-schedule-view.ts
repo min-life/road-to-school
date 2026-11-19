@@ -6,8 +6,8 @@ import {
   vietnamToday,
 } from './school-effective-state.js';
 import {
-  combineDateAndTimeUtc,
-  secondsToTimeStr,
+  calculateTripTiming,
+  tripClockTime,
   timeStrToSeconds,
 } from '../trips/utils/trip-time.util.js';
 
@@ -15,6 +15,7 @@ import {
 export async function effectiveTripTiming(
   db: Prisma.TransactionClient,
   id: string,
+  schedule?: { start: string; end: string },
 ) {
   const trip = await db.trip.findUnique({
     where: { id },
@@ -27,7 +28,7 @@ export async function effectiveTripTiming(
     contractDate(trip.serviceDate) < vietnamToday()
   )
     return null;
-  const change = await db.schoolScheduledChange.findFirst({
+  const change = schedule || await db.schoolScheduledChange.findFirst({
     where: {
       schoolId: trip.schoolId,
       type: 'SCHEDULE',
@@ -37,22 +38,15 @@ export async function effectiveTripTiming(
     },
   });
   if (!change) return null;
-  const day = await serviceDay(
+  const day = schedule ?? await serviceDay(
     db,
     trip.schoolId,
     contractDate(trip.serviceDate),
     trip.route.routePlan.createdAt,
   );
   if (!day) return null;
-  const duration = trip.route.estimatedDurationSeconds;
-  const start =
-    trip.direction === 'TO_SCHOOL'
-      ? secondsToTimeStr(timeStrToSeconds(day.start) - duration)
-      : day.end;
-  const end =
-    trip.direction === 'TO_SCHOOL'
-      ? day.start
-      : secondsToTimeStr(timeStrToSeconds(day.end) + duration);
+  const timing = calculateTripTiming(trip.direction, trip.route.estimatedDurationSeconds, day, contractDate(trip.serviceDate));
+  const { scheduledStartTime: start, scheduledEndTime: end } = timing;
   const snapshot = trip.routeSnapshot;
   const delta =
     timeStrToSeconds(start) -
@@ -76,7 +70,7 @@ export async function effectiveTripTiming(
                     ...value,
                     ...(typeof value.plannedArrivalTime === 'string'
                       ? {
-                          plannedArrivalTime: secondsToTimeStr(
+                          plannedArrivalTime: tripClockTime(
                             timeStrToSeconds(value.plannedArrivalTime) + delta,
                           ),
                         }
@@ -88,13 +82,7 @@ export async function effectiveTripTiming(
         }
       : snapshot;
   return {
-    scheduledStartTime: start,
-    scheduledEndTime: end,
-    scheduledStartAt: combineDateAndTimeUtc(
-      contractDate(trip.serviceDate),
-      start,
-    ),
-    scheduledEndAt: combineDateAndTimeUtc(contractDate(trip.serviceDate), end),
+    ...timing,
     routeSnapshot: shiftedSnapshot as Prisma.InputJsonValue | null,
   };
 }

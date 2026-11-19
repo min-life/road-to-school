@@ -328,3 +328,192 @@ describe('RoutePlan-First Management — Frontend Contracts & Business Rules', (
   });
 });
 
+describe('Route Plan Assignment & Driver Modal Logic Verification', () => {
+  it('Nhóm duy nhất thiếu phân công mặc định mở khi chưa tương tác, nhưng giữ đóng khi người dùng đã thu gọn', () => {
+    type Group = { id: string; routeSignature: string };
+    const singleGroup: Group = { id: 'vehicle:v1', routeSignature: 'r1,r2' };
+    const groups = [singleGroup];
+
+    const deriveExpanded = (
+      userExpandedSignature: string | null | undefined,
+      currentGroups: Group[]
+    ) => {
+      if (currentGroups.length === 0) return null;
+      if (userExpandedSignature !== undefined) {
+        if (userExpandedSignature === null) return null;
+        const matched = currentGroups.find((g) => g.routeSignature === userExpandedSignature);
+        return matched?.id ?? currentGroups[0]?.id ?? null;
+      }
+      if (currentGroups.length === 1) return currentGroups[0].id;
+      return null;
+    };
+
+    // 1. Trạng thái ban đầu: mặc định mở nhóm duy nhất
+    assert.strictEqual(deriveExpanded(undefined, groups), 'vehicle:v1');
+
+    // 2. Người dùng chủ động thu gọn: userExpandedSignature = null -> thẻ đóng
+    assert.strictEqual(deriveExpanded(null, groups), null);
+
+    // 3. Tải lại dữ liệu: userExpandedSignature vẫn là null -> giữ thẻ đóng
+    const reloadedGroups = [{ id: 'vehicle:v1', routeSignature: 'r1,r2' }];
+    assert.strictEqual(deriveExpanded(null, reloadedGroups), null);
+
+    // 4. Người dùng mở lại thẻ: userExpandedSignature = 'r1,r2' -> thẻ mở
+    assert.strictEqual(deriveExpanded('r1,r2', reloadedGroups), 'vehicle:v1');
+
+    // 5. Tải lại dữ liệu kèm thay đổi xe: ID đổi thành vehicle:v2, signature giữ nguyên -> vẫn mở đúng nhóm
+    const reloadedWithNewVehicle = [{ id: 'vehicle:v2', routeSignature: 'r1,r2' }];
+    assert.strictEqual(deriveExpanded('r1,r2', reloadedWithNewVehicle), 'vehicle:v2');
+  });
+
+  it('Nhiều nhóm xe chỉ mở tối đa một thẻ tại một thời điểm', () => {
+    type Group = { id: string; routeSignature: string };
+    const groups: Group[] = [
+      { id: 'vehicle:v1', routeSignature: 'r1' },
+      { id: 'vehicle:v2', routeSignature: 'r2' },
+      { id: 'vehicle:v3', routeSignature: 'r3' },
+    ];
+
+    const deriveExpanded = (userExpandedSignature: string | null | undefined) => {
+      if (userExpandedSignature === null) return null;
+      if (typeof userExpandedSignature === 'string') {
+        const matched = groups.find((g) => g.routeSignature === userExpandedSignature);
+        return matched?.id ?? groups[0].id;
+      }
+      return groups[0].id;
+    };
+
+    // Chọn nhóm 2 -> chỉ nhóm 2 mở
+    assert.strictEqual(deriveExpanded('r2'), 'vehicle:v2');
+
+    // Chuyển sang nhóm 3 -> chỉ nhóm 3 mở
+    assert.strictEqual(deriveExpanded('r3'), 'vehicle:v3');
+
+    // Đóng tất cả -> null
+    assert.strictEqual(deriveExpanded(null), null);
+  });
+
+  it('Danh sách ứng viên tài xế chỉ nhận isEligible === true và lọc theo tên hoặc SĐT', () => {
+    const candidates = [
+      { id: 'd1', fullName: 'Nguyễn Văn Bình', phone: '0912345678', isEligible: true },
+      { id: 'd2', fullName: 'Trần Văn Minh', phone: '0987654321', isEligible: true },
+      { id: 'd3', fullName: 'Lê Văn Bận', phone: '0900000000', isEligible: false, reason: 'Trùng giờ' },
+    ];
+
+    // Chỉ lấy ứng viên khả dụng
+    const eligibleOnly = candidates.filter((d) => d.isEligible);
+    assert.strictEqual(eligibleOnly.length, 2);
+    assert.ok(eligibleOnly.every((d) => d.isEligible));
+    assert.ok(!eligibleOnly.some((d) => d.id === 'd3'));
+
+    // Lọc theo từ khóa tên
+    const filterByName = (q: string) =>
+      eligibleOnly.filter(
+        (d) =>
+          d.fullName.toLowerCase().includes(q.toLowerCase()) ||
+          (d.phone && d.phone.includes(q))
+      );
+
+    assert.strictEqual(filterByName('Bình').length, 1);
+    assert.strictEqual(filterByName('Bình')[0].id, 'd1');
+
+    // Lọc theo từ khóa số điện thoại
+    assert.strictEqual(filterByName('0987').length, 1);
+    assert.strictEqual(filterByName('0987')[0].id, 'd2');
+
+    // Từ khóa không khớp -> danh sách rỗng
+    assert.strictEqual(filterByName('Không có').length, 0);
+  });
+
+  it('Chỉ bật Phân công khi ứng viên được chọn còn khả dụng; xung đột làm mất khả dụng thì xóa lựa chọn', () => {
+    let candidates = [
+      { id: 'd1', fullName: 'Nguyễn Văn Bình', isEligible: true },
+      { id: 'd2', fullName: 'Trần Văn Minh', isEligible: true },
+    ];
+    let selectedDriverId = 'd1';
+    let submitting = false;
+
+    const isEnabled = () =>
+      Boolean(
+        selectedDriverId &&
+        candidates.filter((d) => d.isEligible).some((d) => d.id === selectedDriverId) &&
+        !submitting
+      );
+
+    assert.strictEqual(isEnabled(), true);
+
+    // Đang submit -> nút bị disable
+    submitting = true;
+    assert.strictEqual(isEnabled(), false);
+    submitting = false;
+
+    // Backend báo xung đột: tài xế d1 đã bị xe khác chọn và mất khả dụng
+    candidates = [
+      { id: 'd1', fullName: 'Nguyễn Văn Bình', isEligible: false },
+      { id: 'd2', fullName: 'Trần Văn Minh', isEligible: true },
+    ];
+
+    // Kiểm tra còn khả dụng không
+    const stillEligible = candidates.some((d) => d.id === selectedDriverId && d.isEligible);
+    assert.strictEqual(stillEligible, false);
+
+    if (!stillEligible) {
+      selectedDriverId = '';
+    }
+
+    assert.strictEqual(selectedDriverId, '');
+    assert.strictEqual(isEnabled(), false);
+  });
+
+  it('Phân công giáo viên phụ trách: chỉ SCHOOL_ADMIN có quyền, SYSTEM_ADMIN bị chặn', () => {
+    const canAssignTeacher = (role: string | null) => role === 'SCHOOL_ADMIN';
+    assert.strictEqual(canAssignTeacher('SCHOOL_ADMIN'), true);
+    assert.strictEqual(canAssignTeacher('SYSTEM_ADMIN'), false);
+    assert.strictEqual(canAssignTeacher('DRIVER'), false);
+    assert.strictEqual(canAssignTeacher(null), false);
+  });
+
+  it('Phân công giáo viên: chỉ lấy ứng viên isEligible === true, lọc tên/SĐT và phục hồi xung đột', () => {
+    let teachers = [
+      { id: 't1', fullName: 'Cô Nguyễn Thị Hoa', phone: '0901112223', isEligible: true },
+      { id: 't2', fullName: 'Thầy Lê Hoàng Nam', phone: '0903334445', isEligible: true },
+      { id: 't3', fullName: 'Cô Trần Thu Hà', phone: '0905556667', isEligible: false, reason: 'Trùng ca sáng' },
+    ];
+
+    // Chỉ lấy giáo viên khả dụng
+    const eligibleOnly = teachers.filter((t) => t.isEligible);
+    assert.strictEqual(eligibleOnly.length, 2);
+    assert.ok(eligibleOnly.every((t) => t.isEligible));
+
+    // Tìm kiếm theo tên
+    const filterByName = (q: string) =>
+      eligibleOnly.filter(
+        (t) =>
+          t.fullName.toLowerCase().includes(q.toLowerCase()) ||
+          (t.phone && t.phone.includes(q))
+      );
+
+    assert.strictEqual(filterByName('Hoa').length, 1);
+    assert.strictEqual(filterByName('Hoa')[0].id, 't1');
+
+    // Tìm kiếm theo số điện thoại
+    assert.strictEqual(filterByName('333444').length, 1);
+    assert.strictEqual(filterByName('333444')[0].id, 't2');
+
+    // Xung đột khi lưu: t1 bị gán cho xe khác -> mất khả dụng
+    let selectedTeacherId = 't1';
+    teachers = [
+      { id: 't1', fullName: 'Cô Nguyễn Thị Hoa', phone: '0901112223', isEligible: false },
+      { id: 't2', fullName: 'Thầy Lê Hoàng Nam', phone: '0903334445', isEligible: true },
+    ];
+
+    const stillEligible = teachers.some((t) => t.id === selectedTeacherId && t.isEligible);
+    assert.strictEqual(stillEligible, false);
+
+    if (!stillEligible) {
+      selectedTeacherId = '';
+    }
+    assert.strictEqual(selectedTeacherId, '');
+  });
+});
+

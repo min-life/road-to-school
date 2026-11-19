@@ -632,6 +632,7 @@ export function AddSchoolModal({
 
             {/* Map Picker Interactive (Không còn hiển thị tọa độ số) */}
             <VietMapPicker
+              markerKind="school"
               latitude={latitude}
               longitude={longitude}
               disabled={isSubmitting}

@@ -179,11 +179,13 @@ export function SystemRoutePlanWorkspace({ planId, role }: { planId: string; rol
         <div ref={panelRef} className={`route-workspace-content${tab === 'routes' ? ' saved-plan-routes-content' : ''}`} role="tabpanel" id={`planning-panel-${tab}`} aria-labelledby={`planning-tab-${tab}`}>
           {tab === 'assignments' ? <>
             <RoutePlanAssignments plan={plan} currentUserRole={editable ? role : null} compact
+              hiddenRouteIds={hiddenRouteIds}
               onUpdated={() => setRevision(value => value + 1)} />
           </> : <>
             <SavedPlanRoutesPanel routes={routes} activeId={activeId} route={visibleRoute} schoolName={plan.schoolName}
               routeError={routeError?.id === activeId ? routeError.message : undefined}
-              loading={route?.id !== activeId && Boolean(activeId)} onChoose={chooseRoute} onFocus={setFocusPoint} />
+              loading={route?.id !== activeId && Boolean(activeId)} onChoose={chooseRoute}
+              onSelectStop={stop => setFocusPoint({ latitude: stop.latitude, longitude: stop.longitude, zoom: 16 })} />
             {!!plan.unassignedStudents?.length && <details className="saved-plan-readiness"><summary>Học sinh chưa được xếp ({plan.unassignedStudents.length})</summary><ul>
               {plan.unassignedStudents.map(student => <li key={student.id}>{student.fullName} — {student.reason || 'Chưa được xếp tuyến'}</li>)}
             </ul></details>}

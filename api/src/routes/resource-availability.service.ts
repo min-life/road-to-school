@@ -1,7 +1,7 @@
 import { effectiveMembershipPlans } from './effective-plan-membership.js';
 import { pendingParkingChange } from '../system-settings/parking-policy.js';
 import { firstServiceDate } from '../schools/first-service-date.js';
-import { planInvalidation } from '../schools/school-policy.js';
+import { pendingSchoolReoptimization, planInvalidation } from '../schools/school-policy.js';
 import { assertResourcesNotAwaitingAdmin, heldResourceTrips } from '../schools/contract-resource-policy.js';
 import { isContractExpired } from '../schools/school-effective-state.js';
 import {
@@ -465,7 +465,10 @@ export class ResourceAvailabilityService {
     if (invalidation) {
       blockers.push({ code: invalidation, message: 'Phương án không còn hiệu lực do hết hợp đồng hoặc thay đổi trường đã đến hạn' });
     }
-    if (plan.needsReoptimization || await pendingParkingChange(this.prisma)) blockers.push({ code: 'NEEDS_REOPTIMIZATION', message: 'Cần tối ưu lại lộ trình trước khi duyệt' });
+    if (plan.needsReoptimization || await pendingParkingChange(this.prisma) ||
+      await pendingSchoolReoptimization(this.prisma, plan.school, plan.routes)) {
+      blockers.push({ code: 'NEEDS_REOPTIMIZATION', message: 'Cần tối ưu lại lộ trình trước khi duyệt' });
+    }
     const totalRoutes = plan.routes.length;
     let routesWithVehicle = 0;
     let routesWithDriver = 0;

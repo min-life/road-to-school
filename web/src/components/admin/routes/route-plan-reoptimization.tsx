@@ -61,7 +61,7 @@ export function RoutePlanReoptimization({ plan, systemAdmin, onUpdated }: {
       <div className="space-y-3 text-sm"><p className="font-semibold">{plan.name}</p>
         <p>Dùng bãi hiện tại: {parking?.addressText}</p>
         <p>Giữ phân bổ học sinh và xe; cập nhật lộ trình, thời gian. Phương án chuyển về Chưa duyệt để trường duyệt lại.</p>
-        <p>Không tự sinh lại các chuyến đã hủy.</p>
+        <p>Sau khi trường duyệt lại, nhà xe có thể sinh các chuyến đủ điều kiện và chưa qua giờ khởi hành.</p>
         {submitError && <p role="alert" className="text-rose-700">{submitError}</p>}
       </div>
     </LifecycleDialog>

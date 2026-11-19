@@ -24,7 +24,7 @@ import {
   SidebarExpandIcon,
 } from '@/components/icons';
 import { Role } from '@/lib/types';
-import { getVisibleNavItems, AdminNavItem } from './admin-nav.config';
+import { getActiveNavItem, getVisibleNavItems } from './admin-nav.config';
 import { BrandLogo } from '@/components/common/brand-logo';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -48,6 +48,7 @@ export function AdminSidebar({
 }: AdminSidebarProps) {
   const pathname = usePathname();
   const visibleItems = getVisibleNavItems(role);
+  const activeItem = getActiveNavItem(pathname, visibleItems);
 
   const renderIcon = (id: string, isActive: boolean) => {
     const iconClass = `w-5 h-5 shrink-0 ${
@@ -96,15 +97,15 @@ export function AdminSidebar({
         aria-label="Điều hướng quản trị"
         className="admin-nav"
       >
-        {visibleItems.map((item: AdminNavItem) => {
-          const isActive = pathname === item.href;
+        {visibleItems.map((item) => {
+          const isActive = activeItem?.id === item.id;
           return (
             <Link
               key={item.id}
               href={item.href}
               title={item.label}
               aria-label={item.label}
-              aria-current={isActive ? 'page' : undefined}
+              aria-current={isActive ? (pathname.replace(/\/+$/, '') === item.href ? 'page' : 'location') : undefined}
               data-active={isActive}
               onClick={onCloseMobile}
               className="admin-nav-link"

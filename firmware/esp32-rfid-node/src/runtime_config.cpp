@@ -75,11 +75,11 @@ Result fetch(const Work& work) {
   }
   const String mode = config["mode"].as<String>();
   if (mode != "ENROLLMENT" && mode != "VEHICLE_SCAN" && mode != "POC" && mode != "ATTENDANCE") return result;
-  if ((mode == "VEHICLE_SCAN" || mode == "ATTENDANCE") != !unbound) return result;
+  if (mode != "ENROLLMENT" && (mode == "POC") != unbound) return result;
   strlcpy(result.mode, mode.c_str(), sizeof(result.mode));
   if (mode == "ENROLLMENT") {
     const char* session = config["enrollmentSessionId"].as<const char*>();
-    if (!unbound || !uuid(session)) return result;
+    if (!uuid(session)) return result;
     strlcpy(result.session, session, sizeof(result.session));
   } else if (!config["enrollmentSessionId"].isNull()) return result;
   if (mode == "ATTENDANCE") {
@@ -143,7 +143,8 @@ void runtimeTick() {
   if (received && result.generation == generation) {
     if (result.valid) current = result;
     // A failed refresh retains the old lease only until its original expiry.
-    pollDelay = result.valid ? 30000 : 5000; lastPoll = millis();
+    pollDelay = result.valid && strcmp(result.mode, "ENROLLMENT") != 0 ? 30000 : 5000;
+    lastPoll = millis();
   }
   if (running || scanPending() || time(nullptr) < 1767225600 || (pollDelay && millis() - lastPoll < pollDelay)) return;
   Work* work = new (std::nothrow) Work{deviceSettings(), generation};

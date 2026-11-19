@@ -15,7 +15,9 @@ import type {
 import {
   effectiveOpen,
   enrollmentError,
+  hasBusyEnrollmentVehicle,
   pending,
+  VEHICLE_ENROLLMENT_BUSY,
 } from './enrollment-policy.js';
 @Injectable()
 export class EnrollmentSessionsService {
@@ -158,6 +160,25 @@ export class EnrollmentSessionsService {
         'DEVICE_ENROLLMENT_ACTIVE',
         'Thiết bị đang đăng ký thẻ hoặc chờ đối soát',
       );
+  }
+  async invalidateForVehicle(s: EnrollmentSession) {
+    await this.close(s, 'INVALIDATED', VEHICLE_ENROLLMENT_BUSY);
+  }
+
+  // The device lock must be exclusive when cleanup is requested.
+  async runtimeSlot(
+    tx: Prisma.TransactionClient,
+    deviceId: string,
+    vehicleId?: string,
+    cleanup = false,
+  ) {
+    const session = await this.slot(tx, deviceId, cleanup);
+    if (!session || !vehicleId) return session;
+    // A pending confirmation can be reconciled without using the physical reader.
+    if (pending(session)) return null;
+    if (!(await hasBusyEnrollmentVehicle(tx, vehicleId))) return session;
+    if (cleanup) await this.invalidateForVehicle(session);
+    return null;
   }
   async metadata(deviceIds: string[], tx: Prisma.TransactionClient) {
     const rows = await this.io(() =>

@@ -6,14 +6,52 @@ import {
   isContractExpired,
   vietnamToday,
 } from './school-effective-state.js';
-import { getDayOfWeekKey } from '../trips/utils/trip-time.util.js';
+import { getDayOfWeekKey, timeStrToSeconds } from '../trips/utils/trip-time.util.js';
 import { calendarMatches } from './service-calendar.js';
 import { isTripFrozen } from '../overview/operations-policy.js';
+
+export type WeeklySchoolSchedule = Record<string, { start: string; end: string }>;
+type DirectionTiming = { direction: 'TO_SCHOOL' | 'TO_PARKING'; estimatedDurationSeconds: number };
+
+export function schoolCoordinatesChanged(school: { latitude: number; longitude: number }, latitude: number, longitude: number) {
+  return Math.abs(school.latitude - latitude) > 1e-6 || Math.abs(school.longitude - longitude) > 1e-6;
+}
+
+export function schoolScheduleNeedsReoptimization(schedule: WeeklySchoolSchedule, routes: readonly DirectionTiming[]) {
+  return Object.values(schedule).some(day => routes.some(route => route.direction === 'TO_SCHOOL'
+    ? timeStrToSeconds(day.start) < route.estimatedDurationSeconds
+    : timeStrToSeconds(day.end) + route.estimatedDurationSeconds >= 86400));
+}
 
 export type PolicyDb = Pick<
   Prisma.TransactionClient,
   'school' | 'schoolScheduledChange' | 'serviceCalendarEntry' | 'trip'
 > & Partial<Pick<Prisma.TransactionClient, 'systemSetting'>>;
+
+export async function pendingSchoolReoptimization(
+  db: PolicyDb,
+  school: { id: string; latitude: number; longitude: number },
+  routes: readonly DirectionTiming[] | (() => Promise<DirectionTiming[]>),
+  date = vietnamToday(),
+) {
+  if (!db.schoolScheduledChange) return false;
+  const changes = await db.schoolScheduledChange.findMany({
+    where: { schoolId: school.id, status: 'PENDING', type: { in: ['LOCATION', 'SCHEDULE'] }, effectiveDate: { lte: new Date(date) } },
+    select: { type: true, payload: true },
+  });
+  const schedules = [];
+  for (const change of changes) {
+    const payload = change.payload as Prisma.JsonObject;
+    if (change.type === 'LOCATION') {
+      if (schoolCoordinatesChanged(school, Number(payload.latitude), Number(payload.longitude))) return true;
+    } else {
+      schedules.push(payload.weeklySchedule as WeeklySchoolSchedule);
+    }
+  }
+  if (!schedules.length) return false;
+  const routeTiming = typeof routes === 'function' ? await routes() : routes;
+  return schedules.some(schedule => schoolScheduleNeedsReoptimization(schedule, routeTiming));
+}
 export async function effectiveSchool(
   db: PolicyDb,
   id: string,
@@ -62,7 +100,7 @@ export async function planInvalidation(
     ? await db.schoolScheduledChange.findFirst({
         where: {
           schoolId,
-          type: { in: ['INACTIVE', 'LOCATION'] },
+          type: 'INACTIVE',
           status: { in: ['PENDING', 'APPLIED'] },
           effectiveDate: {
             lte: new Date(date),
@@ -74,17 +112,14 @@ export async function planInvalidation(
         },
       })
     : null;
-  return cutoff
-    ? cutoff.type === 'LOCATION'
-      ? 'LOCATION_CHANGED'
-      : 'SCHOOL_INACTIVE'
-    : null;
+  return cutoff ? 'SCHOOL_INACTIVE' : null;
 }
 export async function serviceDay(
   db: PolicyDb,
   schoolId: string,
   date: string,
   planCreatedAt?: Date,
+  weeklyScheduleOverride?: Record<string, { start: string; end: string }>,
 ) {
   const school = await effectiveSchool(db, schoolId, date);
   if (
@@ -112,7 +147,7 @@ export async function serviceDay(
   );
   if (makeup) return { start: makeup.startTime!, end: makeup.endTime! };
   if (matching.some((entry) => entry.kind === 'HOLIDAY')) return null;
-  const schedule = school.weeklySchedule as Record<
+  const schedule = weeklyScheduleOverride ?? school.weeklySchedule as Record<
     string,
     { start: string; end: string }
   >;
@@ -126,7 +161,9 @@ export async function tripBlockReason(
     where: { id },
     include: {
       school: true,
-      route: { select: { routePlan: { select: { createdAt: true, needsReoptimization: true } } } },
+      route: { select: { routePlan: { select: { createdAt: true, needsReoptimization: true, reoptimizationReason: true,
+        routes: { select: { direction: true, estimatedDurationSeconds: true } },
+      } } } },
       attendances: true,
     },
   });
@@ -137,7 +174,7 @@ export async function tripBlockReason(
     const pending = value?.scheduledChange as Prisma.JsonObject | null;
     const applied = value?.lastAppliedChange as Prisma.JsonObject | null;
     const date = pending ? String(pending.effectiveDate) : applied ? String(applied.effectiveDate) : null;
-    if ((pending || trip.route?.routePlan?.needsReoptimization) &&
+    if ((pending || (applied && trip.route?.routePlan?.needsReoptimization && trip.route.routePlan.reoptimizationReason === applied.reason)) &&
         (!date || date <= vietnamToday() && date <= contractDate(trip.serviceDate))) {
       return 'PARKING_REOPTIMIZATION_REQUIRED';
     }
@@ -145,6 +182,8 @@ export async function tripBlockReason(
   if ((trip.adminFinalization as Prisma.JsonObject | null)?.state === 'PENDING')
     return 'ADMIN_FINALIZATION_PENDING';
   const today = vietnamToday();
+  if (!isTripFrozen(trip) && await pendingSchoolReoptimization(db, trip.school, trip.route?.routePlan?.routes ?? [],
+    contractDate(trip.serviceDate) < today ? contractDate(trip.serviceDate) : today)) return 'SCHOOL_REOPTIMIZATION_REQUIRED';
   if (trip.route?.routePlan?.createdAt) {
     const invalidation = await planInvalidation(
       db,
@@ -155,7 +194,12 @@ export async function tripBlockReason(
   }
   if (
     contractDate(trip.serviceDate) === today &&
-    !(await serviceDay(db, trip.schoolId, today))
+    !(await serviceDay(db, trip.schoolId, today)) &&
+    (!isTripFrozen(trip) || !await db.schoolScheduledChange?.findFirst({
+      where: { schoolId: trip.schoolId, type: 'SCHEDULE', status: { in: ['PENDING', 'APPLIED'] },
+        effectiveDate: { lte: trip.serviceDate }, createdAt: { gt: trip.createdAt } },
+      select: { id: true },
+    }))
   )
     return 'HOLIDAY';
   if (contractDate(trip.serviceDate) <= today) {

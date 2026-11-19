@@ -32,6 +32,10 @@ import {
   bindingMatchesSession,
   requireDifferentCard,
   effectiveOpen,
+  hasBusyEnrollmentVehicle,
+  supportsAssignedEnrollment,
+  VEHICLE_ENROLLMENT_BUSY,
+  vehicleEnrollmentBusyMessage,
 } from './enrollment-policy.js';
 @Injectable()
 export class EnrollmentService {
@@ -44,13 +48,35 @@ export class EnrollmentService {
   ) {}
   private async registered(id: string) {
     const d = await this.sessions.io(() =>
-      this.devices.exists({ deviceId: id }).exec(),
+      this.devices
+        .findOne({ deviceId: id })
+        .select({ firmwareVersion: 1 })
+        .lean()
+        .exec(),
     );
     if (!d) throw new NotFoundException('Thiết bị chưa đăng ký');
+    return d;
   }
-  private owner(s: EnrollmentSession, id: string) {
+  private owner(s: EnrollmentSession, id: string, schoolScope?: string) {
     if (s.createdById !== id)
       throw new ForbiddenException('Chỉ người mở phiên được thao tác');
+    if (schoolScope !== undefined && s.operation === 'REPLACE')
+      throw new ForbiddenException('Quản trị trường chỉ được đăng ký thẻ mới');
+  }
+  private assertSchool(
+    student: { schoolId: string } | null,
+    schoolScope?: string,
+  ) {
+    if (schoolScope !== undefined && student?.schoolId !== schoolScope)
+      throw new NotFoundException('Không tìm thấy học sinh trong trường');
+  }
+  private async assertSessionSchool(studentId: string, schoolScope?: string) {
+    if (schoolScope === undefined) return;
+    const student = await this.prisma.student.findUnique({
+      where: { id: studentId },
+      select: { schoolId: true },
+    });
+    this.assertSchool(student, schoolScope);
   }
   private async lockStudent(tx: Prisma.TransactionClient, id: string) {
     await tx.$queryRaw`SELECT id FROM students WHERE id=${id} FOR UPDATE`;
@@ -68,9 +94,13 @@ export class EnrollmentService {
   ) {
     const owner = await tx.user.findUnique({
       where: { id: s.createdById },
-      select: { isActive: true, role: true },
+      select: { isActive: true, role: true, schoolId: true },
     });
-    if (!owner?.isActive || owner.role !== Role.SYSTEM_ADMIN)
+    const allowedSchoolAdmin =
+      owner?.role === Role.SCHOOL_ADMIN &&
+      owner.schoolId === student.schoolId &&
+      (s.operation ?? 'REGISTER') === 'REGISTER';
+    if (!owner?.isActive || (owner.role !== Role.SYSTEM_ADMIN && !allowedSchoolAdmin))
       enrollmentError(
         'SESSION_OWNER_INACTIVE',
         'Người mở phiên không còn quyền đăng ký',
@@ -90,16 +120,29 @@ export class EnrollmentService {
         'Liên kết thẻ đã thay đổi. Hủy và mở phiên mới.',
       );
   }
-  private async unbound(tx: Prisma.TransactionClient, id: string) {
+  private async assertVehicleAvailable(
+    tx: Prisma.TransactionClient,
+    deviceId: string,
+    session?: EnrollmentSession | null,
+    firmwareVersion?: string,
+  ) {
+    const assignment = await tx.vehicleIotAssignment.findFirst({
+      where: { deviceId, releasedAt: null },
+      select: { vehicleId: true },
+    });
+    if (!assignment) return;
+    if (await hasBusyEnrollmentVehicle(tx, assignment.vehicleId)) {
+      if (session && session.isOpen && !pending(session))
+        await this.sessions.invalidateForVehicle(session);
+      enrollmentError(VEHICLE_ENROLLMENT_BUSY, vehicleEnrollmentBusyMessage);
+    }
     if (
-      await tx.vehicleIotAssignment.findFirst({
-        where: { deviceId: id, releasedAt: null },
-        select: { id: true },
-      })
+      firmwareVersion !== undefined &&
+      !supportsAssignedEnrollment(firmwareVersion)
     )
       enrollmentError(
-        'DEVICE_ALREADY_ASSIGNED',
-        'Chỉ đăng ký thẻ khi thiết bị chưa gắn xe',
+        'FIRMWARE_UPGRADE_REQUIRED',
+        'Cập nhật ESP32 lên firmware 1.4.0 trở lên và chờ thiết bị kết nối lại.',
       );
   }
   private async transaction<T>(
@@ -124,13 +167,23 @@ export class EnrollmentService {
       iotAssignmentError(e);
     }
   }
-  async start(dto: StartEnrollmentDto, userId: string) {
-    await this.registered(dto.deviceId);
+  async start(dto: StartEnrollmentDto, userId: string, schoolScope?: string) {
+    if (schoolScope !== undefined && dto.operation !== 'REGISTER')
+      throw new ForbiddenException('Quản trị trường chỉ được đăng ký thẻ mới');
+    this.assertSchool({ schoolId: dto.schoolId }, schoolScope);
+    await this.assertSessionSchool(dto.studentId, schoolScope);
+    const device = await this.registered(dto.deviceId);
     return this.transaction(dto.deviceId, async (tx) => {
+      await this.assertVehicleAvailable(
+        tx,
+        dto.deviceId,
+        undefined,
+        device.firmwareVersion ?? '',
+      );
       const student = await this.lockStudent(tx, dto.studentId);
+      this.assertSchool(student, schoolScope);
       if (student.schoolId !== dto.schoolId)
         throw new NotFoundException('Học sinh không thuộc trường này');
-      await this.unbound(tx, dto.deviceId);
       const slot = await this.sessions.slot(tx, dto.deviceId, true);
       if (slot) {
         this.owner(slot, userId);
@@ -200,13 +253,14 @@ export class EnrollmentService {
       return { session: this.sessions.response(created), created: true };
     });
   }
-  async get(id: string, userId: string) {
+  async get(id: string, userId: string, schoolScope?: string) {
     const s = await this.sessions.get(id);
-    this.owner(s, userId);
+    this.owner(s, userId, schoolScope);
     const student = await this.prisma.student.findUnique({
       where: { id: s.studentId },
-      select: { rfidCardUid: true },
+      select: { rfidCardUid: true, schoolId: true },
     });
+    this.assertSchool(student, schoolScope);
     return this.sessions.response(
       s,
       !!s.capturedCardUid && student?.rfidCardUid === s.capturedCardUid,
@@ -269,19 +323,24 @@ export class EnrollmentService {
         );
       });
   }
-  async list(studentId: string, userId: string, activeOnly: boolean) {
+  async list(studentId: string, userId: string, activeOnly: boolean, schoolScope?: string) {
+    await this.assertSessionSchool(studentId, schoolScope);
     const rows = await this.sessions.list(studentId, userId, activeOnly);
+    const allowed = schoolScope === undefined
+      ? rows
+      : rows.filter((session) => session.operation !== 'REPLACE');
     return {
-      data: await Promise.all(rows.map((s) => this.get(s._id, userId))),
+      data: await Promise.all(allowed.map((s) => this.get(s._id, userId, schoolScope))),
     };
   }
-  async cancel(id: string, userId: string) {
+  async cancel(id: string, userId: string, schoolScope?: string) {
     const initial = await this.sessions.get(id);
-    this.owner(initial, userId);
+    this.owner(initial, userId, schoolScope);
     return this.transaction(initial.deviceId, async (tx) => {
-      await this.lockStudent(tx, initial.studentId);
+      const student = await this.lockStudent(tx, initial.studentId);
+      this.assertSchool(student, schoolScope);
       const s = await this.sessions.get(id);
-      this.owner(s, userId);
+      this.owner(s, userId, schoolScope);
       if (s.state === 'CANCELLED') return this.sessions.response(s);
       if (pending(s) || s.state === 'COMPLETED')
         enrollmentError(
@@ -314,7 +373,6 @@ export class EnrollmentService {
           requireLive(s);
         return this.captureAck(s, true);
       }
-      await this.unbound(tx, deviceId);
       if (pending(s))
         enrollmentError(
           'CONFIRMATION_PENDING',
@@ -337,6 +395,7 @@ export class EnrollmentService {
       }
       requireLive(s);
       assertCaptureTime(s, new Date(dto.scannedAt));
+      await this.assertVehicleAvailable(tx, deviceId, s);
       const student = await this.lockStudent(tx, s.studentId);
       await this.eligible(tx, s, student);
       if (
@@ -399,17 +458,24 @@ export class EnrollmentService {
     scanId: string,
     userId: string,
     reconcileOnly = false,
+    schoolScope?: string,
   ) {
     const original = await this.sessions.get(id);
-    if (!reconcileOnly) this.owner(original, userId);
+    if (!reconcileOnly || schoolScope !== undefined) this.owner(original, userId, schoolScope);
+    await this.assertSessionSchool(original.studentId, schoolScope);
     let intent: EnrollmentSession | undefined;
     try {
       const result = await this.transaction(original.deviceId, async (tx) => {
-        const student = await this.lockStudent(tx, original.studentId);
         const s = await this.sessions.get(id);
-        if (!reconcileOnly) this.owner(s, userId);
+        if (!reconcileOnly || schoolScope !== undefined) this.owner(s, userId, schoolScope);
         if (s.capturedScanId !== scanId || !s.capturedCardUid)
           enrollmentError('CAPTURE_CONFLICT', 'Lượt quẹt không khớp phiên');
+        if (!reconcileOnly && s.state !== 'COMPLETED' && !pending(s)) {
+          requireLive(s);
+          await this.assertVehicleAvailable(tx, s.deviceId, s);
+        }
+        const student = await this.lockStudent(tx, original.studentId);
+        this.assertSchool(student, schoolScope);
         if (s.state === 'COMPLETED')
           return this.sessions.response(
             s,
@@ -433,8 +499,6 @@ export class EnrollmentService {
             'STALE_SESSION',
             'Chỉ đối soát phiên đang chờ xác nhận',
           );
-        requireLive(s);
-        await this.unbound(tx, s.deviceId);
         await this.eligible(tx, s, student);
         requireDifferentCard(student.rfidCardUid, s.capturedCardUid);
         if (s.state !== 'CARD_CAPTURED')
@@ -486,11 +550,15 @@ export class EnrollmentService {
       throw e;
     }
   }
-  async reconcile(id: string, userId: string) {
+  async reconcile(id: string, userId: string, schoolScope?: string) {
     const s = await this.sessions.get(id);
+    if (schoolScope !== undefined) {
+      this.owner(s, userId, schoolScope);
+      await this.assertSessionSchool(s.studentId, schoolScope);
+    }
     if (!pending(s))
       enrollmentError('STALE_SESSION', 'Chỉ đối soát phiên đang chờ xác nhận');
-    const result = await this.confirm(id, s.capturedScanId ?? '', userId, true);
+    const result = await this.confirm(id, s.capturedScanId ?? '', userId, true, schoolScope);
     if (!result.pending) await this.sessionsAudit(id, userId);
     return result;
   }

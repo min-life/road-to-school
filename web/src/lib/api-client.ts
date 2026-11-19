@@ -412,11 +412,21 @@ class ApiClient {
     schoolId: string,
     latitude: number,
     longitude: number,
+    effectiveDate?: string,
   ): Promise<SchoolLocationImpactResponse> {
+    const query = new URLSearchParams({ latitude: String(latitude), longitude: String(longitude) });
+    if (effectiveDate) query.set('effectiveDate', effectiveDate);
     return this.request<SchoolLocationImpactResponse>(
-      `/schools/${schoolId}/location-impact?latitude=${latitude}&longitude=${longitude}`,
+      `/schools/${schoolId}/location-impact?${query}`,
       { method: 'GET' },
     );
+  }
+
+  async getSchoolScheduleImpact(schoolId: string, weeklySchedule: WeeklySchedule, effectiveDate: string) {
+    return this.request<SchoolLocationImpactResponse>(`/schools/${schoolId}/schedule-impact`, {
+      method: 'POST',
+      body: JSON.stringify({ weeklySchedule, effectiveDate }),
+    });
   }
 
   async updateSchoolLocation(
@@ -435,9 +445,10 @@ class ApiClient {
     school: SchoolDetail;
     cancelledPlansCount: number;
     cancelledTripsCount: number;
+    reoptimizationPlansCount: number;
     scheduledChangeId?: string;
     effectiveDate?: string;
-    changeStatus?: 'PENDING';
+    changeStatus?: 'PENDING' | 'APPLIED';
   }> {
     return this.request(`/schools/${schoolId}/location`, {
       method: 'PATCH',
@@ -464,6 +475,7 @@ class ApiClient {
     schoolId: string,
     weeklySchedule: WeeklySchedule,
     effectiveDate?: string,
+    expectedFingerprint?: string,
   ): Promise<{
     success: boolean;
     message: string;
@@ -474,13 +486,14 @@ class ApiClient {
     };
     cancelledTripsCount: number;
     updatedTripsCount: number;
+    reoptimizationPlansCount: number;
     scheduledChangeId?: string;
     effectiveDate?: string;
-    changeStatus?: 'PENDING';
+    changeStatus?: 'PENDING' | 'APPLIED';
   }> {
     return this.request(`/schools/${schoolId}/schedule`, {
       method: 'PATCH',
-      body: JSON.stringify({ weeklySchedule, effectiveDate }),
+      body: JSON.stringify({ weeklySchedule, effectiveDate, expectedFingerprint }),
     });
   }
 
@@ -867,6 +880,13 @@ class ApiClient {
     });
   }
 
+  async updateParkingRadius(maxOperatingRadiusKm: number): Promise<ParkingLot> {
+    return this.request<ParkingLot>('/system-settings/parking-lot/radius', {
+      method: 'PATCH',
+      body: JSON.stringify({ maxOperatingRadiusKm }),
+    });
+  }
+
   // ==========================================
   // Round 3 APIs: Vehicles Management
   // ==========================================
@@ -1101,10 +1121,11 @@ class ApiClient {
   // Route Management & VRP Optimization APIs
   // ==========================================
 
-  async getRoutePreparationData(schoolId: string, filters?: import('./types').GeographyQuery): Promise<RoutePreparationData> {
+  async getRoutePreparationData(schoolId: string, filters?: import('./types').GeographyQuery & { availableOnly?: boolean }): Promise<RoutePreparationData> {
     const query = new URLSearchParams();
     if (filters?.provinceId) query.set('provinceId', filters.provinceId);
     if (filters?.wardId) query.set('wardId', filters.wardId);
+    if (filters?.availableOnly) query.set('availableOnly', 'true');
     return this.request<RoutePreparationData>(`/routes/preparation/${schoolId}${query.size ? '?' + query.toString() : ''}`, { method: 'GET' });
   }
 

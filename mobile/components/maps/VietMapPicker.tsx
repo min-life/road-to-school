@@ -9,6 +9,7 @@ import {
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors } from '@/constants/theme';
+import { studentMapIcon } from '@/utils/trip-map-icons';
 import {
   VIETMAP_STYLES,
   VietMapStyleKey,
@@ -21,6 +22,7 @@ interface VietMapPickerProps {
   onLocationSelect: (lat: number, lng: number) => void;
   disabled?: boolean;
   height?: number;
+  markerKind?: 'student';
 }
 
 // Tọa độ mặc định viewport (TP. Hồ Chí Minh) nếu chưa có tọa độ
@@ -33,6 +35,7 @@ export function VietMapPicker({
   onLocationSelect,
   disabled = false,
   height = 280,
+  markerKind,
 }: VietMapPickerProps) {
   const webViewRef = useRef<WebView | null>(null);
 
@@ -272,10 +275,15 @@ export function VietMapPicker({
           }
         });
 
-        marker = new maplibregl.Marker({
-          color: '#FFCB56',
-          draggable: !disabled
-        });
+        var markerOptions = { color: '#FFCB56', draggable: !disabled };
+        ${markerKind === 'student' ? `
+        var studentPin = document.createElement('div');
+        studentPin.innerHTML = ${JSON.stringify(studentMapIcon.html)};
+        markerOptions.element = studentPin;
+        markerOptions.anchor = 'bottom';
+        markerOptions.offset = [0, 1];
+        ` : ''}
+        marker = new maplibregl.Marker(markerOptions);
 
         if (hasMarker) {
           marker.setLngLat([initialLng, initialLat]).addTo(map);

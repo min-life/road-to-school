@@ -9,13 +9,15 @@ interface Props {
   isOpen: boolean;
   outboundCount: number;
   returnCount: number;
+  assignedCount: number;
+  unassignedCount: number;
   isSaving: boolean;
   error: string | null;
   onClose: () => void;
   onConfirm: () => Promise<void>;
 }
 
-export function SaveRoutePlanDialog({ isOpen, outboundCount, returnCount, isSaving, error, onClose, onConfirm }: Props) {
+export function SaveRoutePlanDialog({ isOpen, outboundCount, returnCount, assignedCount, unassignedCount, isSaving, error, onClose, onConfirm }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const submittingRef = useRef(false);
@@ -49,7 +51,6 @@ export function SaveRoutePlanDialog({ isOpen, outboundCount, returnCount, isSavi
         <span className="save-route-dialog-icon" aria-hidden="true"><RouteIcon className="w-6 h-6" /></span>
         <div className="save-route-dialog-heading">
           <h2 id="save-route-title">Lưu phương án chưa duyệt?</h2>
-          <p>Xác nhận lưu phương án tuyến đưa đón</p>
         </div>
         <Button variant="ghost" size="icon" aria-label="Đóng" disabled={isSaving} onClick={close}><CloseIcon className="w-4 h-4" /></Button>
       </header>
@@ -57,16 +58,20 @@ export function SaveRoutePlanDialog({ isOpen, outboundCount, returnCount, isSavi
         <div className="save-route-dialog-summary">
           <div className="save-route-dialog-route">
             <span className="save-route-dialog-bus" aria-hidden="true"><BusIcon className="w-6 h-6" /></span>
-            <div><span>Tuyến đi</span><strong>{String(outboundCount).padStart(2, '0')} tuyến</strong></div>
+            <div><span>Tuyến đi</span><strong>{outboundCount} tuyến</strong></div>
           </div>
           <div className="save-route-dialog-route save-route-dialog-route-return">
             <span className="save-route-dialog-bus" aria-hidden="true"><BusIcon className="w-6 h-6" /></span>
-            <div><span>Tuyến về</span><strong>{String(returnCount).padStart(2, '0')} tuyến</strong></div>
+            <div><span>Tuyến về</span><strong>{returnCount} tuyến</strong></div>
           </div>
         </div>
         <div className="save-route-dialog-notice">
           <InfoIcon className="w-5 h-5" aria-hidden="true" />
-          <p id="save-route-description">Các tuyến được lưu trong cùng một phương án. Nếu hủy, toàn bộ tuyến sẽ được hủy cùng lúc.</p>
+          <p id="save-route-description">
+            {unassignedCount > 0
+              ? `Phương án sẽ lưu ${assignedCount} học sinh đã xếp đủ hai chiều. ${unassignedCount} học sinh chưa xếp đủ sẽ nằm ngoài phương án.`
+              : `Phương án sẽ lưu ${assignedCount} học sinh. Sau khi lưu, bạn sẽ chuyển sang phân công nguồn lực.`}
+          </p>
         </div>
         {error && <p className="save-route-dialog-error" role="alert">{error}</p>}
       </div>
@@ -78,7 +83,7 @@ export function SaveRoutePlanDialog({ isOpen, outboundCount, returnCount, isSavi
           try { await onConfirm(); } finally { submittingRef.current = false; }
         }}>
           {isSaving && <SpinnerIcon className="w-4 h-4 animate-spin" />}
-          {isSaving ? 'Đang lưu…' : 'Lưu phương án chưa duyệt'}
+          {isSaving ? 'Đang lưu…' : 'Lưu phương án'}
         </Button>
       </footer>
     </dialog>

@@ -4,7 +4,9 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { vietmapService } from '@/lib/vietmap/vietmap.service';
 import { MapPinIcon, SpinnerIcon, AlertIcon, CheckIcon } from '@/components/icons';
 import { Tooltip } from './tooltip';
+import { createSiteMarkerElement, siteMarkerOffset, type SiteMarkerKind } from '@/lib/map-site-markers';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import './vietmap-picker-markers.css';
 
 interface VietMapPickerProps {
   latitude: number | null;
@@ -12,6 +14,10 @@ interface VietMapPickerProps {
   onChangeCoordinates: (lat: number, lng: number) => void;
   onAddressSelect?: (address: string) => void;
   disabled?: boolean;
+  referenceLocation?: { latitude: number; longitude: number } | null;
+  mapHeightClassName?: string;
+  locationLabel?: string;
+  markerKind?: SiteMarkerKind;
 }
 
 // Tọa độ mặc định viewport (TP. Hồ Chí Minh) - chỉ dùng làm tâm ban đầu cho khung nhìn bản đồ
@@ -26,10 +32,23 @@ export function VietMapPicker({
   onChangeCoordinates,
   onAddressSelect,
   disabled = false,
+  referenceLocation,
+  mapHeightClassName = 'h-56 sm:h-64',
+  locationLabel = 'trường học',
+  markerKind,
 }: VietMapPickerProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
+  const referenceMarkerRef = useRef<any>(null);
+  const disabledRef = useRef(disabled);
+  const referenceLatitude = referenceLocation?.latitude;
+  const referenceLongitude = referenceLocation?.longitude;
+
+  useEffect(() => {
+    disabledRef.current = disabled;
+    markerRef.current?.setDraggable(!disabled);
+  }, [disabled]);
 
   const [mapStatus, setMapStatus] = useState<MapStatus>('INITIALIZING');
   const [mapError, setMapError] = useState<string | null>(null);
@@ -119,9 +138,12 @@ export function VietMapPicker({
 
         // Tạo marker nếu đã có tọa độ hoặc khi người dùng click
         const hasCoords = latitude !== null && longitude !== null;
+        const siteMarkerOptions = markerKind ? { anchor: 'bottom', offset: siteMarkerOffset } : {};
         const marker = new maplibregl.Marker({
+          ...siteMarkerOptions,
+          element: markerKind ? createSiteMarkerElement(markerKind, markerKind === 'depot' ? 'Bãi mới' : undefined) : undefined,
           color: '#FFCB56',
-          draggable: !disabled,
+          draggable: !disabledRef.current,
         });
 
         if (hasCoords) {
@@ -130,6 +152,7 @@ export function VietMapPicker({
 
         // Marker Drag End event
         marker.on('dragend', () => {
+          if (disabledRef.current) return;
           const lngLat = marker.getLngLat();
           const newLat = Number(lngLat.lat.toFixed(6));
           const newLng = Number(lngLat.lng.toFixed(6));
@@ -139,7 +162,7 @@ export function VietMapPicker({
 
         // Click trên bản đồ để đặt marker
         map.on('click', (e: any) => {
-          if (disabled) return;
+          if (disabledRef.current) return;
           const newLat = Number(e.lngLat.lat.toFixed(6));
           const newLng = Number(e.lngLat.lng.toFixed(6));
 
@@ -195,6 +218,11 @@ export function VietMapPicker({
 
         mapInstanceRef.current = map;
         markerRef.current = marker;
+        referenceMarkerRef.current = new maplibregl.Marker({
+          ...siteMarkerOptions,
+          element: markerKind ? createSiteMarkerElement(markerKind, markerKind === 'depot' ? 'Bãi hiện tại' : undefined) : undefined,
+          color: '#193652',
+        });
       } catch (err: any) {
         if (isMounted) {
           setMapStatus('ERROR');
@@ -216,8 +244,9 @@ export function VietMapPicker({
         mapInstanceRef.current = null;
       }
       markerRef.current = null;
+      referenceMarkerRef.current = null;
     };
-  }, [retryCounter]); // Re-run only when retryCounter triggers
+  }, [retryCounter, markerKind]); // Rebuild only when the marker style changes or the user retries.
 
   // Đồng bộ vị trí Marker khi coordinates thay đổi từ ngoài (ví dụ từ Autocomplete)
   useEffect(() => {
@@ -241,6 +270,30 @@ export function VietMapPicker({
     }
   }, [latitude, longitude]);
 
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const marker = referenceMarkerRef.current;
+    if (!map || !marker || mapStatus !== 'READY') return;
+    const primary = markerRef.current?.getElement() as HTMLElement | undefined;
+    const hasReference = referenceLatitude !== undefined && referenceLongitude !== undefined;
+    primary?.classList.toggle('rts-site-picker-comparing', hasReference);
+    if (referenceLatitude === undefined || referenceLongitude === undefined) {
+      marker.remove();
+      return;
+    }
+    marker.getElement().classList.add('rts-site-picker-comparing');
+    marker.setLngLat([referenceLongitude, referenceLatitude]).addTo(map);
+    if (latitude !== null && longitude !== null) {
+      map.fitBounds(
+        [
+          [Math.min(longitude, referenceLongitude), Math.min(latitude, referenceLatitude)],
+          [Math.max(longitude, referenceLongitude), Math.max(latitude, referenceLatitude)],
+        ],
+        { padding: 55, maxZoom: 15 },
+      );
+    }
+  }, [mapStatus, referenceLatitude, referenceLongitude, latitude, longitude]);
+
   const hasLocation = latitude !== null && longitude !== null;
 
   return (
@@ -252,7 +305,7 @@ export function VietMapPicker({
             <MapPinIcon className="w-3.5 h-3.5 text-amber-500" />
             <span>Vị trí trên bản đồ</span>
           </label>
-          <Tooltip content="Nhấp vào bản đồ hoặc kéo ghim để chọn vị trí trường học chính xác." />
+          {!disabled && <Tooltip content={`Nhấp vào bản đồ hoặc kéo ghim để chọn vị trí ${locationLabel}.`} />}
         </div>
 
         {/* Trạng thái vị trí (ẩn tọa độ số) */}
@@ -294,7 +347,7 @@ export function VietMapPicker({
       )}
 
       {/* Map container */}
-      <div className="relative w-full h-56 sm:h-64 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 shadow-2xs">
+      <div className={`relative w-full ${mapHeightClassName} rounded-xl overflow-hidden border border-slate-200 bg-slate-100 shadow-2xs`}>
         <div ref={mapContainerRef} className="w-full h-full" />
 
         {/* Loading overlay */}

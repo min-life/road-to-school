@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  getActiveNavItem,
   getVisibleNavItems,
   formatRoleLabel,
   getAvatarInitial,
@@ -9,6 +10,20 @@ import {
 import type { Role } from '../../lib/types.ts';
 
 describe('Admin Navigation Configuration & Role Filtering', () => {
+  it('activates the owning section on child paths and keeps its root as the destination', () => {
+    const systemItems = getVisibleNavItems('SYSTEM_ADMIN');
+    assert.equal(getActiveNavItem('/admin/routes/plans/plan-1', systemItems)?.href, '/admin/routes');
+    assert.equal(getActiveNavItem('/admin/routes/route-1', systemItems)?.id, 'routes');
+    assert.equal(getActiveNavItem('/admin/schools/school-1', systemItems)?.id, 'schools');
+    assert.equal(getActiveNavItem('/admin/trips/trip-1', systemItems)?.id, 'trips');
+    assert.equal(getActiveNavItem('/admin/routes-extra', systemItems), undefined);
+    assert.equal(getActiveNavItem('/admin/', systemItems)?.id, 'overview');
+    assert.equal(getActiveNavItem('/admin/unknown', systemItems), undefined);
+    const schoolItems = getVisibleNavItems('SCHOOL_ADMIN');
+    assert.equal(getActiveNavItem('/admin/students/student-1', schoolItems)?.id, 'students');
+    assert.equal(getActiveNavItem('/admin/schools/school-1', schoolItems), undefined);
+  });
+
   it('SYSTEM_ADMIN phải nhìn thấy 11 mục điều hướng, gồm IoT; lịch nghỉ nhà xe nằm trong Cài đặt', () => {
     const items = getVisibleNavItems('SYSTEM_ADMIN');
     const ids = items.map((item) => item.id);

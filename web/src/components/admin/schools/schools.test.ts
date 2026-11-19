@@ -1101,7 +1101,7 @@ describe('School Edit Wizard — Baseline, Change Detection & Validation', () =>
     assert.equal(vEmptySched.valid, false);
     assert.equal(vEmptySched.stepTarget, 3);
 
-    // Khi có đổi vị trí, ngày áp dụng trong quá khứ -> báo lỗi và target step 3
+    // Lỗi ngày áp dụng đổi địa điểm được đưa về bước có ô ngày.
     const changesLocation = {
       isProfileChanged: false,
       isNameChanged: false,
@@ -1118,6 +1118,15 @@ describe('School Edit Wizard — Baseline, Change Detection & Validation', () =>
       'SYSTEM_ADMIN',
     );
     assert.equal(vPastEffective.valid, false);
-    assert.equal(vPastEffective.stepTarget, 3);
+    assert.equal(vPastEffective.stepTarget, 2);
+
+    const today = getVietnamToday();
+    const nextDay = getNextCalendarDay(today);
+    const extendedDraft = { ...draftValid, contractStartDate: today, contractEndDate: nextDay };
+    const changesSchedule = { ...changesLocation, isLocationChanged: false, isScheduleChanged: true };
+    const beyondCurrentContract = validateSchoolEditForm(extendedDraft, changesSchedule, nextDay, 'SYSTEM_ADMIN', today);
+    assert.equal(beyondCurrentContract.valid, false);
+    assert.equal(beyondCurrentContract.stepTarget, 3);
+    assert.equal(validateSchoolEditForm(extendedDraft, changesSchedule, today, 'SYSTEM_ADMIN', today).valid, true);
   });
 });

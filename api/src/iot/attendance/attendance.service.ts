@@ -117,8 +117,6 @@ export class AttendanceService {
         return this.store.ack(previous, true);
       }
       await this.enrollments.assertScanUnused(dto.scanId);
-      if (await this.enrollments.slot(tx, deviceId))
-        attendanceError('DEVICE_IN_ENROLLMENT', 'Thiết bị đang đăng ký thẻ.');
       const c = this.contexts.decode(dto.contextToken, deviceId);
       const scannedAt = new Date(dto.scannedAt),
         now = Date.now();
@@ -132,18 +130,22 @@ export class AttendanceService {
           'STALE_CONTEXT',
           'Thời gian lượt quẹt không còn hợp lệ.',
         );
+      await lockTripOperation(tx, c.tripId, this.lifecycle, false);
       let student = await tx.student.findUnique({
         where: { rfidCardUid: dto.cardUid },
         include: { school: { select: { isActive: true } } },
       });
       if (student) student = await this.studentLock(tx, student.id);
-      await lockTripOperation(tx, c.tripId, this.lifecycle, false);
       await this.contexts.assertCurrent(tx, c);
       const trip = await tx.trip.findUniqueOrThrow({ where: { id: c.tripId } });
       const assignment = await tx.vehicleIotAssignment.findUniqueOrThrow({
         where: { id: c.assignmentId },
         include: { vehicle: { select: { licensePlate: true } } },
       });
+      if (
+        await this.enrollments.runtimeSlot(tx, deviceId, assignment.vehicleId, true)
+      )
+        attendanceError('DEVICE_IN_ENROLLMENT', 'Thiết bị đang đăng ký thẻ.');
       let resultCode: string | null = null;
       if (!student || student.rfidCardUid !== dto.cardUid)
         resultCode = 'UNKNOWN_CARD';

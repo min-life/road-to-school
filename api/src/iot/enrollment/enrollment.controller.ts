@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Header,
   HttpCode,
@@ -42,10 +43,17 @@ import {
   RevokeStudentRfidDto,
   StudentRfidBindingDto,
 } from './enrollment.dto.js';
+
+function enrollmentSchoolScope(user: User): string | undefined {
+  if (user.role === Role.SYSTEM_ADMIN) return undefined;
+  if (user.role === Role.SCHOOL_ADMIN && user.schoolId) return user.schoolId;
+  throw new ForbiddenException('Tài khoản chưa được gán quyền đăng ký thẻ cho trường');
+}
+
 @ApiTags('IoT Card Enrollment')
 @Controller('iot/enrollment-sessions')
 @UseGuards(AuthGuard, RolesGuard)
-@Roles(Role.SYSTEM_ADMIN)
+@Roles(Role.SYSTEM_ADMIN, Role.SCHOOL_ADMIN)
 @ApiBearerAuth('JWT-auth')
 export class EnrollmentController {
   constructor(private readonly enrollment: EnrollmentService) {}
@@ -54,7 +62,9 @@ export class EnrollmentController {
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
     summary:
-      'Mở phiên REGISTER/REPLACE 5 phút; chỉ ESP32 chưa gắn xe, REPLACE giữ thẻ cũ tới confirm',
+      'Mở phiên REGISTER/REPLACE 5 phút, giữ thẻ cũ đến khi xác nhận',
+    description:
+      'SYSTEM_ADMIN có thể đăng ký hoặc đổi thẻ. SCHOOL_ADMIN chỉ đăng ký thẻ mới cho học sinh của trường mình. ESP32 đã gắn xe cần firmware từ 1.4.0 và xe chưa có chuyến sẵn sàng hoặc đang phục vụ.',
   })
   @ApiResponse({ status: 201, type: EnrollmentResponseDto })
   @ApiResponse({
@@ -68,17 +78,17 @@ export class EnrollmentController {
     @CurrentUser() user: User,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const result = await this.enrollment.start(dto, user.id);
+    const result = await this.enrollment.start(dto, user.id, enrollmentSchoolScope(user));
     response.status(result.created ? 201 : 200);
     return result.session;
   }
   @Get()
   @Header('Cache-Control', 'no-store')
-  @ApiOperation({ summary: 'Phiên của người đang đăng nhập theo học sinh' })
+  @ApiOperation({ summary: 'Phiên do người đăng nhập mở cho học sinh thuộc phạm vi quản lý' })
   @ApiResponse({ status: 200, type: EnrollmentListDto })
-  @ApiIotErrors(400, 401, 403, 503)
+  @ApiIotErrors(400, 401, 403, 404, 503)
   list(@Query() q: EnrollmentQueryDto, @CurrentUser() user: User) {
-    return this.enrollment.list(q.studentId, user.id, q.activeOnly);
+    return this.enrollment.list(q.studentId, user.id, q.activeOnly, enrollmentSchoolScope(user));
   }
   @Get(':sessionId')
   @ApiParam({ name: 'sessionId', format: 'uuid' })
@@ -90,7 +100,7 @@ export class EnrollmentController {
   @ApiResponse({ status: 200, type: EnrollmentResponseDto })
   @ApiIotErrors(400, 401, 403, 404, 503)
   get(@Param() p: EnrollmentIdDto, @CurrentUser() user: User) {
-    return this.enrollment.get(p.sessionId, user.id);
+    return this.enrollment.get(p.sessionId, user.id, enrollmentSchoolScope(user));
   }
   @Post(':sessionId/confirm')
   @HttpCode(200)
@@ -98,7 +108,7 @@ export class EnrollmentController {
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
     summary:
-      'Xác nhận UID;202 nếu cần đối soát, không lặp ghi Student từ intent cũ',
+      'Xác nhận UID; trả 409 nếu xe đã sẵn sàng hoặc đang phục vụ, 202 nếu cần đối soát',
   })
   @ApiResponse({ status: 200, type: EnrollmentResponseDto })
   @ApiResponse({
@@ -117,6 +127,8 @@ export class EnrollmentController {
       p.sessionId,
       dto.capturedScanId,
       user.id,
+      false,
+      enrollmentSchoolScope(user),
     );
     response.status(result.pending ? 202 : 200);
     return result.session;
@@ -127,7 +139,7 @@ export class EnrollmentController {
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
     summary:
-      'Đối soát phiên pending kể cả creator bị khóa; PG read-only, không gán UID mới',
+      'Đối soát phiên pending; SCHOOL_ADMIN chỉ đối soát phiên đăng ký do mình mở trong trường',
   })
   @ApiResponse({ status: 200, type: EnrollmentResponseDto })
   @ApiResponse({ status: 202, type: EnrollmentResponseDto })
@@ -137,7 +149,7 @@ export class EnrollmentController {
     @CurrentUser() user: User,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const result = await this.enrollment.reconcile(p.sessionId, user.id);
+    const result = await this.enrollment.reconcile(p.sessionId, user.id, enrollmentSchoolScope(user));
     response.status(result.pending ? 202 : 200);
     return { ...result.session, candidate: null, lastScanFeedback: null };
   }
@@ -150,7 +162,7 @@ export class EnrollmentController {
   @ApiResponse({ status: 200, type: EnrollmentResponseDto })
   @ApiIotErrors(400, 401, 403, 404, 409, 503)
   cancel(@Param() p: EnrollmentIdDto, @CurrentUser() user: User) {
-    return this.enrollment.cancel(p.sessionId, user.id);
+    return this.enrollment.cancel(p.sessionId, user.id, enrollmentSchoolScope(user));
   }
 }
 @ApiTags('IoT Card Enrollment')
@@ -190,7 +202,7 @@ export class EnrollmentDeviceController {
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
     summary:
-      'ESP32 gửi UID ứng viên; không ghi Student/Mongo rfid_scans/điểm danh',
+      'ESP32 gửi UID ứng viên; trả 409 nếu xe cần phục vụ chuyến, không ghi điểm danh',
   })
   @ApiResponse({ status: 200, type: EnrollmentCaptureAckDto })
   @ApiIotErrors(400, 401, 403, 404, 409, 410, 503)

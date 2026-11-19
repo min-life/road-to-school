@@ -51,13 +51,8 @@ import { canCancelAllAbsent, canCorrectAttendance, tripBlockLabel } from "@/util
 import { useActiveRefresh } from "@/hooks/use-active-refresh";
 import type { RefreshContext } from "@/utils/refresh-loop";
 import { getTripMapSnapshot } from "@/utils/trip-map-data";
-import { busMapIcon, schoolMapIcon } from "@/utils/trip-map-icons";
-import {
-  childMapPinCss,
-  childMapPinScript,
-  childMapPinSize,
-  serializeMapScriptValue,
-} from "@/utils/child-map-marker";
+import { busMapIcon, depotMapIcon, schoolMapIcon, studentMapIcon, studentMapIconCss } from "@/utils/trip-map-icons";
+import { serializeMapScriptValue } from "@/utils/child-map-marker";
 import { hasTripAction } from "@/utils/trip-map-layout";
 import { useParentMapAvatars } from "@/hooks/use-parent-map-avatars";
 import { decodePolyline } from "@/utils/polyline";
@@ -646,9 +641,9 @@ export default function MobileTripDetailScreen() {
         <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
         <style>
           body, html, #map { margin: 0; padding: 0; height: 100%; width: 100%; background: #F8FAFC; }
-          .depot-marker { background: #2563EB; color: white; border: 2px solid white; border-radius: 50%; font-weight: bold; width: 28px; height: 28px; line-height: 24px; text-align: center; font-size: 13px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
-          .student-marker { background: #059669; color: white; border: 2px solid white; border-radius: 50%; font-weight: bold; width: 26px; height: 26px; line-height: 22px; text-align: center; font-size: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
-          ${childMapPinCss}
+          ${studentMapIconCss}
+          .student-popup-avatar { display: block; width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-bottom: 6px; }
+          .student-popup-avatar[hidden] { display: none; }
         </style>
       </head>
       <body>
@@ -662,36 +657,80 @@ export default function MobileTripDetailScreen() {
 
           var bounds = L.latLngBounds();
           var stops = ${stopsJson};
-          ${childMapPinScript}
           var staffMap = ${isDriverOrAttendant};
+          var studentIcon = ${JSON.stringify(studentMapIcon)};
+          var childAvatars = new Map();
+          var updateOpenPortrait = null;
+
+          window.setChildMapAvatars = function(children) {
+            childAvatars = new Map(children.map(function(child) { return [child.id, child.avatarUrl]; }));
+            if (updateOpenPortrait) updateOpenPortrait();
+          };
+
+          function bindStopPopup(marker, stop, ownChild) {
+            var content = document.createElement('div');
+            if (ownChild) {
+              var portrait = document.createElement('img');
+              portrait.className = 'student-popup-avatar';
+              portrait.alt = '';
+              portrait.referrerPolicy = 'no-referrer';
+              portrait.hidden = true;
+              portrait.onload = function() { portrait.hidden = false; };
+              portrait.onerror = function() { portrait.hidden = true; portrait.removeAttribute('src'); };
+              content.append(portrait);
+              var updatePortrait = function() {
+                var url = childAvatars.get(stop.studentId);
+                if (typeof url === 'string' && /^https?:[/][/]/i.test(url)) {
+                  if (portrait.getAttribute('src') !== url) {
+                    portrait.hidden = true;
+                    portrait.src = url;
+                  }
+                } else {
+                  portrait.hidden = true;
+                  portrait.removeAttribute('src');
+                }
+              };
+              marker.on('popupopen', function() { updateOpenPortrait = updatePortrait; updatePortrait(); });
+              marker.on('popupclose', function() {
+                if (updateOpenPortrait === updatePortrait) updateOpenPortrait = null;
+              });
+            }
+            var title = document.createElement('b');
+            title.textContent = stop.name || 'Điểm dừng';
+            content.append(title);
+            if (stop.eta) {
+              var eta = document.createElement('div');
+              eta.textContent = 'Dự kiến: ' + stop.eta;
+              content.append(eta);
+            }
+            if (stop.address) {
+              var address = document.createElement('div');
+              address.textContent = stop.address;
+              content.append(address);
+            }
+            marker.bindPopup(content);
+          }
 
           stops.forEach(function(s) {
-            var iconHtml = '<div class="student-marker">' + s.order + '</div>';
             var schoolStop = s.type === 'SCHOOL_ARRIVAL' || s.type === 'SCHOOL_DEPARTURE';
-            var ownChildPin = s.isMyChild && s.studentId && (s.type === 'PICKUP' || s.type === 'DROPOFF');
-            var staffStopPin = staffMap && (s.type === 'PICKUP' || s.type === 'DROPOFF');
-            if (s.type === 'PARKING_START' || s.type === 'PARKING_END') {
-              iconHtml = '<div class="depot-marker">P</div>';
-            } else if (ownChildPin) {
-              iconHtml = window.createChildMapPin(s.studentId, s.name);
-            } else if (staffStopPin) {
-              iconHtml = window.createChildMapPin(null, s.name);
+            var depotStop = s.type === 'PARKING_START' || s.type === 'PARKING_END';
+            var studentStop = s.type === 'PICKUP' || s.type === 'DROPOFF';
+            var ownChild = studentStop && s.isMyChild && s.studentId;
+            var order = Number.isInteger(s.order) && s.order > 0 ? s.order : null;
+            var options = schoolStop ? ${JSON.stringify(schoolMapIcon)} : depotStop ? ${JSON.stringify(depotMapIcon)} : studentStop ? {
+              ...studentIcon,
+              html: studentIcon.html + (order === null ? '' : '<span class="rts-student-map-order" aria-hidden="true">' + order + '</span>'),
+            } : undefined;
+            var marker = L.marker([s.lat, s.lng], options ? { icon: L.divIcon(options) } : {}).addTo(map);
+            if ((schoolStop || depotStop) && marker.getElement()) {
+              marker.getElement().setAttribute('aria-label', s.name || (schoolStop ? 'Trường học' : 'Bãi xe trung tâm'));
+            } else if (studentStop && marker.getElement()) {
+              var label = s.type === 'PICKUP' ? 'Điểm đón' : 'Điểm trả';
+              if (order !== null) label += ' ' + order;
+              if ((ownChild || staffMap) && s.name) label += ': ' + s.name;
+              marker.getElement().setAttribute('aria-label', label);
             }
-
-            var pinMarker = ownChildPin || staffStopPin;
-            var icon = L.divIcon(schoolStop ? ${JSON.stringify(schoolMapIcon)} : { className: '', html: iconHtml,
-              iconSize: pinMarker ? [${childMapPinSize.width}, ${childMapPinSize.height}] : [28, 28],
-              iconAnchor: pinMarker ? [${childMapPinSize.width / 2}, ${(childMapPinSize.height * 65) / 66}] : [14, 14],
-              popupAnchor: pinMarker ? [0, -${childMapPinSize.height - 5}] : [0, 0] });
-            var marker = L.marker([s.lat, s.lng], { icon: icon }).addTo(map);
-            if (schoolStop && marker.getElement()) {
-              marker.getElement().setAttribute('aria-label', s.name || 'Trường học');
-            } else if (ownChildPin && marker.getElement()) {
-              marker.getElement().setAttribute('aria-label', (s.type === 'PICKUP' ? 'Điểm đón: ' : 'Điểm trả: ') + s.name);
-            } else if (staffStopPin && marker.getElement()) {
-              marker.getElement().setAttribute('aria-label', 'Điểm dừng ' + s.order + ': ' + s.name);
-            }
-            marker.bindPopup('<b>' + s.name + '</b><br/>' + (s.eta ? 'Dự kiến: ' + s.eta + '<br/>' : '') + s.address);
+            bindStopPopup(marker, s, ownChild);
             bounds.extend([s.lat, s.lng]);
           });
 

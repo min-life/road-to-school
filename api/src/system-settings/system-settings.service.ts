@@ -13,6 +13,19 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { UpdateParkingLotDto, ParkingLotResponseDto, ParkingLotImpactDto } from './dto/parking-lot.dto.js';
 import { vietnamToday } from '../schools/school-effective-state.js';
 
+function resolveParkingEffectiveDate(date: string | undefined, today: string): string {
+  const tomorrow = new Date(Date.parse(today) + 86400000).toISOString().slice(0, 10);
+  const effectiveDate = date ?? tomorrow;
+  const timestamp = Date.parse(effectiveDate);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate) ||
+      !Number.isFinite(timestamp) ||
+      new Date(timestamp).toISOString().slice(0, 10) !== effectiveDate ||
+      effectiveDate < today) {
+    throw new BadRequestException('Ngày dời bãi phải hợp lệ và từ hôm nay');
+  }
+  return effectiveDate;
+}
+
 @Injectable()
 export class SystemSettingsService {
   private readonly logger = new Logger(SystemSettingsService.name);
@@ -23,8 +36,8 @@ export class SystemSettingsService {
   /**
    * Lấy thông tin vị trí bãi đỗ xe trung tâm
    */
-  async getParkingLot(): Promise<ParkingLotResponseDto> {
-    const setting = await this.prisma.systemSetting.findUnique({
+  async getParkingLot(db: Pick<Prisma.TransactionClient, 'systemSetting'> = this.prisma): Promise<ParkingLotResponseDto> {
+    const setting = await db.systemSetting.findUnique({
       where: { key: SystemSettingsService.PARKING_LOT_KEY },
     });
 
@@ -49,17 +62,15 @@ export class SystemSettingsService {
     targetLatitude?: number,
     targetLongitude?: number,
     targetEffectiveDate?: string,
+    db: Pick<Prisma.TransactionClient, 'systemSetting' | 'routePlan' | 'trip'> = this.prisma,
   ): Promise<ParkingLotImpactDto> {
-    const current = await this.getParkingLot();
+    const current = await this.getParkingLot(db);
 
     const today = vietnamToday();
-    const tomorrowDate = new Date(`${today}T00:00:00.000Z`);
-    tomorrowDate.setUTCDate(tomorrowDate.getUTCDate() + 1);
-    const defaultEffectiveDate = tomorrowDate.toISOString().split('T')[0];
-    const effectiveDate = targetEffectiveDate || defaultEffectiveDate;
+    const effectiveDate = resolveParkingEffectiveDate(targetEffectiveDate || undefined, today);
     const effectiveDateObj = new Date(`${effectiveDate}T00:00:00.000Z`);
 
-    const plans = await this.prisma.routePlan.findMany({
+    const plans = await db.routePlan.findMany({
       where: {
         status: { in: [RoutePlanStatus.DRAFT, RoutePlanStatus.ACTIVE] },
       },
@@ -71,27 +82,37 @@ export class SystemSettingsService {
     const routeIds = plans.flatMap((p) => p.routes.map((r) => r.id));
     let totalScheduledTripsCount = 0;
     let tripsCancelledAfterEffectiveDateCount = 0;
+    let tripsCancelledTodayCount = 0;
     let tripsPreservedBeforeEffectiveDateCount = 0;
     let totalInProgressTripsCount = 0;
 
     if (routeIds.length > 0) {
-      totalScheduledTripsCount = await this.prisma.trip.count({
+      totalScheduledTripsCount = await db.trip.count({
         where: {
           routeId: { in: routeIds },
           status: TripStatus.SCHEDULED,
         },
       });
 
-      tripsCancelledAfterEffectiveDateCount = await this.prisma.trip.count({
+      const cancellableTrips = {
+        routeId: { in: routeIds },
+        status: TripStatus.SCHEDULED,
+        NOT: frozenTripWhere,
+      };
+      const effectiveToday = effectiveDate === today;
+      if (effectiveToday) {
+        tripsCancelledTodayCount = await db.trip.count({
+          where: { ...cancellableTrips, serviceDate: effectiveDateObj },
+        });
+      }
+      tripsCancelledAfterEffectiveDateCount = tripsCancelledTodayCount + await db.trip.count({
         where: {
-          routeId: { in: routeIds },
-          status: TripStatus.SCHEDULED,
-          serviceDate: { gte: effectiveDateObj },
-          NOT: frozenTripWhere,
+          ...cancellableTrips,
+          serviceDate: effectiveToday ? { gt: effectiveDateObj } : { gte: effectiveDateObj },
         },
       });
 
-      tripsPreservedBeforeEffectiveDateCount = await this.prisma.trip.count({
+      tripsPreservedBeforeEffectiveDateCount = await db.trip.count({
         where: {
           routeId: { in: routeIds },
           status: TripStatus.SCHEDULED,
@@ -99,7 +120,7 @@ export class SystemSettingsService {
         },
       });
 
-      totalInProgressTripsCount = await this.prisma.trip.count({
+      totalInProgressTripsCount = await db.trip.count({
         where: {
           routeId: { in: routeIds },
           status: TripStatus.IN_PROGRESS,
@@ -121,6 +142,7 @@ export class SystemSettingsService {
           totalDraftPlansCount,
           totalActivePlansCount,
           tripsCancelledAfterEffectiveDateCount,
+          ...(effectiveDate === today ? [tripsCancelledTodayCount] : []),
         ]),
       )
       .digest('hex');
@@ -139,6 +161,7 @@ export class SystemSettingsService {
       effectiveDate,
       plansNeedingReoptimizationCount,
       tripsCancelledAfterEffectiveDateCount,
+      tripsCancelledTodayCount,
       tripsPreservedBeforeEffectiveDateCount,
       totalDraftPlansCount,
       totalActivePlansCount,
@@ -180,7 +203,7 @@ export class SystemSettingsService {
       });
       const current = (stored?.value ?? {}) as Prisma.JsonObject;
       if (stored && dto.expectedFingerprint) {
-        const impact = await this.getParkingLotImpact(dto.latitude, dto.longitude, dto.effectiveDate);
+        const impact = await this.getParkingLotImpact(dto.latitude, dto.longitude, dto.effectiveDate, tx);
         if (dto.expectedFingerprint !== impact.expectedFingerprint) {
           throw new ConflictException('Tác động dời bãi đã thay đổi; tải lại impact');
         }
@@ -197,21 +220,6 @@ export class SystemSettingsService {
       const coordsChanged = !!stored && (
         Math.abs(Number(current.latitude) - dto.latitude) > 1e-6 ||
         Math.abs(Number(current.longitude) - dto.longitude) > 1e-6);
-      const tomorrow = new Date(new Date(vietnamToday()).getTime() + 86400000)
-        .toISOString()
-        .slice(0, 10);
-      const date = dto.effectiveDate ?? tomorrow;
-      if (
-        coordsChanged &&
-        (!/^\d{4}-\d{2}-\d{2}$/.test(date) ||
-          !Number.isFinite(new Date(date).getTime()) ||
-          new Date(date).toISOString().slice(0, 10) !== date ||
-          date < tomorrow)
-      ) {
-        throw new BadRequestException(
-          'Ngày dời bãi phải hợp lệ và từ ngày mai',
-        );
-      }
       const value: { [key: string]: Prisma.InputJsonValue | null } = {
         ...(current as Prisma.InputJsonObject),
         maxOperatingRadiusKm:
@@ -223,7 +231,7 @@ export class SystemSettingsService {
           newAddressText: dto.addressText.trim(),
           newLatitude: dto.latitude,
           newLongitude: dto.longitude,
-          effectiveDate: date,
+          effectiveDate: resolveParkingEffectiveDate(dto.effectiveDate, vietnamToday()),
           reason: dto.reason?.trim() || 'Bãi xe thay đổi vị trí',
           scheduledAt: new Date().toISOString(),
           scheduledById: userId,
@@ -248,6 +256,23 @@ export class SystemSettingsService {
       cancelledPlansCount: 0,
       cancelledTripsCount: 0,
     };
+  }
+
+  async updateParkingRadius(maxOperatingRadiusKm: number, userId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      await lockOperations(tx);
+      const key = SystemSettingsService.PARKING_LOT_KEY;
+      const setting = await tx.systemSetting.findUnique({ where: { key } });
+      configuredParking(setting?.value);
+      await tx.systemSetting.update({
+        where: { key },
+        data: {
+          value: { ...(setting!.value as Prisma.InputJsonObject), maxOperatingRadiusKm },
+          updatedById: userId,
+        },
+      });
+      return this.getParkingLot(tx);
+    });
   }
 
   async cancelScheduledParkingLotChange(

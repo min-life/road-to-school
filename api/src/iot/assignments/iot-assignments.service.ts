@@ -142,7 +142,7 @@ export class IotAssignmentsService {
       const row = await this.prisma.$transaction(
         async (tx) => {
           await lockIotDevice(tx, deviceId);
-          if (target) await this.enrollments?.assertFree(tx, deviceId);
+          await this.enrollments?.assertFree(tx, deviceId);
           // Freeze signals live in Trip and TripAttendance; serialize their normal writes.
           // Short admin transaction only; no network/Mongo operation while holding this lock.
           await tx.$executeRaw`SET LOCAL lock_timeout = '3s'`;

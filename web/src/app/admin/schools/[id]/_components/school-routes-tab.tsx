@@ -15,13 +15,11 @@ import { Table } from '@/components/ui/table';
 
 interface SchoolRoutesTabProps {
   schoolId: string;
-  schoolName: string;
   isSchoolActive: boolean;
 }
 
 export function SchoolRoutesTab({
   schoolId,
-  schoolName,
   isSchoolActive,
 }: SchoolRoutesTabProps) {
   const [plans, setPlans] = useState<RoutePlanItem[]>([]);
@@ -68,15 +66,8 @@ export function SchoolRoutesTab({
 
   return (
     <div className="space-y-4 pt-2">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-bold text-slate-800">Phương án tuyến của trường</h3>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Danh sách các phương án đưa đón học sinh đã thiết lập cho {schoolName}
-          </p>
-        </div>
-
-        {isSchoolActive && (
+      {isSchoolActive && (
+        <div className="flex justify-end">
           <ContextLink data-variant="primary" data-size="sm"
             href={`/admin/routes/create?schoolId=${schoolId}`}
             className="ui-button flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary hover:bg-[#e6b74d] text-foreground font-bold text-xs shadow-xs transition-colors"
@@ -84,8 +75,8 @@ export function SchoolRoutesTab({
             <PlusIcon className="w-3.5 h-3.5" />
             <span>Lập phương án tuyến mới</span>
           </ContextLink>
-        )}
-      </div>
+        </div>
+      )}
 
       <Card className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">

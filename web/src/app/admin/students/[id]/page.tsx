@@ -570,6 +570,8 @@ function StudentDetailPageContent() {
                   {/* Map Picker */}
                   <div className="border border-slate-200 rounded-lg overflow-hidden">
                     <VietMapPicker
+                      markerKind="student"
+                      locationLabel="học sinh"
                       latitude={newLatitude}
                       longitude={newLongitude}
                       onChangeCoordinates={(lat: number, lng: number) => {
@@ -610,7 +612,7 @@ function StudentDetailPageContent() {
 
         {/* QR Code Column (1 span) */}
         <div className="space-y-6">
-          <StudentRfidCard student={student} onUpdated={() => undefined} />
+          <StudentRfidCard student={student} onUpdated={fetchStudent} />
           <Card className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col items-center space-y-3">
             <div className="w-full flex items-center justify-between border-b border-slate-100 pb-3">
               <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">

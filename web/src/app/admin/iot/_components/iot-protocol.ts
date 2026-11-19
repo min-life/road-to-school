@@ -1,5 +1,5 @@
 export interface UsbChip { deviceId: string; macAddress: string; chipModel: string }
-export type SerialReply = { requestId: string; ok: boolean; data?: Record<string, unknown> };
+export { parseSerialReply, type SerialReply } from '../../../../lib/iot-serial-reply.ts';
 export interface WifiNetwork { ssid: string; rssi: number; secure: boolean; supported: boolean }
 
 const serialErrors: Record<string, string> = {
@@ -37,19 +37,6 @@ export function parseWifiNetworks(data: Record<string, unknown> | undefined): Wi
     seen.add(item.ssid);
     return { ssid: item.ssid, rssi: item.rssi, secure: item.secure, supported: item.supported };
   }).sort((a, b) => b.rssi - a.rssi);
-}
-
-export function parseSerialReply(line: string): SerialReply | null {
-  if (line.length > 8192) return null;
-  try {
-    const value: unknown = JSON.parse(line);
-    if (!value || typeof value !== 'object') return null;
-    const reply = value as Record<string, unknown>;
-    if (typeof reply.requestId !== 'string' || typeof reply.ok !== 'boolean') return null;
-    return { requestId: reply.requestId, ok: reply.ok,
-      data: reply.data && typeof reply.data === 'object' && !Array.isArray(reply.data)
-        ? reply.data as Record<string, unknown> : undefined };
-  } catch { return null; }
 }
 
 export function validateEsp32Image(bytes: Uint8Array): void {

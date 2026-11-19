@@ -1,11 +1,12 @@
 'use client';
 
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { AlertTriangle, Building2, BusFront, LocateFixed, Maximize2, UserRound, Warehouse } from 'lucide-react';
+import { AlertTriangle, BusFront, LocateFixed, Maximize2, UserRound } from 'lucide-react';
 import { Map, MapControls, MapMarker, MapRoute, MarkerContent, MarkerPopup, MarkerTooltip, useMap } from '@/components/ui/map';
 import { decodePolyline } from '@/lib/polyline';
 import type { VehiclePosition } from '@/lib/trip-location';
-import type { ErrorEvent as MapErrorEvent } from 'maplibre-gl';
+import { siteMarkers, siteMarkerOffset, siteMarkerSize, type SiteMarkerKind } from '@/lib/map-site-markers';
+import type { ErrorEvent as MapErrorEvent, PopupOptions } from 'maplibre-gl';
 import './route-map.css';
 
 export interface MapPoint {
@@ -21,15 +22,54 @@ export interface MapPoint {
   color?: string;
 }
 
+function siteMarkerPopupOffset(kind: SiteMarkerKind): PopupOptions['offset'] {
+  const { width, height } = siteMarkerSize(kind);
+  const gap = 8;
+  const top = -(height + gap + 2); // Include the order badge above the student pin.
+  const middle = -height / 2;
+  const side = width / 2 + gap + 6;
+
+  return {
+    center: [0, top],
+    bottom: [0, top],
+    'bottom-left': [0, top],
+    'bottom-right': [0, top],
+    top: [0, gap],
+    'top-left': [0, gap],
+    'top-right': [0, gap],
+    left: [side, middle],
+    right: [-side, middle],
+  };
+}
+
+function SiteMarkerButton({ kind, label, selected, onFocus, order }: {
+  kind: SiteMarkerKind;
+  label: string;
+  selected?: boolean;
+  onFocus?: () => void;
+  order?: number;
+}) {
+  return <button type="button" aria-label={order === undefined ? label : `${order}. ${label}`} onFocus={onFocus}
+    className={`rts-map-site${selected ? ' rts-map-stop-active' : ''}`}
+    style={{ ...siteMarkerSize(kind), backgroundImage: `url(${siteMarkers[kind]})` }}>
+    {order !== undefined && <span className="rts-map-site-order" aria-hidden="true">{order}</span>}
+  </button>;
+}
+
 interface RouteMapProps {
   schoolLocation?: { latitude: number; longitude: number; name?: string };
   parkingLocation?: { latitude: number; longitude: number; addressText?: string };
   points?: MapPoint[];
   polylineGeometry?: string | null;
-  routes?: { id: string; polylineGeometry?: string | null; color: string; active?: boolean }[];
+  routes?: { id: string; polylineGeometry?: string | null; color: string; active?: boolean; opacity?: number }[];
   height?: string;
   focusPoint?: { latitude: number; longitude: number; zoom?: number } | null;
+  focusCoordinates?: [number, number][] | null;
   onPointClick?: (point: MapPoint) => void;
+  selectedPointId?: string | null;
+  viewportKey?: string;
+  hideOverviewButton?: boolean;
+  routeLegend?: { label: string; color: string }[];
   className?: string;
   vehiclePosition?: VehiclePosition | null;
   recordedTrack?: VehiclePosition[][];
@@ -51,7 +91,8 @@ class MapErrorBoundary extends Component<{ children: ReactNode }, { failed: bool
   }
 }
 
-export function RouteMap({ schoolLocation, parkingLocation, points = EMPTY_POINTS, polylineGeometry, routes, height = '480px', focusPoint, onPointClick, className = '', vehiclePosition, recordedTrack }: RouteMapProps) {
+export function RouteMap({ height = '480px', className = '', ...scene }: RouteMapProps) {
+  const { schoolLocation } = scene;
   const tilemapKey = process.env.NEXT_PUBLIC_VIETMAP_TILEMAP_KEY || '';
   const styles = useMemo(() => {
     const url = `https://maps.vietmap.vn/maps/styles/tm/style.json?apikey=${tilemapKey}`;
@@ -69,8 +110,7 @@ export function RouteMap({ schoolLocation, parkingLocation, points = EMPTY_POINT
               }
               return { url };
             }}>
-            <RouteScene schoolLocation={schoolLocation} parkingLocation={parkingLocation} points={points} polylineGeometry={polylineGeometry} routes={routes}
-              focusPoint={focusPoint} onPointClick={onPointClick} vehiclePosition={vehiclePosition} recordedTrack={recordedTrack} />
+            <RouteScene {...scene} />
           </Map>
         </MapErrorBoundary>
       )}
@@ -78,17 +118,20 @@ export function RouteMap({ schoolLocation, parkingLocation, points = EMPTY_POINT
   );
 }
 
-function RouteScene({ schoolLocation, parkingLocation, points = EMPTY_POINTS, polylineGeometry, routes, focusPoint, onPointClick, vehiclePosition, recordedTrack }: RouteMapProps) {
+function RouteScene({ schoolLocation, parkingLocation, points = EMPTY_POINTS, polylineGeometry, routes, focusPoint, focusCoordinates, onPointClick, selectedPointId,
+  viewportKey, hideOverviewButton, routeLegend, vehiclePosition, recordedTrack }: RouteMapProps) {
   const { map, isLoaded } = useMap();
   const fitted = useRef(false);
   const fittedOverview = useRef(false);
   const lastPolyline = useRef<string | null | undefined>(undefined);
+  const lastViewportKey = useRef<string | undefined>(undefined);
   const [mapError, setMapError] = useState<string | null>(null);
   // Route membership (isSelected) is distinct from the point being inspected.
   const [inspectedPoint, setInspectedPoint] = useState<{ id: string; focusPoint: RouteMapProps['focusPoint'] } | null>(null);
   const [hoveredPointId, setHoveredPointId] = useState<string | null>(null);
   const focusedPointId = focusPoint ? points.find(point => point.latitude === focusPoint.latitude && point.longitude === focusPoint.longitude)?.id : undefined;
-  const activePointId = hoveredPointId ?? (inspectedPoint?.focusPoint === focusPoint ? inspectedPoint?.id : focusedPointId);
+  const activePointId = hoveredPointId ?? (selectedPointId !== undefined ? selectedPointId
+    : inspectedPoint?.focusPoint === focusPoint ? inspectedPoint?.id : focusedPointId);
   const coordinates = useMemo(() => polylineGeometry ? decodePolyline(polylineGeometry) : [], [polylineGeometry]);
   const routeLines = useMemo(() => routes?.map(route => ({ ...route, coordinates: route.polylineGeometry ? decodePolyline(route.polylineGeometry) : [] })) ?? [], [routes]);
   const overviewCoordinates = useMemo(() => routeLines.flatMap(route => route.coordinates), [routeLines]);
@@ -118,11 +161,20 @@ function RouteScene({ schoolLocation, parkingLocation, points = EMPTY_POINTS, po
 
   useEffect(() => {
     if (!map || !isLoaded || !hasCoordinates(focusPoint)) return;
+    if (viewportKey !== undefined) map.resize();
     map.flyTo({ center: [focusPoint!.longitude, focusPoint!.latitude], zoom: focusPoint!.zoom || 15.5, essential: true, duration: 700 });
-  }, [map, isLoaded, focusPoint]);
+  }, [map, isLoaded, focusPoint, viewportKey]);
+
+  useEffect(() => {
+    if (!map || !isLoaded || !focusCoordinates || focusCoordinates.length === 0) return;
+    if (viewportKey !== undefined) map.resize();
+    fitCoordinates(map, focusCoordinates, 60, 700);
+  }, [map, isLoaded, focusCoordinates, viewportKey]);
 
   useEffect(() => {
     if (!map || !isLoaded) return;
+    const viewportChanged = lastViewportKey.current !== viewportKey;
+    lastViewportKey.current = viewportKey;
     if (routes === undefined) fittedOverview.current = false;
     const changed = lastPolyline.current !== polylineGeometry;
     lastPolyline.current = polylineGeometry;
@@ -133,18 +185,19 @@ function RouteScene({ schoolLocation, parkingLocation, points = EMPTY_POINTS, po
     if (recordedTrack === undefined) initial.push(...coordinates);
     if (recordedTrack === undefined) initial.push(...overviewCoordinates);
     const firstOverview = routes !== undefined && !fittedOverview.current;
-    if (initial.length && (!fitted.current || changed || firstOverview)) {
+    if (initial.length && (!fitted.current || changed || firstOverview || viewportChanged)) {
       fitted.current = true;
       if (routes !== undefined) fittedOverview.current = true;
+      if (viewportKey !== undefined) map.resize();
       fitCoordinates(map, initial, 50, 800);
     }
-  }, [map, isLoaded, parkingLocation, schoolLocation, points, polylineGeometry, coordinates, recordedTrack, routes, overviewCoordinates]);
+  }, [map, isLoaded, parkingLocation, schoolLocation, points, polylineGeometry, coordinates, recordedTrack, routes, overviewCoordinates, viewportKey]);
 
   const focusLocation = (longitude: number, latitude: number) => map?.flyTo({ center: [longitude, latitude], zoom: 15.5, duration: 600 });
   return <>
     {recordedTrack === undefined && routes === undefined && coordinates.length >= 2 && <MapRoute id="planned-route" coordinates={coordinates} color="#2563eb" width={5} opacity={0.85} interactive={false} />}
     {recordedTrack === undefined && routeLines.map(route => route.coordinates.length >= 2 && <MapRoute key={route.id} id={`preview-${route.id}`} coordinates={route.coordinates}
-      color={route.color} width={4} opacity={0.65} active={route.active} activeWidth={6} activeOpacity={0.95} interactive={false} />)}
+      color={route.color} width={4} opacity={route.opacity ?? 0.65} active={route.active} activeWidth={6} activeOpacity={0.95} interactive={false} />)}
     {/* Preserve recorded run/gap boundaries. Never connect separate parts. */}
     {recordedTrack?.map((part, index) => part.length >= 2
       ? <MapRoute key={index} id={`recorded-${index}`} coordinates={part.map(point => [point.longitude, point.latitude])} color="#059669" width={5} opacity={1} interactive={false} />
@@ -152,23 +205,30 @@ function RouteScene({ schoolLocation, parkingLocation, points = EMPTY_POINTS, po
         <MarkerContent><span className="rts-track-point" aria-label="Điểm hành trình đã ghi" /></MarkerContent>
       </MapMarker> : null)}
 
-    {parkingLocation && hasCoordinates(parkingLocation) && <MapMarker longitude={parkingLocation.longitude} latitude={parkingLocation.latitude} onClick={() => focusLocation(parkingLocation.longitude, parkingLocation.latitude)}>
-      <MarkerContent><button type="button" className="rts-map-marker rts-map-depot" aria-label="Bãi xe trung tâm"><Warehouse size={19} /></button></MarkerContent>
-      <MarkerTooltip className="rts-map-tooltip">Bãi xe trung tâm</MarkerTooltip>
-      <MarkerPopup className="rts-map-popup" closeButton><strong>Bãi xe trung tâm</strong><p>{parkingLocation.addressText}</p></MarkerPopup>
+    {parkingLocation && hasCoordinates(parkingLocation) && <MapMarker longitude={parkingLocation.longitude} latitude={parkingLocation.latitude} anchor="bottom" offset={siteMarkerOffset} onClick={() => focusLocation(parkingLocation.longitude, parkingLocation.latitude)}>
+      <MarkerContent><SiteMarkerButton kind="depot" label="Bãi xe trung tâm" /></MarkerContent>
+      <MarkerTooltip className="rts-map-tooltip" offset={siteMarkerPopupOffset('depot')}>Bãi xe trung tâm</MarkerTooltip>
+      <MarkerPopup className="rts-map-popup" offset={siteMarkerPopupOffset('depot')} closeButton><strong>Bãi xe trung tâm</strong><p>{parkingLocation.addressText}</p></MarkerPopup>
     </MapMarker>}
 
-    {schoolLocation && hasCoordinates(schoolLocation) && <MapMarker longitude={schoolLocation.longitude} latitude={schoolLocation.latitude} onClick={() => focusLocation(schoolLocation.longitude, schoolLocation.latitude)}>
-      <MarkerContent><button type="button" className="rts-map-marker rts-map-school" aria-label={schoolLocation.name || 'Trường học'}><Building2 size={20} /></button></MarkerContent>
-      <MarkerTooltip className="rts-map-tooltip">{schoolLocation.name || 'Trường học'}</MarkerTooltip>
-      <MarkerPopup className="rts-map-popup" closeButton><strong>Trường học</strong><p>{schoolLocation.name}</p></MarkerPopup>
+    {schoolLocation && hasCoordinates(schoolLocation) && <MapMarker longitude={schoolLocation.longitude} latitude={schoolLocation.latitude} anchor="bottom" offset={siteMarkerOffset} onClick={() => focusLocation(schoolLocation.longitude, schoolLocation.latitude)}>
+      <MarkerContent><SiteMarkerButton kind="school" label={schoolLocation.name || 'Trường học'} /></MarkerContent>
+      <MarkerTooltip className="rts-map-tooltip" offset={siteMarkerPopupOffset('school')}>{schoolLocation.name || 'Trường học'}</MarkerTooltip>
+      <MarkerPopup className="rts-map-popup" offset={siteMarkerPopupOffset('school')} closeButton><strong>Trường học</strong><p>{schoolLocation.name}</p></MarkerPopup>
     </MapMarker>}
 
-    {points.filter(hasCoordinates).map(point => <MapMarker key={`${point.id}:${typeof point.order === 'number' ? 'route' : 'student'}`} longitude={point.longitude} latitude={point.latitude}
-      anchor={typeof point.order === 'number' ? 'bottom' : 'center'}
+    {points.filter(hasCoordinates).map(point => {
+      const siteKind = point.type === 'DEPOT' ? 'depot'
+        : point.type === 'SCHOOL' ? 'school'
+        : point.type === 'STUDENT' ? 'student' : undefined;
+      const popupOffset = siteKind ? siteMarkerPopupOffset(siteKind) : undefined;
+      return <MapMarker key={`${point.id}:${siteKind ?? (typeof point.order === 'number' ? 'route' : 'student')}`} longitude={point.longitude} latitude={point.latitude}
+      anchor={siteKind || typeof point.order === 'number' ? 'bottom' : 'center'} offset={siteKind ? siteMarkerOffset : undefined}
       onMouseEnter={() => setHoveredPointId(point.id)} onMouseLeave={() => setHoveredPointId(null)}
       onClick={() => { setInspectedPoint({ id: point.id, focusPoint }); onPointClick?.(point); }}>
-      <MarkerContent><button type="button" className={`rts-map-stop ${typeof point.order === 'number' ? 'rts-map-pin' : 'rts-map-student'} ${activePointId === point.id ? 'rts-map-stop-active' : ''}`}
+      <MarkerContent>{siteKind ? <SiteMarkerButton kind={siteKind} label={point.title} order={point.order} selected={activePointId === point.id}
+        onFocus={() => setInspectedPoint({ id: point.id, focusPoint })} />
+        : <button type="button" className={`rts-map-stop ${typeof point.order === 'number' ? 'rts-map-pin' : 'rts-map-student'} ${activePointId === point.id ? 'rts-map-stop-active' : ''}`}
         style={point.color ? { '--rts-stop-color': point.color } as CSSProperties : undefined}
         aria-label={typeof point.order === 'number' ? `${point.order}. ${point.title}` : point.title}
         onFocus={() => setInspectedPoint({ id: point.id, focusPoint })}>
@@ -176,12 +236,13 @@ function RouteScene({ schoolLocation, parkingLocation, points = EMPTY_POINTS, po
           <svg className="rts-map-pin-shape" viewBox="0 0 32 40" aria-hidden="true"><path d="M16 1C7.7 1 1 7.7 1 16c0 10.5 15 23 15 23s15-12.5 15-23C31 7.7 24.3 1 16 1Z" /></svg>
           <span className="rts-map-pin-number">{point.order}</span>
         </> : <span className="rts-map-student-icon">{point.type === 'INCIDENT' ? <AlertTriangle size={16} aria-hidden="true" /> : <UserRound size={14} aria-hidden="true" />}</span>}
-      </button></MarkerContent>
-      <MarkerTooltip className="rts-map-tooltip">{point.title}</MarkerTooltip>
-      <MarkerPopup className="rts-map-popup" closeButton>
+      </button>}</MarkerContent>
+      <MarkerTooltip className="rts-map-tooltip" offset={popupOffset}>{point.title}</MarkerTooltip>
+      <MarkerPopup className="rts-map-popup" offset={popupOffset} closeButton>
         <strong>{point.title}</strong>{point.eta && <p className="rts-map-eta">Dự kiến: {point.eta}</p>}{point.subtitle && <p>{point.subtitle}</p>}
       </MarkerPopup>
-    </MapMarker>)}
+    </MapMarker>;
+    })}
 
     {vehiclePosition && hasCoordinates(vehiclePosition) && <MapMarker longitude={vehiclePosition.longitude} latitude={vehiclePosition.latitude}>
       <MarkerContent><button type="button" className="rts-map-marker rts-map-vehicle" aria-label="Vị trí xe"><BusFront size={23} /></button></MarkerContent>
@@ -190,11 +251,14 @@ function RouteScene({ schoolLocation, parkingLocation, points = EMPTY_POINTS, po
 
     <MapControls position="top-right" showCompass showFullscreen className="rts-map-controls" />
     {isLoaded && <>
-      <div className="rts-map-toolbar">
-        <button type="button" onClick={fitAll}><Maximize2 size={15} />Xem toàn cảnh</button>
+      {(!hideOverviewButton || vehiclePosition) && <div className="rts-map-toolbar">
+        {!hideOverviewButton && <button type="button" onClick={fitAll}><Maximize2 size={15} />Xem toàn cảnh</button>}
         {vehiclePosition && <button type="button" onClick={() => map?.flyTo({ center: [vehiclePosition.longitude, vehiclePosition.latitude], duration: 500 })}><LocateFixed size={15} />Theo xe</button>}
-      </div>
+      </div>}
       <div className="rts-map-legend" aria-label="Chú giải bản đồ">
+        {routeLegend?.map(route => <span key={route.label}><i aria-hidden="true" style={{
+          width: 16, height: 0, borderRadius: 0, borderTop: `3px solid ${route.color}`,
+        }} />{route.label}</span>)}
         {points.length > 0 && points.every(point => point.type === 'INCIDENT')
           ? <span><AlertTriangle size={14} aria-hidden="true" />Vị trí ghi nhận sự cố</span>
           : <><span><i className="rts-legend-depot" />Bãi xe</span><span><i className="rts-legend-school" />Trường học</span><span><i className="rts-legend-stop" />Học sinh</span></>}

@@ -3,17 +3,19 @@
 import { useMemo, useState } from 'react';
 import type { RoutePreviewResponse } from '@/lib/types';
 import { PlanningTabs } from '@/components/admin/routes/route-planning-workspace';
+import { previewRouteLabel } from '@/components/admin/routes/preview-route-selector';
 
 export function PreviewStudentsPanel({ preview }: { preview: RoutePreviewResponse }) {
   const [tab, setTab] = useState<'ASSIGNED_STUDENTS' | 'UNASSIGNED_STUDENTS'>(() =>
     preview.summary.unassignedStudents.length ? 'UNASSIGNED_STUDENTS' : 'ASSIGNED_STUDENTS');
   const assignedStudents = useMemo(() => {
-    const returnRoutes = new Map(preview.returnRoutes.flatMap(route => route.students.map(student => [student.id, route.name] as const)));
+    const returnRoutes = new Map(preview.returnRoutes.flatMap((route, index) =>
+      route.students.map(student => [student.id, previewRouteLabel('RETURN', index)] as const)));
     const students = new Map<string, { id: string; fullName: string; addressText?: string; outbound: string; inbound: string }>();
-    for (const route of preview.outboundRoutes) {
+    for (const [index, route] of preview.outboundRoutes.entries()) {
       for (const student of route.students) {
         const inbound = returnRoutes.get(student.id);
-        if (inbound !== undefined) students.set(student.id, { ...student, outbound: route.name, inbound });
+        if (inbound !== undefined) students.set(student.id, { ...student, outbound: previewRouteLabel('OUTBOUND', index), inbound });
       }
     }
     return [...students.values()];
@@ -29,8 +31,7 @@ export function PreviewStudentsPanel({ preview }: { preview: RoutePreviewRespons
         <article key={student.id} className="preview-student-card is-assigned">
           <h3>{student.fullName}</h3>
           {student.addressText && <p className="preview-student-address" title={student.addressText}>{student.addressText}</p>}
-          <p className="preview-student-route">Chiều đi · {student.outbound}</p>
-          <p className="preview-student-route">Chiều về · {student.inbound}</p>
+          <p className="preview-student-route">{student.outbound} · {student.inbound}</p>
         </article>) : <p className="route-workspace-empty">Chưa có học sinh được xếp đủ hai chiều.</p>
         : preview.summary.unassignedStudents.length ? preview.summary.unassignedStudents.map(student =>
           <article key={student.id} className="preview-student-card is-unassigned">
